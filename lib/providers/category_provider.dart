@@ -1,0 +1,131 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../models/category_model.dart';
+import '../services/database_service.dart';
+import '../utils/error_helpers.dart';
+
+class CategoryProvider extends ChangeNotifier {
+  final DatabaseService _databaseService = DatabaseService();
+
+  List<CategoryModel> _categories = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  StreamSubscription? _categoriesSubscription;
+
+  List<CategoryModel> get categories => _categories;
+  List<CategoryModel> get topLevelCategories =>
+      _categories.where((c) => c.isTopLevel).toList();
+
+  List<CategoryModel> getSubcategoriesOf(String categoryId) {
+    final subs = _categories.where((c) => c.parentId == categoryId).toList();
+    subs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return subs;
+  }
+
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+
+  void initialize({required String companyId}) {
+    _databaseService.setCompanyId(companyId);
+    _categoriesSubscription?.cancel();
+    _isLoading = true;
+    notifyListeners();
+
+    _categoriesSubscription = _databaseService.getCategories().listen(
+      (categories) {
+        _categories = categories;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (error) {
+        _errorMessage = friendlyError(error, fallback: 'Could not load categories.');
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  // Add category - returns the new CategoryModel on success, null on failure
+  Future<CategoryModel?> addCategory(
+    String name, {
+    String description = '',
+    String userId = '',
+    String userName = '',
+    String? parentId,
+    String parentName = '',
+  }) async {
+    try {
+      _errorMessage = null;
+      final now = DateTime.now();
+      final category = CategoryModel(
+        id: '',
+        name: name,
+        description: description,
+        parentId: parentId,
+        parentName: parentName,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: userId,
+        createdByName: userName,
+        updatedBy: userId,
+        updatedByName: userName,
+      );
+      final newId = await _databaseService.addCategory(category);
+      return category.copyWith(id: newId);
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Category operation failed.');
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // Update category
+  Future<bool> updateCategory(CategoryModel category) async {
+    try {
+      _errorMessage = null;
+      await _databaseService.updateCategory(category);
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Category operation failed.');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Delete category
+  Future<bool> deleteCategory(String categoryId) async {
+    try {
+      _errorMessage = null;
+      await _databaseService.deleteCategory(categoryId);
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Category operation failed.');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get category by ID
+  CategoryModel? getCategoryById(String id) {
+    for (final c in _categories) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  // Get category name map (for Excel import)
+  Map<String, CategoryModel> getCategoryNameMap() {
+    final map = <String, CategoryModel>{};
+    for (var category in _categories) {
+      map[category.name.toLowerCase()] = category;
+    }
+    return map;
+  }
+
+  @override
+  void dispose() {
+    _categoriesSubscription?.cancel();
+    super.dispose();
+  }
+}
