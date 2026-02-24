@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/theme.dart';
@@ -9,6 +10,9 @@ class LandingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = Responsive.isWide(context);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -17,240 +21,9 @@ class LandingScreen extends StatelessWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // Hero section with gradient
-                  Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFE0F2F1), Color(0xFFF7F8FA)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context) + 8, 56, Responsive.horizontalPadding(context) + 8, 40),
-                      child: Column(
-                        children: [
-                          Hero(
-                            tag: 'app-logo',
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: AppTheme.softShadow,
-                              ),
-                              child: Image.asset('logo.png', width: 72, height: 72),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Smart Shelf Kart',
-                            style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.primaryDark,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Simple, powerful inventory management\nfor your business',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey[600],
-                              height: 1.5,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 32),
-
-                          // Gradient CTA button
-                          SizedBox(
-                            width: double.infinity,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: AppTheme.primaryGradient,
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
-                              ),
-                              child: ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.pushNamed(context, '/register'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      'Get Started',
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Icon(Icons.arrow_forward_rounded, size: 20),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: () =>
-                                  Navigator.pushNamed(context, '/login'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text(
-                                'Login to Your Account',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 28),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.verified_user_rounded,
-                                  size: 16, color: Colors.grey[400]),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Trusted by growing businesses',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[500],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Features section
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.horizontalPadding(context),
-                      vertical: 32,
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 3,
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryColor,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Everything you need',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Container(
-                              width: 32,
-                              height: 3,
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryColor,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        if (Responsive.isWide(context))
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: _features.asMap().entries.map((entry) {
-                              final i = entry.key;
-                              final f = entry.value;
-                              return SizedBox(
-                                width: (MediaQuery.sizeOf(context).width.clamp(0, Responsive.contentMaxWidth(context)) - Responsive.horizontalPadding(context) * 2 - 12) / 2,
-                                child: AnimatedListItem(
-                                  index: i,
-                                  child: _FeatureCard(
-                                    icon: f.$1,
-                                    title: f.$2,
-                                    description: f.$3,
-                                    color: f.$4,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          )
-                        else
-                          ..._features.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final f = entry.value;
-                            return AnimatedListItem(
-                              index: i,
-                              child: _FeatureCard(
-                                icon: f.$1,
-                                title: f.$2,
-                                description: f.$3,
-                                color: f.$4,
-                              ),
-                            );
-                          }),
-                      ],
-                    ),
-                  ),
-
-                  // Footer
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.symmetric(horizontal: Responsive.horizontalPadding(context), vertical: 20),
-                    color: const Color(0xFFF0F4F8),
-                    child: Column(
-                      children: [
-                        Text(
-                          '\u00A9 2026 Smart Shelf Kart',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            _FooterChip(
-                              label: 'Privacy',
-                              onTap: () => _openUrl(context, 'https://smartshelfkart.com/privacy-policy.html'),
-                            ),
-                            _FooterChip(
-                              label: 'Terms',
-                              onTap: () => _openUrl(context, 'https://smartshelfkart.com/terms.html'),
-                            ),
-                            _FooterChip(
-                              label: 'Support',
-                              onTap: () => _openUrl(context, 'https://smartshelfkart.com/support.html'),
-                            ),
-                            _FooterChip(
-                              label: 'Data Deletion',
-                              onTap: () => _openUrl(context, 'https://smartshelfkart.com/data-deletion.html'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildHeroSection(context, isWide),
+                  _buildFeaturesSection(context, screenWidth, isWide),
+                  _buildFooter(context),
                 ],
               ),
             ),
@@ -260,24 +33,276 @@ class LandingScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildHeroSection(BuildContext context, bool isWide) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF0D3B34), Color(0xFF00695C), Color(0xFF00897B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          Responsive.horizontalPadding(context) + 8,
+          isWide ? 72 : 56,
+          Responsive.horizontalPadding(context) + 8,
+          isWide ? 64 : 48,
+        ),
+        child: Column(
+          children: [
+            Hero(
+              tag: 'app-logo',
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Image.asset('logo.png', width: 56, height: 56),
+              ),
+            ),
+            const SizedBox(height: 28),
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [Colors.white, Color(0xFF80CBC4)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ).createShader(bounds),
+              child: const Text(
+                'Smart Inventory',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -1,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Modern inventory management\nthat scales with your business',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.white.withValues(alpha: 0.78),
+                height: 1.6,
+                letterSpacing: 0.1,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 36),
+            SizedBox(
+              width: double.infinity,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8A65), Color(0xFFFF6E40)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8A65).withValues(alpha: 0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pushNamed(context, '/register'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Get Started',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(Icons.arrow_forward_rounded, size: 20, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pushNamed(context, '/login'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Login to Your Account',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _TrustBadge(
+                  icon: Icons.shield_rounded,
+                  label: 'Secure',
+                ),
+                Container(
+                  width: 1,
+                  height: 20,
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+                _TrustBadge(
+                  icon: Icons.speed_rounded,
+                  label: 'Real-time',
+                ),
+                Container(
+                  width: 1,
+                  height: 20,
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+                _TrustBadge(
+                  icon: Icons.devices_rounded,
+                  label: 'Multi-platform',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturesSection(BuildContext context, double screenWidth, bool isWide) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFF7F8FA),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.horizontalPadding(context),
+        vertical: 40,
+      ),
+      child: Column(
+        children: [
+          Text(
+            'EVERYTHING YOU NEED',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2,
+              color: AppTheme.primaryColor.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Powerful features, simple interface',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.grey[850],
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 28),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = isWide
+                  ? (constraints.maxWidth - 14) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: _features.asMap().entries.map((entry) {
+                  return SizedBox(
+                    width: cardWidth,
+                    child: AnimatedListItem(
+                      index: entry.key,
+                      child: _GlassFeatureCard(
+                        icon: entry.value.$1,
+                        title: entry.value.$2,
+                        description: entry.value.$3,
+                        color: entry.value.$4,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.horizontalPadding(context),
+        vertical: 24,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1D23),
+      ),
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 24,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _FooterLink(label: 'Privacy', onTap: () => _openUrl(context, 'https://smartinventory.com/privacy-policy.html')),
+              _FooterLink(label: 'Terms', onTap: () => _openUrl(context, 'https://smartinventory.com/terms.html')),
+              _FooterLink(label: 'Support', onTap: () => _openUrl(context, 'https://smartinventory.com/support.html')),
+              _FooterLink(label: 'Data Deletion', onTap: () => _openUrl(context, 'https://smartinventory.com/data-deletion.html')),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '\u00A9 2026 Smart Inventory. All rights reserved.',
+            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
   static final _features = <(IconData, String, String, Color)>[
-    (Icons.location_on_rounded, 'Multi-Location Tracking',
-        'Track stock across warehouses, shops, and any custom locations.',
+    (Icons.location_on_rounded, 'Multi-Location',
+        'Track stock across warehouses, shops, and more.',
         AppTheme.primaryColor),
     (Icons.swap_horiz_rounded, 'Stock Transfers',
-        'Move inventory between locations with full audit trail.',
+        'Move inventory with a full audit trail.',
         AppTheme.indigoColor),
     (Icons.analytics_rounded, 'Reports & Analytics',
-        'Detailed charts, trends, and exportable reports.',
+        'Charts, trends, and exportable reports.',
         AppTheme.infoColor),
     (Icons.upload_file_rounded, 'Import & Export',
-        'Bulk import from Excel/CSV and export your data anytime.',
+        'Bulk import from Excel/CSV anytime.',
         AppTheme.successColor),
     (Icons.people_rounded, 'Team Management',
-        'Add staff members with role-based access control.',
+        'Role-based access for your staff.',
         AppTheme.warningColor),
     (Icons.broken_image_rounded, 'Damage Tracking',
-        'Record and monitor damaged goods with reasons.',
+        'Record and monitor damaged goods.',
         AppTheme.dangerColor),
   ];
 
@@ -316,13 +341,39 @@ class LandingScreen extends StatelessWidget {
   }
 }
 
-class _FeatureCard extends StatelessWidget {
+class _TrustBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _TrustBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.6)),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white.withValues(alpha: 0.6),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlassFeatureCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
   final Color color;
 
-  const _FeatureCard({
+  const _GlassFeatureCard({
     required this.icon,
     required this.title,
     required this.description,
@@ -331,81 +382,87 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFECEFF1)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.3,
-                  ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _FooterChip extends StatelessWidget {
+class _FooterLink extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _FooterChip({required this.label, required this.onTap});
+  const _FooterLink({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.dividerColor),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.primaryColor,
-              fontWeight: FontWeight.w500,
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: 0.55),
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),

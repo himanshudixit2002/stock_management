@@ -47,7 +47,7 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VendorProvider()),
       ],
       child: MaterialApp(
-        title: 'Stock Manager',
+        title: 'Smart Inventory',
         theme: AppTheme.lightTheme,
         debugShowCheckedModeBanner: false,
         home: const AuthWrapper(),
@@ -247,7 +247,7 @@ class _AuthWrapperState extends State<AuthWrapper>
                   Image.asset('logo.png', width: 100, height: 100),
                   const SizedBox(height: 20),
                   const Text(
-                    'Stock Manager',
+                    'Smart Inventory',
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,

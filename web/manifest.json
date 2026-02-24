@@ -1,6 +1,6 @@
 {
-    "name": "Smart Shelf Kart",
-    "short_name": "Smart Shelf Kart",
+    "name": "Smart Inventory",
+    "short_name": "Smart Inventory",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
