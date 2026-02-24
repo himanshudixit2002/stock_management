@@ -117,6 +117,19 @@ class CategoryProvider extends ChangeNotifier {
     return map;
   }
 
+  /// One-shot Firestore read to refresh categories. Useful after bulk writes
+  /// where the stream listener may not have fired yet.
+  Future<Map<String, CategoryModel>> fetchCategoryNameMap() async {
+    final categories = await _databaseService.getCategoriesOnce();
+    _categories = categories;
+    notifyListeners();
+    final map = <String, CategoryModel>{};
+    for (var category in categories) {
+      map[category.name.toLowerCase()] = category;
+    }
+    return map;
+  }
+
   @override
   void dispose() {
     _categoriesSubscription?.cancel();

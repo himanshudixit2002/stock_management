@@ -7,6 +7,7 @@ import '../models/product_model.dart';
 import '../models/category_model.dart';
 import '../models/stock_transaction_model.dart';
 import 'file_helper.dart' as file_helper;
+import 'database_service.dart';
 
 class ExportResult {
   final String fileName;
@@ -186,7 +187,14 @@ class ExcelService {
     return data.map((item) {
       final categoryName = item['category']?.toString() ?? '';
       final category = categoryMap[categoryName.toLowerCase()];
-      final locQuantities = _parseLocationString(item['locations']?.toString() ?? '');
+      var locQuantities = _parseLocationString(item['locations']?.toString() ?? '');
+      var quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+
+      if (locQuantities.isNotEmpty) {
+        quantity = locQuantities.values.fold(0, (sum, v) => sum + v);
+      } else if (quantity > 0) {
+        locQuantities = {'Default': quantity};
+      }
 
       return ProductModel(
         id: '',
@@ -195,7 +203,7 @@ class ExcelService {
         categoryName: category?.name ?? categoryName,
         company: item['company']?.toString() ?? '',
         size: item['size']?.toString() ?? '',
-        quantity: (item['quantity'] as num?)?.toInt() ?? 0,
+        quantity: quantity,
         unit: item['unit']?.toString() ?? 'pcs',
         locationQuantities: locQuantities,
         description: item['description']?.toString() ?? '',
@@ -217,7 +225,9 @@ class ExcelService {
       if (trimmed.isEmpty) continue;
       final colonIdx = trimmed.lastIndexOf(':');
       if (colonIdx > 0) {
-        final name = trimmed.substring(0, colonIdx).trim();
+        final name = DatabaseService.normalizeLocation(
+          trimmed.substring(0, colonIdx).trim(),
+        );
         final qty = int.tryParse(trimmed.substring(colonIdx + 1).trim()) ?? 0;
         if (name.isNotEmpty) result[name] = qty;
       }

@@ -118,8 +118,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         }
       }
 
-      await Future.delayed(const Duration(milliseconds: 500));
-      final updatedCategoryMap = categoryProvider.getCategoryNameMap();
+      final updatedCategoryMap = await categoryProvider.fetchCategoryNameMap();
 
       final products = _excelService.convertToProducts(
         _parsedData!,

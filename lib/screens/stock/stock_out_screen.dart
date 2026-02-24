@@ -395,7 +395,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
       );
     }
 
-    final products = context.watch<ProductProvider>().allProducts;
+    final products = context.watch<ProductProvider>().allProducts
+        .where((p) => p.quantity > 0 && p.locationQuantities.values.any((q) => q > 0))
+        .toList();
 
     final productLocations = _selectedProduct?.locationQuantities.entries
             .where((e) => e.value > 0)
