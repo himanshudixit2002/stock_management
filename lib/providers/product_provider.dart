@@ -17,7 +17,8 @@ class ProductProvider extends ChangeNotifier {
   String _searchQuery = '';
   String? _selectedCategoryId;
   String? _selectedLocation;
-  String? _selectedSubcategoryId;
+  String? _selectedCompany;
+  String? _selectedSize;
   String? _selectedStockStatus;
   String? _selectedVendorId;
   String _sortBy = 'name';
@@ -64,7 +65,8 @@ class ProductProvider extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   String? get selectedCategoryId => _selectedCategoryId;
   String? get selectedLocation => _selectedLocation;
-  String? get selectedSubcategoryId => _selectedSubcategoryId;
+  String? get selectedCompany => _selectedCompany;
+  String? get selectedSize => _selectedSize;
   String? get selectedStockStatus => _selectedStockStatus;
   String? get selectedVendorId => _selectedVendorId;
   DateTime? get filterStartDate => _filterStartDate;
@@ -87,7 +89,8 @@ class ProductProvider extends ChangeNotifier {
   int get activeFilterCount {
     int count = 0;
     if (_selectedCategoryId != null) count++;
-    if (_selectedSubcategoryId != null) count++;
+    if (_selectedCompany != null) count++;
+    if (_selectedSize != null) count++;
     if (_selectedLocation != null) count++;
     if (_selectedStockStatus != null) count++;
     if (_selectedVendorId != null) count++;
@@ -144,14 +147,20 @@ class ProductProvider extends ChangeNotifier {
   void filterByCategory(String? categoryId) {
     if (_selectedCategoryId == categoryId) return;
     _selectedCategoryId = categoryId;
-    _selectedSubcategoryId = null;
     _applyFilters();
     notifyListeners();
   }
 
-  void filterBySubcategory(String? subcategoryId) {
-    if (_selectedSubcategoryId == subcategoryId) return;
-    _selectedSubcategoryId = subcategoryId;
+  void filterByCompany(String? company) {
+    if (_selectedCompany == company) return;
+    _selectedCompany = company;
+    _applyFilters();
+    notifyListeners();
+  }
+
+  void filterBySize(String? size) {
+    if (_selectedSize == size) return;
+    _selectedSize = size;
     _applyFilters();
     notifyListeners();
   }
@@ -200,7 +209,8 @@ class ProductProvider extends ChangeNotifier {
   void clearFilters() {
     _searchQuery = '';
     _selectedCategoryId = null;
-    _selectedSubcategoryId = null;
+    _selectedCompany = null;
+    _selectedSize = null;
     _selectedLocation = null;
     _selectedStockStatus = null;
     _selectedVendorId = null;
@@ -215,7 +225,8 @@ class ProductProvider extends ChangeNotifier {
   void _applyFilters() {
     _filtersActive = _searchQuery.isNotEmpty ||
         _selectedCategoryId != null ||
-        _selectedSubcategoryId != null ||
+        _selectedCompany != null ||
+        _selectedSize != null ||
         _selectedLocation != null ||
         _selectedStockStatus != null ||
         _selectedVendorId != null ||
@@ -229,7 +240,8 @@ class ProductProvider extends ChangeNotifier {
       result = result.where((p) =>
           p.name.toLowerCase().contains(query) ||
           p.categoryName.toLowerCase().contains(query) ||
-          p.subcategoryName.toLowerCase().contains(query) ||
+          p.company.toLowerCase().contains(query) ||
+          p.size.toLowerCase().contains(query) ||
           p.locations.any((l) => l.toLowerCase().contains(query)) ||
           p.description.toLowerCase().contains(query));
     }
@@ -238,8 +250,12 @@ class ProductProvider extends ChangeNotifier {
       result = result.where((p) => p.categoryId == _selectedCategoryId);
     }
 
-    if (_selectedSubcategoryId != null) {
-      result = result.where((p) => p.subcategoryId == _selectedSubcategoryId);
+    if (_selectedCompany != null) {
+      result = result.where((p) => p.company == _selectedCompany);
+    }
+
+    if (_selectedSize != null) {
+      result = result.where((p) => p.size == _selectedSize);
     }
 
     if (_selectedLocation != null) {

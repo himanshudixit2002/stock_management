@@ -16,7 +16,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && userDocExists() && getUserData().role == 'admin';
+      return isAuthenticated() && userDocExists() &&
+        (getUserData().role == 'admin' || getUserData().role == 'superadmin');
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'superadmin';
     }
 
     function belongsToCompany(companyId) {
@@ -27,16 +32,25 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() &&
         (request.auth.uid == userId ||
-         (userDocExists() && getUserData().companyId == resource.data.companyId));
+         (userDocExists() && getUserData().companyId == resource.data.companyId) ||
+         isSuperAdmin());
 
       allow create: if isAuthenticated() && request.auth.uid == userId;
 
-      allow update: if isAdmin() ||
+      allow update: if isSuperAdmin() ||
+        (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
         (isAuthenticated() && request.auth.uid == userId &&
           request.resource.data.role == resource.data.role);
 
-      allow delete: if isAdmin() ||
+      allow delete: if isSuperAdmin() ||
+        (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
         (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // App metadata (e.g. first-user flag)
+    match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
     }
 
     // Companies collection

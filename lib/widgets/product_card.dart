@@ -153,9 +153,33 @@ class _ProductCardState extends State<ProductCard> {
                                     const SizedBox(width: 3),
                                     Flexible(
                                       child: Text(
-                                        product.subcategoryName.isNotEmpty
-                                            ? '${product.categoryName} > ${product.subcategoryName}'
-                                            : product.categoryName,
+                                        product.categoryName,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                  if (product.company.isNotEmpty || product.size.isNotEmpty) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      child: Text(
+                                        '\u2022',
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          color: Colors.grey[400],
+                                        ),
+                                      ),
+                                    ),
+                                    Flexible(
+                                      child: Text(
+                                        [
+                                          if (product.company.isNotEmpty) product.company,
+                                          if (product.size.isNotEmpty) product.size,
+                                        ].join(' | '),
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: Colors.grey[500],

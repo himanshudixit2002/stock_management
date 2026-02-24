@@ -32,7 +32,7 @@ class Responsive {
       case ScreenType.tablet:
         return 24;
       case ScreenType.desktop:
-        return 32;
+        return 40;
     }
   }
 
@@ -43,7 +43,7 @@ class Responsive {
       case ScreenType.tablet:
         return 720;
       case ScreenType.desktop:
-        return 1000;
+        return 1200;
     }
   }
 
@@ -90,8 +90,9 @@ class Responsive {
       case ScreenType.mobile:
         return double.infinity;
       case ScreenType.tablet:
-      case ScreenType.desktop:
         return 600;
+      case ScreenType.desktop:
+        return 720;
     }
   }
 

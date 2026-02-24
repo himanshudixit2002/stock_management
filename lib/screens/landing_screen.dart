@@ -86,7 +86,7 @@ class LandingScreen extends StatelessWidget {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      'Get Started Free',
+                                      'Get Started',
                                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                     ),
                                     SizedBox(width: 8),

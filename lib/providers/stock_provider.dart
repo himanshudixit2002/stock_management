@@ -282,6 +282,30 @@ class StockProvider extends ChangeNotifier {
     return _cachedTopProductsByQuantityMoved!;
   }
 
+  List<MapEntry<String, int>> get topProductsBySales {
+    final map = <String, int>{};
+    for (final t in recentTransactions) {
+      if (t.type != TransactionType.stockOut) continue;
+      final name = t.productName.isNotEmpty ? t.productName : t.productId;
+      map[name] = (map[name] ?? 0) + t.quantity;
+    }
+    final sorted = map.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(10).toList();
+  }
+
+  List<MapEntry<String, int>> get topProductsByBreakage {
+    final map = <String, int>{};
+    for (final t in recentTransactions) {
+      if (t.type != TransactionType.damage) continue;
+      final name = t.productName.isNotEmpty ? t.productName : t.productId;
+      map[name] = (map[name] ?? 0) + t.quantity;
+    }
+    final sorted = map.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(10).toList();
+  }
+
   String get peakActivityDay {
     if (_cachedPeakActivityDay != null && !_filtersDirty) {
       return _cachedPeakActivityDay!;

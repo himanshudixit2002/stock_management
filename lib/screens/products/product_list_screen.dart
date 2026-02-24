@@ -50,7 +50,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Widget build(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
     final categoryProvider = context.watch<CategoryProvider>();
-    final isAdmin = context.watch<AuthProvider>().isAdmin;
+    final user = context.watch<AuthProvider>().currentUser;
+    final canManageProducts = user?.hasPermission('canManageProducts') ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -280,8 +281,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     productProvider.hasActiveFilters
                                 ? 'Try different search or filters'
                                 : 'Add your first product to get started',
-                            buttonText: isAdmin ? 'Add Product' : null,
-                            onButtonPressed: isAdmin
+                            buttonText: canManageProducts ? 'Add Product' : null,
+                            onButtonPressed: canManageProducts
                                 ? () => Navigator.pushNamed(
                                     context, '/products/add')
                                 : null,
@@ -303,6 +304,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               child: FloatingActionButton.small(
                 heroTag: 'scroll_top',
+                tooltip: 'Scroll to top',
                 onPressed: () => _scrollController.animateTo(
                   0,
                   duration: const Duration(milliseconds: 400),
@@ -313,7 +315,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: const Icon(Icons.arrow_upward_rounded),
               ),
             ),
-          if (isAdmin)
+          if (canManageProducts)
             FloatingActionButton(
               heroTag: 'add_product',
               onPressed: () =>
@@ -453,7 +455,7 @@ class _FilterSection extends StatelessWidget {
                   onTap: () =>
                       productProvider.filterByCategory(null),
                 ),
-                ...categoryProvider.topLevelCategories.map((category) {
+                ...categoryProvider.categories.map((category) {
                   return _FilterChipItem(
                     label: category.name,
                     isSelected: productProvider.selectedCategoryId ==
@@ -470,112 +472,123 @@ class _FilterSection extends StatelessWidget {
             ),
           ),
 
-          // Subcategory filter (shown when a category is selected and has subcategories)
-          if (productProvider.selectedCategoryId != null) ...[
-            Builder(builder: (context) {
-              final subcats = categoryProvider
-                  .getSubcategoriesOf(productProvider.selectedCategoryId!);
-              if (subcats.isEmpty) return const SizedBox.shrink();
-              final useWrap = subcats.length > 6;
+          // Company filter
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              if (settings.companies.isEmpty) return const SizedBox.shrink();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const _FilterLabel(label: 'Subcategory'),
-                      const SizedBox(width: 6),
-                      Text('(${subcats.length})',
-                          style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-                    ],
-                  ),
+                  const SizedBox(height: 10),
+                  const _FilterLabel(label: 'Company'),
                   const SizedBox(height: 6),
-                  if (useWrap)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
                       children: [
-                        _CompactFilterChip(
+                        _FilterChipItem(
                           label: 'All',
-                          isSelected: productProvider.selectedSubcategoryId == null,
-                          onTap: () => productProvider.filterBySubcategory(null),
+                          isSelected: productProvider.selectedCompany == null,
+                          onTap: () => productProvider.filterByCompany(null),
                         ),
-                        ...subcats.map((sub) => _CompactFilterChip(
-                          label: sub.name,
-                          isSelected: productProvider.selectedSubcategoryId == sub.id,
-                          onTap: () => productProvider.filterBySubcategory(
-                            productProvider.selectedSubcategoryId == sub.id
-                                ? null
-                                : sub.id,
-                          ),
-                        )),
+                        ...settings.companies.map((c) => _FilterChipItem(
+                              label: c,
+                              isSelected: productProvider.selectedCompany == c,
+                              onTap: () => productProvider.filterByCompany(
+                                productProvider.selectedCompany == c ? null : c,
+                              ),
+                              icon: Icons.business_rounded,
+                            )),
                       ],
-                    )
-                  else
-                    SizedBox(
-                      height: 38,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          _FilterChipItem(
-                            label: 'All',
-                            isSelected: productProvider.selectedSubcategoryId == null,
-                            onTap: () => productProvider.filterBySubcategory(null),
-                          ),
-                          ...subcats.map((sub) => _FilterChipItem(
-                            label: sub.name,
-                            isSelected: productProvider.selectedSubcategoryId == sub.id,
-                            onTap: () => productProvider.filterBySubcategory(
-                              productProvider.selectedSubcategoryId == sub.id
-                                  ? null
-                                  : sub.id,
-                            ),
-                          )),
-                        ],
-                      ),
                     ),
+                  ),
                 ],
               );
-            }),
-          ],
+            },
+          ),
+
+          // Size filter
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              if (settings.sizes.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  const _FilterLabel(label: 'Size'),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _FilterChipItem(
+                          label: 'All',
+                          isSelected: productProvider.selectedSize == null,
+                          onTap: () => productProvider.filterBySize(null),
+                        ),
+                        ...settings.sizes.map((s) => _FilterChipItem(
+                              label: s,
+                              isSelected: productProvider.selectedSize == s,
+                              onTap: () => productProvider.filterBySize(
+                                productProvider.selectedSize == s ? null : s,
+                              ),
+                              icon: Icons.straighten_rounded,
+                            )),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
 
           const SizedBox(height: 10),
 
           // Location filter
-          if (productProvider.availableLocations.isNotEmpty) ...[
-            const _FilterLabel(label: 'Location'),
-            const SizedBox(height: 6),
-            SizedBox(
-              height: 38,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              if (settings.locations.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _FilterChipItem(
-                    label: 'All',
-                    isSelected:
-                        productProvider.selectedLocation == null,
-                    onTap: () =>
-                        productProvider.filterByLocation(null),
+                  const _FilterLabel(label: 'Location'),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _FilterChipItem(
+                          label: 'All',
+                          isSelected:
+                              productProvider.selectedLocation == null,
+                          onTap: () =>
+                              productProvider.filterByLocation(null),
+                        ),
+                        ...settings.locations.map((loc) {
+                          return _FilterChipItem(
+                            label: loc,
+                            isSelected:
+                                productProvider.selectedLocation == loc,
+                            onTap: () =>
+                                productProvider.filterByLocation(
+                              productProvider.selectedLocation == loc
+                                  ? null
+                                  : loc,
+                            ),
+                            icon: Icons.location_on_outlined,
+                          );
+                        }),
+                      ],
+                    ),
                   ),
-                  ...productProvider.availableLocations.map((loc) {
-                    return _FilterChipItem(
-                      label: loc,
-                      isSelected:
-                          productProvider.selectedLocation == loc,
-                      onTap: () =>
-                          productProvider.filterByLocation(
-                        productProvider.selectedLocation == loc
-                            ? null
-                            : loc,
-                      ),
-                      icon: Icons.location_on_outlined,
-                    );
-                  }),
+                  const SizedBox(height: 10),
                 ],
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
+              );
+            },
+          ),
 
           // Stock status filter
           const _FilterLabel(label: 'Stock Status'),
@@ -769,46 +782,3 @@ class _FilterChipItem extends StatelessWidget {
   }
 }
 
-class _CompactFilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _CompactFilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppTheme.primaryColor
-                : const Color(0xFFF0F4F8),
-            borderRadius: BorderRadius.circular(8),
-            border: isSelected
-                ? null
-                : Border.all(color: AppTheme.inputBorderColor),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : AppTheme.textPrimary,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -23,7 +23,9 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
-    final isAdmin = context.watch<AuthProvider>().isAdmin;
+    final user = context.watch<AuthProvider>().currentUser;
+    final canManageProducts = user?.hasPermission('canManageProducts') ?? false;
+    final perms = user?.effectivePermissions ?? {};
     final productProvider = context.watch<ProductProvider>();
     final product = productProvider.allProducts.cast<ProductModel?>().firstWhere(
       (p) => p!.id == widget.product.id,
@@ -50,7 +52,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ],
         ),
         actions: [
-          if (isAdmin) ...[
+          if (canManageProducts) ...[
             IconButton(
               icon: const Icon(Icons.edit_rounded),
               onPressed: () {
@@ -156,11 +158,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ? 'No Category'
                             : product.categoryName,
                       ),
-                      if (product.subcategoryName.isNotEmpty)
+                      if (product.company.isNotEmpty)
                         _DetailTag(
-                          icon: Icons.label_rounded,
-                          label: product.subcategoryName,
+                          icon: Icons.business_rounded,
+                          label: product.company,
                           color: AppTheme.indigoColor,
+                        ),
+                      if (product.size.isNotEmpty)
+                        _DetailTag(
+                          icon: Icons.straighten_rounded,
+                          label: product.size,
+                          color: AppTheme.infoColor,
                         ),
                       if (product.locations.isNotEmpty)
                         _DetailTag(
@@ -370,32 +378,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             // Quick Actions
             LayoutBuilder(
               builder: (context, constraints) {
-                final actions = [
-                  _ActionButton(
-                    icon: Icons.add_box_rounded,
-                    label: 'Stock In',
-                    color: AppTheme.successColor,
-                    onTap: () => Navigator.pushNamed(context, '/stock/in', arguments: product),
-                  ),
-                  _ActionButton(
-                    icon: Icons.outbox_rounded,
-                    label: 'Stock Out',
-                    color: AppTheme.primaryColor,
-                    onTap: () => Navigator.pushNamed(context, '/stock/out', arguments: product),
-                  ),
-                  _ActionButton(
-                    icon: Icons.swap_horiz_rounded,
-                    label: 'Transfer',
-                    color: const Color(0xFF6366F1),
-                    onTap: () => Navigator.pushNamed(context, '/stock/transfer', arguments: product),
-                  ),
-                  _ActionButton(
-                    icon: Icons.report_problem_rounded,
-                    label: 'Damage',
-                    color: AppTheme.dangerColor,
-                    onTap: () => Navigator.pushNamed(context, '/stock/damage', arguments: product),
-                  ),
+                final actions = <Widget>[
+                  if (perms['canStockIn'] == true)
+                    _ActionButton(
+                      icon: Icons.add_box_rounded,
+                      label: 'Stock In',
+                      color: AppTheme.successColor,
+                      onTap: () => Navigator.pushNamed(context, '/stock/in', arguments: product),
+                    ),
+                  if (perms['canStockOut'] == true)
+                    _ActionButton(
+                      icon: Icons.outbox_rounded,
+                      label: 'Stock Out',
+                      color: AppTheme.primaryColor,
+                      onTap: () => Navigator.pushNamed(context, '/stock/out', arguments: product),
+                    ),
+                  if (perms['canTransfer'] == true)
+                    _ActionButton(
+                      icon: Icons.swap_horiz_rounded,
+                      label: 'Transfer',
+                      color: AppTheme.indigoColor,
+                      onTap: () => Navigator.pushNamed(context, '/stock/transfer', arguments: product),
+                    ),
+                  if (perms['canDamage'] == true)
+                    _ActionButton(
+                      icon: Icons.report_problem_rounded,
+                      label: 'Damage',
+                      color: AppTheme.dangerColor,
+                      onTap: () => Navigator.pushNamed(context, '/stock/damage', arguments: product),
+                    ),
                 ];
+
+                if (actions.isEmpty) return const SizedBox.shrink();
 
                 if (constraints.maxWidth < 400) {
                   final itemWidth = (constraints.maxWidth - 8) / 2;
@@ -483,7 +497,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         typeIcon = Icons.report_problem_rounded;
                         break;
                       case TransactionType.transfer:
-                        typeColor = const Color(0xFF6366F1);
+                        typeColor = AppTheme.indigoColor;
                         typeIcon = Icons.swap_horiz_rounded;
                         break;
                     }

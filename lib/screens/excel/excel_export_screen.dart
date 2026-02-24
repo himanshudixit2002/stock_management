@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../services/excel_service.dart';
 import '../../services/database_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../config/theme.dart';
@@ -111,6 +112,19 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
     final products = await _databaseService.getAllProductsOnce();
     final transactions = await _databaseService.getAllTransactionsOnce();
 
+    if (_format == 'excel') {
+      return await _excelService.exportFullReport(
+        products: products,
+        transactions: transactions,
+        productCount: productProvider.productCountByCategory,
+        lowStock: productProvider.lowStockByCategory,
+        outOfStock: productProvider.outOfStockByCategory,
+        totalProducts: productProvider.totalProducts,
+        lowStockCount: productProvider.lowStockCount,
+        outOfStockCount: productProvider.outOfStockCount,
+        healthScore: productProvider.inventoryHealthScore,
+      );
+    }
     return await _excelService.exportFullReportToCsv(
       products: products,
       transactions: transactions,
@@ -142,6 +156,14 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission('canExport')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Export Data')),
+        body: const Center(child: Text('You do not have permission to access this feature.')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -217,16 +239,16 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                     icon: Icons.table_chart_outlined,
                     isSelected: _format == 'excel',
                     onTap: () => setState(() => _format = 'excel'),
-                    enabled: _reportType == 'products',
+                    enabled: _reportType == 'products' || _reportType == 'full',
                   ),
                 ),
               ],
             ),
-            if (_format == 'excel' && _reportType != 'products')
+            if (_format == 'excel' && _reportType != 'products' && _reportType != 'full')
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  'Excel format is only available for Products report. Other reports will export as CSV.',
+                  'Excel format is available for Products and Full Report. Other reports will export as CSV.',
                   style: TextStyle(
                       fontSize: 11, color: Colors.orange[700]),
                 ),

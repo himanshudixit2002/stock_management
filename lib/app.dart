@@ -23,9 +23,14 @@ import 'screens/excel/excel_import_screen.dart';
 import 'screens/excel/excel_export_screen.dart';
 import 'screens/users/user_management_screen.dart';
 import 'screens/users/staff_permissions_screen.dart';
+import 'screens/users/pending_approvals_screen.dart';
+import 'screens/auth/pending_approval_screen.dart';
 import 'screens/reports/reports_screen.dart';
 import 'screens/vendors/vendor_list_screen.dart';
+import 'screens/vendors/vendor_detail_screen.dart';
+import 'screens/vendors/add_edit_vendor_screen.dart';
 import 'models/product_model.dart';
+import 'models/vendor_model.dart';
 
 class StockManagementApp extends StatelessWidget {
   const StockManagementApp({super.key});
@@ -119,6 +124,16 @@ class StockManagementApp extends StatelessWidget {
               return slideRoute(const ReportsScreen());
             case '/vendors':
               return slideRoute(const VendorListScreen());
+            case '/vendors/add':
+              return slideRoute(const AddEditVendorScreen());
+            case '/vendors/edit':
+              final vendor = settings.arguments as VendorModel;
+              return slideRoute(AddEditVendorScreen(vendor: vendor));
+            case '/vendors/detail':
+              final vendor = settings.arguments as VendorModel;
+              return slideRoute(VendorDetailScreen(vendor: vendor));
+            case '/pending-approvals':
+              return slideRoute(const PendingApprovalsScreen());
             default:
               return MaterialPageRoute(
                 builder: (_) => const LandingScreen(),
@@ -141,6 +156,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper>
     with SingleTickerProviderStateMixin {
   bool _initialized = false;
+  bool _providersInitializing = false;
   String? _initError;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -180,12 +196,7 @@ class _AuthWrapperState extends State<AuthWrapper>
 
       if (authProvider.isLoggedIn && authProvider.currentUser != null) {
         if (mounted) {
-          final companyId = authProvider.currentUser!.companyId;
-          context.read<ProductProvider>().initialize(companyId: companyId);
-          context.read<CategoryProvider>().initialize(companyId: companyId);
-          context.read<StockProvider>().initialize(companyId: companyId);
-          context.read<VendorProvider>().initialize(companyId: companyId);
-          await context.read<SettingsProvider>().initialize(companyId);
+          await _initializeProviders(authProvider.currentUser!.companyId);
         }
       } else if (authProvider.currentUser == null) {
         // Auth account exists but user doc is missing — sign out gracefully
@@ -204,6 +215,20 @@ class _AuthWrapperState extends State<AuthWrapper>
           _initialized = true;
         });
       }
+    }
+  }
+
+  Future<void> _initializeProviders(String companyId) async {
+    if (_providersInitializing) return;
+    _providersInitializing = true;
+    try {
+      context.read<ProductProvider>().initialize(companyId: companyId);
+      context.read<CategoryProvider>().initialize(companyId: companyId);
+      context.read<StockProvider>().initialize(companyId: companyId);
+      context.read<VendorProvider>().initialize(companyId: companyId);
+      await context.read<SettingsProvider>().initialize(companyId);
+    } finally {
+      _providersInitializing = false;
     }
   }
 
@@ -307,6 +332,34 @@ class _AuthWrapperState extends State<AuthWrapper>
     final authProvider = context.watch<AuthProvider>();
 
     if (authProvider.isLoggedIn) {
+      final settings = context.watch<SettingsProvider>();
+      if (!settings.isInitialized) {
+        _initializeProviders(authProvider.currentUser!.companyId);
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset('logo.png', width: 100, height: 100),
+                const SizedBox(height: 20),
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (!authProvider.currentUser!.approved) {
+        return const PendingApprovalScreen();
+      }
+
       return const HomeScreen();
     } else {
       return const LandingScreen();

@@ -94,7 +94,7 @@ class SettingsScreen extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            user.isAdmin ? 'ADMIN' : 'STAFF',
+                            user.isSuperAdmin ? 'SUPER ADMIN' : user.isAdmin ? 'ADMIN' : 'STAFF',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -185,7 +185,7 @@ class SettingsScreen extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(settings.errorMessage ?? 'Failed to update setting'),
-                          backgroundColor: Colors.red,
+                          backgroundColor: AppTheme.dangerColor,
                         ),
                       );
                     }
@@ -219,12 +219,63 @@ class SettingsScreen extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(settings.errorMessage ?? 'Failed to update setting'),
-                          backgroundColor: Colors.red,
+                          backgroundColor: AppTheme.dangerColor,
                         ),
                       );
                     }
                   },
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+          _SectionHeader(title: 'Product Attributes', color: AppTheme.accentColor),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.business_rounded,
+                iconColor: AppTheme.primaryColor,
+                title: 'Manage Companies',
+                subtitle: 'Add or remove product brands/companies',
+                onTap: () => _showManageListDialog(
+                  context,
+                  title: 'Manage Companies',
+                  icon: Icons.business_rounded,
+                  getItems: () => context.read<SettingsProvider>().companies,
+                  onAdd: (name) => context.read<SettingsProvider>().addCompany(name),
+                  onRemove: (name) => context.read<SettingsProvider>().removeCompany(name),
+                ),
+              ),
+              const Divider(height: 1, indent: 56),
+              _SettingsTile(
+                icon: Icons.straighten_rounded,
+                iconColor: AppTheme.infoColor,
+                title: 'Manage Sizes',
+                subtitle: 'Add or remove product size options',
+                onTap: () => _showManageListDialog(
+                  context,
+                  title: 'Manage Sizes',
+                  icon: Icons.straighten_rounded,
+                  getItems: () => context.read<SettingsProvider>().sizes,
+                  onAdd: (name) => context.read<SettingsProvider>().addSize(name),
+                  onRemove: (name) => context.read<SettingsProvider>().removeSize(name),
+                ),
+              ),
+              const Divider(height: 1, indent: 56),
+              _SettingsTile(
+                icon: Icons.location_on_rounded,
+                iconColor: AppTheme.warningColor,
+                title: 'Manage Locations',
+                subtitle: 'Add or remove stock locations',
+                onTap: () => _showManageListDialog(
+                  context,
+                  title: 'Manage Locations',
+                  icon: Icons.location_on_rounded,
+                  getItems: () => context.read<SettingsProvider>().locations,
+                  onAdd: (name) => context.read<SettingsProvider>().addLocation(name),
+                  onRemove: (name) => context.read<SettingsProvider>().removeLocation(name),
                 ),
               ),
             ],
@@ -266,6 +317,16 @@ class SettingsScreen extends StatelessWidget {
                   );
                 },
               ),
+              if (user.isSuperAdmin) ...[
+                const Divider(height: 1, indent: 56),
+                _SettingsTile(
+                  icon: Icons.how_to_reg_rounded,
+                  iconColor: AppTheme.warningColor,
+                  title: 'Pending Approvals',
+                  subtitle: 'Approve or reject new registrations',
+                  onTap: () => Navigator.pushNamed(context, '/pending-approvals'),
+                ),
+              ],
             ],
           ),
         ],
@@ -382,6 +443,152 @@ class SettingsScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  void _showManageListDialog(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<String> Function() getItems,
+    required Future<bool> Function(String) onAdd,
+    required Future<bool> Function(String) onRemove,
+  }) {
+    final textCtrl = TextEditingController();
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final items = getItems();
+
+          Future<void> handleAdd() async {
+            final name = textCtrl.text.trim();
+            if (name.isEmpty) return;
+            final ok = await onAdd(name);
+            if (ok) {
+              textCtrl.clear();
+              errorText = null;
+            } else {
+              errorText = '\'$name\' already exists';
+            }
+            setDialogState(() {});
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppTheme.primaryColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(title, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: textCtrl,
+                          decoration: InputDecoration(
+                            hintText: 'Enter name',
+                            isDense: true,
+                            errorText: errorText,
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) {
+                            if (errorText != null) {
+                              setDialogState(() => errorText = null);
+                            }
+                          },
+                          onSubmitted: (_) => handleAdd(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_rounded,
+                            color: AppTheme.primaryColor),
+                        onPressed: handleAdd,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text(
+                        'No items yet. Add one above.',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                      ),
+                    )
+                  else
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 300),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) => ListTile(
+                          dense: true,
+                          title: Text(items[i],
+                              style: const TextStyle(fontSize: 14)),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.remove_circle_outline,
+                                color: AppTheme.dangerColor, size: 20),
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: ctx,
+                                builder: (c) => AlertDialog(
+                                  title: const Text('Remove'),
+                                  content: Text(
+                                      'Remove "${items[i]}"? Existing products with this value won\'t be affected.'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(c, true),
+                                      style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              AppTheme.dangerColor),
+                                      child: const Text('Remove'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                await onRemove(items[i]);
+                                setDialogState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _confirmLogout(BuildContext context) {

@@ -6,8 +6,10 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../models/category_model.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/success_overlay.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
 
@@ -22,7 +24,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _debounce;
-  final Set<String> _expanded = {};
 
   @override
   void dispose() {
@@ -44,17 +45,16 @@ class _CategoryScreenState extends State<CategoryScreen> {
   Widget build(BuildContext context) {
     final categoryProvider = context.watch<CategoryProvider>();
     final productProvider = context.watch<ProductProvider>();
-    final isAdmin = context.watch<AuthProvider>().isAdmin;
+    final user = context.watch<AuthProvider>().currentUser;
+    final canManageCategories = user?.hasPermission('canManageCategories') ?? false;
     final productCounts = productProvider.productCountByCategory;
-    final topLevel = categoryProvider.topLevelCategories;
+    final categories = categoryProvider.categories;
 
-    final filteredTopLevel = _searchQuery.isEmpty
-        ? topLevel
-        : topLevel.where((c) {
-            if (c.name.toLowerCase().contains(_searchQuery)) return true;
-            final subs = categoryProvider.getSubcategoriesOf(c.id);
-            return subs.any((s) => s.name.toLowerCase().contains(_searchQuery));
-          }).toList();
+    final filtered = _searchQuery.isEmpty
+        ? categories
+        : categories
+            .where((c) => c.name.toLowerCase().contains(_searchQuery))
+            .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -69,19 +69,19 @@ class _CategoryScreenState extends State<CategoryScreen> {
               child: const Icon(Icons.category_rounded, color: AppTheme.primaryColor, size: 20),
             ),
             const SizedBox(width: 10),
-            Text('Categories (${topLevel.length}${categoryProvider.categories.length > topLevel.length ? ' + ${categoryProvider.categories.length - topLevel.length} sub' : ''})'),
+            Text('Categories (${categories.length})'),
           ],
         ),
       ),
       body: categoryProvider.isLoading
           ? const ShimmerLoading(itemCount: 5, layout: ShimmerLayout.listTile)
-          : topLevel.isEmpty
+          : categories.isEmpty
               ? EmptyStateWidget(
                   icon: Icons.category_outlined,
                   title: 'No Categories',
                   subtitle: 'Create categories to organize your products',
-                  buttonText: isAdmin ? 'Add Category' : null,
-                  onButtonPressed: isAdmin
+                  buttonText: canManageCategories ? 'Add Category' : null,
+                  onButtonPressed: canManageCategories
                       ? () => _showAddEditDialog(context)
                       : null,
                 )
@@ -126,7 +126,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       ),
                     ),
                     Expanded(
-                      child: filteredTopLevel.isEmpty
+                      child: filtered.isEmpty
                           ? Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -138,16 +138,21 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                 ],
                               ),
                             )
-                          : ListView.builder(
+                          : RefreshIndicator(
+                              onRefresh: () async {
+                                categoryProvider.initialize(companyId: user?.companyId ?? '');
+                                await Future.delayed(const Duration(milliseconds: 500));
+                              },
+                              child: ListView.builder(
                               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-                              itemCount: filteredTopLevel.length,
+                              itemCount: filtered.length,
                               itemBuilder: (context, index) {
-                                final cat = filteredTopLevel[index];
-                                final subcats = categoryProvider.getSubcategoriesOf(cat.id);
+                                final cat = filtered[index];
                                 final count = productCounts[cat.name] ?? 0;
-                                final isExpanded = _expanded.contains(cat.id);
 
-                                return Card(
+                                return AnimatedListItem(
+                                  index: index,
+                                  child: Card(
                                   margin: const EdgeInsets.only(bottom: 10),
                                   clipBehavior: Clip.antiAlias,
                                   child: Container(
@@ -156,194 +161,79 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                         left: BorderSide(color: AppTheme.primaryColor, width: 4),
                                       ),
                                     ),
-                                    child: Column(
-                                      children: [
-                                        ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                                            child: const Icon(Icons.category, color: AppTheme.primaryColor),
-                                          ),
-                                          title: Text(cat.name,
-                                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                                          subtitle: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                                        child: const Icon(Icons.category, color: AppTheme.primaryColor),
+                                      ),
+                                      title: Text(cat.name,
+                                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (cat.description.isNotEmpty)
+                                            Text(cat.description),
+                                          const SizedBox(height: 4),
+                                          Row(
                                             children: [
-                                              if (cat.description.isNotEmpty)
-                                                Text(cat.description),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Icon(Icons.inventory_2_outlined,
-                                                      size: 13, color: AppTheme.textSecondary),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    '$count product${count == 1 ? '' : 's'}',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppTheme.textSecondary,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  if (subcats.isNotEmpty) ...[
-                                                    const Text(' • ',
-                                                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                                                    Text(
-                                                      '${subcats.length} sub',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: AppTheme.textSecondary,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
+                                              Icon(Icons.inventory_2_outlined,
+                                                  size: 13, color: AppTheme.textSecondary),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '$count product${count == 1 ? '' : 's'}',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppTheme.textSecondary,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
                                               ),
                                             ],
                                           ),
-                                          trailing: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (subcats.isNotEmpty)
-                                                IconButton(
-                                                  icon: AnimatedRotation(
-                                                    turns: isExpanded ? 0.5 : 0,
-                                                    duration: const Duration(milliseconds: 200),
-                                                    child: const Icon(Icons.expand_more_rounded, size: 24),
-                                                  ),
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      if (isExpanded) {
-                                                        _expanded.remove(cat.id);
-                                                      } else {
-                                                        _expanded.add(cat.id);
-                                                      }
-                                                    });
-                                                  },
+                                        ],
+                                      ),
+                                      trailing: canManageCategories
+                                          ? PopupMenuButton<String>(
+                                              onSelected: (value) {
+                                                if (value == 'edit') {
+                                                  _showAddEditDialog(context, category: cat);
+                                                } else if (value == 'delete') {
+                                                  _confirmDelete(context, cat);
+                                                }
+                                              },
+                                              itemBuilder: (_) => [
+                                                const PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Row(children: [
+                                                    Icon(Icons.edit, size: 20),
+                                                    SizedBox(width: 8),
+                                                    Text('Edit'),
+                                                  ]),
                                                 ),
-                                              if (isAdmin)
-                                                PopupMenuButton<String>(
-                                                  onSelected: (value) {
-                                                    if (value == 'edit') {
-                                                      _showAddEditDialog(context, category: cat);
-                                                    } else if (value == 'delete') {
-                                                      _confirmDelete(context, cat);
-                                                    } else if (value == 'add_sub') {
-                                                      _showAddEditDialog(context, parentCategory: cat);
-                                                    }
-                                                  },
-                                                  itemBuilder: (_) => [
-                                                    const PopupMenuItem(
-                                                      value: 'add_sub',
-                                                      child: Row(children: [
-                                                        Icon(Icons.add_rounded, size: 20),
-                                                        SizedBox(width: 8),
-                                                        Text('Add Subcategory'),
-                                                      ]),
-                                                    ),
-                                                    const PopupMenuItem(
-                                                      value: 'edit',
-                                                      child: Row(children: [
-                                                        Icon(Icons.edit, size: 20),
-                                                        SizedBox(width: 8),
-                                                        Text('Edit'),
-                                                      ]),
-                                                    ),
-                                                    PopupMenuItem(
-                                                      value: 'delete',
-                                                      child: Row(children: [
-                                                        Icon(Icons.delete, size: 20, color: AppTheme.dangerColor),
-                                                        const SizedBox(width: 8),
-                                                        Text('Delete', style: TextStyle(color: AppTheme.dangerColor)),
-                                                      ]),
-                                                    ),
-                                                  ],
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Row(children: [
+                                                    Icon(Icons.delete, size: 20, color: AppTheme.dangerColor),
+                                                    const SizedBox(width: 8),
+                                                    Text('Delete', style: TextStyle(color: AppTheme.dangerColor)),
+                                                  ]),
                                                 ),
-                                            ],
-                                          ),
-                                          onTap: subcats.isNotEmpty
-                                              ? () => setState(() {
-                                                    if (isExpanded) {
-                                                      _expanded.remove(cat.id);
-                                                    } else {
-                                                      _expanded.add(cat.id);
-                                                    }
-                                                  })
-                                              : null,
-                                        ),
-                                        // Subcategories
-                                        AnimatedCrossFade(
-                                          duration: const Duration(milliseconds: 200),
-                                          crossFadeState: isExpanded
-                                              ? CrossFadeState.showSecond
-                                              : CrossFadeState.showFirst,
-                                          firstChild: const SizedBox.shrink(),
-                                          secondChild: Column(
-                                            children: subcats.map((sub) {
-                                              return Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.grey[50],
-                                                  border: Border(
-                                                    top: BorderSide(color: AppTheme.dividerColor),
-                                                  ),
-                                                ),
-                                                child: ListTile(
-                                                  contentPadding: const EdgeInsets.only(left: 56, right: 16),
-                                                  leading: Icon(Icons.subdirectory_arrow_right_rounded,
-                                                      size: 20, color: AppTheme.indigoColor),
-                                                  title: Text(sub.name,
-                                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                                                  subtitle: sub.description.isNotEmpty
-                                                      ? Text(sub.description, style: const TextStyle(fontSize: 12))
-                                                      : null,
-                                                  trailing: isAdmin
-                                                      ? PopupMenuButton<String>(
-                                                          onSelected: (value) {
-                                                            if (value == 'edit') {
-                                                              _showAddEditDialog(context,
-                                                                  category: sub, parentCategory: cat);
-                                                            } else if (value == 'delete') {
-                                                              _confirmDelete(context, sub);
-                                                            }
-                                                          },
-                                                          itemBuilder: (_) => [
-                                                            const PopupMenuItem(
-                                                              value: 'edit',
-                                                              child: Row(children: [
-                                                                Icon(Icons.edit, size: 20),
-                                                                SizedBox(width: 8),
-                                                                Text('Edit'),
-                                                              ]),
-                                                            ),
-                                                            PopupMenuItem(
-                                                              value: 'delete',
-                                                              child: Row(children: [
-                                                                Icon(Icons.delete, size: 20, color: AppTheme.dangerColor),
-                                                                const SizedBox(width: 8),
-                                                                Text('Delete',
-                                                                    style: TextStyle(color: AppTheme.dangerColor)),
-                                                              ]),
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : null,
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                        ),
-                                      ],
+                                              ],
+                                            )
+                                          : null,
                                     ),
                                   ),
+                                ),
                                 );
                               },
+                            ),
                             ),
                     ),
                   ],
                 ),
                 ),
                 ),
-      floatingActionButton: isAdmin
+      floatingActionButton: canManageCategories
           ? FloatingActionButton(
               onPressed: () => _showAddEditDialog(context),
               tooltip: 'Add Category',
@@ -356,150 +246,46 @@ class _CategoryScreenState extends State<CategoryScreen> {
   void _showAddEditDialog(
     BuildContext context, {
     CategoryModel? category,
-    CategoryModel? parentCategory,
   }) {
-    final isSubcategory = parentCategory != null;
     final nameController = TextEditingController(text: category?.name ?? '');
     final descController = TextEditingController(text: category?.description ?? '');
     final formKey = GlobalKey<FormState>();
     final isEditing = category != null;
+    final categoryProvider = context.read<CategoryProvider>();
 
-    final title = isEditing
-        ? (category.isSubcategory ? 'Edit Subcategory' : 'Edit Category')
-        : (isSubcategory ? 'Add Subcategory' : 'Add Category');
-
-    int addedCount = 0;
+    final title = isEditing ? 'Edit Category' : 'Add Category';
     bool isSaving = false;
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
-          Future<bool> doAdd({required bool closeAfter}) async {
-            if (isSaving) return false;
-            if (!formKey.currentState!.validate()) return false;
-            setDialogState(() => isSaving = true);
-
-            final user = dialogContext.read<AuthProvider>().currentUser;
-            final categoryProvider = dialogContext.read<CategoryProvider>();
-            bool success;
-
-            if (isEditing) {
-              success = await categoryProvider.updateCategory(
-                category.copyWith(
-                  name: nameController.text.trim(),
-                  description: descController.text.trim(),
-                  updatedBy: user?.uid ?? '',
-                  updatedByName: user?.name ?? '',
-                  updatedAt: DateTime.now(),
-                ),
-              );
-            } else {
-              success = await categoryProvider.addCategory(
-                nameController.text.trim(),
-                description: descController.text.trim(),
-                userId: user?.uid ?? '',
-                userName: user?.name ?? '',
-                parentId: isSubcategory ? parentCategory.id : null,
-                parentName: isSubcategory ? parentCategory.name : '',
-              ) != null;
-            }
-
-            if (!dialogContext.mounted) return false;
-            setDialogState(() => isSaving = false);
-
-            if (success) {
-              if (isSubcategory) {
-                setState(() => _expanded.add(parentCategory.id));
-              }
-              if (closeAfter) {
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(
-                    content: Text(isEditing
-                        ? 'Updated!'
-                        : addedCount > 0
-                            ? '${addedCount + 1} subcategories added!'
-                            : 'Added!'),
-                    backgroundColor: AppTheme.successColor,
-                  ),
-                );
-              } else {
-                addedCount++;
-                final addedName = nameController.text.trim();
-                nameController.clear();
-                descController.clear();
-                setDialogState(() {});
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(
-                    content: Text('"${addedName.isEmpty ? 'Subcategory' : addedName}" added ($addedCount so far)'),
-                    backgroundColor: AppTheme.successColor,
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
-            } else {
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                SnackBar(
-                  content: Text(categoryProvider.errorMessage ?? 'Something went wrong'),
-                  backgroundColor: AppTheme.dangerColor,
-                ),
-              );
-            }
-            return success;
-          }
-
           return AlertDialog(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title),
-                if (isSubcategory && !isEditing && addedCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text('$addedCount added',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.successColor,
-                            fontWeight: FontWeight.w500)),
-                  ),
-              ],
-            ),
+            title: Text(title),
             content: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isSubcategory && !isEditing)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.subdirectory_arrow_right_rounded,
-                              size: 18, color: AppTheme.textSecondary),
-                          const SizedBox(width: 6),
-                          Text('Under: ${parentCategory.name}',
-                              style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-                        ],
-                      ),
-                    ),
                   TextFormField(
                     controller: nameController,
                     autofocus: true,
-                    decoration: InputDecoration(
-                      labelText: '${isSubcategory ? "Subcategory" : "Category"} Name *',
-                      prefixIcon: Icon(isSubcategory ? Icons.label_rounded : Icons.category),
+                    decoration: const InputDecoration(
+                      labelText: 'Category Name *',
+                      prefixIcon: Icon(Icons.category),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter a name';
                       }
+                      final dupError = categoryProvider.validateCategoryName(
+                        value,
+                        excludeId: isEditing ? category.id : null,
+                      );
+                      if (dupError != null) return dupError;
                       return null;
                     },
-                    onFieldSubmitted: isSubcategory && !isEditing
-                        ? (_) => doAdd(closeAfter: false)
-                        : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -515,26 +301,58 @@ class _CategoryScreenState extends State<CategoryScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  if (addedCount > 0) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text('$addedCount subcategories added!'),
-                        backgroundColor: AppTheme.successColor,
-                      ),
-                    );
-                  }
-                },
-                child: Text(addedCount > 0 ? 'Done' : 'Cancel'),
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
               ),
-              if (isSubcategory && !isEditing)
-                OutlinedButton(
-                  onPressed: isSaving ? null : () => doAdd(closeAfter: false),
-                  child: const Text('Add & Another'),
-                ),
               ElevatedButton(
-                onPressed: isSaving ? null : () => doAdd(closeAfter: true),
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setDialogState(() => isSaving = true);
+
+                        final user = dialogContext.read<AuthProvider>().currentUser;
+                        final catProvider = dialogContext.read<CategoryProvider>();
+                        bool success;
+
+                        if (isEditing) {
+                          success = await catProvider.updateCategory(
+                            category.copyWith(
+                              name: nameController.text.trim(),
+                              description: descController.text.trim(),
+                              updatedBy: user?.uid ?? '',
+                              updatedByName: user?.name ?? '',
+                              updatedAt: DateTime.now(),
+                            ),
+                          );
+                        } else {
+                          success = await catProvider.addCategory(
+                            nameController.text.trim(),
+                            description: descController.text.trim(),
+                            userId: user?.uid ?? '',
+                            userName: user?.name ?? '',
+                          ) != null;
+                        }
+
+                        if (!dialogContext.mounted) return;
+                        setDialogState(() => isSaving = false);
+
+                        if (success) {
+                          Navigator.pop(dialogContext);
+                          showSuccessOverlay(
+                            context,
+                            message: isEditing ? 'Updated!' : 'Added!',
+                            popAfter: false,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(
+                              content: Text(catProvider.errorMessage ?? 'Something went wrong'),
+                              backgroundColor: AppTheme.dangerColor,
+                            ),
+                          );
+                        }
+                      },
                 child: isSaving
                     ? const SizedBox(
                         width: 20, height: 20,
@@ -551,11 +369,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
   void _confirmDelete(BuildContext context, CategoryModel category) {
     final productProvider = context.read<ProductProvider>();
     final productsUsingCategory = productProvider.allProducts
-        .where((p) => p.categoryId == category.id || p.subcategoryId == category.id)
+        .where((p) => p.categoryId == category.id)
         .length;
-    final subcatCount = category.isTopLevel
-        ? context.read<CategoryProvider>().getSubcategoriesOf(category.id).length
-        : 0;
 
     bool isDeleting = false;
     showDialog(
@@ -574,7 +389,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   color: AppTheme.dangerColor, size: 20),
             ),
             const SizedBox(width: 10),
-            Text('Delete ${category.isSubcategory ? "Subcategory" : "Category"}'),
+            const Text('Delete Category'),
           ],
         ),
         content: Column(
@@ -582,29 +397,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Are you sure you want to delete "${category.name}"?'),
-            if (subcatCount > 0) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.warningColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.warningColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: AppTheme.warningColor, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$subcatCount subcategory(ies) will also be deleted.',
-                        style: const TextStyle(fontSize: 13, color: AppTheme.warningColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
             if (productsUsingCategory > 0) ...[
               const SizedBox(height: 12),
               Container(
@@ -647,16 +439,18 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
                     if (context.mounted) {
                       Navigator.pop(context);
-                      final provider = context.read<CategoryProvider>();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(success
-                              ? 'Deleted!'
-                              : provider.errorMessage ?? 'Cannot delete'),
-                          backgroundColor: success ? AppTheme.successColor : AppTheme.dangerColor,
-                          duration: const Duration(seconds: 4),
-                        ),
-                      );
+                      if (success) {
+                        showSuccessOverlay(context, message: 'Deleted!', popAfter: false);
+                      } else {
+                        final provider = context.read<CategoryProvider>();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(provider.errorMessage ?? 'Cannot delete'),
+                            backgroundColor: AppTheme.dangerColor,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
                     }
                   },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),

@@ -487,7 +487,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   label: 'Transfer',
                   isSelected: _selectedFilter == 'transfer',
                   onTap: () => setState(() => _selectedFilter = 'transfer'),
-                  color: const Color(0xFF6366F1),
+                  color: AppTheme.indigoColor,
                 ),
               ],
             ),
@@ -841,6 +841,24 @@ class _ReportsScreenState extends State<ReportsScreen>
       ),
     );
 
+    final salesChart = _SectionCard(
+      title: 'Top Items by Sales',
+      child: TopProductsChart(
+        data: stockProvider.topProductsBySales,
+        barColor: AppTheme.primaryColor,
+        valueLabel: 'boxes sold',
+      ),
+    );
+
+    final breakageChart = _SectionCard(
+      title: 'Top Items by Breakage',
+      child: TopProductsChart(
+        data: stockProvider.topProductsByBreakage,
+        barColor: AppTheme.dangerColor,
+        valueLabel: 'boxes damaged',
+      ),
+    );
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
       child: Center(
@@ -867,6 +885,15 @@ class _ReportsScreenState extends State<ReportsScreen>
                     Expanded(child: unitsChart),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: salesChart),
+                    const SizedBox(width: 16),
+                    Expanded(child: breakageChart),
+                  ],
+                ),
               ] else ...[
                 trendChart,
                 const SizedBox(height: 16),
@@ -875,6 +902,10 @@ class _ReportsScreenState extends State<ReportsScreen>
                 activityChart,
                 const SizedBox(height: 16),
                 unitsChart,
+                const SizedBox(height: 16),
+                salesChart,
+                const SizedBox(height: 16),
+                breakageChart,
               ],
               const SizedBox(height: 16),
               if (authProvider.isAdmin) ...[
@@ -1012,7 +1043,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 const _DividerRow(),
                 _SummaryRow(
                   label: 'Locations',
-                  value: '${productProvider.availableLocations.length}',
+                  value: '${context.watch<SettingsProvider>().locations.length}',
                   icon: Icons.location_on_rounded,
                   color: AppTheme.infoColor,
                 ),
@@ -1100,7 +1131,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   value:
                       '${stockProvider.transactionsByType[TransactionType.transfer] ?? 0} entries (${stockProvider.transferTotal} units)',
                   icon: Icons.swap_horiz_rounded,
-                  color: const Color(0xFF6366F1),
+                  color: AppTheme.indigoColor,
                 ),
               ],
             ),
@@ -1363,7 +1394,7 @@ class _TransactionTile extends StatelessWidget {
         typeIcon = Icons.report_problem_rounded;
         break;
       case TransactionType.transfer:
-        typeColor = const Color(0xFF6366F1);
+        typeColor = AppTheme.indigoColor;
         typeIcon = Icons.swap_horiz_rounded;
         break;
     }

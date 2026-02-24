@@ -26,6 +26,16 @@ class AuthService {
       );
 
       if (result.user != null) {
+        // Check if this is the very first user via a metadata flag
+        final configDoc = await _firestore
+            .collection('metadata')
+            .doc('app_config')
+            .get();
+        final isFirstUser = !configDoc.exists || configDoc.data()?['hasUsers'] != true;
+
+        final assignedRole = isFirstUser ? 'superadmin' : role;
+        final isApproved = isFirstUser;
+
         final companyDoc = await _firestore.collection('companies').add({
           'companyName': companyName,
           'phone': phone,
@@ -37,17 +47,26 @@ class AuthService {
           uid: result.user!.uid,
           name: name,
           email: email,
-          role: role,
+          role: assignedRole,
           companyId: companyDoc.id,
           companyName: companyName,
           phone: phone,
           createdAt: DateTime.now(),
+          approved: isApproved,
         );
 
         await _firestore
             .collection('users')
             .doc(result.user!.uid)
             .set(userModel.toMap());
+
+        // Mark that at least one user now exists
+        if (isFirstUser) {
+          await _firestore
+              .collection('metadata')
+              .doc('app_config')
+              .set({'hasUsers': true});
+        }
 
         return userModel;
       }
@@ -235,7 +254,7 @@ class AuthService {
       final admins = await _firestore
           .collection('users')
           .where('companyId', isEqualTo: companyId)
-          .where('role', isEqualTo: 'admin')
+          .where('role', whereIn: ['admin', 'superadmin'])
           .get();
 
       if (admins.docs.length <= 1) {
@@ -291,6 +310,34 @@ class AuthService {
   /// because the app requires a Firestore user doc.
   Future<void> deleteStaffUser(String staffUid) async {
     await _firestore.collection('users').doc(staffUid).delete();
+  }
+
+  /// Stream of users awaiting approval (approved == false).
+  Stream<List<UserModel>> getPendingUsers() {
+    return _firestore
+        .collection('users')
+        .where('approved', isEqualTo: false)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList());
+  }
+
+  /// Approve a pending user by setting approved = true.
+  Future<void> approveUser(String uid) async {
+    await _firestore.collection('users').doc(uid).update({'approved': true});
+  }
+
+  /// Reject a pending user: delete user doc and their company doc.
+  Future<void> rejectUser(String uid) async {
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    if (userDoc.exists) {
+      final companyId = userDoc.data()?['companyId'] as String?;
+      if (companyId != null && companyId.isNotEmpty) {
+        await _firestore.collection('companies').doc(companyId).delete();
+      }
+    }
+    await _firestore.collection('users').doc(uid).delete();
   }
 
   Future<void> logout() async {

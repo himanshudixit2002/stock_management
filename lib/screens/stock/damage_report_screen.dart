@@ -19,7 +19,8 @@ class DamageReportScreen extends StatefulWidget {
 }
 
 class _DamageReportScreenState extends State<DamageReportScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
+  bool _submitted = false;
   final _quantityController = TextEditingController();
   final _reasonController = TextEditingController();
   final _locationController = TextEditingController();
@@ -28,6 +29,32 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
   String _selectedLocation = '';
   bool _isLoading = false;
   String _productSearch = '';
+
+  bool get _hasUnsavedChanges =>
+      _quantityController.text.trim().isNotEmpty ||
+      _locationController.text.trim().isNotEmpty ||
+      _reasonController.text.trim().isNotEmpty ||
+      (_selectedProduct != null && widget.product == null);
+
+  Future<bool> _confirmDiscard() async {
+    if (!_hasUnsavedChanges) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to go back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 
   int get _availableAtLocation {
     if (_selectedProduct == null || _selectedLocation.isEmpty) return 0;
@@ -140,6 +167,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
 
   Future<void> _reportDamage() async {
     if (_isLoading) return;
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -287,11 +315,18 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final p = filtered[index];
+                              final isSelected = _selectedProduct?.id == p.id;
                               final stockColor =
                                   AppTheme.getStockColor(p.quantity,
                                       threshold:
                                           p.lowStockThreshold);
                               return ListTile(
+                                selected: isSelected,
+                                selectedTileColor: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                shape: isSelected ? RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                                ) : null,
                                 onTap: () {
                                   final locs = p.locationQuantities.entries
                                       .where((e) => e.value > 0)
@@ -352,6 +387,14 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission('canDamage')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Damage Report')),
+        body: const Center(child: Text('You do not have permission to access this feature.')),
+      );
+    }
+
     final products = context.watch<ProductProvider>().allProducts;
 
     final productLocations = _selectedProduct?.locationQuantities.entries
@@ -360,8 +403,22 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
             .toList() ??
         [];
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard()) Navigator.of(context).pop();
+      },
+      child: GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        if (_submitted) {
+          setState(() {
+            _submitted = false;
+            _formKey = GlobalKey<FormState>();
+          });
+        }
+      },
       child: Scaffold(
       appBar: AppBar(
         title: Row(
@@ -383,9 +440,11 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
         child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
         child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
         child: Form(
           key: _formKey,
+          autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -593,6 +652,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       ),
       ),
       ),
+    ),
     ),
     );
   }

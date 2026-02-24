@@ -153,6 +153,14 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission('canImport')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Import Data')),
+        body: const Center(child: Text('You do not have permission to access this feature.')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -206,11 +214,14 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                       children: const [
                         Chip(label: Text('Product Name'), padding: EdgeInsets.zero),
                         Chip(label: Text('Category'), padding: EdgeInsets.zero),
+                        Chip(label: Text('Company'), padding: EdgeInsets.zero),
+                        Chip(label: Text('Size'), padding: EdgeInsets.zero),
                         Chip(label: Text('Quantity'), padding: EdgeInsets.zero),
                         Chip(label: Text('Unit'), padding: EdgeInsets.zero),
-                        Chip(label: Text('Description'), padding: EdgeInsets.zero),
                         Chip(label: Text('Cost Price'), padding: EdgeInsets.zero),
                         Chip(label: Text('Selling Price'), padding: EdgeInsets.zero),
+                        Chip(label: Text('Description'), padding: EdgeInsets.zero),
+                        Chip(label: Text('Locations'), padding: EdgeInsets.zero),
                       ],
                     ),
                   ],
@@ -320,12 +331,17 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
+                    columnSpacing: 20,
                     columns: const [
                       DataColumn(label: Text('#')),
                       DataColumn(label: Text('Name')),
                       DataColumn(label: Text('Category')),
+                      DataColumn(label: Text('Company')),
+                      DataColumn(label: Text('Size')),
                       DataColumn(label: Text('Qty')),
                       DataColumn(label: Text('Unit')),
+                      DataColumn(label: Text('Cost')),
+                      DataColumn(label: Text('Sell')),
                     ],
                     rows: _parsedData!.asMap().entries.map((entry) {
                       final index = entry.key;
@@ -334,8 +350,12 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                         DataCell(Text('${index + 1}')),
                         DataCell(Text(item['name']?.toString() ?? '')),
                         DataCell(Text(item['category']?.toString() ?? '')),
+                        DataCell(Text(item['company']?.toString() ?? '')),
+                        DataCell(Text(item['size']?.toString() ?? '')),
                         DataCell(Text(item['quantity']?.toString() ?? '0')),
                         DataCell(Text(item['unit']?.toString() ?? 'pcs')),
+                        DataCell(Text(item['costPrice']?.toString() ?? '0')),
+                        DataCell(Text(item['sellingPrice']?.toString() ?? '0')),
                       ]);
                     }).toList(),
                   ),

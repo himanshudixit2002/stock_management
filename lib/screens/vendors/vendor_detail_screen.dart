@@ -13,7 +13,7 @@ import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
-import 'add_edit_vendor_screen.dart';
+// Vendor routes registered in app.dart onGenerateRoute
 
 class VendorDetailScreen extends StatefulWidget {
   final VendorModel vendor;
@@ -47,12 +47,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_rounded),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AddEditVendorScreen(vendor: vendor),
-              ),
-            ),
+            onPressed: () => Navigator.pushNamed(context, '/vendors/edit', arguments: vendor),
           ),
           IconButton(
             icon: const Icon(Icons.delete_rounded),
@@ -655,7 +650,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                             title: Text(p.name,
                                 style: const TextStyle(fontSize: 14)),
                             subtitle: Text(
-                              '${p.categoryName}${p.subcategoryName.isNotEmpty ? ' / ${p.subcategoryName}' : ''}',
+                              [p.categoryName, if (p.company.isNotEmpty) p.company].join(' | '),
                               style: TextStyle(
                                   fontSize: 12, color: Colors.grey[500]),
                             ),

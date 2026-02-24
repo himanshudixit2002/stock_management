@@ -14,15 +14,6 @@ class CategoryProvider extends ChangeNotifier {
   StreamSubscription? _categoriesSubscription;
 
   List<CategoryModel> get categories => _categories;
-  List<CategoryModel> get topLevelCategories =>
-      _categories.where((c) => c.isTopLevel).toList();
-
-  List<CategoryModel> getSubcategoriesOf(String categoryId) {
-    final subs = _categories.where((c) => c.parentId == categoryId).toList();
-    subs.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return subs;
-  }
-
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -46,14 +37,11 @@ class CategoryProvider extends ChangeNotifier {
     );
   }
 
-  // Add category - returns the new CategoryModel on success, null on failure
   Future<CategoryModel?> addCategory(
     String name, {
     String description = '',
     String userId = '',
     String userName = '',
-    String? parentId,
-    String parentName = '',
   }) async {
     try {
       _errorMessage = null;
@@ -62,8 +50,6 @@ class CategoryProvider extends ChangeNotifier {
         id: '',
         name: name,
         description: description,
-        parentId: parentId,
-        parentName: parentName,
         createdAt: now,
         updatedAt: now,
         createdBy: userId,
@@ -80,7 +66,6 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // Update category
   Future<bool> updateCategory(CategoryModel category) async {
     try {
       _errorMessage = null;
@@ -93,7 +78,6 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // Delete category
   Future<bool> deleteCategory(String categoryId) async {
     try {
       _errorMessage = null;
@@ -106,7 +90,6 @@ class CategoryProvider extends ChangeNotifier {
     }
   }
 
-  // Get category by ID
   CategoryModel? getCategoryById(String id) {
     for (final c in _categories) {
       if (c.id == id) return c;
@@ -114,7 +97,18 @@ class CategoryProvider extends ChangeNotifier {
     return null;
   }
 
-  // Get category name map (for Excel import)
+  /// Returns an error string if a category with the same name already exists,
+  /// or null if the name is available. [excludeId] skips self when editing.
+  String? validateCategoryName(String name, {String? excludeId}) {
+    final normalizedName = name.trim().toLowerCase();
+    final duplicate = _categories.any((c) =>
+        c.id != excludeId && c.name.trim().toLowerCase() == normalizedName);
+    if (duplicate) {
+      return 'A category with this name already exists';
+    }
+    return null;
+  }
+
   Map<String, CategoryModel> getCategoryNameMap() {
     final map = <String, CategoryModel>{};
     for (var category in _categories) {

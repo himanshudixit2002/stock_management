@@ -23,6 +23,14 @@ class AppTheme {
   static const Color infoColor = Color(0xFF42A5F5);
   static const Color indigoColor = Color(0xFF6366F1);
 
+  // Spacing constants
+  static const double spacingXS = 4;
+  static const double spacingSM = 8;
+  static const double spacingMD = 12;
+  static const double spacingLG = 16;
+  static const double spacingXL = 24;
+  static const double spacingXXL = 32;
+
   // Input field colors
   static const Color inputFillColor = Color(0xFFF5F7FA);
   static const Color inputBorderColor = Color(0xFFE0E3E8);

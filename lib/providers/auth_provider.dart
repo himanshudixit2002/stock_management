@@ -29,6 +29,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Re-fetches the current user doc from Firestore and notifies listeners.
+  /// Used by PendingApprovalScreen to react to approval status changes.
+  Future<void> refreshCurrentUser() async {
+    final firebaseUser = _authService.currentUser;
+    if (firebaseUser != null) {
+      try {
+        _currentUser = await _authService.getUserData(firebaseUser.uid);
+        notifyListeners();
+      } catch (_) {}
+    }
+  }
+
   Future<bool> register({
     required String name,
     required String email,
@@ -125,6 +137,32 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = AuthService.getErrorMessage(e);
       _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Stream<List<UserModel>> getPendingUsers() {
+    return _authService.getPendingUsers();
+  }
+
+  Future<bool> approveUser(String uid) async {
+    try {
+      await _authService.approveUser(uid);
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> rejectUser(String uid) async {
+    try {
+      await _authService.rejectUser(uid);
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
       notifyListeners();
       return false;
     }

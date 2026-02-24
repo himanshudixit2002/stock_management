@@ -183,7 +183,7 @@ class DashboardScreen extends StatelessWidget {
                       icon: Icons.swap_horiz_rounded,
                       label: 'Transfer',
                       subtitle: 'Move',
-                      color: const Color(0xFF6366F1),
+                      color: AppTheme.indigoColor,
                       onTap: () => Navigator.pushNamed(context, '/stock/transfer'),
                     ),
                     _QuickActionCard(
@@ -483,7 +483,7 @@ class _TodaySummary extends StatelessWidget {
               if (outQty > 0 && (dmgQty > 0 || xfrQty > 0)) const SizedBox(width: 8),
               if (xfrQty > 0)
                 _TodayChip(
-                    label: '$xfrQty xfr', color: const Color(0xFF6366F1)),
+                    label: '$xfrQty xfr', color: AppTheme.indigoColor),
               if (xfrQty > 0 && dmgQty > 0) const SizedBox(width: 8),
               if (dmgQty > 0)
                 _TodayChip(
@@ -727,7 +727,7 @@ class _ActivityTile extends StatelessWidget {
         typeIcon = Icons.report_problem_rounded;
         break;
       case TransactionType.transfer:
-        typeColor = const Color(0xFF6366F1);
+        typeColor = AppTheme.indigoColor;
         typeIcon = Icons.swap_horiz_rounded;
         break;
     }

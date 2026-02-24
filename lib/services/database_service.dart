@@ -69,35 +69,16 @@ class DatabaseService {
   Future<void> updateCategory(CategoryModel category) async {
     await _categories.doc(category.id).update(category.toMap());
 
-    final batch = _firestore.batch();
-
-    // Update categoryName on products using this category
     final products = await _products
         .where('categoryId', isEqualTo: category.id)
         .get();
-    for (var doc in products.docs) {
-      batch.update(doc.reference, {'categoryName': category.name});
-    }
-
-    // If top-level, propagate name to subcategories' parentName
-    if (category.isTopLevel) {
-      final subcats = await _categories
-          .where('parentId', isEqualTo: category.id)
-          .get();
-      for (var doc in subcats.docs) {
-        batch.update(doc.reference, {'parentName': category.name});
+    if (products.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (var doc in products.docs) {
+        batch.update(doc.reference, {'categoryName': category.name});
       }
+      await batch.commit();
     }
-
-    // Update subcategoryName on products using this as subcategory
-    final subProducts = await _products
-        .where('subcategoryId', isEqualTo: category.id)
-        .get();
-    for (var doc in subProducts.docs) {
-      batch.update(doc.reference, {'subcategoryName': category.name});
-    }
-
-    await batch.commit();
   }
 
   Future<void> deleteCategory(String categoryId) async {
@@ -111,41 +92,7 @@ class DatabaseService {
           'Cannot delete category. It is being used by existing products.');
     }
 
-    // Check if any products use this as subcategory
-    final subProducts = await _products
-        .where('subcategoryId', isEqualTo: categoryId)
-        .limit(1)
-        .get();
-    if (subProducts.docs.isNotEmpty) {
-      throw Exception(
-          'Cannot delete subcategory. It is being used by existing products.');
-    }
-
-    // If top-level, also delete all its subcategories
-    final subcats = await _categories
-        .where('parentId', isEqualTo: categoryId)
-        .get();
-    if (subcats.docs.isNotEmpty) {
-      // Check that no subcategory is in use
-      for (final sub in subcats.docs) {
-        final usedProducts = await _products
-            .where('subcategoryId', isEqualTo: sub.id)
-            .limit(1)
-            .get();
-        if (usedProducts.docs.isNotEmpty) {
-          throw Exception(
-              'Cannot delete category. Subcategory "${sub.data()['name']}" is used by products.');
-        }
-      }
-      final batch = _firestore.batch();
-      for (final sub in subcats.docs) {
-        batch.delete(sub.reference);
-      }
-      batch.delete(_categories.doc(categoryId));
-      await batch.commit();
-    } else {
-      await _categories.doc(categoryId).delete();
-    }
+    await _categories.doc(categoryId).delete();
   }
 
   // ==================== PRODUCTS ====================

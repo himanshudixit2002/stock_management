@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/success_overlay.dart';
 import '../../utils/responsive.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -159,7 +160,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          await Future.delayed(const Duration(milliseconds: 500));
+                        },
+                        child: ListView.builder(
                         padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                         itemCount: filteredUsers.length,
                         itemBuilder: (context, index) {
@@ -283,6 +288,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           );
                         },
                       ),
+                      ),
               ),
             ],
           ),
@@ -292,6 +298,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddUserDialog(context),
+        tooltip: 'Add Staff',
         icon: const Icon(Icons.person_add),
         label: const Text('Add Staff'),
       ),
@@ -323,12 +330,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         .updateUserRole(user.uid, newRole);
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${user.name} is now ${newRole.toUpperCase()}'),
-                          backgroundColor: AppTheme.successColor,
-                        ),
-                      );
+                      showSuccessOverlay(context, message: '${user.name} is now ${newRole.toUpperCase()}', popAfter: false);
                     }
                   },
             child: isChanging
@@ -383,15 +385,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     final ok = await auth.deleteStaffUser(user.uid);
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(ok
-                              ? '${user.name} has been removed'
-                              : auth.errorMessage ?? 'Failed to remove user'),
-                          backgroundColor: ok ? AppTheme.successColor : AppTheme.dangerColor,
-                        ),
-                      );
-                      if (!ok) auth.clearError();
+                      if (ok) {
+                        showSuccessOverlay(context, message: '${user.name} has been removed', popAfter: false);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(auth.errorMessage ?? 'Failed to remove user'),
+                            backgroundColor: AppTheme.dangerColor,
+                          ),
+                        );
+                        auth.clearError();
+                      }
                     }
                   },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
@@ -500,17 +504,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(success
-                                  ? 'Staff user created!'
-                                  : auth.errorMessage ??
-                                      'Failed to create user'),
-                              backgroundColor: success
-                                  ? AppTheme.successColor
-                                  : AppTheme.dangerColor,
-                            ),
-                          );
+                          if (success) {
+                            showSuccessOverlay(context, message: 'Staff user created!', popAfter: false);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(auth.errorMessage ?? 'Failed to create user'),
+                                backgroundColor: AppTheme.dangerColor,
+                              ),
+                            );
+                          }
                         }
                       },
                 child: auth.isLoading

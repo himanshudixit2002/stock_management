@@ -5,6 +5,7 @@ import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/success_overlay.dart';
@@ -19,15 +20,42 @@ class StockTransferScreen extends StatefulWidget {
 }
 
 class _StockTransferScreenState extends State<StockTransferScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
+  bool _submitted = false;
   final _quantityController = TextEditingController();
   final _reasonController = TextEditingController();
-  final _toLocationController = TextEditingController();
 
   ProductModel? _selectedProduct;
   String _fromLocation = '';
+  String? _toLocation;
   bool _isLoading = false;
   String _productSearch = '';
+
+  bool get _hasUnsavedChanges =>
+      _quantityController.text.trim().isNotEmpty ||
+      _toLocation != null ||
+      _reasonController.text.trim().isNotEmpty ||
+      (_selectedProduct != null && widget.product == null);
+
+  Future<bool> _confirmDiscard() async {
+    if (!_hasUnsavedChanges) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to go back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 
   int get _availableAtFrom {
     if (_selectedProduct == null || _fromLocation.isEmpty) return 0;
@@ -44,16 +72,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
   void dispose() {
     _quantityController.dispose();
     _reasonController.dispose();
-    _toLocationController.dispose();
     super.dispose();
-  }
-
-  String _normalizeLocation(String raw) {
-    return raw
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-        .join(' ');
   }
 
   String _locationBreakdown(ProductModel p) {
@@ -66,7 +85,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
   }
 
   Future<bool> _confirmTransfer(int qty) async {
-    final toLocation = _normalizeLocation(_toLocationController.text.trim());
+    final toLocation = _toLocation!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -106,6 +125,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
 
   Future<void> _transfer() async {
     if (_isLoading) return;
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,11 +148,10 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       return;
     }
 
-    final rawTo = _toLocationController.text.trim();
-    if (rawTo.isEmpty) {
+    if (_toLocation == null || _toLocation!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter destination location'),
+          content: Text('Please select destination location'),
           backgroundColor: AppTheme.dangerColor,
           duration: Duration(seconds: 4),
         ),
@@ -140,7 +159,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       return;
     }
 
-    final toLocation = _normalizeLocation(rawTo);
+    final toLocation = _toLocation!;
     if (toLocation == _fromLocation) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -280,15 +299,22 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final p = filtered[index];
+                              final isSelected = _selectedProduct?.id == p.id;
                               final stockColor = AppTheme.getStockColor(
                                   p.quantity,
                                   threshold: p.lowStockThreshold);
                               return ListTile(
+                                selected: isSelected,
+                                selectedTileColor: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                shape: isSelected ? RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                                ) : null,
                                 onTap: () {
                                   setState(() {
                                     _selectedProduct = p;
                                     _fromLocation = '';
-                                    _toLocationController.clear();
+                                    _toLocation = null;
                                     _productSearch = '';
                                   });
                                   Navigator.pop(context);
@@ -340,17 +366,38 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission('canTransfer')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Stock Transfer')),
+        body: const Center(child: Text('You do not have permission to access this feature.')),
+      );
+    }
+
     final products = context.watch<ProductProvider>().allProducts;
-    final availableLocations =
-        context.watch<ProductProvider>().availableLocations;
+    final settingsLocations = context.watch<SettingsProvider>().locations;
 
     final productLocations = _selectedProduct?.locationQuantities.entries
             .where((e) => e.value > 0)
             .toList() ??
         [];
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard()) Navigator.of(context).pop();
+      },
+      child: GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        if (_submitted) {
+          setState(() {
+            _submitted = false;
+            _formKey = GlobalKey<FormState>();
+          });
+        }
+      },
       child: Scaffold(
       appBar: AppBar(
         title: Row(
@@ -358,10 +405,10 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                color: AppTheme.indigoColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF6366F1), size: 20),
+              child: const Icon(Icons.swap_horiz_rounded, color: AppTheme.indigoColor, size: 20),
             ),
             const SizedBox(width: 10),
             const Text('Transfer Stock'),
@@ -372,10 +419,11 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
         child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
         child: Form(
           key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
+          autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -483,80 +531,40 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   ),
                 ),
 
-              // To location (autocomplete)
+              // To location
               if (_fromLocation.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Autocomplete<String>(
-                    optionsBuilder: (textEditingValue) {
-                      final otherLocs = availableLocations
-                          .where((l) => l != _fromLocation)
-                          .toList();
-                      if (textEditingValue.text.isEmpty) {
-                        return otherLocs;
+                  child: DropdownButtonFormField<String>(
+                    value: _toLocation,
+                    decoration: InputDecoration(
+                      labelText: 'To Location *',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: _toLocation != null
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              onPressed: () => setState(() => _toLocation = null),
+                            )
+                          : null,
+                    ),
+                    hint: const Text('Select destination'),
+                    items: settingsLocations
+                        .where((l) => l != _fromLocation)
+                        .map((loc) {
+                      return DropdownMenuItem(
+                        value: loc,
+                        child: Text(loc),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => _toLocation = value),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select destination location';
                       }
-                      final query = textEditingValue.text.toLowerCase();
-                      return otherLocs
-                          .where((l) => l.toLowerCase().contains(query));
-                    },
-                    onSelected: (selection) {
-                      _toLocationController.text = selection;
-                    },
-                    fieldViewBuilder: (context, textController, focusNode,
-                        onFieldSubmitted) {
-                      textController.addListener(() {
-                        _toLocationController.text = textController.text;
-                      });
-                      return TextFormField(
-                        controller: textController,
-                        focusNode: focusNode,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'To Location *',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                          helperText: 'Select existing or type new location',
-                          helperMaxLines: 2,
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter destination location';
-                          }
-                          final normalized = _normalizeLocation(value.trim());
-                          if (normalized == _fromLocation) {
-                            return 'Must be different from source';
-                          }
-                          return null;
-                        },
-                      );
-                    },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      return Align(
-                        alignment: Alignment.topLeft,
-                        child: Material(
-                          elevation: 4,
-                          borderRadius: BorderRadius.circular(8),
-                          child: ConstrainedBox(
-                            constraints:
-                                const BoxConstraints(maxHeight: 200),
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: options.length,
-                              itemBuilder: (context, index) {
-                                final option = options.elementAt(index);
-                                return ListTile(
-                                  dense: true,
-                                  leading: const Icon(
-                                      Icons.location_on_outlined,
-                                      size: 18),
-                                  title: Text(option),
-                                  onTap: () => onSelected(option),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      );
+                      if (value == _fromLocation) {
+                        return 'Must be different from source';
+                      }
+                      return null;
                     },
                   ),
                 ),
@@ -647,6 +655,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       ),
       ),
       ),
+    ),
     ),
     );
   }

@@ -5,8 +5,6 @@ class CategoryModel {
   final String id;
   final String name;
   final String description;
-  final String? parentId;
-  final String parentName;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String createdBy;
@@ -18,8 +16,6 @@ class CategoryModel {
     required this.id,
     required this.name,
     this.description = '',
-    this.parentId,
-    this.parentName = '',
     required this.createdAt,
     DateTime? updatedAt,
     this.createdBy = '',
@@ -28,19 +24,13 @@ class CategoryModel {
     this.updatedByName = '',
   }) : updatedAt = updatedAt ?? createdAt;
 
-  bool get isTopLevel => parentId == null || parentId!.isEmpty;
-  bool get isSubcategory => !isTopLevel;
-
   factory CategoryModel.fromMap(Map<String, dynamic> map, String docId) {
     final created = safeTimestamp(map['createdAt']);
     final updated = safeTimestamp(map['updatedAt'], created);
-    final rawParentId = safeString(map['parentId']);
     return CategoryModel(
       id: docId,
       name: safeString(map['name']),
       description: safeString(map['description']),
-      parentId: rawParentId.isNotEmpty ? rawParentId : null,
-      parentName: safeString(map['parentName']),
       createdAt: created,
       updatedAt: updated,
       createdBy: safeString(map['createdBy']),
@@ -54,8 +44,6 @@ class CategoryModel {
     return {
       'name': name,
       'description': description,
-      'parentId': parentId ?? '',
-      'parentName': parentName,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'createdBy': createdBy,
@@ -69,8 +57,6 @@ class CategoryModel {
     String? id,
     String? name,
     String? description,
-    String? parentId,
-    String? parentName,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? createdBy,
@@ -82,8 +68,6 @@ class CategoryModel {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      parentId: parentId ?? this.parentId,
-      parentName: parentName ?? this.parentName,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       createdBy: createdBy ?? this.createdBy,

@@ -8,8 +8,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
-import 'add_edit_vendor_screen.dart';
-import 'vendor_detail_screen.dart';
+// Vendor routes registered in app.dart onGenerateRoute
 
 class VendorListScreen extends StatefulWidget {
   const VendorListScreen({super.key});
@@ -42,10 +41,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_rounded),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddEditVendorScreen()),
-            ),
+            onPressed: () => Navigator.pushNamed(context, '/vendors/add'),
           ),
         ],
       ),
@@ -88,15 +84,14 @@ class _VendorListScreenState extends State<VendorListScreen> {
                             : 'Try different search terms',
                         buttonText: _searchQuery.isEmpty ? 'Add Vendor' : null,
                         onButtonPressed: _searchQuery.isEmpty
-                            ? () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const AddEditVendorScreen()),
-                                )
+                            ? () => Navigator.pushNamed(context, '/vendors/add')
                             : null,
                       )
-                    : ListView.separated(
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          await Future.delayed(const Duration(milliseconds: 500));
+                        },
+                        child: ListView.separated(
                         padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) =>
@@ -109,16 +104,15 @@ class _VendorListScreenState extends State<VendorListScreen> {
                           );
                         },
                       ),
+                      ),
           ),
         ],
       ),
       ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AddEditVendorScreen()),
-        ),
+        onPressed: () => Navigator.pushNamed(context, '/vendors/add'),
+        tooltip: 'Add Vendor',
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Vendor'),
         backgroundColor: AppTheme.primaryColor,
@@ -139,12 +133,7 @@ class _VendorCard extends StatelessWidget {
       child: InkWell(
         onTap: () {
           HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VendorDetailScreen(vendor: vendor),
-            ),
-          );
+          Navigator.pushNamed(context, '/vendors/detail', arguments: vendor);
         },
         borderRadius: BorderRadius.circular(14),
         child: Padding(

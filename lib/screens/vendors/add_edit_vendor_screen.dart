@@ -6,6 +6,7 @@ import '../../models/vendor_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/success_overlay.dart';
 
 class AddEditVendorScreen extends StatefulWidget {
   final VendorModel? vendor;
@@ -16,7 +17,8 @@ class AddEditVendorScreen extends StatefulWidget {
 }
 
 class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
+  bool _submitted = false;
   late final TextEditingController _nameCtrl;
   late final TextEditingController _contactNameCtrl;
   late final TextEditingController _emailCtrl;
@@ -29,6 +31,39 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
   bool _saving = false;
 
   bool get _isEditing => widget.vendor != null;
+
+  bool get _hasUnsavedChanges {
+    if (_isEditing) {
+      final v = widget.vendor!;
+      return _nameCtrl.text.trim() != v.name ||
+          _contactNameCtrl.text.trim() != v.contactName ||
+          _emailCtrl.text.trim() != v.email ||
+          _phoneCtrl.text.trim() != v.phone;
+    }
+    return _nameCtrl.text.trim().isNotEmpty ||
+        _emailCtrl.text.trim().isNotEmpty ||
+        _phoneCtrl.text.trim().isNotEmpty;
+  }
+
+  Future<bool> _confirmDiscard() async {
+    if (!_hasUnsavedChanges) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to go back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 
   @override
   void initState() {
@@ -59,6 +94,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
   }
 
   Future<void> _save() async {
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
@@ -97,13 +133,9 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
 
     if (success) {
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Vendor updated!' : 'Vendor added!'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-      Navigator.pop(context);
+      if (mounted) {
+        showSuccessOverlay(context, message: _isEditing ? 'Vendor updated!' : 'Vendor added!');
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -116,8 +148,22 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard()) Navigator.of(context).pop();
+      },
+      child: GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        if (_submitted) {
+          setState(() {
+            _submitted = false;
+            _formKey = GlobalKey<FormState>();
+          });
+        }
+      },
       child: Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Vendor' : 'Add Vendor'),
@@ -127,8 +173,9 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
         constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
         child: Form(
         key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
           children: [
             TextFormField(
@@ -276,6 +323,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
       ),
       ),
       ),
+    ),
     ),
     );
   }

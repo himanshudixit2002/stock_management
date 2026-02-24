@@ -6,6 +6,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
+import '../../utils/responsive.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
 
@@ -51,13 +52,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      final companyId = authProvider.currentUser!.companyId;
-      context.read<ProductProvider>().initialize(companyId: companyId);
-      context.read<CategoryProvider>().initialize(companyId: companyId);
-      context.read<StockProvider>().initialize(companyId: companyId);
-      context.read<VendorProvider>().initialize(companyId: companyId);
-      await context.read<SettingsProvider>().initialize(companyId);
-      if (!mounted) return;
+      final user = authProvider.currentUser!;
+      if (user.approved) {
+        final companyId = user.companyId;
+        context.read<ProductProvider>().initialize(companyId: companyId);
+        context.read<CategoryProvider>().initialize(companyId: companyId);
+        context.read<StockProvider>().initialize(companyId: companyId);
+        context.read<VendorProvider>().initialize(companyId: companyId);
+        await context.read<SettingsProvider>().initialize(companyId);
+        if (!mounted) return;
+      }
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -79,9 +83,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
+                padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                 child: Form(
                   key: _formKey,
                   child: Column(

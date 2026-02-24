@@ -21,16 +21,43 @@ class StockInScreen extends StatefulWidget {
 }
 
 class _StockInScreenState extends State<StockInScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
+  bool _submitted = false;
   final _quantityController = TextEditingController();
   final _reasonController = TextEditingController();
-  final _locationController = TextEditingController();
 
   ProductModel? _selectedProduct;
+  String? _selectedLocation;
   String _selectedVendorId = '';
   String _selectedVendorName = '';
   bool _isLoading = false;
   String _productSearch = '';
+
+  bool get _hasUnsavedChanges =>
+      _quantityController.text.trim().isNotEmpty ||
+      _selectedLocation != null ||
+      _reasonController.text.trim().isNotEmpty ||
+      (_selectedProduct != null && widget.product == null);
+
+  Future<bool> _confirmDiscard() async {
+    if (!_hasUnsavedChanges) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to go back?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 
   @override
   void initState() {
@@ -50,7 +77,6 @@ class _StockInScreenState extends State<StockInScreen> {
   void dispose() {
     _quantityController.dispose();
     _reasonController.dispose();
-    _locationController.dispose();
     super.dispose();
   }
 
@@ -61,14 +87,6 @@ class _StockInScreenState extends State<StockInScreen> {
       return lq.entries.map((e) => '${e.key}: ${e.value}').join(', ');
     }
     return '${lq.length} locations \u2022 ${p.quantity} total';
-  }
-
-  String _normalizeLocation(String raw) {
-    return raw
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-        .join(' ');
   }
 
   Future<bool> _confirmLargeQuantity(int qty) async {
@@ -104,6 +122,7 @@ class _StockInScreenState extends State<StockInScreen> {
 
   Future<void> _addStock() async {
     if (_isLoading) return;
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,11 +135,10 @@ class _StockInScreenState extends State<StockInScreen> {
       return;
     }
 
-    final rawLocation = _locationController.text.trim();
-    if (rawLocation.isEmpty) {
+    if (_selectedLocation == null || _selectedLocation!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a location'),
+          content: Text('Please select a location'),
           backgroundColor: AppTheme.dangerColor,
           duration: Duration(seconds: 4),
         ),
@@ -128,7 +146,7 @@ class _StockInScreenState extends State<StockInScreen> {
       return;
     }
 
-    final location = _normalizeLocation(rawLocation);
+    final location = _selectedLocation!;
 
     final qty = int.tryParse(_quantityController.text);
     if (qty == null || qty <= 0) return;
@@ -255,10 +273,17 @@ class _StockInScreenState extends State<StockInScreen> {
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final p = filtered[index];
+                              final isSelected = _selectedProduct?.id == p.id;
                               final stockColor = AppTheme.getStockColor(
                                   p.quantity,
                                   threshold: p.lowStockThreshold);
                               return ListTile(
+                                selected: isSelected,
+                                selectedTileColor: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                shape: isSelected ? RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                                ) : null,
                                 onTap: () {
                                   setState(() {
                                     _selectedProduct = p;
@@ -320,12 +345,33 @@ class _StockInScreenState extends State<StockInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final products = context.watch<ProductProvider>().allProducts;
-    final availableLocations =
-        context.watch<ProductProvider>().availableLocations;
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission('canStockIn')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Stock In')),
+        body: const Center(child: Text('You do not have permission to access this feature.')),
+      );
+    }
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+    final products = context.watch<ProductProvider>().allProducts;
+    final settingsLocations = context.watch<SettingsProvider>().locations;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard()) Navigator.of(context).pop();
+      },
+      child: GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        if (_submitted) {
+          setState(() {
+            _submitted = false;
+            _formKey = GlobalKey<FormState>();
+          });
+        }
+      },
       child: Scaffold(
       appBar: AppBar(
         title: Row(
@@ -347,10 +393,11 @@ class _StockInScreenState extends State<StockInScreen> {
         child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
         child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
         child: Form(
           key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
+          autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -415,88 +462,32 @@ class _StockInScreenState extends State<StockInScreen> {
               const SizedBox(height: 20),
 
               // Location selector
-              Autocomplete<String>(
-                optionsBuilder: (textEditingValue) {
-                  final productLocs = _selectedProduct?.locationQuantities.keys.toList() ?? [];
-                  final otherLocs = availableLocations.where((l) => !productLocs.contains(l)).toList();
-                  final allLocs = [...productLocs, ...otherLocs];
-
-                  if (textEditingValue.text.isEmpty) {
-                    return allLocs;
+              DropdownButtonFormField<String>(
+                value: _selectedLocation,
+                decoration: InputDecoration(
+                  labelText: 'Location *',
+                  prefixIcon: const Icon(Icons.location_on_rounded),
+                  suffixIcon: _selectedLocation != null
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () => setState(() => _selectedLocation = null),
+                        )
+                      : null,
+                ),
+                hint: const Text('Select location'),
+                items: settingsLocations.map((loc) {
+                  final qty = _selectedProduct?.locationQuantities[loc];
+                  return DropdownMenuItem(
+                    value: loc,
+                    child: Text(qty != null ? '$loc ($qty in stock)' : loc),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => _selectedLocation = value),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a location';
                   }
-                  final query = textEditingValue.text.toLowerCase();
-                  return allLocs.where((l) => l.toLowerCase().contains(query));
-                },
-                onSelected: (selection) {
-                  _locationController.text = selection;
-                },
-                fieldViewBuilder: (context, textController, focusNode,
-                    onFieldSubmitted) {
-                  textController.addListener(() {
-                    _locationController.text = textController.text;
-                  });
-                  return TextFormField(
-                    controller: textController,
-                    focusNode: focusNode,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Location *',
-                      hintText: 'e.g., Warehouse, Shop Floor',
-                      prefixIcon: Icon(Icons.location_on_rounded),
-                      helperText:
-                          'Select existing or type new location',
-                      helperMaxLines: 2,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a location';
-                      }
-                      return null;
-                    },
-                  );
-                },
-                optionsViewBuilder: (context, onSelected, options) {
-                  final productLocs = _selectedProduct?.locationQuantities ?? {};
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(8),
-                      child: ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxHeight: 260),
-                        child: ListView.builder(
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          itemBuilder: (context, index) {
-                            final option = options.elementAt(index);
-                            final isProductLoc = productLocs.containsKey(option);
-                            final qty = productLocs[option];
-                            return ListTile(
-                              dense: true,
-                              leading: Icon(
-                                isProductLoc ? Icons.location_on_rounded : Icons.location_on_outlined,
-                                size: 18,
-                                color: isProductLoc ? AppTheme.primaryColor : null,
-                              ),
-                              title: Text(
-                                option,
-                                style: TextStyle(
-                                  fontWeight: isProductLoc ? FontWeight.w600 : FontWeight.normal,
-                                ),
-                              ),
-                              subtitle: isProductLoc
-                                  ? Text('Current stock: $qty',
-                                      style: TextStyle(fontSize: 11, color: AppTheme.textSecondary))
-                                  : null,
-                              onTap: () => onSelected(option),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
+                  return null;
                 },
               ),
 
@@ -603,6 +594,7 @@ class _StockInScreenState extends State<StockInScreen> {
       ),
       ),
       ),
+    ),
     ),
     );
   }

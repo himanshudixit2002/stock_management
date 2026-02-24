@@ -35,7 +35,7 @@ class ExcelService {
     );
 
     final headers = [
-      'S.No', 'Product Name', 'Category', 'Subcategory', 'Locations',
+      'S.No', 'Product Name', 'Category', 'Company', 'Size', 'Locations',
       'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Description',
       'Preferred Vendor',
     ];
@@ -58,29 +58,31 @@ class ExcelService {
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: dataRow)).value = IntCellValue(row + 1);
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: dataRow)).value = TextCellValue(product.name);
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: dataRow)).value = TextCellValue(product.categoryName);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow)).value = TextCellValue(product.subcategoryName);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow)).value = TextCellValue(locStr);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow)).value = IntCellValue(product.quantity);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow)).value = TextCellValue(product.unit);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow)).value = DoubleCellValue(product.costPrice);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow)).value = DoubleCellValue(product.sellingPrice);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow)).value = TextCellValue(product.stockStatus);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow)).value = TextCellValue(product.description);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow)).value = TextCellValue(product.preferredVendorName);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow)).value = TextCellValue(product.company);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow)).value = TextCellValue(product.size);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow)).value = TextCellValue(locStr);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow)).value = IntCellValue(product.quantity);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow)).value = TextCellValue(product.unit);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow)).value = DoubleCellValue(product.costPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow)).value = DoubleCellValue(product.sellingPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow)).value = TextCellValue(product.stockStatus);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow)).value = TextCellValue(product.description);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 12, rowIndex: dataRow)).value = TextCellValue(product.preferredVendorName);
     }
 
     sheet.setColumnWidth(0, 6);
     sheet.setColumnWidth(1, 25);
     sheet.setColumnWidth(2, 18);
     sheet.setColumnWidth(3, 18);
-    sheet.setColumnWidth(4, 30);
-    sheet.setColumnWidth(5, 10);
-    sheet.setColumnWidth(6, 8);
-    sheet.setColumnWidth(7, 12);
+    sheet.setColumnWidth(4, 14);
+    sheet.setColumnWidth(5, 30);
+    sheet.setColumnWidth(6, 10);
+    sheet.setColumnWidth(7, 8);
     sheet.setColumnWidth(8, 12);
     sheet.setColumnWidth(9, 12);
-    sheet.setColumnWidth(10, 30);
-    sheet.setColumnWidth(11, 20);
+    sheet.setColumnWidth(10, 12);
+    sheet.setColumnWidth(11, 30);
+    sheet.setColumnWidth(12, 20);
 
     final fileBytes = excel.save();
     if (fileBytes != null) {
@@ -118,14 +120,16 @@ class ExcelService {
     for (int i = 0; i < headerRow.length; i++) {
       final cellValue =
           headerRow[i]?.value?.toString().trim().toLowerCase() ?? '';
-      if (cellValue.contains('name') && !cellValue.contains('category')) {
+      if (cellValue.contains('name') && !cellValue.contains('category') && !cellValue.contains('company')) {
         columnMap['name'] = i;
-      } else if (cellValue == 'category') {
-        columnMap['category'] = i;
-      } else if (cellValue.contains('subcategory')) {
-        columnMap['subcategory'] = i;
       } else if (cellValue.contains('category')) {
         columnMap['category'] = i;
+      } else if (cellValue.contains('company') || cellValue.contains('brand')) {
+        columnMap['company'] = i;
+      } else if (cellValue == 'size') {
+        columnMap['size'] = i;
+      } else if (cellValue.contains('location')) {
+        columnMap['locations'] = i;
       } else if (cellValue.contains('quantity') ||
           cellValue.contains('qty') ||
           cellValue.contains('stock')) {
@@ -155,6 +159,9 @@ class ExcelService {
       final productData = <String, dynamic>{};
       productData['name'] = _getCellString(row, columnMap['name']);
       productData['category'] = _getCellString(row, columnMap['category']);
+      productData['company'] = _getCellString(row, columnMap['company']);
+      productData['size'] = _getCellString(row, columnMap['size']);
+      productData['locations'] = _getCellString(row, columnMap['locations']);
       productData['quantity'] = _getCellInt(row, columnMap['quantity']);
       productData['unit'] =
           _getCellString(row, columnMap['unit'], defaultValue: 'pcs');
@@ -179,14 +186,18 @@ class ExcelService {
     return data.map((item) {
       final categoryName = item['category']?.toString() ?? '';
       final category = categoryMap[categoryName.toLowerCase()];
+      final locQuantities = _parseLocationString(item['locations']?.toString() ?? '');
 
       return ProductModel(
         id: '',
         name: item['name']?.toString() ?? '',
         categoryId: category?.id ?? '',
         categoryName: category?.name ?? categoryName,
+        company: item['company']?.toString() ?? '',
+        size: item['size']?.toString() ?? '',
         quantity: (item['quantity'] as num?)?.toInt() ?? 0,
         unit: item['unit']?.toString() ?? 'pcs',
+        locationQuantities: locQuantities,
         description: item['description']?.toString() ?? '',
         costPrice: (item['costPrice'] as num?)?.toDouble() ?? 0,
         sellingPrice: (item['sellingPrice'] as num?)?.toDouble() ?? 0,
@@ -194,6 +205,24 @@ class ExcelService {
         updatedAt: now,
       );
     }).toList();
+  }
+
+  /// Parses "Location1:10, Location2:5" or "Location1:10; Location2:5" into a map.
+  Map<String, int> _parseLocationString(String locStr) {
+    if (locStr.trim().isEmpty) return {};
+    final result = <String, int>{};
+    final parts = locStr.split(RegExp(r'[,;]'));
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final colonIdx = trimmed.lastIndexOf(':');
+      if (colonIdx > 0) {
+        final name = trimmed.substring(0, colonIdx).trim();
+        final qty = int.tryParse(trimmed.substring(colonIdx + 1).trim()) ?? 0;
+        if (name.isNotEmpty) result[name] = qty;
+      }
+    }
+    return result;
   }
 
   String _getCellString(
@@ -276,8 +305,8 @@ class ExcelService {
     // ---- Sheet 2: Products ----
     final prodSheet = excel['Products'];
     final prodHeaders = [
-      'S.No', 'Product Name', 'Category', 'Locations',
-      'Quantity', 'Unit', 'Status', 'Description',
+      'S.No', 'Product Name', 'Category', 'Company', 'Size', 'Locations',
+      'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Description',
     ];
     for (int i = 0; i < prodHeaders.length; i++) {
       final cell = prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
@@ -291,16 +320,24 @@ class ExcelService {
       prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r)).value = IntCellValue(row + 1);
       prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: r)).value = TextCellValue(p.name);
       prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: r)).value = TextCellValue(p.categoryName);
-      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value = TextCellValue(locStr);
-      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: r)).value = IntCellValue(p.quantity);
-      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: r)).value = TextCellValue(p.unit);
-      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: r)).value = TextCellValue(p.stockStatus);
-      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: r)).value = TextCellValue(p.description);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: r)).value = TextCellValue(p.company);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: r)).value = TextCellValue(p.size);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: r)).value = TextCellValue(locStr);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: r)).value = IntCellValue(p.quantity);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: r)).value = TextCellValue(p.unit);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: r)).value = DoubleCellValue(p.costPrice);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: r)).value = DoubleCellValue(p.sellingPrice);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: r)).value = TextCellValue(p.stockStatus);
+      prodSheet.cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: r)).value = TextCellValue(p.description);
     }
     prodSheet.setColumnWidth(1, 25);
     prodSheet.setColumnWidth(2, 18);
-    prodSheet.setColumnWidth(3, 30);
-    prodSheet.setColumnWidth(7, 30);
+    prodSheet.setColumnWidth(3, 18);
+    prodSheet.setColumnWidth(4, 14);
+    prodSheet.setColumnWidth(5, 30);
+    prodSheet.setColumnWidth(8, 12);
+    prodSheet.setColumnWidth(9, 12);
+    prodSheet.setColumnWidth(11, 30);
 
     // ---- Sheet 3: Transactions ----
     final txnSheet = excel['Transactions'];
@@ -368,7 +405,8 @@ class ExcelService {
     );
 
     final headers = [
-      'Product Name', 'Category', 'Quantity', 'Unit', 'Description',
+      'Product Name', 'Category', 'Company', 'Size', 'Quantity', 'Unit',
+      'Cost Price', 'Selling Price', 'Description', 'Locations',
     ];
 
     for (int i = 0; i < headers.length; i++) {
@@ -378,7 +416,8 @@ class ExcelService {
     }
 
     final exampleData = [
-      'Example Product', 'General', '50', 'pcs', 'Description here',
+      'Example Product', 'General', 'Brand A', '10x10', '50', 'pcs',
+      '100', '150', 'Description here', 'Warehouse:30, Shop:20',
     ];
     for (int i = 0; i < exampleData.length; i++) {
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 1)).value =
@@ -387,7 +426,12 @@ class ExcelService {
 
     sheet.setColumnWidth(0, 25);
     sheet.setColumnWidth(1, 18);
-    sheet.setColumnWidth(4, 25);
+    sheet.setColumnWidth(2, 18);
+    sheet.setColumnWidth(3, 14);
+    sheet.setColumnWidth(6, 12);
+    sheet.setColumnWidth(7, 12);
+    sheet.setColumnWidth(8, 25);
+    sheet.setColumnWidth(9, 30);
 
     final fileBytes = excel.save();
     if (fileBytes != null) {
@@ -400,14 +444,14 @@ class ExcelService {
 
   Future<ExportResult> exportProductsToCsv(List<ProductModel> products) async {
     final rows = <List<dynamic>>[
-      ['S.No', 'Product Name', 'Category', 'Subcategory', 'Locations', 'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Description', 'Preferred Vendor'],
+      ['S.No', 'Product Name', 'Category', 'Company', 'Size', 'Locations', 'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Description', 'Preferred Vendor'],
     ];
 
     for (int i = 0; i < products.length; i++) {
       final p = products[i];
       final locStr = p.locationQuantities.entries.map((e) => '${e.key}:${e.value}').join('; ');
       rows.add([
-        i + 1, p.name, p.categoryName, p.subcategoryName, locStr, p.quantity, p.unit, p.costPrice, p.sellingPrice, p.stockStatus, p.description, p.preferredVendorName,
+        i + 1, p.name, p.categoryName, p.company, p.size, locStr, p.quantity, p.unit, p.costPrice, p.sellingPrice, p.stockStatus, p.description, p.preferredVendorName,
       ]);
     }
 
@@ -482,11 +526,11 @@ class ExcelService {
     rows.add([]);
 
     rows.add(['=== PRODUCTS ===']);
-    rows.add(['S.No', 'Product Name', 'Category', 'Subcategory', 'Locations', 'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Preferred Vendor']);
+    rows.add(['S.No', 'Product Name', 'Category', 'Company', 'Size', 'Locations', 'Quantity', 'Unit', 'Cost Price', 'Selling Price', 'Status', 'Preferred Vendor']);
     for (int i = 0; i < products.length; i++) {
       final p = products[i];
       final locStr = p.locationQuantities.entries.map((e) => '${e.key}:${e.value}').join('; ');
-      rows.add([i + 1, p.name, p.categoryName, p.subcategoryName, locStr, p.quantity, p.unit, p.costPrice, p.sellingPrice, p.stockStatus, p.preferredVendorName]);
+      rows.add([i + 1, p.name, p.categoryName, p.company, p.size, locStr, p.quantity, p.unit, p.costPrice, p.sellingPrice, p.stockStatus, p.preferredVendorName]);
     }
     rows.add([]);
 
@@ -524,14 +568,16 @@ class ExcelService {
 
     for (int i = 0; i < headerRow.length; i++) {
       final cellValue = headerRow[i].toString().trim().toLowerCase();
-      if (cellValue.contains('name') && !cellValue.contains('category')) {
+      if (cellValue.contains('name') && !cellValue.contains('category') && !cellValue.contains('company')) {
         columnMap['name'] = i;
-      } else if (cellValue == 'category') {
-        columnMap['category'] = i;
-      } else if (cellValue.contains('subcategory')) {
-        columnMap['subcategory'] = i;
       } else if (cellValue.contains('category')) {
         columnMap['category'] = i;
+      } else if (cellValue.contains('company') || cellValue.contains('brand')) {
+        columnMap['company'] = i;
+      } else if (cellValue == 'size') {
+        columnMap['size'] = i;
+      } else if (cellValue.contains('location')) {
+        columnMap['locations'] = i;
       } else if (cellValue.contains('quantity') ||
           cellValue.contains('qty') ||
           cellValue.contains('stock')) {
@@ -558,6 +604,9 @@ class ExcelService {
       final productData = <String, dynamic>{};
       productData['name'] = _getCsvCellString(row, columnMap['name']);
       productData['category'] = _getCsvCellString(row, columnMap['category']);
+      productData['company'] = _getCsvCellString(row, columnMap['company']);
+      productData['size'] = _getCsvCellString(row, columnMap['size']);
+      productData['locations'] = _getCsvCellString(row, columnMap['locations']);
       productData['quantity'] = _getCsvCellInt(row, columnMap['quantity']);
       productData['unit'] =
           _getCsvCellString(row, columnMap['unit'], defaultValue: 'pcs');

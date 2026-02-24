@@ -6,6 +6,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
+import '../../utils/responsive.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
 
@@ -158,9 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
+                padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                 child: Form(
                   key: _formKey,
                   child: Column(

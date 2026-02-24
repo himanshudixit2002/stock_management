@@ -21,6 +21,11 @@ class HomeScreen extends StatefulWidget {
 
 class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  DateTime? _lastBackPress;
+
+  void switchToTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +45,10 @@ class HomeScreenState extends State<HomeScreen> {
 
     final safeIndex = _currentIndex.clamp(0, tabs.length - 1);
 
+    Widget scaffold;
+
     if (isWide) {
-      return Scaffold(
+      scaffold = Scaffold(
         body: Row(
           children: [
             Container(
@@ -107,18 +114,39 @@ class HomeScreenState extends State<HomeScreen> {
           ],
         ),
       );
+    } else {
+      scaffold = Scaffold(
+        body: IndexedStack(
+          index: safeIndex,
+          children: tabs.map((t) => t.body).toList(),
+        ),
+        bottomNavigationBar: _CustomBottomNav(
+          currentIndex: safeIndex,
+          tabs: tabs,
+          onTap: (i) => setState(() => _currentIndex = i),
+        ),
+      );
     }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: safeIndex,
-        children: tabs.map((t) => t.body).toList(),
-      ),
-      bottomNavigationBar: _CustomBottomNav(
-        currentIndex: safeIndex,
-        tabs: tabs,
-        onTap: (i) => setState(() => _currentIndex = i),
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackPress != null && now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          Navigator.of(context).pop();
+          return;
+        }
+        _lastBackPress = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      child: scaffold,
     );
   }
 }
@@ -226,6 +254,13 @@ class _CustomBottomNav extends StatelessWidget {
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
 
+  static String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning,';
+    if (hour < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -288,7 +323,7 @@ class _HomeTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Welcome back,',
+                            _greeting(),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.7),
@@ -526,9 +561,12 @@ class _QuickStats extends StatelessWidget {
   Widget build(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
     final stockProvider = context.watch<StockProvider>();
+    final auth = context.watch<AuthProvider>();
+    final perms = auth.currentUser?.effectivePermissions ?? UserModel.defaultPermissions;
 
     final totalProducts = productProvider.products.length;
     final lowStock = productProvider.lowStockProducts.length;
+    final outOfStock = productProvider.outOfStockCount;
     final todayTxns = stockProvider.allTransactions
         .where((t) {
           final now = DateTime.now();
@@ -538,32 +576,74 @@ class _QuickStats extends StatelessWidget {
         })
         .length;
 
-    return Row(
+    int tabIndexFor(String tabLabel) {
+      int idx = 1;
+      if (tabLabel == 'Products' && perms['canViewProducts'] == true) return idx;
+      if (perms['canViewProducts'] == true) idx++;
+      if (tabLabel == 'Reports' && perms['canViewReports'] == true) return idx;
+      return -1;
+    }
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        Expanded(
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - Responsive.horizontalPadding(context) * 2 - 10) / 2,
           child: _StatCard(
             label: 'Products',
             value: totalProducts,
             icon: Icons.inventory_2_rounded,
             color: AppTheme.primaryColor,
+            onTap: () {
+              final idx = tabIndexFor('Products');
+              if (idx > 0) context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
+            },
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - Responsive.horizontalPadding(context) * 2 - 10) / 2,
           child: _StatCard(
             label: 'Low Stock',
             value: lowStock,
             icon: Icons.warning_amber_rounded,
             color: lowStock > 0 ? AppTheme.warningColor : AppTheme.successColor,
+            onTap: () {
+              final idx = tabIndexFor('Products');
+              if (idx > 0) {
+                productProvider.filterByStockStatus('low_stock');
+                context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
+              }
+            },
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - Responsive.horizontalPadding(context) * 2 - 10) / 2,
+          child: _StatCard(
+            label: 'Out of Stock',
+            value: outOfStock,
+            icon: Icons.remove_shopping_cart_rounded,
+            color: AppTheme.dangerColor,
+            onTap: () {
+              final idx = tabIndexFor('Products');
+              if (idx > 0) {
+                productProvider.filterByStockStatus('out_of_stock');
+                context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
+              }
+            },
+          ),
+        ),
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - Responsive.horizontalPadding(context) * 2 - 10) / 2,
           child: _StatCard(
             label: 'Today',
             value: todayTxns,
             icon: Icons.receipt_long_rounded,
             color: AppTheme.infoColor,
+            onTap: () {
+              final idx = tabIndexFor('Reports');
+              if (idx > 0) context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
+            },
           ),
         ),
       ],
@@ -576,17 +656,21 @@ class _StatCard extends StatelessWidget {
   final int value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -628,6 +712,7 @@ class _StatCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -688,6 +773,15 @@ class _QuickLink extends StatelessWidget {
 class _RecentActivity extends StatelessWidget {
   const _RecentActivity();
 
+  static int _reportsTabIndex(BuildContext context) {
+    final perms = context.read<AuthProvider>().currentUser?.effectivePermissions
+        ?? UserModel.defaultPermissions;
+    int idx = 1;
+    if (perms['canViewProducts'] == true) idx++;
+    if (perms['canViewReports'] == true) return idx;
+    return -1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactions = context.watch<StockProvider>().allTransactions;
@@ -715,6 +809,23 @@ class _RecentActivity extends StatelessWidget {
                 color: Colors.grey[800],
               ),
             ),
+            const Spacer(),
+            if (recent.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(
+                    _reportsTabIndex(context),
+                  );
+                },
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 12),
@@ -774,7 +885,16 @@ class _TransactionTile extends StatelessWidget {
       timeAgo = '${diff.inDays}d ago';
     }
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        final product = context.read<ProductProvider>().allProducts
+            .where((p) => p.id == txn.productId)
+            .firstOrNull;
+        if (product != null) {
+          Navigator.pushNamed(context, '/products/detail', arguments: product);
+        }
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -840,6 +960,7 @@ class _TransactionTile extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

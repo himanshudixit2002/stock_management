@@ -6,8 +6,8 @@ class ProductModel {
   final String name;
   final String categoryId;
   final String categoryName;
-  final String subcategoryId;
-  final String subcategoryName;
+  final String company;
+  final String size;
   final int quantity;
   final String unit;
   final Map<String, int> locationQuantities;
@@ -32,8 +32,8 @@ class ProductModel {
     required this.name,
     required this.categoryId,
     this.categoryName = '',
-    this.subcategoryId = '',
-    this.subcategoryName = '',
+    this.company = '',
+    this.size = '',
     required this.quantity,
     this.unit = 'pcs',
     this.locationQuantities = const {},
@@ -93,8 +93,8 @@ class ProductModel {
       name: safeString(map['name']),
       categoryId: safeString(map['categoryId']),
       categoryName: safeString(map['categoryName']),
-      subcategoryId: safeString(map['subcategoryId']),
-      subcategoryName: safeString(map['subcategoryName']),
+      company: safeString(map['company']),
+      size: safeString(map['size']),
       quantity: safeInt(map['quantity']),
       unit: safeString(map['unit'], 'pcs'),
       locationQuantities: locQty,
@@ -121,8 +121,8 @@ class ProductModel {
       'name': name,
       'categoryId': categoryId,
       'categoryName': categoryName,
-      'subcategoryId': subcategoryId,
-      'subcategoryName': subcategoryName,
+      'company': company,
+      'size': size,
       'quantity': quantity,
       'unit': unit,
       'locationQuantities': locationQuantities,
@@ -149,8 +149,8 @@ class ProductModel {
     String? name,
     String? categoryId,
     String? categoryName,
-    String? subcategoryId,
-    String? subcategoryName,
+    String? company,
+    String? size,
     int? quantity,
     String? unit,
     Map<String, int>? locationQuantities,
@@ -175,8 +175,8 @@ class ProductModel {
       name: name ?? this.name,
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
-      subcategoryId: subcategoryId ?? this.subcategoryId,
-      subcategoryName: subcategoryName ?? this.subcategoryName,
+      company: company ?? this.company,
+      size: size ?? this.size,
       quantity: quantity ?? this.quantity,
       unit: unit ?? this.unit,
       locationQuantities: locationQuantities ?? this.locationQuantities,
