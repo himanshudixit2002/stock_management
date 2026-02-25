@@ -108,11 +108,19 @@ class ExcelService {
     final excel = Excel.decodeBytes(bytes);
     final List<Map<String, dynamic>> products = [];
 
+    if (excel.tables.isEmpty) {
+      throw Exception('The Excel file has no sheets');
+    }
+
     final sheetName = excel.tables.keys.first;
     final sheet = excel.tables[sheetName];
 
     if (sheet == null || sheet.rows.isEmpty) {
       throw Exception('The Excel file is empty');
+    }
+
+    if (sheet.rows.length < 2) {
+      throw Exception('The file has headers but no data rows');
     }
 
     final headerRow = sheet.rows.first;

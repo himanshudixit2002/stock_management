@@ -58,7 +58,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
 
           if (kIsWeb) {
             final bytes = result.files.single.bytes;
-            if (bytes == null) throw Exception('Could not read file bytes');
+            if (bytes == null) throw Exception('Could not read file bytes on web. Please try again.');
             data = isCsv
                 ? _excelService.parseCsvBytes(bytes)
                 : _excelService.parseExcelBytes(bytes);
@@ -69,13 +69,21 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                 : await _excelService.parseExcelFile(_filePath!);
           }
 
+          if (data.isEmpty) {
+            setState(() {
+              _error = 'No products found in the file. Make sure the first row has column headers.';
+              _isLoading = false;
+            });
+            return;
+          }
+
           setState(() {
             _parsedData = data;
             _isLoading = false;
           });
         } catch (e) {
           setState(() {
-            _error = 'Could not read the file. Please check the format and try again.';
+            _error = 'Could not read the file: ${e.toString().replaceAll('Exception: ', '')}';
             _isLoading = false;
           });
         }
