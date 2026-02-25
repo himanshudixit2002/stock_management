@@ -30,12 +30,20 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['xlsx', 'xls', 'csv'],
+        type: kIsWeb ? FileType.any : FileType.custom,
+        allowedExtensions: kIsWeb ? null : ['xlsx', 'csv'],
         withData: kIsWeb,
       );
 
       if (result != null && result.files.single.name.isNotEmpty) {
+        final pickedName = result.files.single.name.toLowerCase();
+        if (!pickedName.endsWith('.xlsx') && !pickedName.endsWith('.csv')) {
+          setState(() {
+            _error = 'Unsupported file type. Please select an .xlsx or .csv file.';
+          });
+          return;
+        }
+
         setState(() {
           _fileName = result.files.single.name;
           _filePath = result.files.single.path;
