@@ -1,0 +1,1278 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../services/excel_service.dart';
+import '../../providers/product_provider.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/vendor_provider.dart';
+import '../../providers/settings_provider.dart';
+import '../../models/vendor_model.dart';
+import '../../models/product_model.dart';
+import '../../config/theme.dart';
+import '../../utils/responsive.dart';
+import '../../widgets/glass_panel.dart';
+
+class ExcelUpdateScreen extends StatefulWidget {
+  const ExcelUpdateScreen({super.key});
+
+  @override
+  State<ExcelUpdateScreen> createState() => _ExcelUpdateScreenState();
+}
+
+class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
+  final ExcelService _excelService = ExcelService();
+
+  bool _isExporting = false;
+  bool _isParsing = false;
+  bool _isApplying = false;
+  String? _error;
+
+  String? _fileName;
+  List<ProductUpdateDiff>? _diffs;
+  List<Map<String, dynamic>>? _parsedData;
+
+  int get _modifiedCount =>
+      _diffs?.where((d) => d.status == UpdateStatus.modified).length ?? 0;
+  int get _newCount =>
+      _diffs?.where((d) => d.status == UpdateStatus.newProduct).length ?? 0;
+  int get _unchangedCount =>
+      _diffs?.where((d) => d.status == UpdateStatus.unchanged).length ?? 0;
+  int get _errorCount =>
+      _diffs?.where((d) => d.status == UpdateStatus.error).length ?? 0;
+
+  int get _currentStep {
+    if (_diffs != null) return 3;
+    if (_fileName != null) return 2;
+    return 1;
+  }
+
+  Future<void> _downloadForUpdate() async {
+    setState(() {
+      _isExporting = true;
+      _error = null;
+    });
+    try {
+      final products = context.read<ProductProvider>().allProducts;
+      if (products.isEmpty) {
+        setState(() {
+          _error = 'No products to export. Add products first.';
+          _isExporting = false;
+        });
+        return;
+      }
+      final result = await _excelService.exportProductsForUpdate(products);
+      await _excelService.saveAndShare(result);
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Exported ${products.length} products for editing',
+            ),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Export failed: ${e.toString().replaceAll('Exception: ', '')}';
+      });
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Future<void> _pickAndParse() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: kIsWeb ? FileType.any : FileType.custom,
+        allowedExtensions: kIsWeb ? null : ['xlsx'],
+        withData: true,
+      );
+
+      if (result == null || result.files.single.name.isEmpty) return;
+
+      final pickedName = result.files.single.name.toLowerCase();
+      if (!pickedName.endsWith('.xlsx')) {
+        setState(() {
+          _error =
+              'Please select an .xlsx file (the file you downloaded in Step 1).';
+        });
+        return;
+      }
+
+      setState(() {
+        _fileName = result.files.single.name;
+        _isParsing = true;
+        _error = null;
+        _diffs = null;
+        _parsedData = null;
+      });
+
+      try {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) {
+          throw Exception('Could not read file bytes. Please try again.');
+        }
+
+        final parseResult = _excelService.parseForUpdate(bytes);
+        if (parseResult.data.isEmpty) {
+          setState(() {
+            _error = 'No products found in the file.';
+            _isParsing = false;
+          });
+          return;
+        }
+
+        _parsedData = parseResult.data;
+
+        if (!mounted) return;
+        final categoryProvider = context.read<CategoryProvider>();
+        final vendorProvider = context.read<VendorProvider>();
+        final productProvider = context.read<ProductProvider>();
+
+        final categoryMap = categoryProvider.getCategoryNameMap();
+        final vendorMap = vendorProvider.getVendorNameMap();
+
+        final diffs = _excelService.diffProducts(
+          parseResult.data,
+          productProvider.allProducts,
+          categoryMap,
+          vendorMap,
+        );
+
+        setState(() {
+          _diffs = diffs;
+          _isParsing = false;
+        });
+      } catch (e) {
+        setState(() {
+          _error =
+              'Could not read the file: ${e.toString().replaceAll('Exception: ', '')}';
+          _isParsing = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Could not open file picker: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> _applyChanges() async {
+    if (_diffs == null || _parsedData == null) return;
+
+    final modified = _diffs!.where((d) => d.status == UpdateStatus.modified).toList();
+    final newProducts = _diffs!.where((d) => d.status == UpdateStatus.newProduct).toList();
+
+    if (modified.isEmpty && newProducts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No changes to apply.'),
+          backgroundColor: AppTheme.textSecondary,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isApplying = true;
+      _error = null;
+    });
+
+    try {
+      final user = context.read<AuthProvider>().currentUser;
+      if (user == null) {
+        setState(() => _isApplying = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session expired. Please log in again.'),
+              backgroundColor: AppTheme.dangerColor,
+            ),
+          );
+        }
+        return;
+      }
+
+      final categoryProvider = context.read<CategoryProvider>();
+      final vendorProvider = context.read<VendorProvider>();
+      final productProvider = context.read<ProductProvider>();
+      final settingsProvider = context.read<SettingsProvider>();
+
+      final categoryMap = categoryProvider.getCategoryNameMap();
+      final vendorMap = vendorProvider.getVendorNameMap();
+
+      // Create missing categories and vendors
+      final allParsedData = [...modified, ...newProducts].map((d) => d.parsedData);
+      final dataCategories = allParsedData
+          .map((d) => d['category']?.toString().trim() ?? '')
+          .where((c) => c.isNotEmpty)
+          .toSet();
+
+      for (final catName in dataCategories) {
+        if (!categoryMap.keys.contains(catName.toLowerCase())) {
+          final newCategory = await categoryProvider.addCategory(
+            catName,
+            userId: user.uid,
+            userName: user.name,
+          );
+          if (newCategory != null) {
+            categoryMap[catName.toLowerCase()] = newCategory;
+          }
+        }
+      }
+
+      final dataVendors = allParsedData
+          .map((d) => d['preferredVendor']?.toString().trim() ?? '')
+          .where((v) => v.isNotEmpty)
+          .toSet();
+      final now = DateTime.now();
+      for (final vendorName in dataVendors) {
+        if (!vendorMap.keys.contains(vendorName.toLowerCase())) {
+          final newVendor = VendorModel(
+            id: '',
+            name: vendorName,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: user.uid,
+            createdByName: user.name,
+          );
+          final addedVendor = await vendorProvider.addVendor(newVendor);
+          if (addedVendor != null) {
+            vendorMap[vendorName.toLowerCase()] = addedVendor;
+          }
+        }
+      }
+
+      int updatedCount = 0;
+      int addedCount = 0;
+
+      // Bulk update modified products
+      if (modified.isNotEmpty) {
+        final existingProducts = productProvider.allProducts;
+        final existingMap = <String, ProductModel>{};
+        for (final p in existingProducts) {
+          existingMap[p.id] = p;
+        }
+
+        final productsToUpdate = <ProductModel>[];
+        for (final diff in modified) {
+          final existing = existingMap[diff.productId];
+          if (existing == null) continue;
+
+          final data = diff.parsedData;
+          final catName = data['category']?.toString().trim() ?? '';
+          final category = categoryMap[catName.toLowerCase()];
+          final vendorName = data['preferredVendor']?.toString().trim() ?? '';
+          final vendor =
+              vendorName.isNotEmpty ? vendorMap[vendorName.toLowerCase()] : null;
+
+          final locStr = data['locations']?.toString().trim() ?? '';
+          var locQuantities = _excelService.parseLocationString(locStr);
+          var quantity = _excelService.parseIntValue(data['quantity']);
+
+          if (locQuantities.isNotEmpty) {
+            final locSum = locQuantities.values.fold<int>(0, (a, b) => a + b);
+            quantity = locSum;
+            if (locSum == 0 && quantity > 0) {
+              final keys = locQuantities.keys.toList();
+              if (keys.length == 1) {
+                locQuantities = {keys.single: quantity};
+              }
+            }
+          } else {
+            locQuantities = existing.locationQuantities;
+            if (quantity != existing.quantity && existing.locationQuantities.length == 1) {
+              final loc = existing.locationQuantities.keys.first;
+              locQuantities = {loc: quantity};
+            } else {
+              quantity = existing.quantity;
+            }
+          }
+
+          int threshold = _excelService.parseIntValue(data['lowStockThreshold']);
+          if (threshold <= 0) threshold = existing.lowStockThreshold;
+
+          final unitVal = data['unit']?.toString().trim() ?? '';
+
+          productsToUpdate.add(existing.copyWith(
+            name: data['name']?.toString().trim() ?? existing.name,
+            categoryId: category?.id ?? existing.categoryId,
+            categoryName: category?.name ?? catName,
+            company: data['company']?.toString().trim() ?? existing.company,
+            size: data['size']?.toString().trim() ?? existing.size,
+            quantity: quantity,
+            unit: unitVal.isNotEmpty ? unitVal : existing.unit,
+            locationQuantities: locQuantities,
+            description: data['description']?.toString().trim() ?? existing.description,
+            lowStockThreshold: threshold,
+            costPrice: _excelService.parseDoubleValue(data['costPrice']),
+            sellingPrice: _excelService.parseDoubleValue(data['sellingPrice']),
+            preferredVendorId: vendor?.id ?? existing.preferredVendorId,
+            preferredVendorName: vendor?.name ?? vendorName,
+          ));
+        }
+
+        if (productsToUpdate.isNotEmpty) {
+          updatedCount = await productProvider.bulkUpdateProducts(
+            productsToUpdate,
+            userId: user.uid,
+            userName: user.name,
+          );
+        }
+      }
+
+      // Bulk add new products
+      if (newProducts.isNotEmpty) {
+        final newParsedData =
+            newProducts.map((d) => d.parsedData).toList();
+        final products = _excelService.convertToProducts(
+          newParsedData,
+          categoryMap,
+          vendorMap,
+          fallbackLocations: settingsProvider.locations,
+        );
+
+        if (products.isNotEmpty) {
+          addedCount = await productProvider.bulkAddProducts(
+            products,
+            userId: user.uid,
+            userName: user.name,
+          );
+        }
+      }
+
+      // Sync settings
+      await settingsProvider.syncFromProductList(productProvider.allProducts);
+
+      await productProvider.refreshProducts();
+
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        final parts = <String>[];
+        if (updatedCount > 0) parts.add('$updatedCount updated');
+        if (addedCount > 0) parts.add('$addedCount added');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Done! ${parts.join(', ')}'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        setState(() {
+          _diffs = null;
+          _parsedData = null;
+          _fileName = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error =
+            'Update failed: ${e.toString().replaceAll('Exception: ', '')}';
+      });
+    } finally {
+      if (mounted) setState(() => _isApplying = false);
+    }
+  }
+
+  void _reset() {
+    setState(() {
+      _fileName = null;
+      _diffs = null;
+      _parsedData = null;
+      _error = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user == null || !user.hasPermission('canImport')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Update from Excel')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
+      );
+    }
+
+    final hPad = Responsive.horizontalPadding(context);
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.sync_rounded,
+                color: AppTheme.primaryColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('Update from Excel'),
+          ],
+        ),
+        actions: [
+          if (_currentStep > 1)
+            TextButton.icon(
+              onPressed: _reset,
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              label: const Text('Start Over'),
+            ),
+        ],
+      ),
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: Responsive.contentMaxWidth(context),
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(hPad, 20, hPad, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStepIndicator(),
+                    const SizedBox(height: 24),
+                    if (_error != null) _buildError(),
+                    if (_currentStep == 1) _buildStep1(),
+                    if (_currentStep == 2) _buildStep2(),
+                    if (_currentStep == 3) _buildStep3(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepIndicator() {
+    return Row(
+      children: [
+        _stepDot(1, 'Download'),
+        _stepLine(1),
+        _stepDot(2, 'Upload'),
+        _stepLine(2),
+        _stepDot(3, 'Review & Apply'),
+      ],
+    );
+  }
+
+  Widget _stepDot(int step, String label) {
+    final isActive = _currentStep >= step;
+    final isCurrent = _currentStep == step;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? AppTheme.primaryColor : AppTheme.surfaceColor,
+            border: Border.all(
+              color: isActive
+                  ? AppTheme.primaryColor
+                  : AppTheme.glassBorderContent,
+              width: isCurrent ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: isActive && !isCurrent
+                ? const Icon(Icons.check, size: 16, color: Colors.white)
+                : Text(
+                    '$step',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isActive ? Colors.white : AppTheme.textTertiary,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+            color: isCurrent ? AppTheme.primaryColor : AppTheme.textTertiary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _stepLine(int afterStep) {
+    final isActive = _currentStep > afterStep;
+    return Expanded(
+      flex: 1,
+      child: Container(
+        height: 2,
+        margin: const EdgeInsets.only(bottom: 20),
+        color: isActive ? AppTheme.primaryColor : AppTheme.glassBorderContent,
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GlassCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(Icons.error_outline, color: AppTheme.dangerColor, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: AppTheme.dangerColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _error = null),
+                child: const Icon(Icons.close, size: 18, color: AppTheme.textTertiary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStep1() {
+    final productCount = context.watch<ProductProvider>().allProducts.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GlassCard(
+          borderRadius: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.download_rounded,
+                        color: AppTheme.primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Step 1: Download Current Data',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Export your products as an Excel file with IDs for editing.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _instructionRow(
+                  '1',
+                  'Download the file below ($productCount products)',
+                ),
+                _instructionRow('2', 'Open it in Excel or Google Sheets'),
+                _instructionRow(
+                  '3',
+                  'Edit product names, categories, prices, etc.',
+                ),
+                _instructionRow(
+                  '4',
+                  'Do NOT change the ID column (first column)',
+                ),
+                _instructionRow(
+                  '5',
+                  'Save and come back to upload the modified file',
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _isExporting ? null : _downloadForUpdate,
+                    icon: _isExporting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.download_rounded),
+                    label: Text(
+                      _isExporting ? 'Exporting...' : 'Download Products Excel',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickAndParse,
+                    icon: const Icon(Icons.upload_file_rounded, size: 20),
+                    label: const Text('I already have the file, upload now'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _instructionRow(String number, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep2() {
+    return GlassCard(
+      borderRadius: 16,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            if (_isParsing)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Analyzing changes...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              const Icon(
+                Icons.upload_file_rounded,
+                size: 48,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'File selected: $_fileName',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Processing...',
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStep3() {
+    if (_diffs == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Summary cards
+        Row(
+          children: [
+            _summaryCard(
+              'Modified',
+              _modifiedCount,
+              Icons.edit_rounded,
+              AppTheme.primaryColor,
+            ),
+            const SizedBox(width: 10),
+            _summaryCard(
+              'New',
+              _newCount,
+              Icons.add_circle_outline,
+              AppTheme.successColor,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _summaryCard(
+              'Unchanged',
+              _unchangedCount,
+              Icons.check_circle_outline,
+              AppTheme.textTertiary,
+            ),
+            const SizedBox(width: 10),
+            _summaryCard(
+              'Errors',
+              _errorCount,
+              Icons.warning_amber_rounded,
+              AppTheme.dangerColor,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // Modified products list
+        if (_modifiedCount > 0) ...[
+          _sectionTitle('Modified Products', _modifiedCount),
+          const SizedBox(height: 8),
+          ..._diffs!
+              .where((d) => d.status == UpdateStatus.modified)
+              .map((d) => _ModifiedProductCard(diff: d)),
+          const SizedBox(height: 16),
+        ],
+
+        // New products list
+        if (_newCount > 0) ...[
+          _sectionTitle('New Products', _newCount),
+          const SizedBox(height: 8),
+          ..._diffs!
+              .where((d) => d.status == UpdateStatus.newProduct)
+              .map((d) => _NewProductCard(diff: d)),
+          const SizedBox(height: 16),
+        ],
+
+        // Errors list
+        if (_errorCount > 0) ...[
+          _sectionTitle('Errors', _errorCount),
+          const SizedBox(height: 8),
+          ..._diffs!
+              .where((d) => d.status == UpdateStatus.error)
+              .map((d) => _ErrorCard(diff: d)),
+          const SizedBox(height: 16),
+        ],
+
+        // Action buttons
+        if (_modifiedCount > 0 || _newCount > 0) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _isApplying ? null : _applyChanges,
+              icon: _isApplying
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_rounded),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _isApplying
+                      ? 'Applying Changes...'
+                      : 'Apply ($_modifiedCount updates, $_newCount new)',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 44,
+            child: OutlinedButton(
+              onPressed: _reset,
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Cancel'),
+            ),
+          ),
+        ],
+
+        if (_modifiedCount == 0 && _newCount == 0) ...[
+          const SizedBox(height: 16),
+          GlassCard(
+            borderRadius: 12,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 40,
+                    color: AppTheme.successColor,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No changes detected',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'All products in the file match your current data.',
+                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _summaryCard(String label, int count, IconData icon, Color color) {
+    return Expanded(
+      child: GlassCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, int count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModifiedProductCard extends StatefulWidget {
+  final ProductUpdateDiff diff;
+  const _ModifiedProductCard({required this.diff});
+
+  @override
+  State<_ModifiedProductCard> createState() => _ModifiedProductCardState();
+}
+
+class _ModifiedProductCardState extends State<_ModifiedProductCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        borderRadius: 12,
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      color: AppTheme.primaryColor,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.diff.productName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${widget.diff.fieldChanges.length} field(s) changed',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: AppTheme.textTertiary,
+                    size: 20,
+                  ),
+                ],
+              ),
+              if (_expanded) ...[
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                ...widget.diff.fieldChanges.map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minWidth: 60,
+                            maxWidth: 100,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              c.field,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textSecondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.oldValue.isEmpty ? '(empty)' : c.oldValue,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.dangerColor,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                c.newValue.isEmpty ? '(empty)' : c.newValue,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.successColor,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewProductCard extends StatelessWidget {
+  final ProductUpdateDiff diff;
+  const _NewProductCard({required this.diff});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = diff.parsedData;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.add_circle_outline,
+                  color: AppTheme.successColor,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['name']?.toString() ?? 'Unnamed',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      [
+                        data['category'],
+                        data['company'],
+                        data['size'],
+                      ].where((v) => v != null && v.toString().isNotEmpty).join(' · '),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTertiary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.successColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  final ProductUpdateDiff diff;
+  const _ErrorCard({required this.diff});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        borderRadius: 12,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.dangerColor,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      diff.productName.isNotEmpty
+                          ? diff.productName
+                          : 'Unknown product',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    if (diff.errorMessage != null)
+                      Text(
+                        diff.errorMessage!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.dangerColor,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

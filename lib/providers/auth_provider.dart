@@ -23,21 +23,29 @@ class AuthProvider extends ChangeNotifier {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
       } catch (e) {
         _currentUser = null;
-        _errorMessage = friendlyError(e, fallback: 'Could not load account data.');
+        _errorMessage = friendlyError(
+          e,
+          fallback: 'Could not load account data.',
+        );
       }
       notifyListeners();
     }
   }
 
   /// Re-fetches the current user doc from Firestore and notifies listeners.
-  /// Used by PendingApprovalScreen to react to approval status changes.
   Future<void> refreshCurrentUser() async {
     final firebaseUser = _authService.currentUser;
     if (firebaseUser != null) {
       try {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
         notifyListeners();
-      } catch (_) {}
+      } catch (e) {
+        _errorMessage = friendlyError(
+          e,
+          fallback: 'Could not refresh account data.',
+        );
+        notifyListeners();
+      }
     }
   }
 
@@ -47,7 +55,6 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String companyName,
     required String phone,
-    String role = 'admin',
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -60,7 +67,6 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         companyName: companyName,
         phone: phone,
-        role: role,
       );
       _isLoading = false;
       notifyListeners();
@@ -73,23 +79,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _currentUser = await _authService.login(
-        email: email,
-        password: password,
-      );
+      _currentUser = await _authService.login(email: email, password: password);
 
       if (_currentUser == null) {
         await _authService.logout();
-        _errorMessage = 'Account data not found. Please contact your administrator.';
+        _errorMessage =
+            'Account data not found. Please contact your administrator.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -124,7 +125,10 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -142,34 +146,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Stream<List<UserModel>> getPendingUsers() {
-    return _authService.getPendingUsers();
-  }
-
-  Future<bool> approveUser(String uid) async {
-    try {
-      await _authService.approveUser(uid);
-      return true;
-    } catch (e) {
-      _errorMessage = friendlyError(e);
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> rejectUser(String uid) async {
-    try {
-      await _authService.rejectUser(uid);
-      return true;
-    } catch (e) {
-      _errorMessage = friendlyError(e);
-      notifyListeners();
-      return false;
-    }
-  }
-
   Future<void> logout() async {
-    await _authService.logout();
+    _errorMessage = null;
+    try {
+      await _authService.logout();
+    } catch (_) {
+      // Clear local state regardless of server-side logout result
+    }
     _currentUser = null;
     notifyListeners();
   }
@@ -185,20 +168,33 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> updateUserRole(String uid, String newRole) async {
+    if (_isLoading) return;
+    _isLoading = true;
+    notifyListeners();
     try {
       await _authService.updateUserRole(uid, newRole);
     } catch (e) {
       _errorMessage = friendlyError(e);
-      notifyListeners();
     }
+    _isLoading = false;
+    notifyListeners();
   }
 
-  Future<bool> updateStaffPermissions(String uid, Map<String, bool> perms) async {
+  Future<bool> updateStaffPermissions(
+    String uid,
+    Map<String, bool> perms,
+  ) async {
+    if (_isLoading) return false;
+    _isLoading = true;
+    notifyListeners();
     try {
       await _authService.updateUserPermissions(uid, perms);
+      _isLoading = false;
+      notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e);
+      _isLoading = false;
       notifyListeners();
       return false;
     }
@@ -251,11 +247,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> deleteStaffUser(String staffUid) async {
+    if (_isLoading) return false;
+    _isLoading = true;
+    notifyListeners();
     try {
       await _authService.deleteStaffUser(staffUid);
+      _isLoading = false;
+      notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e);
+      _isLoading = false;
       notifyListeners();
       return false;
     }

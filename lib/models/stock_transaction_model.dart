@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/parse_helpers.dart';
 
-enum TransactionType { stockIn, stockOut, damage, transfer }
+enum TransactionType { stockIn, stockOut, damage, transfer, adjustment }
 
 class StockTransactionModel {
   final String id;
@@ -33,69 +33,57 @@ class StockTransactionModel {
   });
 
   String get typeLabel {
-    switch (type) {
-      case TransactionType.stockIn:
-        return 'Stock In';
-      case TransactionType.stockOut:
-        return 'Stock Out';
-      case TransactionType.damage:
-        return 'Damage';
-      case TransactionType.transfer:
-        return 'Transfer';
-    }
+    return switch (type) {
+      TransactionType.stockIn => 'Stock In',
+      TransactionType.stockOut => 'Stock Out',
+      TransactionType.damage => 'Damage',
+      TransactionType.transfer => 'Transfer',
+      TransactionType.adjustment => 'Adjustment',
+    };
   }
 
   String get typeIcon {
-    switch (type) {
-      case TransactionType.stockIn:
-        return '📦';
-      case TransactionType.stockOut:
-        return '📤';
-      case TransactionType.damage:
-        return '⚠️';
-      case TransactionType.transfer:
-        return '🔄';
-    }
+    return switch (type) {
+      TransactionType.stockIn => '📦',
+      TransactionType.stockOut => '📤',
+      TransactionType.damage => '⚠️',
+      TransactionType.transfer => '🔄',
+      TransactionType.adjustment => '📋',
+    };
   }
 
   static TransactionType _typeFromString(String type) {
-    switch (type) {
-      case 'stock_in':
-        return TransactionType.stockIn;
-      case 'stock_out':
-        return TransactionType.stockOut;
-      case 'damage':
-        return TransactionType.damage;
-      case 'transfer':
-        return TransactionType.transfer;
-      default:
-        return TransactionType.stockIn;
-    }
+    return switch (type) {
+      'stock_in' => TransactionType.stockIn,
+      'stock_out' => TransactionType.stockOut,
+      'damage' => TransactionType.damage,
+      'transfer' => TransactionType.transfer,
+      'adjustment' => TransactionType.adjustment,
+      _ => TransactionType.stockIn,
+    };
   }
 
   static String _typeToString(TransactionType type) {
-    switch (type) {
-      case TransactionType.stockIn:
-        return 'stock_in';
-      case TransactionType.stockOut:
-        return 'stock_out';
-      case TransactionType.damage:
-        return 'damage';
-      case TransactionType.transfer:
-        return 'transfer';
-    }
+    return switch (type) {
+      TransactionType.stockIn => 'stock_in',
+      TransactionType.stockOut => 'stock_out',
+      TransactionType.damage => 'damage',
+      TransactionType.transfer => 'transfer',
+      TransactionType.adjustment => 'adjustment',
+    };
   }
 
   factory StockTransactionModel.fromMap(
     Map<String, dynamic> map,
     String docId,
   ) {
+    final rawQty = safeInt(map['quantity']);
     return StockTransactionModel(
       id: docId,
       productId: safeString(map['productId']),
       productName: safeString(map['productName']),
       type: _typeFromString(safeString(map['type'], 'stock_in')),
-      quantity: safeInt(map['quantity']),
+      quantity: rawQty < 0 ? 0 : rawQty,
       location: safeString(map['location']),
       reason: safeString(map['reason']),
       userId: safeString(map['userId']),

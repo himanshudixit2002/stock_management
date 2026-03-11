@@ -76,11 +76,19 @@ class StockProvider extends ChangeNotifier {
     Iterable<StockTransactionModel> result = _recentTransactions;
 
     if (_filterStartDate != null) {
-      final start = DateTime(_filterStartDate!.year, _filterStartDate!.month, _filterStartDate!.day);
+      final start = DateTime(
+        _filterStartDate!.year,
+        _filterStartDate!.month,
+        _filterStartDate!.day,
+      );
       result = result.where((t) => !t.date.isBefore(start));
     }
     if (_filterEndDate != null) {
-      final endExclusive = DateTime(_filterEndDate!.year, _filterEndDate!.month, _filterEndDate!.day + 1);
+      final endExclusive = DateTime(
+        _filterEndDate!.year,
+        _filterEndDate!.month,
+        _filterEndDate!.day + 1,
+      );
       result = result.where((t) => t.date.isBefore(endExclusive));
     }
     if (_filterUserId.isNotEmpty) {
@@ -88,9 +96,11 @@ class StockProvider extends ChangeNotifier {
     }
     if (_filterProductId.isNotEmpty) {
       final lc = _filterProductId.toLowerCase();
-      result = result.where((t) =>
-          t.productId == _filterProductId ||
-          t.productName.toLowerCase().contains(lc));
+      result = result.where(
+        (t) =>
+            t.productId == _filterProductId ||
+            t.productName.toLowerCase().contains(lc),
+      );
     }
     if (_filterVendorId.isNotEmpty) {
       result = result.where((t) => t.vendorId == _filterVendorId);
@@ -115,6 +125,7 @@ class StockProvider extends ChangeNotifier {
     }
 
     _cachedRecentTransactions = filtered;
+    _filtersDirty = false;
     return filtered;
   }
 
@@ -124,7 +135,9 @@ class StockProvider extends ChangeNotifier {
   // --- Analytics getters (cached) ---
 
   int get stockInTotal {
-    if (_cachedStockInTotal != null && !_filtersDirty) return _cachedStockInTotal!;
+    if (_cachedStockInTotal != null && !_filtersDirty) {
+      return _cachedStockInTotal!;
+    }
     _cachedStockInTotal = recentTransactions
         .where((t) => t.type == TransactionType.stockIn)
         .fold<int>(0, (sum, t) => sum + t.quantity);
@@ -132,7 +145,9 @@ class StockProvider extends ChangeNotifier {
   }
 
   int get stockOutTotal {
-    if (_cachedStockOutTotal != null && !_filtersDirty) return _cachedStockOutTotal!;
+    if (_cachedStockOutTotal != null && !_filtersDirty) {
+      return _cachedStockOutTotal!;
+    }
     _cachedStockOutTotal = recentTransactions
         .where((t) => t.type == TransactionType.stockOut)
         .fold<int>(0, (sum, t) => sum + t.quantity);
@@ -140,7 +155,9 @@ class StockProvider extends ChangeNotifier {
   }
 
   int get damageTotal {
-    if (_cachedDamageTotal != null && !_filtersDirty) return _cachedDamageTotal!;
+    if (_cachedDamageTotal != null && !_filtersDirty) {
+      return _cachedDamageTotal!;
+    }
     _cachedDamageTotal = recentTransactions
         .where((t) => t.type == TransactionType.damage)
         .fold<int>(0, (sum, t) => sum + t.quantity);
@@ -148,7 +165,9 @@ class StockProvider extends ChangeNotifier {
   }
 
   int get transferTotal {
-    if (_cachedTransferTotal != null && !_filtersDirty) return _cachedTransferTotal!;
+    if (_cachedTransferTotal != null && !_filtersDirty) {
+      return _cachedTransferTotal!;
+    }
     _cachedTransferTotal = recentTransactions
         .where((t) => t.type == TransactionType.transfer)
         .fold<int>(0, (sum, t) => sum + t.quantity);
@@ -163,12 +182,16 @@ class StockProvider extends ChangeNotifier {
     final dateFormat = DateFormat('yyyy-MM-dd');
     for (final t in recentTransactions) {
       final dayKey = dateFormat.format(t.date);
-      map.putIfAbsent(dayKey, () => {
-        TransactionType.stockIn: 0,
-        TransactionType.stockOut: 0,
-        TransactionType.damage: 0,
-        TransactionType.transfer: 0,
-      });
+      map.putIfAbsent(
+        dayKey,
+        () => {
+          TransactionType.stockIn: 0,
+          TransactionType.stockOut: 0,
+          TransactionType.damage: 0,
+          TransactionType.transfer: 0,
+          TransactionType.adjustment: 0,
+        },
+      );
       map[dayKey]![t.type] = (map[dayKey]![t.type] ?? 0) + t.quantity;
     }
     final sortedEntries = map.entries.toList()
@@ -186,6 +209,7 @@ class StockProvider extends ChangeNotifier {
       TransactionType.stockOut: 0,
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
+      TransactionType.adjustment: 0,
     };
     for (final t in recentTransactions) {
       map[t.type] = (map[t.type] ?? 0) + 1;
@@ -203,6 +227,7 @@ class StockProvider extends ChangeNotifier {
       TransactionType.stockOut: 0,
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
+      TransactionType.adjustment: 0,
     };
     for (final t in recentTransactions) {
       map[t.type] = (map[t.type] ?? 0) + t.quantity;
@@ -319,10 +344,17 @@ class StockProvider extends ChangeNotifier {
       _cachedPeakActivityDay = 'N/A';
       return 'N/A';
     }
-    final peakDay = map.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final peakDay = map.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
     const dayNames = {
-      1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
-      4: 'Thursday', 5: 'Friday', 6: 'Saturday', 7: 'Sunday',
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday',
+      7: 'Sunday',
     };
     _cachedPeakActivityDay = dayNames[peakDay] ?? 'N/A';
     return _cachedPeakActivityDay!;
@@ -336,12 +368,16 @@ class StockProvider extends ChangeNotifier {
     for (final t in recentTransactions) {
       final weekNum = _isoWeekNumber(t.date);
       final weekKey = '${t.date.year}-W${weekNum.toString().padLeft(2, '0')}';
-      map.putIfAbsent(weekKey, () => {
-        TransactionType.stockIn: 0,
-        TransactionType.stockOut: 0,
-        TransactionType.damage: 0,
-        TransactionType.transfer: 0,
-      });
+      map.putIfAbsent(
+        weekKey,
+        () => {
+          TransactionType.stockIn: 0,
+          TransactionType.stockOut: 0,
+          TransactionType.damage: 0,
+          TransactionType.transfer: 0,
+          TransactionType.adjustment: 0,
+        },
+      );
       map[weekKey]![t.type] = (map[weekKey]![t.type] ?? 0) + t.quantity;
     }
     final sorted = map.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
@@ -356,12 +392,16 @@ class StockProvider extends ChangeNotifier {
     final map = <String, Map<TransactionType, int>>{};
     for (final t in recentTransactions) {
       final monthKey = DateFormat('yyyy-MM').format(t.date);
-      map.putIfAbsent(monthKey, () => {
-        TransactionType.stockIn: 0,
-        TransactionType.stockOut: 0,
-        TransactionType.damage: 0,
-        TransactionType.transfer: 0,
-      });
+      map.putIfAbsent(
+        monthKey,
+        () => {
+          TransactionType.stockIn: 0,
+          TransactionType.stockOut: 0,
+          TransactionType.damage: 0,
+          TransactionType.transfer: 0,
+          TransactionType.adjustment: 0,
+        },
+      );
       map[monthKey]![t.type] = (map[monthKey]![t.type] ?? 0) + t.quantity;
     }
     final sorted = map.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
@@ -377,6 +417,7 @@ class StockProvider extends ChangeNotifier {
       TransactionType.stockOut: 0,
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
+      TransactionType.adjustment: 0,
     };
     for (final t in _recentTransactions) {
       if (!t.date.isBefore(today)) {
@@ -393,30 +434,98 @@ class StockProvider extends ChangeNotifier {
   }
 
   int _isoWeekNumber(DateTime date) {
-    final dayOfYear = int.parse(DateFormat('D').format(date));
-    return ((dayOfYear - date.weekday + 10) / 7).floor();
+    // ISO 8601 week: the week containing the year's first Thursday.
+    final thursday = date.add(Duration(days: DateTime.thursday - date.weekday));
+    final jan1 = DateTime(thursday.year, 1, 1);
+    return ((thursday.difference(jan1).inDays) / 7).floor() + 1;
   }
 
   // --- Initialization ---
 
+  Timer? _loadingTimeout;
+
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
     _transactionsSubscription?.cancel();
+    _loadingTimeout?.cancel();
     _isLoading = true;
-    _transactionsSubscription =
-        _databaseService.getAllTransactions(limit: 500).listen(
-      (transactions) {
-        _recentTransactions = transactions;
+    _errorMessage = null;
+    notifyListeners();
+
+    // Safety timeout: if the stream hasn't emitted after 15 seconds, stop
+    // the loading spinner so the UI is usable with empty data.
+    _loadingTimeout = Timer(const Duration(seconds: 15), () {
+      if (_isLoading) {
+        _isLoading = false;
+        _errorMessage ??= 'Transactions are still loading. Pull to refresh.';
+        notifyListeners();
+      }
+    });
+
+    _transactionsSubscription = _databaseService
+        .getAllTransactions(limit: 2000)
+        .listen(
+          (transactions) {
+            _loadingTimeout?.cancel();
+            _recentTransactions = transactions;
+            _invalidateAnalytics();
+            _isLoading = false;
+            _errorMessage = null;
+            notifyListeners();
+          },
+          onError: (error) {
+            _loadingTimeout?.cancel();
+            _errorMessage = friendlyError(
+              error,
+              fallback: 'Could not load transactions.',
+            );
+            _isLoading = false;
+            notifyListeners();
+          },
+        );
+  }
+
+  // --- Transaction updates ---
+
+  Future<bool> updateTransactionLocation(
+    String transactionId,
+    String newLocation,
+  ) async {
+    _errorMessage = null;
+    try {
+      await _databaseService.updateTransactionLocation(
+        transactionId,
+        newLocation,
+      );
+      final idx = _recentTransactions.indexWhere((t) => t.id == transactionId);
+      if (idx >= 0) {
+        final old = _recentTransactions[idx];
+        _recentTransactions[idx] = StockTransactionModel(
+          id: old.id,
+          productId: old.productId,
+          productName: old.productName,
+          type: old.type,
+          quantity: old.quantity,
+          location: newLocation,
+          reason: old.reason,
+          userId: old.userId,
+          userName: old.userName,
+          date: old.date,
+          vendorId: old.vendorId,
+          vendorName: old.vendorName,
+        );
         _invalidateAnalytics();
-        _isLoading = false;
         notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = friendlyError(error, fallback: 'Could not load transactions.');
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+      }
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Could not update location.',
+      );
+      notifyListeners();
+      return false;
+    }
   }
 
   // --- Stock operations ---
@@ -432,6 +541,17 @@ class StockProvider extends ChangeNotifier {
     String vendorId = '',
     String vendorName = '',
   }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    if (location.trim().isEmpty) {
+      _errorMessage = 'Location is required.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -470,6 +590,17 @@ class StockProvider extends ChangeNotifier {
     String vendorId = '',
     String vendorName = '',
   }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    if (location.trim().isEmpty) {
+      _errorMessage = 'Location is required.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -506,6 +637,12 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     required String reason,
   }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -541,6 +678,17 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     String reason = '',
   }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    if (fromLocation.trim() == toLocation.trim()) {
+      _errorMessage = 'Source and destination locations must differ.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -567,11 +715,58 @@ class StockProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> recordAdjustment({
+    required String productId,
+    required String productName,
+    required int adjustmentDelta,
+    required String location,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    if (_isLoading) return false;
+    if (adjustmentDelta == 0) {
+      _errorMessage = 'No adjustment needed — count matches current stock.';
+      notifyListeners();
+      return false;
+    }
+    if (location.trim().isEmpty) {
+      _errorMessage = 'Location is required.';
+      notifyListeners();
+      return false;
+    }
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _databaseService.recordAdjustment(
+        productId: productId,
+        productName: productName,
+        adjustmentDelta: adjustmentDelta,
+        location: location,
+        userId: userId,
+        userName: userName,
+        reason: reason,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Adjustment failed.');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Stream<List<StockTransactionModel>> getProductTransactions(String productId) {
     return _databaseService.getProductTransactions(productId);
   }
 
-  Stream<List<StockTransactionModel>> getTransactionsByType(TransactionType type) {
+  Stream<List<StockTransactionModel>> getTransactionsByType(
+    TransactionType type,
+  ) {
     return _databaseService.getTransactionsByType(type);
   }
 
@@ -637,6 +832,7 @@ class StockProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _loadingTimeout?.cancel();
     _transactionsSubscription?.cancel();
     super.dispose();
   }

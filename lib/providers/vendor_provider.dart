@@ -27,6 +27,34 @@ class VendorProvider extends ChangeNotifier {
     return null;
   }
 
+  Map<String, VendorModel> getVendorIdMap() {
+    final map = <String, VendorModel>{};
+    for (var vendor in _vendors) {
+      map[vendor.id] = vendor;
+    }
+    return map;
+  }
+
+  Map<String, VendorModel> getVendorNameMap() {
+    final map = <String, VendorModel>{};
+    for (var vendor in _vendors) {
+      map[vendor.name.toLowerCase()] = vendor;
+    }
+    return map;
+  }
+
+  Future<Map<String, VendorModel>> fetchVendorNameMap() async {
+    try {
+      final vendors = await _databaseService.getVendorsOnce();
+      _vendors = vendors;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Could not fetch vendors.');
+      notifyListeners();
+    }
+    return getVendorNameMap();
+  }
+
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
     _vendorsSubscription?.cancel();
@@ -38,31 +66,36 @@ class VendorProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _errorMessage = friendlyError(error, fallback: 'Could not load vendors.');
+        _errorMessage = friendlyError(
+          error,
+          fallback: 'Could not load vendors.',
+        );
         _isLoading = false;
         notifyListeners();
       },
     );
   }
 
-  Future<bool> addVendor(VendorModel vendor) async {
+  Future<VendorModel?> addVendor(VendorModel vendor) async {
+    if (_isLoading) return null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      await _databaseService.addVendor(vendor);
+      final newId = await _databaseService.addVendor(vendor);
       _isLoading = false;
       notifyListeners();
-      return true;
+      return vendor.copyWith(id: newId);
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Vendor operation failed.');
       _isLoading = false;
       notifyListeners();
-      return false;
+      return null;
     }
   }
 
   Future<bool> updateVendor(VendorModel vendor) async {
+    if (_isLoading) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -80,6 +113,7 @@ class VendorProvider extends ChangeNotifier {
   }
 
   Future<bool> deleteVendor(String vendorId) async {
+    if (_isLoading) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -101,6 +135,7 @@ class VendorProvider extends ChangeNotifier {
     required String vendorId,
     required String vendorName,
   }) async {
+    if (_isLoading) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -129,10 +164,12 @@ class VendorProvider extends ChangeNotifier {
     String vendorId,
     List<StockTransactionModel> allTransactions,
   ) {
-    final vendorTxns =
-        allTransactions.where((t) => t.vendorId == vendorId).toList();
-    final stockInTxns =
-        vendorTxns.where((t) => t.type == TransactionType.stockIn).toList();
+    final vendorTxns = allTransactions
+        .where((t) => t.vendorId == vendorId)
+        .toList();
+    final stockInTxns = vendorTxns
+        .where((t) => t.type == TransactionType.stockIn)
+        .toList();
     final totalQty = stockInTxns.fold<int>(0, (s, t) => s + t.quantity);
 
     DateTime? lastDate;
@@ -147,10 +184,11 @@ class VendorProvider extends ChangeNotifier {
       final name = t.productName.isNotEmpty ? t.productName : t.productId;
       productCounts[name] = (productCounts[name] ?? 0) + t.quantity;
     }
-    final topProducts = (productCounts.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value)))
-        .take(5)
-        .toList();
+    final topProducts =
+        (productCounts.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .take(5)
+            .toList();
 
     return {
       'totalTransactions': vendorTxns.length,
@@ -189,7 +227,9 @@ class VendorProvider extends ChangeNotifier {
           'productName': p.name,
           'currentQty': p.quantity,
           'threshold': p.lowStockThreshold,
-          'suggestedOrderQty': suggestedQty > 0 ? suggestedQty : p.lowStockThreshold,
+          'suggestedOrderQty': suggestedQty > 0
+              ? suggestedQty
+              : p.lowStockThreshold,
           'unit': p.unit,
         });
       }
@@ -202,8 +242,7 @@ class VendorProvider extends ChangeNotifier {
   ) {
     final map = <String, List<ProductModel>>{};
     for (final p in allProducts) {
-      if (p.preferredVendorId.isNotEmpty &&
-          p.quantity <= p.lowStockThreshold) {
+      if (p.preferredVendorId.isNotEmpty && p.quantity <= p.lowStockThreshold) {
         final key = p.preferredVendorName.isNotEmpty
             ? p.preferredVendorName
             : p.preferredVendorId;
@@ -219,10 +258,12 @@ class VendorProvider extends ChangeNotifier {
     Map<String, double> vendorPrices,
   ) {
     final stockIns = allTransactions
-        .where((t) =>
-            t.productId == productId &&
-            t.type == TransactionType.stockIn &&
-            t.vendorId.isNotEmpty)
+        .where(
+          (t) =>
+              t.productId == productId &&
+              t.type == TransactionType.stockIn &&
+              t.vendorId.isNotEmpty,
+        )
         .toList();
 
     if (stockIns.isEmpty || vendorPrices.isEmpty) return 0;

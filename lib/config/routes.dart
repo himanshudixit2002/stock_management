@@ -1,7 +1,7 @@
 class AppRoutes {
+  static const String landing = '/landing';
   static const String login = '/login';
   static const String register = '/register';
-  static const String dashboard = '/dashboard';
   static const String home = '/home';
   static const String productList = '/products';
   static const String addProduct = '/products/add';
@@ -10,9 +10,22 @@ class AppRoutes {
   static const String categories = '/categories';
   static const String stockIn = '/stock/in';
   static const String stockOut = '/stock/out';
+  static const String stockTransfer = '/stock/transfer';
   static const String damageReport = '/stock/damage';
+  static const String lowStock = '/stock/low';
+  static const String stockAdjustment = '/stock/adjustment';
+  static const String transactionHistory = '/transactions';
   static const String excelImport = '/excel/import';
   static const String excelExport = '/excel/export';
   static const String userManagement = '/users';
+  static const String staffPermissions = '/settings/permissions';
   static const String reports = '/reports';
+  static const String vendors = '/vendors';
+  static const String addVendor = '/vendors/add';
+  static const String editVendor = '/vendors/edit';
+  static const String vendorDetail = '/vendors/detail';
+  static const String settings = '/settings';
+  static const String dashboard = '/dashboard';
+  static const String damageHistory = '/reports/damage';
+  static const String excelUpdate = '/excel/update';
 }

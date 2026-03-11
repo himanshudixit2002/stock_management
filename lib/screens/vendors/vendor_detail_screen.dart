@@ -1,11 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../services/file_helper.dart' as file_helper;
+import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/vendor_model.dart';
+import '../../widgets/glass_panel.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../models/product_model.dart';
 import '../../providers/vendor_provider.dart';
@@ -32,22 +33,31 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     final productProvider = context.watch<ProductProvider>();
     final stockProvider = context.watch<StockProvider>();
 
-    final vendor = vendorProvider.getVendorById(widget.vendor.id) ?? widget.vendor;
+    final vendor =
+        vendorProvider.getVendorById(widget.vendor.id) ?? widget.vendor;
     final allProducts = productProvider.allProducts;
     final allTransactions = stockProvider.allTransactions;
 
-    final scorecard = vendorProvider.vendorScorecard(vendor.id, allTransactions);
+    final scorecard = vendorProvider.vendorScorecard(
+      vendor.id,
+      allTransactions,
+    );
     final linkedProducts = allProducts
         .where((p) => p.preferredVendorId == vendor.id)
         .toList();
 
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: Text(vendor.name),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_rounded),
-            onPressed: () => Navigator.pushNamed(context, '/vendors/edit', arguments: vendor),
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.editVendor,
+              arguments: vendor,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.delete_rounded),
@@ -55,32 +65,42 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
-        child: ListView(
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-        children: [
-          _buildInfoCard(vendor),
-          const SizedBox(height: 16),
-          _buildScorecardSection(scorecard),
-          const SizedBox(height: 16),
-          _buildLinkedProductsSection(linkedProducts, allProducts, vendor),
-          const SizedBox(height: 16),
-          _buildPurchaseOrderSection(vendor, allProducts),
-          const SizedBox(height: 16),
-          _buildRecentTransactionsSection(vendor.id),
-        ],
-      ),
-      ),
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: ListView(
+              padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+              children: [
+                _buildInfoCard(vendor),
+                const SizedBox(height: 16),
+                _buildScorecardSection(scorecard),
+                const SizedBox(height: 16),
+                _buildLinkedProductsSection(
+                  linkedProducts,
+                  allProducts,
+                  vendor,
+                ),
+                const SizedBox(height: 16),
+                _buildPurchaseOrderSection(vendor, allProducts),
+                const SizedBox(height: 16),
+                _buildRecentTransactionsSection(vendor.id),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildInfoCard(VendorModel vendor) {
-    return Container(
-      decoration: AppTheme.cardDecoration,
+    return GlassPanel(
+      borderRadius: 16,
       padding: const EdgeInsets.all(16),
+      useContentVariant: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -93,27 +113,36 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                   color: AppTheme.indigoColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.local_shipping_rounded,
-                    color: AppTheme.indigoColor, size: 26),
+                child: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: AppTheme.indigoColor,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(vendor.name,
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w700)),
+                    Text(
+                      vendor.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: vendor.isActive
                                 ? AppTheme.successColor.withValues(alpha: 0.1)
-                                : Colors.grey.withValues(alpha: 0.1),
+                                : AppTheme.textMuted.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -123,7 +152,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               fontWeight: FontWeight.w600,
                               color: vendor.isActive
                                   ? AppTheme.successColor
-                                  : Colors.grey,
+                                  : AppTheme.textMuted,
                             ),
                           ),
                         ),
@@ -137,7 +166,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               size: 16,
                               color: i < vendor.rating.round()
                                   ? AppTheme.warningColor
-                                  : Colors.grey[300],
+                                  : AppTheme.emptyStateIcon,
                             );
                           }),
                         ],
@@ -150,7 +179,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           ),
           const SizedBox(height: 16),
           if (vendor.contactName.isNotEmpty)
-            _infoRow(Icons.person_outline_rounded, 'Contact', vendor.contactName),
+            _infoRow(
+              Icons.person_outline_rounded,
+              'Contact',
+              vendor.contactName,
+            ),
           if (vendor.email.isNotEmpty)
             _infoRow(Icons.email_outlined, 'Email', vendor.email),
           if (vendor.phone.isNotEmpty)
@@ -158,8 +191,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           if (vendor.address.isNotEmpty)
             _infoRow(Icons.location_on_outlined, 'Address', vendor.address),
           if (vendor.leadTimeDays > 0)
-            _infoRow(Icons.schedule_rounded, 'Lead Time',
-                '${vendor.leadTimeDays} days'),
+            _infoRow(
+              Icons.schedule_rounded,
+              'Lead Time',
+              '${vendor.leadTimeDays} days',
+            ),
           if (vendor.notes.isNotEmpty)
             _infoRow(Icons.notes_rounded, 'Notes', vendor.notes),
         ],
@@ -173,16 +209,20 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey[500]),
+          Icon(icon, size: 18, color: AppTheme.textTertiary),
           const SizedBox(width: 10),
           SizedBox(
             width: 70,
-            child: Text(label,
-                style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
@@ -194,19 +234,25 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     final totalQty = scorecard['totalQuantity'] as int;
     final lastDate = scorecard['lastTransactionDate'] as DateTime?;
 
-    return Container(
-      decoration: AppTheme.cardDecoration,
+    return GlassPanel(
+      borderRadius: 16,
       padding: const EdgeInsets.all(16),
+      useContentVariant: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_rounded,
-                  color: AppTheme.indigoColor, size: 20),
+              const Icon(
+                Icons.analytics_rounded,
+                color: AppTheme.indigoColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
-              const Text('Scorecard',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text(
+                'Scorecard',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -215,13 +261,23 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
               if (constraints.maxWidth < 360) {
                 return Column(
                   children: [
-                    _scorecardContent('Transactions', totalTxns.toString(), AppTheme.infoColor),
+                    _scorecardContent(
+                      'Transactions',
+                      totalTxns.toString(),
+                      AppTheme.infoColor,
+                    ),
                     const SizedBox(height: 8),
-                    _scorecardContent('Units Supplied', totalQty.toString(), AppTheme.successColor),
+                    _scorecardContent(
+                      'Units Supplied',
+                      totalQty.toString(),
+                      AppTheme.successColor,
+                    ),
                     const SizedBox(height: 8),
                     _scorecardContent(
                       'Last Delivery',
-                      lastDate != null ? DateFormat('MMM d').format(lastDate) : 'N/A',
+                      lastDate != null
+                          ? DateFormat('MMM d').format(lastDate)
+                          : 'N/A',
                       AppTheme.warningColor,
                     ),
                   ],
@@ -230,13 +286,23 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
 
               return Row(
                 children: [
-                  _scorecardTile('Transactions', totalTxns.toString(), AppTheme.infoColor),
+                  _scorecardTile(
+                    'Transactions',
+                    totalTxns.toString(),
+                    AppTheme.infoColor,
+                  ),
                   const SizedBox(width: 12),
-                  _scorecardTile('Units Supplied', totalQty.toString(), AppTheme.successColor),
+                  _scorecardTile(
+                    'Units Supplied',
+                    totalQty.toString(),
+                    AppTheme.successColor,
+                  ),
                   const SizedBox(width: 12),
                   _scorecardTile(
                     'Last Delivery',
-                    lastDate != null ? DateFormat('MMM d').format(lastDate) : 'N/A',
+                    lastDate != null
+                        ? DateFormat('MMM d').format(lastDate)
+                        : 'N/A',
                     AppTheme.warningColor,
                   ),
                 ],
@@ -249,9 +315,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
   }
 
   Widget _scorecardTile(String label, String value, Color color) {
-    return Expanded(
-      child: _scorecardContent(label, value, color),
-    );
+    return Expanded(child: _scorecardContent(label, value, color));
   }
 
   Widget _scorecardContent(String label, String value, Color color) {
@@ -263,13 +327,20 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       ),
       child: Column(
         children: [
-          Text(value,
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w700, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              textAlign: TextAlign.center),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -280,20 +351,28 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     List<ProductModel> allProducts,
     VendorModel vendor,
   ) {
-    return Container(
-      decoration: AppTheme.cardDecoration,
+    return GlassPanel(
+      borderRadius: 16,
       padding: const EdgeInsets.all(16),
+      useContentVariant: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.inventory_2_rounded,
-                  color: AppTheme.primaryColor, size: 20),
+              const Icon(
+                Icons.inventory_2_rounded,
+                color: AppTheme.primaryColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
-              Text('Linked Products (${linkedProducts.length})',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600)),
+              Text(
+                'Linked Products (${linkedProducts.length})',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               TextButton.icon(
                 onPressed: () =>
@@ -301,8 +380,10 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                 icon: const Icon(Icons.link_rounded, size: 16),
                 label: const Text('Assign', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                 ),
               ),
             ],
@@ -312,43 +393,55 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('No products linked to this vendor',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                child: Text(
+                  'No products linked to this vendor',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+                ),
               ),
             )
           else
-            ...linkedProducts.take(10).map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: p.isOutOfStock
-                              ? AppTheme.dangerColor
-                              : p.isLowStock
-                                  ? AppTheme.warningColor
-                                  : AppTheme.successColor,
-                          shape: BoxShape.circle,
+            ...linkedProducts
+                .take(10)
+                .map(
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: p.isOutOfStock
+                                ? AppTheme.dangerColor
+                                : p.isLowStock
+                                ? AppTheme.warningColor
+                                : AppTheme.successColor,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(p.name,
-                            style: const TextStyle(fontSize: 13)),
-                      ),
-                      Text('${p.quantity} ${p.unit}',
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            p.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        Text(
+                          '${p.quantity} ${p.unit}',
                           style: TextStyle(
-                              fontSize: 12, color: Colors.grey[600])),
-                    ],
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
           if (linkedProducts.length > 10)
             Center(
               child: Text(
                 '+${linkedProducts.length - 10} more',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
               ),
             ),
         ],
@@ -361,23 +454,34 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     List<ProductModel> allProducts,
   ) {
     final vendorProvider = context.read<VendorProvider>();
-    final poItems = vendorProvider.generatePurchaseOrderDraft(vendor.id, allProducts);
+    final poItems = vendorProvider.generatePurchaseOrderDraft(
+      vendor.id,
+      allProducts,
+    );
 
-    return Container(
-      decoration: AppTheme.cardDecoration,
+    return GlassPanel(
+      borderRadius: 16,
       padding: const EdgeInsets.all(16),
+      useContentVariant: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long_rounded,
-                  color: AppTheme.warningColor, size: 20),
+              const Icon(
+                Icons.receipt_long_rounded,
+                color: AppTheme.warningColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Purchase Order Draft (${poItems.length})',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Purchase Order Draft (${poItems.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               if (poItems.isNotEmpty)
                 TextButton.icon(
@@ -385,8 +489,10 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                   icon: const Icon(Icons.file_download_outlined, size: 16),
                   label: const Text('Export', style: TextStyle(fontSize: 12)),
                   style: TextButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                   ),
                 ),
             ],
@@ -396,52 +502,65 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('No low stock items for this vendor',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                child: Text(
+                  'No low stock items for this vendor',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+                ),
               ),
             )
           else
-            ...poItems.take(10).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.warningColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(item['productName'] as String,
-                            style: const TextStyle(fontSize: 13)),
-                      ),
-                      Text(
-                        '${item['currentQty']}/${item['threshold']} ${item['unit']}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.warningColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Order ${item['suggestedOrderQty']}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+            ...poItems
+                .take(10)
+                .map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
                             color: AppTheme.warningColor,
+                            shape: BoxShape.circle,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            item['productName'] as String,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        Text(
+                          '${item['currentQty']}/${item['threshold']} ${item['unit']}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.warningColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Order ${item['suggestedOrderQty']}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.warningColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
         ],
       ),
     );
@@ -454,23 +573,23 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     try {
       final buffer = StringBuffer();
       buffer.writeln('Purchase Order Draft - ${vendor.name}');
-      buffer.writeln('Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}');
+      buffer.writeln(
+        'Generated: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}',
+      );
       buffer.writeln('');
       buffer.writeln('Product,Current Qty,Threshold,Suggested Order,Unit');
       for (final item in items) {
         buffer.writeln(
-            '${item['productName']},${item['currentQty']},${item['threshold']},${item['suggestedOrderQty']},${item['unit']}');
+          '${item['productName']},${item['currentQty']},${item['threshold']},${item['suggestedOrderQty']},${item['unit']}',
+        );
       }
 
-      final dir = await getTemporaryDirectory();
-      if (!mounted) return;
-      final file = File(
-          '${dir.path}/PO_${vendor.name.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv');
-      await file.writeAsString(buffer.toString());
+      final fileName =
+          'PO_${vendor.name.replaceAll(' ', '_')}_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv';
+      final bytes = utf8.encode(buffer.toString());
       if (!mounted) return;
 
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Purchase Order Draft for ${vendor.name}');
+      await file_helper.saveAndShareFile(fileName, bytes);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -484,39 +603,53 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
   }
 
   Widget _buildRecentTransactionsSection(String vendorId) {
-    return Container(
-      decoration: AppTheme.cardDecoration,
+    return GlassPanel(
+      borderRadius: 16,
       padding: const EdgeInsets.all(16),
+      useContentVariant: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.receipt_long_rounded,
-                  color: AppTheme.warningColor, size: 20),
+              Icon(
+                Icons.receipt_long_rounded,
+                color: AppTheme.warningColor,
+                size: 20,
+              ),
               SizedBox(width: 8),
-              Text('Recent Transactions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              Text(
+                'Recent Transactions',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           StreamBuilder<List<StockTransactionModel>>(
-            stream: context.read<VendorProvider>().getVendorTransactions(vendorId),
+            stream: context.read<VendorProvider>().getVendorTransactions(
+              vendorId,
+            ),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(),
-                ));
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
               }
               final txns = snapshot.data ?? [];
               if (txns.isEmpty) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text('No transactions yet',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                    child: Text(
+                      'No transactions yet',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
                   ),
                 );
               }
@@ -538,20 +671,29 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(t.productName,
-                              style: const TextStyle(fontSize: 13)),
+                          child: Text(
+                            t.productName,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ),
-                        Text('${t.quantity}',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isIn
-                                    ? AppTheme.successColor
-                                    : AppTheme.dangerColor)),
+                        Text(
+                          '${t.quantity}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isIn
+                                ? AppTheme.successColor
+                                : AppTheme.dangerColor,
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Text(DateFormat('MMM d').format(t.date),
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey[500])),
+                        Text(
+                          DateFormat('MMM d').format(t.date),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -597,14 +739,18 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          const Icon(Icons.link_rounded,
-                              color: AppTheme.indigoColor),
+                          const Icon(
+                            Icons.link_rounded,
+                            color: AppTheme.indigoColor,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Assign Products to ${vendor.name}',
                               style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w600),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           TextButton(
@@ -622,9 +768,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(ok
-                                          ? '${toAssign.length} products assigned'
-                                          : 'Failed to assign products'),
+                                      content: Text(
+                                        ok
+                                            ? '${toAssign.length} products assigned'
+                                            : 'Failed to assign products',
+                                      ),
                                       backgroundColor: ok
                                           ? AppTheme.successColor
                                           : AppTheme.dangerColor,
@@ -647,12 +795,19 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           final p = allProducts[i];
                           final isSelected = selectedIds.contains(p.id);
                           return CheckboxListTile(
-                            title: Text(p.name,
-                                style: const TextStyle(fontSize: 14)),
+                            title: Text(
+                              p.name,
+                              style: const TextStyle(fontSize: 14),
+                            ),
                             subtitle: Text(
-                              [p.categoryName, if (p.company.isNotEmpty) p.company].join(' | '),
+                              [
+                                p.categoryName,
+                                if (p.company.isNotEmpty) p.company,
+                              ].join(' | '),
                               style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[500]),
+                                fontSize: 12,
+                                color: AppTheme.textTertiary,
+                              ),
                             ),
                             value: isSelected,
                             onChanged: (v) {
@@ -684,7 +839,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     final confirmed = await showConfirmDialog(
       ctx,
       title: 'Delete Vendor',
-      message: 'Are you sure you want to delete "${vendor.name}"? This cannot be undone.',
+      message:
+          'Are you sure you want to delete "${vendor.name}"? This cannot be undone.',
       confirmLabel: 'Delete',
       icon: Icons.delete_forever_rounded,
     );

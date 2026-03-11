@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../chart_empty_state.dart';
 import '../../config/theme.dart';
 
 class TopProductsChart extends StatelessWidget {
@@ -16,20 +17,7 @@ class TopProductsChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final h = (constraints.maxWidth * 0.5).clamp(180.0, 300.0);
-          return SizedBox(
-            height: h,
-            child: const Center(
-              child: Text(
-                'No data available',
-                style: TextStyle(color: AppTheme.textSecondary),
-              ),
-            ),
-          );
-        },
-      );
+      return const ChartEmptyState();
     }
 
     final maxVal = data.first.value.toDouble();
@@ -83,7 +71,8 @@ class TopProductsChart extends StatelessWidget {
                         height: 18,
                         decoration: BoxDecoration(
                           color: barColor.withValues(
-                              alpha: 0.7 + 0.3 * (1 - idx / data.length)),
+                            alpha: 0.7 + 0.3 * (1 - idx / data.length),
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),

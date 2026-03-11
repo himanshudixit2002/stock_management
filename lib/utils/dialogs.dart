@@ -27,13 +27,21 @@ Future<bool> showConfirmDialog(
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
-      content: Text(message,
-          style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4)),
+      content: Text(
+        message,
+        style: TextStyle(
+          fontSize: 14,
+          color: AppTheme.textTertiary,
+          height: 1.4,
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
@@ -55,7 +63,11 @@ Future<bool> showConfirmDialog(
   return result ?? false;
 }
 
-void showErrorSnackBar(BuildContext context, String message, {VoidCallback? onRetry}) {
+void showErrorSnackBar(
+  BuildContext context,
+  String message, {
+  VoidCallback? onRetry,
+}) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(message),

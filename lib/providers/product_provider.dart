@@ -1,5 +1,7 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/product_model.dart';
 import '../services/database_service.dart';
 import '../utils/error_helpers.dart';
@@ -25,11 +27,29 @@ class ProductProvider extends ChangeNotifier {
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
 
-  StreamSubscription? _productsSubscription;
-  StreamSubscription? _lowStockSubscription;
+  DocumentSnapshot? _lastDoc;
+  bool _hasMoreProducts = true;
+  bool _isLoadingMore = false;
+
+  List<ProductModel>? _searchResults;
+  List<ProductModel>? _searchResultsRaw;
+  bool _isSearching = false;
+  int _searchGeneration = 0;
+
+  // --- Analytics (full product set for Dashboard/Reports) ---
+  List<ProductModel>? _analyticsProducts;
+  bool _isLoadingAnalytics = false;
+  DateTime? _analyticsFetchedAt;
+  static const int _analyticsCacheMinutes = 2;
+
+  List<ProductModel> get _analyticsSource => _analyticsProducts ?? _products;
+  bool get isLoadingAnalytics => _isLoadingAnalytics;
+  bool get isAnalyticsLoaded => _analyticsProducts != null;
+
+  /// Full product set for Dashboard/Reports. Use this for analytics displays.
+  List<ProductModel> get analyticsProducts => _analyticsSource;
 
   // --- Analytics cache ---
-  bool _analyticsDirty = true;
   List<String>? _cachedAvailableLocations;
   Map<String, List<ProductModel>>? _cachedProductsByCategory;
   Map<String, int>? _cachedProductCountByCategory;
@@ -42,7 +62,6 @@ class ProductProvider extends ChangeNotifier {
   int? _cachedOutOfStockCount;
 
   void _invalidateAnalytics() {
-    _analyticsDirty = true;
     _cachedAvailableLocations = null;
     _cachedProductsByCategory = null;
     _cachedProductCountByCategory = null;
@@ -55,12 +74,22 @@ class ProductProvider extends ChangeNotifier {
     _cachedOutOfStockCount = null;
   }
 
-  bool _filtersActive = false;
-
-  List<ProductModel> get products => _filtersActive ? _filteredProducts : _products;
+  List<ProductModel> get products => _searchResults ?? _filteredProducts;
+  bool get isSearching => _isSearching;
+  bool get isInSearchMode => _searchResults != null;
   List<ProductModel> get allProducts => _products;
-  List<ProductModel> get lowStockProducts => _lowStockProducts;
+  List<ProductModel> get lowStockProducts {
+    if (_analyticsProducts != null) {
+      return _analyticsProducts!
+          .where((p) => p.quantity <= p.lowStockThreshold)
+          .toList();
+    }
+    return _lowStockProducts;
+  }
+
   bool get isLoading => _isLoading;
+  bool get hasMoreProducts => _hasMoreProducts;
+  bool get isLoadingMore => _isLoadingMore;
   String? get errorMessage => _errorMessage;
   String get searchQuery => _searchQuery;
   String? get selectedCategoryId => _selectedCategoryId;
@@ -73,17 +102,67 @@ class ProductProvider extends ChangeNotifier {
   DateTime? get filterEndDate => _filterEndDate;
 
   List<String> get availableLocations {
-    if (_cachedAvailableLocations != null && !_analyticsDirty) {
+    if (_cachedAvailableLocations != null) {
       return _cachedAvailableLocations!;
     }
+    final source = _analyticsProducts ?? _products;
     final locations = <String>{};
-    for (final p in _products) {
+    for (final p in source) {
       for (final entry in p.locationQuantities.entries) {
         if (entry.value > 0) locations.add(entry.key);
       }
     }
     _cachedAvailableLocations = locations.toList()..sort();
     return _cachedAvailableLocations!;
+  }
+
+  /// Companies from products when Settings are empty. Includes search results.
+  List<String> get availableCompaniesFromProducts {
+    final source = _analyticsProducts ?? _products;
+    final set = <String>{};
+    for (final p in source) {
+      if (p.company.isNotEmpty) set.add(p.company);
+    }
+    if (_searchResultsRaw != null) {
+      for (final p in _searchResultsRaw!) {
+        if (p.company.isNotEmpty) set.add(p.company);
+      }
+    }
+    return set.toList()..sort();
+  }
+
+  /// Sizes from products when Settings are empty. Includes search results.
+  List<String> get availableSizesFromProducts {
+    final source = _analyticsProducts ?? _products;
+    final set = <String>{};
+    for (final p in source) {
+      if (p.size.isNotEmpty) set.add(p.size);
+    }
+    if (_searchResultsRaw != null) {
+      for (final p in _searchResultsRaw!) {
+        if (p.size.isNotEmpty) set.add(p.size);
+      }
+    }
+    return set.toList()..sort();
+  }
+
+  /// Locations from products when Settings are empty. Includes search results.
+  List<String> get availableLocationsFromProducts {
+    final source = _analyticsProducts ?? _products;
+    final locations = <String>{};
+    for (final p in source) {
+      for (final entry in p.locationQuantities.entries) {
+        if (entry.value > 0) locations.add(entry.key);
+      }
+    }
+    if (_searchResultsRaw != null) {
+      for (final p in _searchResultsRaw!) {
+        for (final entry in p.locationQuantities.entries) {
+          if (entry.value > 0) locations.add(entry.key);
+        }
+      }
+    }
+    return locations.toSet().toList()..sort();
   }
 
   int get activeFilterCount {
@@ -107,41 +186,253 @@ class ProductProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void initialize({required String companyId}) {
+  Future<void> initialize({required String companyId}) async {
     _databaseService.setCompanyId(companyId);
-    _productsSubscription?.cancel();
-    _lowStockSubscription?.cancel();
+
+    _errorMessage = null;
+    _products = [];
+    _analyticsProducts = null;
+    _analyticsFetchedAt = null;
+    _lastDoc = null;
+    _hasMoreProducts = true;
     _isLoading = true;
     notifyListeners();
 
-    _productsSubscription = _databaseService.getProducts().listen(
-      (products) {
-        _products = products;
-        _invalidateAnalytics();
-        _applyFilters();
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = friendlyError(error, fallback: 'Could not load products.');
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+    try {
+      // Phase 1: Load first page quickly for immediate UI rendering.
+      final result = await _databaseService
+          .getProductsPage(limit: DatabaseService.productsPageSize)
+          .timeout(const Duration(seconds: 15));
+      _products = result.products;
+      _lastDoc = result.lastDoc;
+      _hasMoreProducts = result.hasMore;
+      _lowStockProducts = _products
+          .where((p) => p.quantity <= p.lowStockThreshold)
+          .toList();
+      _invalidateAnalytics();
+      _applyFilters();
+    } catch (error) {
+      _errorMessage = friendlyError(
+        error,
+        fallback: 'Could not load products.',
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
 
-    _lowStockSubscription = _databaseService.getLowStockProducts().listen(
-      (products) {
-        _lowStockProducts = products;
-        notifyListeners();
-      },
-    );
+    // Phase 2: Load full product set in background for accurate analytics.
+    // Non-blocking — dashboard/reports use _analyticsSource which falls back
+    // to the first page until the full set arrives.
+    loadAnalytics();
   }
 
-  void search(String query) {
+  Future<void> loadMoreProducts() async {
+    // Skip if full dataset already loaded via loadAnalytics().
+    if (_analyticsProducts != null) return;
+    if (!_hasMoreProducts || _isLoadingMore || _lastDoc == null) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final result = await _databaseService.getProductsPage(
+        limit: DatabaseService.productsPageSize,
+        startAfter: _lastDoc,
+      );
+      // If analytics loaded while we were fetching, skip merging to avoid dupes.
+      if (_analyticsProducts != null) return;
+      _products = [..._products, ...result.products];
+      _lowStockProducts = _products
+          .where((p) => p.quantity <= p.lowStockThreshold)
+          .toList();
+      _lastDoc = result.lastDoc;
+      _hasMoreProducts = result.hasMore;
+      _invalidateAnalytics();
+      _applyFilters();
+    } catch (error) {
+      _errorMessage = friendlyError(
+        error,
+        fallback: 'Could not load more products.',
+      );
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshProducts() async {
+    _searchQuery = '';
+    _searchResults = null;
+    _searchResultsRaw = null;
+    _lastDoc = null;
+    _hasMoreProducts = true;
+    _analyticsProducts = null;
+    _analyticsFetchedAt = null;
+    await initialize(companyId: _databaseService.companyId);
+  }
+
+  /// Clears analytics cache so next loadAnalytics fetches fresh data.
+  /// Call after stock operations (in/out/transfer/damage) to keep counts accurate.
+  void invalidateAnalytics() {
+    _analyticsProducts = null;
+    _analyticsFetchedAt = null;
+    _invalidateAnalytics();
+    notifyListeners();
+  }
+
+  /// Fetches the full product set for accurate analytics/reports.
+  /// Cached for 2 minutes to avoid redundant fetches.
+  /// Called automatically by initialize() and manually after stock operations.
+  Future<void> loadAnalytics() async {
+    if (_isLoadingAnalytics) return;
+
+    final now = DateTime.now();
+    if (_analyticsProducts != null &&
+        _analyticsFetchedAt != null &&
+        now.difference(_analyticsFetchedAt!).inMinutes <
+            _analyticsCacheMinutes) {
+      return;
+    }
+    _isLoadingAnalytics = true;
+    notifyListeners();
+    try {
+      final products = await _databaseService
+          .getAllProductsOnce()
+          .timeout(const Duration(seconds: 15));
+      _products = products;
+      _analyticsProducts = products;
+      _analyticsFetchedAt = DateTime.now();
+      _lowStockProducts = products
+          .where((p) => p.quantity <= p.lowStockThreshold)
+          .toList();
+      _lastDoc = null;
+      _hasMoreProducts = false;
+      _invalidateAnalytics();
+    } catch (e) {
+      // Fall back to whatever is already loaded so dashboard isn't empty.
+      // Always set _analyticsProducts so isAnalyticsLoaded becomes true and
+      // the UI stops showing loading spinners.
+      _analyticsProducts = List.from(_products);
+      _invalidateAnalytics();
+    } finally {
+      _isLoadingAnalytics = false;
+      _applyFilters();
+      notifyListeners();
+    }
+  }
+
+  Future<void> search(String query) async {
     if (_searchQuery == query) return;
     _searchQuery = query;
+    _searchResults = null;
+    _searchResultsRaw = null;
+    _searchGeneration++;
+    final generation = _searchGeneration;
     _applyFilters();
-    notifyListeners();
+    if (_searchQuery.length >= 2) {
+      _isSearching = true;
+      notifyListeners();
+      try {
+        _errorMessage = null;
+        final results = await _databaseService.searchProductsByName(
+          _searchQuery,
+          limit: 100,
+        );
+        if (_searchGeneration != generation) return;
+        _searchResultsRaw = results;
+        _searchResults = _applyNonSearchFilters(results);
+        _sortProductList(_searchResults!);
+      } catch (e) {
+        if (_searchGeneration != generation) return;
+        _searchResultsRaw = [];
+        _searchResults = [];
+        _errorMessage = friendlyError(e, fallback: 'Search failed.');
+      } finally {
+        if (_searchGeneration == generation) {
+          _isSearching = false;
+          notifyListeners();
+        }
+      }
+    } else {
+      notifyListeners();
+    }
+  }
+
+  List<ProductModel> _applyNonSearchFilters(List<ProductModel> input) {
+    Iterable<ProductModel> result = input;
+    if (_selectedCategoryId != null) {
+      result = result.where((p) => p.categoryId == _selectedCategoryId);
+    }
+    if (_selectedCompany != null) {
+      final companyLower = _selectedCompany!.toLowerCase();
+      result = result.where(
+        (p) => p.company.toLowerCase() == companyLower,
+      );
+    }
+    if (_selectedSize != null) {
+      final sizeLower = _selectedSize!.toLowerCase();
+      result = result.where((p) => p.size.toLowerCase() == sizeLower);
+    }
+    if (_selectedLocation != null) {
+      final locLower = _selectedLocation!.toLowerCase();
+      result = result.where(
+        (p) => p.locationQuantities.entries.any(
+          (e) => e.key.toLowerCase() == locLower && e.value > 0,
+        ),
+      );
+    }
+    if (_selectedStockStatus != null) {
+      switch (_selectedStockStatus) {
+        case 'in_stock':
+          result = result.where((p) => p.isInStock);
+          break;
+        case 'low_stock':
+          result = result.where((p) => p.isLowStock);
+          break;
+        case 'out_of_stock':
+          result = result.where((p) => p.isOutOfStock);
+          break;
+      }
+    }
+    if (_selectedVendorId != null) {
+      result = result.where(
+        (p) =>
+            p.preferredVendorId == _selectedVendorId ||
+            p.lastVendorId == _selectedVendorId,
+      );
+    }
+    if (_filterStartDate != null) {
+      final start = DateTime(
+        _filterStartDate!.year,
+        _filterStartDate!.month,
+        _filterStartDate!.day,
+      );
+      result = result.where((p) => !p.createdAt.isBefore(start));
+    }
+    if (_filterEndDate != null) {
+      final endExclusive = DateTime(
+        _filterEndDate!.year,
+        _filterEndDate!.month,
+        _filterEndDate!.day + 1,
+      );
+      result = result.where((p) => p.createdAt.isBefore(endExclusive));
+    }
+    return result.toList();
+  }
+
+  void _sortProductList(List<ProductModel> list) {
+    switch (_sortBy) {
+      case 'name':
+        list.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case 'quantity':
+        list.sort((a, b) => a.quantity.compareTo(b.quantity));
+        break;
+      case 'quantity_desc':
+        list.sort((a, b) => b.quantity.compareTo(a.quantity));
+        break;
+    }
   }
 
   void filterByCategory(String? categoryId) {
@@ -188,7 +479,7 @@ class ProductProvider extends ChangeNotifier {
 
   Map<String, List<ProductModel>> get productsByVendor {
     final map = <String, List<ProductModel>>{};
-    for (final p in _products) {
+    for (final p in _analyticsSource) {
       if (p.preferredVendorId.isNotEmpty) {
         final key = p.preferredVendorName.isNotEmpty
             ? p.preferredVendorName
@@ -208,6 +499,8 @@ class ProductProvider extends ChangeNotifier {
 
   void clearFilters() {
     _searchQuery = '';
+    _searchResults = null;
+    _searchResultsRaw = null;
     _selectedCategoryId = null;
     _selectedCompany = null;
     _selectedSize = null;
@@ -217,33 +510,24 @@ class ProductProvider extends ChangeNotifier {
     _sortBy = 'name';
     _filterStartDate = null;
     _filterEndDate = null;
-    _filteredProducts = [];
-    _filtersActive = false;
+    _applyFilters();
     notifyListeners();
   }
 
   void _applyFilters() {
-    _filtersActive = _searchQuery.isNotEmpty ||
-        _selectedCategoryId != null ||
-        _selectedCompany != null ||
-        _selectedSize != null ||
-        _selectedLocation != null ||
-        _selectedStockStatus != null ||
-        _selectedVendorId != null ||
-        _filterStartDate != null ||
-        _filterEndDate != null;
-
-    Iterable<ProductModel> result = _products;
+    Iterable<ProductModel> result = _analyticsSource;
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-      result = result.where((p) =>
-          p.name.toLowerCase().contains(query) ||
-          p.categoryName.toLowerCase().contains(query) ||
-          p.company.toLowerCase().contains(query) ||
-          p.size.toLowerCase().contains(query) ||
-          p.locations.any((l) => l.toLowerCase().contains(query)) ||
-          p.description.toLowerCase().contains(query));
+      result = result.where(
+        (p) =>
+            p.name.toLowerCase().contains(query) ||
+            p.categoryName.toLowerCase().contains(query) ||
+            p.company.toLowerCase().contains(query) ||
+            p.size.toLowerCase().contains(query) ||
+            p.locations.any((l) => l.toLowerCase().contains(query)) ||
+            p.description.toLowerCase().contains(query),
+      );
     }
 
     if (_selectedCategoryId != null) {
@@ -251,15 +535,24 @@ class ProductProvider extends ChangeNotifier {
     }
 
     if (_selectedCompany != null) {
-      result = result.where((p) => p.company == _selectedCompany);
+      final companyLower = _selectedCompany!.toLowerCase();
+      result = result.where(
+        (p) => p.company.toLowerCase() == companyLower,
+      );
     }
 
     if (_selectedSize != null) {
-      result = result.where((p) => p.size == _selectedSize);
+      final sizeLower = _selectedSize!.toLowerCase();
+      result = result.where((p) => p.size.toLowerCase() == sizeLower);
     }
 
     if (_selectedLocation != null) {
-      result = result.where((p) => (p.locationQuantities[_selectedLocation] ?? 0) > 0);
+      final locLower = _selectedLocation!.toLowerCase();
+      result = result.where(
+        (p) => p.locationQuantities.entries.any(
+          (e) => e.key.toLowerCase() == locLower && e.value > 0,
+        ),
+      );
     }
 
     if (_selectedStockStatus != null) {
@@ -277,34 +570,40 @@ class ProductProvider extends ChangeNotifier {
     }
 
     if (_selectedVendorId != null) {
-      result = result.where((p) =>
-          p.preferredVendorId == _selectedVendorId ||
-          p.lastVendorId == _selectedVendorId);
+      result = result.where(
+        (p) =>
+            p.preferredVendorId == _selectedVendorId ||
+            p.lastVendorId == _selectedVendorId,
+      );
     }
 
     if (_filterStartDate != null) {
-      final start = DateTime(_filterStartDate!.year, _filterStartDate!.month, _filterStartDate!.day);
+      final start = DateTime(
+        _filterStartDate!.year,
+        _filterStartDate!.month,
+        _filterStartDate!.day,
+      );
       result = result.where((p) => !p.createdAt.isBefore(start));
     }
     if (_filterEndDate != null) {
-      final endExclusive = DateTime(_filterEndDate!.year, _filterEndDate!.month, _filterEndDate!.day + 1);
+      final endExclusive = DateTime(
+        _filterEndDate!.year,
+        _filterEndDate!.month,
+        _filterEndDate!.day + 1,
+      );
       result = result.where((p) => p.createdAt.isBefore(endExclusive));
     }
 
     final filtered = result.toList();
 
-    switch (_sortBy) {
-      case 'name':
-        filtered.sort((a, b) => a.name.compareTo(b.name));
-        break;
-      case 'quantity':
-        filtered.sort((a, b) => a.quantity.compareTo(b.quantity));
-        break;
-      case 'quantity_desc':
-        filtered.sort((a, b) => b.quantity.compareTo(a.quantity));
-        break;
+    // When server search results exist, apply non-search filters to them
+    // instead of replacing with local data.
+    if (_searchResultsRaw != null && _searchQuery.length >= 2) {
+      _searchResults = _applyNonSearchFilters(_searchResultsRaw!);
+      _sortProductList(_searchResults!);
     }
 
+    _sortProductList(filtered);
     _filteredProducts = filtered;
   }
 
@@ -312,6 +611,7 @@ class ProductProvider extends ChangeNotifier {
     try {
       _errorMessage = null;
       await _databaseService.addProduct(product);
+      await refreshProducts();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to add product.');
@@ -324,6 +624,7 @@ class ProductProvider extends ChangeNotifier {
     try {
       _errorMessage = null;
       await _databaseService.updateProduct(product);
+      await refreshProducts();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to update product.');
@@ -336,6 +637,7 @@ class ProductProvider extends ChangeNotifier {
     try {
       _errorMessage = null;
       await _databaseService.deleteProduct(productId);
+      await refreshProducts();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to delete product.');
@@ -349,39 +651,73 @@ class ProductProvider extends ChangeNotifier {
     required String userId,
     required String userName,
   }) async {
+    _errorMessage = null;
     try {
-      _errorMessage = null;
       final productsWithAudit = products
           .map((p) => p.copyWith(createdBy: userId, createdByName: userName))
           .toList();
-      return await _databaseService.bulkAddProducts(productsWithAudit);
+      final count = await _databaseService.bulkAddProducts(productsWithAudit);
+      _analyticsProducts = null;
+      _analyticsFetchedAt = null;
+      _invalidateAnalytics();
+      notifyListeners();
+      return count;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to import products.');
       notifyListeners();
-      return 0;
+      rethrow;
     }
   }
 
-  // --- Dashboard stats ---
-  int get totalProducts => _products.length;
-  int get lowStockCount => _lowStockProducts.length;
+  Future<int> bulkUpdateProducts(
+    List<ProductModel> products, {
+    required String userId,
+    required String userName,
+  }) async {
+    _errorMessage = null;
+    try {
+      final now = DateTime.now();
+      final productsWithAudit = products
+          .map((p) => p.copyWith(
+                updatedBy: userId,
+                updatedByName: userName,
+                updatedAt: now,
+              ))
+          .toList();
+      final count =
+          await _databaseService.bulkUpdateProducts(productsWithAudit);
+      await refreshProducts();
+      return count;
+    } catch (e) {
+      _errorMessage =
+          friendlyError(e, fallback: 'Failed to update products.');
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  // --- Dashboard stats (use _analyticsSource for correct totals) ---
+  int get totalProducts => _analyticsSource.length;
+  int get lowStockCount => _analyticsSource.where((p) => p.isLowStock).length;
 
   int get outOfStockCount {
-    if (_cachedOutOfStockCount != null && !_analyticsDirty) {
+    if (_cachedOutOfStockCount != null) {
       return _cachedOutOfStockCount!;
     }
-    _cachedOutOfStockCount = _products.where((p) => p.isOutOfStock).length;
+    _cachedOutOfStockCount = _analyticsSource
+        .where((p) => p.isOutOfStock)
+        .length;
     return _cachedOutOfStockCount!;
   }
 
   // --- Category analytics (cached) ---
 
   Map<String, List<ProductModel>> get productsByCategory {
-    if (_cachedProductsByCategory != null && !_analyticsDirty) {
+    if (_cachedProductsByCategory != null) {
       return _cachedProductsByCategory!;
     }
     final map = <String, List<ProductModel>>{};
-    for (final p in _products) {
+    for (final p in _analyticsSource) {
       final cat = p.categoryName.isNotEmpty ? p.categoryName : 'Uncategorized';
       map.putIfAbsent(cat, () => []).add(p);
     }
@@ -390,16 +726,17 @@ class ProductProvider extends ChangeNotifier {
   }
 
   Map<String, int> get productCountByCategory {
-    if (_cachedProductCountByCategory != null && !_analyticsDirty) {
+    if (_cachedProductCountByCategory != null) {
       return _cachedProductCountByCategory!;
     }
-    _cachedProductCountByCategory = productsByCategory
-        .map((key, value) => MapEntry(key, value.length));
+    _cachedProductCountByCategory = productsByCategory.map(
+      (key, value) => MapEntry(key, value.length),
+    );
     return _cachedProductCountByCategory!;
   }
 
   Map<String, int> get lowStockByCategory {
-    if (_cachedLowStockByCategory != null && !_analyticsDirty) {
+    if (_cachedLowStockByCategory != null) {
       return _cachedLowStockByCategory!;
     }
     final map = <String, int>{};
@@ -411,7 +748,7 @@ class ProductProvider extends ChangeNotifier {
   }
 
   Map<String, int> get outOfStockByCategory {
-    if (_cachedOutOfStockByCategory != null && !_analyticsDirty) {
+    if (_cachedOutOfStockByCategory != null) {
       return _cachedOutOfStockByCategory!;
     }
     final map = <String, int>{};
@@ -423,21 +760,21 @@ class ProductProvider extends ChangeNotifier {
   }
 
   List<ProductModel> get topProductsByQuantity {
-    if (_cachedTopProductsByQuantity != null && !_analyticsDirty) {
+    if (_cachedTopProductsByQuantity != null) {
       return _cachedTopProductsByQuantity!;
     }
-    final sorted = List<ProductModel>.from(_products)
+    final sorted = List<ProductModel>.from(_analyticsSource)
       ..sort((a, b) => b.quantity.compareTo(a.quantity));
     _cachedTopProductsByQuantity = sorted.take(10).toList();
     return _cachedTopProductsByQuantity!;
   }
 
   Map<String, int> get locationBreakdown {
-    if (_cachedLocationBreakdown != null && !_analyticsDirty) {
+    if (_cachedLocationBreakdown != null) {
       return _cachedLocationBreakdown!;
     }
     final map = <String, int>{};
-    for (final p in _products) {
+    for (final p in _analyticsSource) {
       for (final entry in p.locationQuantities.entries) {
         if (entry.value > 0) map[entry.key] = (map[entry.key] ?? 0) + 1;
       }
@@ -447,11 +784,11 @@ class ProductProvider extends ChangeNotifier {
   }
 
   Map<String, int> get quantityByLocation {
-    if (_cachedQuantityByLocation != null && !_analyticsDirty) {
+    if (_cachedQuantityByLocation != null) {
       return _cachedQuantityByLocation!;
     }
     final map = <String, int>{};
-    for (final p in _products) {
+    for (final p in _analyticsSource) {
       for (final entry in p.locationQuantities.entries) {
         if (entry.value > 0) {
           map[entry.key] = (map[entry.key] ?? 0) + entry.value;
@@ -463,16 +800,16 @@ class ProductProvider extends ChangeNotifier {
   }
 
   double get inventoryHealthScore {
-    if (_cachedInventoryHealthScore != null && !_analyticsDirty) {
+    if (_cachedInventoryHealthScore != null) {
       return _cachedInventoryHealthScore!;
     }
-    if (_products.isEmpty) {
+    if (_analyticsSource.isEmpty) {
       _cachedInventoryHealthScore = 100.0;
       return 100.0;
     }
     final oos = outOfStockCount;
-    final ls = _products.where((p) => p.isLowStock).length;
-    final penalty = (oos * 10.0 + ls * 3.0) / _products.length;
+    final ls = _analyticsSource.where((p) => p.isLowStock).length;
+    final penalty = (oos * 10.0 + ls * 3.0) / _analyticsSource.length;
     _cachedInventoryHealthScore = (100.0 - penalty * 10).clamp(0.0, 100.0);
     return _cachedInventoryHealthScore!;
   }
@@ -482,12 +819,5 @@ class ProductProvider extends ChangeNotifier {
     if (score >= 80) return 'Good';
     if (score >= 50) return 'Warning';
     return 'Critical';
-  }
-
-  @override
-  void dispose() {
-    _productsSubscription?.cancel();
-    _lowStockSubscription?.cancel();
-    super.dispose();
   }
 }

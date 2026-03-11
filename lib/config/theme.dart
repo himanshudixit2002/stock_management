@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppTheme {
+  /// Currency symbol used across the app.
+  static const String currencySymbol = '₹';
+
   // Modern teal-based palette
   static const Color primaryColor = Color(0xFF00897B);
   static const Color primaryLight = Color(0xFF4DB6AC);
@@ -12,8 +16,13 @@ class AppTheme {
   static const Color backgroundColor = Color(0xFFF7F8FA);
   static const Color surfaceColor = Colors.white;
   static const Color textPrimary = Color(0xFF263238);
-  static const Color textSecondary = Color(0xFF78909C);
+  static const Color textSecondary = Color(0xFF5C6B73);
+  static const Color textTertiary = Color(0xFF5C6B73);
+  static const Color textMuted = Color(0xFF6B7B85);
+  static const Color iconMuted = Color(0xFF6B7B85);
+  static const Color emptyStateIcon = Color(0xFF8B9CA6);
   static const Color dividerColor = Color(0xFFECEFF1);
+  static const Color dividerStrong = Color(0xFFD1D9E0);
 
   // Stock level colors
   static const Color stockGood = Color(0xFF66BB6A);
@@ -34,6 +43,18 @@ class AppTheme {
   // Input field colors
   static const Color inputFillColor = Color(0xFFF5F7FA);
   static const Color inputBorderColor = Color(0xFFE0E3E8);
+
+  // Liquid glass tokens
+  static Color get glassSurfaceLight => Colors.white.withValues(alpha: 0.25);
+  static Color get glassBorderLight => Colors.white.withValues(alpha: 0.4);
+  static Color get glassOverlay => Colors.white.withValues(alpha: 0.08);
+  static const double glassBlurSigma = 12;
+
+  // Content-safe glass (higher opacity for text readability - WCAG)
+  static Color get glassSurfaceContent => Colors.white.withValues(alpha: 0.82);
+  static Color get glassBorderContent => Colors.white.withValues(alpha: 0.7);
+  static Color get glassInputBackground => Colors.white.withValues(alpha: 0.35);
+  static Color get glassOverlaySubtle => Colors.white.withValues(alpha: 0.12);
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
@@ -66,26 +87,48 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
+  static const LinearGradient warningGradient = LinearGradient(
+    colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static const LinearGradient heroGradient = LinearGradient(
     colors: [Color(0xFF00695C), Color(0xFF00897B), Color(0xFF26A69A)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // Shadow helpers
+  static const LinearGradient scaffoldGradient = LinearGradient(
+    colors: [Color(0xFFF0F4F8), Color(0xFFE8EEF2), Color(0xFFE8F5F3)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  // Shadow helpers (Apple-style layered depth)
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.04),
-      blurRadius: 12,
-      offset: const Offset(0, 2),
+      color: Colors.black.withValues(alpha: 0.03),
+      blurRadius: 8,
+      offset: const Offset(0, 1),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.05),
+      blurRadius: 16,
+      offset: const Offset(0, 4),
     ),
   ];
 
   static List<BoxShadow> get softShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.06),
-      blurRadius: 20,
-      offset: const Offset(0, 4),
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
     ),
   ];
 
@@ -97,17 +140,35 @@ class AppTheme {
     ),
   ];
 
-  // Decoration helpers
+  // Decoration helpers (Apple-style rounded corners 20-24px)
   static BoxDecoration get cardDecoration => BoxDecoration(
     color: Colors.white,
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(22),
     boxShadow: cardShadow,
   );
 
   static BoxDecoration get elevatedCardDecoration => BoxDecoration(
     color: Colors.white,
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(22),
     boxShadow: softShadow,
+  );
+
+  static BoxDecoration glassDecoration({
+    double borderRadius = 22,
+    Border? border,
+  }) => BoxDecoration(
+    color: glassOverlay,
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: border ?? Border.all(color: glassBorderLight, width: 1),
+  );
+
+  static BoxDecoration glassContentDecoration({
+    double borderRadius = 22,
+    Border? border,
+  }) => BoxDecoration(
+    color: glassSurfaceContent,
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: border ?? Border.all(color: glassBorderContent, width: 1),
   );
 
   static Color getStockColor(int quantity, {int threshold = 10}) {
@@ -150,6 +211,13 @@ class AppTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.08),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: surfaceColor,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,
@@ -187,20 +255,14 @@ class AppTheme {
           fontWeight: FontWeight.w500,
           color: textPrimary,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 16,
-          color: textPrimary,
-          height: 1.5,
-        ),
+        bodyLarge: TextStyle(fontSize: 16, color: textPrimary, height: 1.5),
         bodyMedium: TextStyle(
           fontSize: 14,
-          color: textSecondary,
+          color: textTertiary,
           height: 1.4,
+          letterSpacing: -0.2,
         ),
-        bodySmall: TextStyle(
-          fontSize: 12,
-          color: textSecondary,
-        ),
+        bodySmall: TextStyle(fontSize: 12, color: textTertiary),
         labelLarge: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
@@ -208,14 +270,16 @@ class AppTheme {
         ),
       ),
 
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 54),
+          minimumSize: const Size(double.infinity, 56),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
           elevation: 0,
           textStyle: const TextStyle(
@@ -229,53 +293,51 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryColor,
-          minimumSize: const Size(double.infinity, 54),
+          minimumSize: const Size(double.infinity, 56),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
           side: const BorderSide(color: primaryColor, width: 1.5),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: inputFillColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: inputBorderColor, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: primaryColor, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: dangerColor),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: dangerColor, width: 2),
         ),
-        labelStyle: const TextStyle(fontSize: 15, color: textSecondary),
-        hintStyle: const TextStyle(fontSize: 14, color: Color(0xFFB0BEC5)),
-        prefixIconColor: textSecondary,
+        labelStyle: const TextStyle(fontSize: 15, color: textTertiary),
+        hintStyle: const TextStyle(fontSize: 14, color: textMuted),
+        prefixIconColor: textTertiary,
       ),
 
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         color: surfaceColor,
         surfaceTintColor: Colors.transparent,
@@ -285,17 +347,21 @@ class AppTheme {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
 
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
         selectedItemColor: primaryColor,
-        unselectedItemColor: textSecondary,
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+        unselectedItemColor: textTertiary,
+        selectedLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
         selectedIconTheme: IconThemeData(size: 26),
         unselectedIconTheme: IconThemeData(size: 22),
         type: BottomNavigationBarType.fixed,
@@ -303,9 +369,7 @@ class AppTheme {
       ),
 
       dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -315,9 +379,7 @@ class AppTheme {
 
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
 
       chipTheme: ChipThemeData(
@@ -325,9 +387,7 @@ class AppTheme {
         selectedColor: primaryColor,
         labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         side: BorderSide.none,
       ),
 

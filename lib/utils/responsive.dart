@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 enum ScreenType { mobile, tablet, desktop }
 
 class Responsive {
-  static const double mobileBreakpoint = 600;
+  static const double mobileBreakpoint = 560;
   static const double tabletBreakpoint = 1024;
 
   static ScreenType screenType(BuildContext context) {
@@ -41,9 +41,9 @@ class Responsive {
       case ScreenType.mobile:
         return double.infinity;
       case ScreenType.tablet:
-        return 720;
+        return 900;
       case ScreenType.desktop:
-        return 1200;
+        return 1280;
     }
   }
 
@@ -92,7 +92,7 @@ class Responsive {
       case ScreenType.tablet:
         return 600;
       case ScreenType.desktop:
-        return 720;
+        return 800;
     }
   }
 
@@ -105,6 +105,20 @@ class Responsive {
       case ScreenType.desktop:
         return 3;
     }
+  }
+
+  /// Scales font size by the system text scaler (accessibility).
+  /// Use for text that should respect user's font size preferences.
+  static double fontSizeScaled(BuildContext context, double baseSize) {
+    return MediaQuery.textScalerOf(context).scale(baseSize);
+  }
+
+  /// Minimum touch target size per Apple HIG (44 logical pixels).
+  static const double minTouchTargetSize = 44;
+
+  /// Padding to wrap small icon buttons to meet min touch target (44pt).
+  static double minTouchTargetPadding(BuildContext context) {
+    return (minTouchTargetSize - iconSize(context)) / 2;
   }
 }
 
@@ -153,7 +167,9 @@ class ResponsiveCenter extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        child: padding != null ? Padding(padding: padding!, child: child) : child,
+        child: padding != null
+            ? Padding(padding: padding!, child: child)
+            : child,
       ),
     );
   }

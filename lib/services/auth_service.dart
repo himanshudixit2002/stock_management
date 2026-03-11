@@ -17,7 +17,6 @@ class AuthService {
     required String password,
     required String companyName,
     required String phone,
-    String role = 'admin',
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -26,16 +25,6 @@ class AuthService {
       );
 
       if (result.user != null) {
-        // Check if this is the very first user via a metadata flag
-        final configDoc = await _firestore
-            .collection('metadata')
-            .doc('app_config')
-            .get();
-        final isFirstUser = !configDoc.exists || configDoc.data()?['hasUsers'] != true;
-
-        final assignedRole = isFirstUser ? 'superadmin' : role;
-        final isApproved = isFirstUser;
-
         final companyDoc = await _firestore.collection('companies').add({
           'companyName': companyName,
           'phone': phone,
@@ -47,26 +36,17 @@ class AuthService {
           uid: result.user!.uid,
           name: name,
           email: email,
-          role: assignedRole,
+          role: 'admin',
           companyId: companyDoc.id,
           companyName: companyName,
           phone: phone,
           createdAt: DateTime.now(),
-          approved: isApproved,
         );
 
         await _firestore
             .collection('users')
             .doc(result.user!.uid)
             .set(userModel.toMap());
-
-        // Mark that at least one user now exists
-        if (isFirstUser) {
-          await _firestore
-              .collection('metadata')
-              .doc('app_config')
-              .set({'hasUsers': true});
-        }
 
         return userModel;
       }
@@ -169,8 +149,13 @@ class AuthService {
     await _firestore.collection('users').doc(uid).update({'role': newRole});
   }
 
-  Future<void> updateUserPermissions(String uid, Map<String, bool> perms) async {
-    await _firestore.collection('users').doc(uid).update({'permissions': perms});
+  Future<void> updateUserPermissions(
+    String uid,
+    Map<String, bool> perms,
+  ) async {
+    await _firestore.collection('users').doc(uid).update({
+      'permissions': perms,
+    });
   }
 
   /// Get all users for a specific company.
@@ -180,8 +165,11 @@ class AuthService {
         .where('companyId', isEqualTo: companyId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromMap(doc.data()))
+              .toList(),
+        );
   }
 
   Future<void> resetPassword(String email) async {
@@ -192,7 +180,10 @@ class AuthService {
     }
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
       final user = _auth.currentUser;
       if (user == null || user.email == null) {
@@ -254,7 +245,7 @@ class AuthService {
       final admins = await _firestore
           .collection('users')
           .where('companyId', isEqualTo: companyId)
-          .where('role', whereIn: ['admin', 'superadmin'])
+          .where('role', isEqualTo: 'admin')
           .get();
 
       if (admins.docs.length <= 1) {
@@ -275,7 +266,7 @@ class AuthService {
     final companyRef = _firestore.collection('companies').doc(companyId);
 
     // Delete products, categories, transactions in batches
-    for (final sub in ['products', 'categories', 'transactions']) {
+    for (final sub in ['products', 'categories', 'transactions', 'vendors']) {
       QuerySnapshot snapshot;
       do {
         snapshot = await companyRef.collection(sub).limit(400).get();
@@ -305,39 +296,12 @@ class AuthService {
     await companyRef.delete();
   }
 
-  /// Deletes a staff user's Firestore doc (admin only).
-  /// The staff's Firebase Auth account remains but login will fail
-  /// because the app requires a Firestore user doc.
+  /// Removes a staff user (admin only).
+  /// The Firebase Auth account cannot be deleted from client code;
+  /// the app requires a Firestore user doc to function, so login will fail
+  /// after this call.
   Future<void> deleteStaffUser(String staffUid) async {
     await _firestore.collection('users').doc(staffUid).delete();
-  }
-
-  /// Stream of users awaiting approval (approved == false).
-  Stream<List<UserModel>> getPendingUsers() {
-    return _firestore
-        .collection('users')
-        .where('approved', isEqualTo: false)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList());
-  }
-
-  /// Approve a pending user by setting approved = true.
-  Future<void> approveUser(String uid) async {
-    await _firestore.collection('users').doc(uid).update({'approved': true});
-  }
-
-  /// Reject a pending user: delete user doc and their company doc.
-  Future<void> rejectUser(String uid) async {
-    final userDoc = await _firestore.collection('users').doc(uid).get();
-    if (userDoc.exists) {
-      final companyId = userDoc.data()?['companyId'] as String?;
-      if (companyId != null && companyId.isNotEmpty) {
-        await _firestore.collection('companies').doc(companyId).delete();
-      }
-    }
-    await _firestore.collection('users').doc(uid).delete();
   }
 
   Future<void> logout() async {

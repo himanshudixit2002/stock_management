@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../config/theme.dart';
 
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -36,7 +37,7 @@ class CustomTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: AppTheme.spacingLG),
       child: TextFormField(
         controller: controller,
         obscureText: obscureText,
@@ -52,7 +53,9 @@ class CustomTextField extends StatelessWidget {
           hintText: hint,
           helperText: helperText,
           helperMaxLines: 2,
-          prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, color: AppTheme.textTertiary)
+              : null,
           suffix: suffix,
         ),
       ),

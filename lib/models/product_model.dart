@@ -88,6 +88,11 @@ class ProductModel {
       vPrices = raw.map((k, v) => MapEntry(safeString(k), safeDouble(v)));
     }
 
+    final rawQty = safeInt(map['quantity']);
+    final rawThreshold = safeInt(map['lowStockThreshold'], 10);
+    final rawCost = safeDouble(map['costPrice']);
+    final rawSelling = safeDouble(map['sellingPrice']);
+
     return ProductModel(
       id: docId,
       name: safeString(map['name']),
@@ -95,13 +100,13 @@ class ProductModel {
       categoryName: safeString(map['categoryName']),
       company: safeString(map['company']),
       size: safeString(map['size']),
-      quantity: safeInt(map['quantity']),
+      quantity: rawQty < 0 ? 0 : rawQty,
       unit: safeString(map['unit'], 'pcs'),
       locationQuantities: locQty,
       description: safeString(map['description']),
-      lowStockThreshold: safeInt(map['lowStockThreshold'], 10),
-      costPrice: safeDouble(map['costPrice']),
-      sellingPrice: safeDouble(map['sellingPrice']),
+      lowStockThreshold: rawThreshold < 0 ? 0 : rawThreshold,
+      costPrice: rawCost < 0 ? 0 : rawCost,
+      sellingPrice: rawSelling < 0 ? 0 : rawSelling,
       createdAt: safeTimestamp(map['createdAt']),
       updatedAt: safeTimestamp(map['updatedAt']),
       createdBy: safeString(map['createdBy']),

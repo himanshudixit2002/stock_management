@@ -4,6 +4,8 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/glass_panel.dart';
 
 class StaffPermissionsScreen extends StatelessWidget {
   const StaffPermissionsScreen({super.key});
@@ -11,58 +13,66 @@ class StaffPermissionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.warningColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.shield_rounded, color: AppTheme.warningColor, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Text('Staff Permissions'),
-          ],
+        title: AppBarTitleRow(
+          icon: Icons.shield_rounded,
+          color: AppTheme.warningColor,
+          title: 'Staff Permissions',
         ),
       ),
-      body: StreamBuilder<List<UserModel>>(
-        stream: context.read<AuthProvider>().getAllUsers(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final users = (snapshot.data ?? [])
-              .where((u) => u.isStaff)
-              .toList();
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        child: StreamBuilder<List<UserModel>>(
+          stream: context.read<AuthProvider>().getAllUsers(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final users = (snapshot.data ?? [])
+                .where((u) => u.isStaff)
+                .toList();
 
-          if (users.isEmpty) {
+            if (users.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 64,
+                      color: AppTheme.emptyStateIcon,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No staff users yet',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text('No staff users yet',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[500])),
-                ],
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.formMaxWidth(context),
+                ),
+                child: ListView.separated(
+                  padding: EdgeInsets.all(
+                    Responsive.horizontalPadding(context),
+                  ),
+                  itemCount: users.length,
+                  separatorBuilder: (_, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) => _StaffCard(user: users[i]),
+                ),
               ),
             );
-          }
-
-          return Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
-              child: ListView.separated(
-            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-            itemCount: users.length,
-            separatorBuilder: (_, _a) => const SizedBox(height: 12),
-            itemBuilder: (context, i) => _StaffCard(user: users[i]),
-          ),
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -74,72 +84,86 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = user.name.isNotEmpty
-        ? user.name.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase()
+    final initials = user.name.trim().isNotEmpty
+        ? user.name
+              .trim()
+              .split(' ')
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0])
+              .take(2)
+              .join()
+              .toUpperCase()
         : '?';
 
-    final enabledCount =
-        user.permissions.values.where((v) => v).length;
+    final enabledCount = user.permissions.values.where((v) => v).length;
     final totalCount = UserModel.allPermissionKeys.length;
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => _showPermissionSheet(context, user),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.dividerColor),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                child: Text(initials,
+    return GlassCard(
+      borderRadius: 14,
+      onTap: () => _showPermissionSheet(context, user),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, color: AppTheme.primaryColor)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(user.email,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: enabledCount == totalCount
-                      ? AppTheme.successColor.withValues(alpha: 0.1)
-                      : AppTheme.warningColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$enabledCount/$totalCount',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: enabledCount == totalCount
-                        ? AppTheme.successColor
-                        : AppTheme.warningColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user.email,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: enabledCount == totalCount
+                    ? AppTheme.successColor.withValues(alpha: 0.1)
+                    : AppTheme.warningColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$enabledCount/$totalCount',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: enabledCount == totalCount
+                      ? AppTheme.successColor
+                      : AppTheme.warningColor,
                 ),
               ),
-              const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textSecondary,
+            ),
+          ],
         ),
       ),
     );
@@ -187,9 +211,10 @@ class _PermissionEditorState extends State<_PermissionEditor> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final ok = await context
-        .read<AuthProvider>()
-        .updateStaffPermissions(widget.user.uid, _perms);
+    final ok = await context.read<AuthProvider>().updateStaffPermissions(
+      widget.user.uid,
+      _perms,
+    );
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,7 +242,7 @@ class _PermissionEditorState extends State<_PermissionEditor> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: AppTheme.emptyStateIcon,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -229,12 +254,20 @@ class _PermissionEditorState extends State<_PermissionEditor> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.user.name,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w700)),
-                        Text('Manage permissions',
-                            style: TextStyle(
-                                fontSize: 13, color: Colors.grey[500])),
+                        Text(
+                          widget.user.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'Manage permissions',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -270,9 +303,13 @@ class _PermissionEditorState extends State<_PermissionEditor> {
                 onPressed: _saving ? null : _save,
                 child: _saving
                     ? const SizedBox(
-                        width: 20, height: 20,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: AppTheme.surfaceColor,
+                        ),
+                      )
                     : const Text('Save Permissions'),
               ),
             ),

@@ -14,24 +14,44 @@ class DatabaseService {
     _companyId = companyId;
   }
 
+  void _ensureCompanyId() {
+    if (_companyId.isEmpty) {
+      throw StateError(
+        'companyId must be set before accessing database. Call setCompanyId first.',
+      );
+    }
+  }
+
   CollectionReference<Map<String, dynamic>> get _products {
-    assert(_companyId.isNotEmpty, 'companyId must be set before accessing products');
-    return _firestore.collection('companies').doc(_companyId).collection('products');
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('products');
   }
 
   CollectionReference<Map<String, dynamic>> get _categories {
-    assert(_companyId.isNotEmpty, 'companyId must be set before accessing categories');
-    return _firestore.collection('companies').doc(_companyId).collection('categories');
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('categories');
   }
 
   CollectionReference<Map<String, dynamic>> get _transactions {
-    assert(_companyId.isNotEmpty, 'companyId must be set before accessing transactions');
-    return _firestore.collection('companies').doc(_companyId).collection('transactions');
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('transactions');
   }
 
   CollectionReference<Map<String, dynamic>> get _vendors {
-    assert(_companyId.isNotEmpty, 'companyId must be set before accessing vendors');
-    return _firestore.collection('companies').doc(_companyId).collection('vendors');
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('vendors');
   }
 
   static String normalizeLocation(String raw) {
@@ -49,9 +69,11 @@ class DatabaseService {
     return _categories
         .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => CategoryModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => CategoryModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<List<CategoryModel>> getCategoriesOnce() async {
@@ -89,7 +111,8 @@ class DatabaseService {
 
     if (products.docs.isNotEmpty) {
       throw Exception(
-          'Cannot delete category. It is being used by existing products.');
+        'Cannot delete category. It is being used by existing products.',
+      );
     }
 
     await _categories.doc(categoryId).delete();
@@ -97,33 +120,98 @@ class DatabaseService {
 
   // ==================== PRODUCTS ====================
 
+  static const int productsPageSize = 200;
+
   Stream<List<ProductModel>> getProducts() {
     return _products
         .orderBy('name')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .snapshots(includeMetadataChanges: false)
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
+  }
+
+  /// Prefix search on product name. Used when client-side search returns no results.
+  /// Case-insensitive: runs query for original and title-case variants, merges results.
+  /// Cost: up to 2x [limit] reads when variants differ.
+  Future<List<ProductModel>> searchProductsByName(
+    String query, {
+    int limit = 100,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    final lowerCase = trimmed.toLowerCase();
+    final upperCase = trimmed.toUpperCase();
+    final titleCase = trimmed.length > 1
+        ? '${trimmed[0].toUpperCase()}${trimmed.substring(1).toLowerCase()}'
+        : upperCase;
+
+    final variants = <String>{trimmed, lowerCase, upperCase, titleCase};
+
+    final seenIds = <String>{};
+    final results = <ProductModel>[];
+
+    Future<void> runQuery(String start) async {
+      if (results.length >= limit) return;
+      final end = '$start\uf8ff';
+      final snapshot = await _products
+          .orderBy('name')
+          .where('name', isGreaterThanOrEqualTo: start)
+          .where('name', isLessThanOrEqualTo: end)
+          .limit(limit)
+          .get();
+      for (final doc in snapshot.docs) {
+        if (seenIds.add(doc.id)) {
+          results.add(ProductModel.fromMap(doc.data(), doc.id));
+        }
+        if (results.length >= limit) return;
+      }
+    }
+
+    for (final variant in variants) {
+      await runQuery(variant);
+      if (results.length >= limit) break;
+    }
+
+    results.sort((a, b) => a.name.compareTo(b.name));
+    return results.length > limit ? results.sublist(0, limit) : results;
+  }
+
+  /// Fetches a page of products for pagination. Use [startAfter] for the next page.
+  Future<
+    ({List<ProductModel> products, DocumentSnapshot? lastDoc, bool hasMore})
+  >
+  getProductsPage({required int limit, DocumentSnapshot? startAfter}) async {
+    Query<Map<String, dynamic>> query = _products
+        .orderBy('name')
+        .limit(limit + 1);
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+    final snapshot = await query.get();
+    final docs = snapshot.docs;
+    final hasMore = docs.length > limit;
+    final resultDocs = hasMore ? docs.sublist(0, limit) : docs;
+    final lastDoc = resultDocs.isNotEmpty ? resultDocs.last : null;
+    final products = resultDocs
+        .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
+        .toList();
+    return (products: products, lastDoc: lastDoc, hasMore: hasMore);
   }
 
   Stream<List<ProductModel>> getProductsByCategory(String categoryId) {
     return _products
         .where('categoryId', isEqualTo: categoryId)
         .orderBy('name')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
-            .toList());
-  }
-
-  Stream<List<ProductModel>> getLowStockProducts() {
-    return _products
-        .orderBy('quantity')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
-            .where((p) => p.quantity <= p.lowStockThreshold)
-            .toList());
+        .snapshots(includeMetadataChanges: false)
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<ProductModel?> getProduct(String productId) async {
@@ -148,14 +236,28 @@ class DatabaseService {
         .where('productId', isEqualTo: productId)
         .get();
 
-    final batch = _firestore.batch();
+    const batchLimit = 450;
+    var batch = _firestore.batch();
+    int opCount = 0;
+
     for (var doc in transactions.docs) {
       batch.delete(doc.reference);
+      opCount++;
+      if (opCount >= batchLimit) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
     }
+
     batch.delete(_products.doc(productId));
     await batch.commit();
   }
 
+  /// Bulk adds products in batches of 450 (Firestore limit 500 per transaction).
+  /// Note: Batches commit independently. If a later batch fails, earlier batches
+  /// remain committed, leading to partial data. For very large imports, consider
+  /// smaller runs or retry logic.
   Future<int> bulkAddProducts(List<ProductModel> products) async {
     var batch = _firestore.batch();
     int count = 0;
@@ -163,6 +265,29 @@ class DatabaseService {
     for (var product in products) {
       final docRef = _products.doc();
       batch.set(docRef, product.toMap());
+      count++;
+
+      if (count % 450 == 0) {
+        await batch.commit();
+        batch = _firestore.batch();
+      }
+    }
+
+    if (count % 450 != 0) {
+      await batch.commit();
+    }
+    return count;
+  }
+
+  Future<int> bulkUpdateProducts(List<ProductModel> products) async {
+    _ensureCompanyId();
+    var batch = _firestore.batch();
+    int count = 0;
+
+    for (var product in products) {
+      if (product.id.isEmpty) continue;
+      final docRef = _products.doc(product.id);
+      batch.update(docRef, product.toMap());
       count++;
 
       if (count % 450 == 0) {
@@ -207,10 +332,13 @@ class DatabaseService {
     );
 
     await _firestore.runTransaction((txn) async {
+      final productRef = _products.doc(productId);
+      final snapshot = await txn.get(productRef);
+      if (!snapshot.exists) throw Exception('Product not found');
+
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
 
-      final productRef = _products.doc(productId);
       final updates = <String, dynamic>{
         'quantity': FieldValue.increment(quantity),
         'locationQuantities.$location': FieldValue.increment(quantity),
@@ -247,7 +375,8 @@ class DatabaseService {
       final unit = data['unit'] ?? 'pcs';
       if (locQty < quantity) {
         throw Exception(
-            'Not enough stock at $location. Available: $locQty $unit');
+          'Not enough stock at $location. Available: $locQty $unit',
+        );
       }
 
       final stockTransaction = StockTransactionModel(
@@ -269,21 +398,26 @@ class DatabaseService {
       txn.set(txnRef, stockTransaction.toMap());
 
       final newLocQty = locQty - quantity;
-      final totalQty = (data['quantity'] ?? 0) - quantity;
+      final locMap = Map<String, dynamic>.from(
+        data['locationQuantities'] ?? {},
+      );
+
+      if (newLocQty <= 0) {
+        locMap.remove(location);
+      } else {
+        locMap[location] = newLocQty;
+      }
+
+      final totalQty = locMap.values.fold<int>(
+        0,
+        (acc, v) => acc + ((v as num?)?.toInt() ?? 0),
+      );
 
       final updates = <String, dynamic>{
         'quantity': totalQty,
+        'locationQuantities': locMap,
         'updatedAt': Timestamp.now(),
       };
-
-      if (newLocQty <= 0) {
-        final locMap =
-            Map<String, dynamic>.from(data['locationQuantities'] ?? {});
-        locMap.remove(location);
-        updates['locationQuantities'] = locMap;
-      } else {
-        updates['locationQuantities.$location'] = newLocQty;
-      }
 
       txn.update(docRef, updates);
     });
@@ -310,7 +444,8 @@ class DatabaseService {
       final unit = data['unit'] ?? 'pcs';
       if (locQty < quantity) {
         throw Exception(
-            'Damage qty exceeds stock at $location. Available: $locQty $unit');
+          'Damage qty exceeds stock at $location. Available: $locQty $unit',
+        );
       }
 
       final stockTransaction = StockTransactionModel(
@@ -330,21 +465,26 @@ class DatabaseService {
       txn.set(txnRef, stockTransaction.toMap());
 
       final newLocQty = locQty - quantity;
-      final totalQty = (data['quantity'] ?? 0) - quantity;
+      final locMap = Map<String, dynamic>.from(
+        data['locationQuantities'] ?? {},
+      );
+
+      if (newLocQty <= 0) {
+        locMap.remove(location);
+      } else {
+        locMap[location] = newLocQty;
+      }
+
+      final totalQty = locMap.values.fold<int>(
+        0,
+        (acc, v) => acc + ((v as num?)?.toInt() ?? 0),
+      );
 
       final updates = <String, dynamic>{
         'quantity': totalQty,
+        'locationQuantities': locMap,
         'updatedAt': Timestamp.now(),
       };
-
-      if (newLocQty <= 0) {
-        final locMap =
-            Map<String, dynamic>.from(data['locationQuantities'] ?? {});
-        locMap.remove(location);
-        updates['locationQuantities'] = locMap;
-      } else {
-        updates['locationQuantities.$location'] = newLocQty;
-      }
 
       txn.update(docRef, updates);
     });
@@ -378,7 +518,8 @@ class DatabaseService {
       final unit = data['unit'] ?? 'pcs';
       if (locQty < quantity) {
         throw Exception(
-            'Not enough stock at $fromLocation. Available: $locQty $unit');
+          'Not enough stock at $fromLocation. Available: $locQty $unit',
+        );
       }
 
       final stockTransaction = StockTransactionModel(
@@ -398,8 +539,9 @@ class DatabaseService {
       txn.set(txnRef, stockTransaction.toMap());
 
       final newFromQty = locQty - quantity;
-      final locMap =
-          Map<String, dynamic>.from(data['locationQuantities'] ?? {});
+      final locMap = Map<String, dynamic>.from(
+        data['locationQuantities'] ?? {},
+      );
 
       if (newFromQty <= 0) {
         locMap.remove(fromLocation);
@@ -408,11 +550,90 @@ class DatabaseService {
       }
       locMap[toLocation] = (locMap[toLocation] ?? 0) + quantity;
 
+      final totalQty = locMap.values.fold<int>(
+        0,
+        (a, v) => a + ((v is int) ? v : (v as num).toInt()),
+      );
       txn.update(docRef, {
         'locationQuantities': locMap,
+        'quantity': totalQty,
         'updatedAt': Timestamp.now(),
       });
     });
+  }
+
+  /// Records a stock adjustment (physical count correction).
+  Future<void> recordAdjustment({
+    required String productId,
+    required String productName,
+    required int adjustmentDelta,
+    required String location,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    final normalizedLoc = normalizeLocation(location);
+
+    await _firestore.runTransaction((txn) async {
+      final docRef = _products.doc(productId);
+      final snapshot = await txn.get(docRef);
+
+      if (!snapshot.exists) throw Exception('Product not found');
+
+      final data = snapshot.data()!;
+      final locMap = Map<String, dynamic>.from(
+        data['locationQuantities'] ?? {},
+      );
+      final currentLocQty = (locMap[normalizedLoc] ?? 0) as int;
+      final newLocQty = currentLocQty + adjustmentDelta;
+
+      if (newLocQty < 0) {
+        throw Exception(
+          'Adjustment would result in negative stock ($newLocQty) at $normalizedLoc',
+        );
+      }
+
+      if (newLocQty <= 0) {
+        locMap.remove(normalizedLoc);
+      } else {
+        locMap[normalizedLoc] = newLocQty;
+      }
+
+      final totalQty = locMap.values.fold<int>(
+        0,
+        (a, v) => a + ((v is int) ? v : (v as num).toInt()),
+      );
+
+      final stockTransaction = StockTransactionModel(
+        id: '',
+        productId: productId,
+        productName: productName,
+        type: TransactionType.adjustment,
+        quantity: adjustmentDelta.abs(),
+        location: normalizedLoc,
+        reason: reason,
+        userId: userId,
+        userName: userName,
+        date: DateTime.now(),
+      );
+
+      final txnRef = _transactions.doc();
+      txn.set(txnRef, stockTransaction.toMap());
+
+      txn.update(docRef, {
+        'locationQuantities': locMap,
+        'quantity': totalQty,
+        'updatedAt': Timestamp.now(),
+      });
+    });
+  }
+
+  Future<void> updateTransactionLocation(
+    String transactionId,
+    String newLocation,
+  ) async {
+    _ensureCompanyId();
+    await _transactions.doc(transactionId).update({'location': newLocation});
   }
 
   Stream<List<StockTransactionModel>> getProductTransactions(String productId) {
@@ -420,19 +641,23 @@ class DatabaseService {
         .where('productId', isEqualTo: productId)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
-  Stream<List<StockTransactionModel>> getAllTransactions({int limit = 500}) {
+  Stream<List<StockTransactionModel>> getAllTransactions({int limit = 2000}) {
     return _transactions
         .orderBy('date', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<List<StockTransactionModel>> getAllTransactionsOnce({
@@ -442,24 +667,34 @@ class DatabaseService {
     Query query = _transactions.orderBy('date', descending: true);
 
     if (startDate != null) {
-      query = query.where('date',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      query = query.where(
+        'date',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
     }
     if (endDate != null) {
-      query = query.where('date',
-          isLessThanOrEqualTo: Timestamp.fromDate(
-              endDate.add(const Duration(days: 1))));
+      query = query.where(
+        'date',
+        isLessThanOrEqualTo: Timestamp.fromDate(
+          endDate.add(const Duration(days: 1)),
+        ),
+      );
     }
 
     final snapshot = await query.get();
     return snapshot.docs
-        .map((doc) => StockTransactionModel.fromMap(
-            doc.data() as Map<String, dynamic>, doc.id))
+        .map(
+          (doc) => StockTransactionModel.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          ),
+        )
         .toList();
   }
 
   Stream<List<StockTransactionModel>> getTransactionsByType(
-      TransactionType type) {
+    TransactionType type,
+  ) {
     String typeStr;
     switch (type) {
       case TransactionType.stockIn:
@@ -474,15 +709,20 @@ class DatabaseService {
       case TransactionType.transfer:
         typeStr = 'transfer';
         break;
+      case TransactionType.adjustment:
+        typeStr = 'adjustment';
+        break;
     }
 
     return _transactions
         .where('type', isEqualTo: typeStr)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   // ==================== DASHBOARD STATS ====================
@@ -505,9 +745,18 @@ class DatabaseService {
     return _vendors
         .orderBy('name')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => VendorModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => VendorModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
+  }
+
+  Future<List<VendorModel>> getVendorsOnce() async {
+    final snapshot = await _vendors.orderBy('name').get();
+    return snapshot.docs
+        .map((doc) => VendorModel.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   Future<VendorModel?> getVendorById(String vendorId) async {
@@ -536,9 +785,11 @@ class DatabaseService {
         .where('vendorId', isEqualTo: vendorId)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StockTransactionModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<void> bulkAssignVendor({

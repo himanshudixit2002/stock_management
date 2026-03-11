@@ -30,7 +30,10 @@ class CategoryProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _errorMessage = friendlyError(error, fallback: 'Could not load categories.');
+        _errorMessage = friendlyError(
+          error,
+          fallback: 'Could not load categories.',
+        );
         _isLoading = false;
         notifyListeners();
       },
@@ -101,8 +104,9 @@ class CategoryProvider extends ChangeNotifier {
   /// or null if the name is available. [excludeId] skips self when editing.
   String? validateCategoryName(String name, {String? excludeId}) {
     final normalizedName = name.trim().toLowerCase();
-    final duplicate = _categories.any((c) =>
-        c.id != excludeId && c.name.trim().toLowerCase() == normalizedName);
+    final duplicate = _categories.any(
+      (c) => c.id != excludeId && c.name.trim().toLowerCase() == normalizedName,
+    );
     if (duplicate) {
       return 'A category with this name already exists';
     }

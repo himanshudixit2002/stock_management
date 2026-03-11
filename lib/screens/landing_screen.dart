@@ -1,6 +1,8 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../utils/url_helper.dart';
+import '../config/routes.dart';
 import '../config/theme.dart';
 import '../widgets/animated_list_item.dart';
 import '../utils/responsive.dart';
@@ -17,7 +19,9 @@ class LandingScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
             child: SingleChildScrollView(
               child: Column(
                 children: [
@@ -78,7 +82,7 @@ class LandingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: AppTheme.surfaceColor,
                   letterSpacing: -1,
                   height: 1.1,
                 ),
@@ -113,7 +117,8 @@ class LandingScreen extends StatelessWidget {
                   ],
                 ),
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/register'),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.register),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -127,11 +132,15 @@ class LandingScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: AppTheme.surfaceColor,
                         ),
                       ),
                       SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 20, color: Colors.white),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 20,
+                        color: AppTheme.surfaceColor,
+                      ),
                     ],
                   ),
                 ),
@@ -141,11 +150,14 @@ class LandingScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => Navigator.pushNamed(context, '/login'),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppTheme.surfaceColor,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -160,20 +172,14 @@ class LandingScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _TrustBadge(
-                  icon: Icons.shield_rounded,
-                  label: 'Secure',
-                ),
+                _TrustBadge(icon: Icons.shield_rounded, label: 'Secure'),
                 Container(
                   width: 1,
                   height: 20,
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   color: Colors.white.withValues(alpha: 0.2),
                 ),
-                _TrustBadge(
-                  icon: Icons.speed_rounded,
-                  label: 'Real-time',
-                ),
+                _TrustBadge(icon: Icons.speed_rounded, label: 'Real-time'),
                 Container(
                   width: 1,
                   height: 20,
@@ -192,10 +198,14 @@ class LandingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeaturesSection(BuildContext context, double screenWidth, bool isWide) {
+  Widget _buildFeaturesSection(
+    BuildContext context,
+    double screenWidth,
+    bool isWide,
+  ) {
     return Container(
       width: double.infinity,
-      color: const Color(0xFFF7F8FA),
+      decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.horizontalPadding(context),
         vertical: 40,
@@ -217,7 +227,7 @@ class LandingScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Colors.grey[850],
+              color: AppTheme.textPrimary,
               letterSpacing: -0.3,
             ),
           ),
@@ -259,9 +269,7 @@ class LandingScreen extends StatelessWidget {
         horizontal: Responsive.horizontalPadding(context),
         vertical: 24,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1D23),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFF1A1D23)),
       child: Column(
         children: [
           Wrap(
@@ -269,16 +277,41 @@ class LandingScreen extends StatelessWidget {
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              _FooterLink(label: 'Privacy', onTap: () => _openUrl(context, 'https://smartinventory.com/privacy-policy.html')),
-              _FooterLink(label: 'Terms', onTap: () => _openUrl(context, 'https://smartinventory.com/terms.html')),
-              _FooterLink(label: 'Support', onTap: () => _openUrl(context, 'https://smartinventory.com/support.html')),
-              _FooterLink(label: 'Data Deletion', onTap: () => _openUrl(context, 'https://smartinventory.com/data-deletion.html')),
+              _FooterLink(
+                label: 'Privacy',
+                onTap: () => _openUrl(
+                  context,
+                  'https://smartinventory.com/privacy-policy.html',
+                ),
+              ),
+              _FooterLink(
+                label: 'Terms',
+                onTap: () =>
+                    _openUrl(context, 'https://smartinventory.com/terms.html'),
+              ),
+              _FooterLink(
+                label: 'Support',
+                onTap: () => _openUrl(
+                  context,
+                  'https://smartinventory.com/support.html',
+                ),
+              ),
+              _FooterLink(
+                label: 'Data Deletion',
+                onTap: () => _openUrl(
+                  context,
+                  'https://smartinventory.com/data-deletion.html',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
           Text(
             '\u00A9 2026 Smart Inventory. All rights reserved.',
-            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.4)),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.4),
+            ),
           ),
         ],
       ),
@@ -286,59 +319,46 @@ class LandingScreen extends StatelessWidget {
   }
 
   static final _features = <(IconData, String, String, Color)>[
-    (Icons.location_on_rounded, 'Multi-Location',
-        'Track stock across warehouses, shops, and more.',
-        AppTheme.primaryColor),
-    (Icons.swap_horiz_rounded, 'Stock Transfers',
-        'Move inventory with a full audit trail.',
-        AppTheme.indigoColor),
-    (Icons.analytics_rounded, 'Reports & Analytics',
-        'Charts, trends, and exportable reports.',
-        AppTheme.infoColor),
-    (Icons.upload_file_rounded, 'Import & Export',
-        'Bulk import from Excel/CSV anytime.',
-        AppTheme.successColor),
-    (Icons.people_rounded, 'Team Management',
-        'Role-based access for your staff.',
-        AppTheme.warningColor),
-    (Icons.broken_image_rounded, 'Damage Tracking',
-        'Record and monitor damaged goods.',
-        AppTheme.dangerColor),
+    (
+      Icons.location_on_rounded,
+      'Multi-Location',
+      'Track stock across warehouses, shops, and more.',
+      AppTheme.primaryColor,
+    ),
+    (
+      Icons.swap_horiz_rounded,
+      'Stock Transfers',
+      'Move inventory with a full audit trail.',
+      AppTheme.indigoColor,
+    ),
+    (
+      Icons.analytics_rounded,
+      'Reports & Analytics',
+      'Charts, trends, and exportable reports.',
+      AppTheme.infoColor,
+    ),
+    (
+      Icons.upload_file_rounded,
+      'Import & Export',
+      'Bulk import from Excel/CSV anytime.',
+      AppTheme.successColor,
+    ),
+    (
+      Icons.people_rounded,
+      'Team Management',
+      'Role-based access for your staff.',
+      AppTheme.warningColor,
+    ),
+    (
+      Icons.broken_image_rounded,
+      'Damage Tracking',
+      'Record and monitor damaged goods.',
+      AppTheme.dangerColor,
+    ),
   ];
 
-  Future<void> _openUrl(BuildContext context, String url) async {
-    final uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Could not open the link. Please try again later.'),
-              backgroundColor: AppTheme.dangerColor,
-              behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(
-                label: 'RETRY',
-                textColor: Colors.white,
-                onPressed: () => _openUrl(context, url),
-              ),
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Something went wrong opening the link.'),
-            backgroundColor: AppTheme.dangerColor,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
+  Future<void> _openUrl(BuildContext context, String url) =>
+      openUrl(context, url);
 }
 
 class _TrustBadge extends StatelessWidget {
@@ -382,65 +402,70 @@ class _GlassFeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFECEFF1)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    final container = Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kIsWeb ? AppTheme.glassSurfaceContent : AppTheme.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.glassBorderContent),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textTertiary,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+
+    if (kIsWeb) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: container,
+        ),
+      );
+    }
+    return container;
   }
 }
 

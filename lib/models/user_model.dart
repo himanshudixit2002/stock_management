@@ -5,19 +5,19 @@ class UserModel {
   final String uid;
   final String name;
   final String email;
-  final String role; // 'superadmin', 'admin', or 'staff'
+  final String role; // 'admin' or 'staff'
   final String companyId;
   final String companyName;
   final String phone;
   final DateTime createdAt;
   final Map<String, bool> permissions;
-  final bool approved;
 
   static const List<String> allPermissionKeys = [
     'canStockIn',
     'canStockOut',
     'canDamage',
     'canTransfer',
+    'canAdjustStock',
     'canViewProducts',
     'canManageProducts',
     'canManageCategories',
@@ -31,6 +31,7 @@ class UserModel {
     'canStockOut': 'Stock Out',
     'canDamage': 'Record Damage',
     'canTransfer': 'Transfer Stock',
+    'canAdjustStock': 'Adjust Stock (Admin)',
     'canViewProducts': 'View Products',
     'canManageProducts': 'Add / Edit Products',
     'canManageCategories': 'Manage Categories',
@@ -39,8 +40,12 @@ class UserModel {
     'canExport': 'Export Data',
   };
 
-  static Map<String, bool> get defaultPermissions =>
-      {for (final k in allPermissionKeys) k: true};
+  /// Admin-only permission keys — staff get `false` by default.
+  static const Set<String> adminOnlyKeys = {'canAdjustStock'};
+
+  static Map<String, bool> get defaultPermissions => {
+    for (final k in allPermissionKeys) k: !adminOnlyKeys.contains(k),
+  };
 
   UserModel({
     required this.uid,
@@ -52,15 +57,18 @@ class UserModel {
     this.phone = '',
     required this.createdAt,
     Map<String, bool>? permissions,
-    this.approved = true,
   }) : permissions = permissions ?? defaultPermissions;
 
-  bool get isSuperAdmin => role == 'superadmin';
-  bool get isAdmin => role == 'admin' || role == 'superadmin';
+  bool get isAdmin => role == 'admin';
   bool get isStaff => role == 'staff';
 
+  /// All permissions set to `true` — used for admin.
+  static Map<String, bool> get _allPermissions => {
+    for (final k in allPermissionKeys) k: true,
+  };
+
   Map<String, bool> get effectivePermissions {
-    if (isAdmin) return defaultPermissions;
+    if (isAdmin) return _allPermissions;
     return {...defaultPermissions, ...permissions};
   }
 
@@ -83,7 +91,6 @@ class UserModel {
       phone: safeString(map['phone']),
       createdAt: safeTimestamp(map['createdAt']),
       permissions: perms,
-      approved: map['approved'] != null ? safeBool(map['approved']) : true,
     );
   }
 
@@ -98,7 +105,6 @@ class UserModel {
       'phone': phone,
       'createdAt': Timestamp.fromDate(createdAt),
       'permissions': permissions,
-      'approved': approved,
     };
   }
 
@@ -112,7 +118,6 @@ class UserModel {
     String? phone,
     DateTime? createdAt,
     Map<String, bool>? permissions,
-    bool? approved,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -124,7 +129,6 @@ class UserModel {
       phone: phone ?? this.phone,
       createdAt: createdAt ?? this.createdAt,
       permissions: permissions ?? this.permissions,
-      approved: approved ?? this.approved,
     );
   }
 }

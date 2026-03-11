@@ -9,7 +9,10 @@ import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
+import '../products/add_edit_product_screen.dart';
 
 class StockOutScreen extends StatefulWidget {
   final ProductModel? product;
@@ -46,12 +49,19 @@ class _StockOutScreenState extends State<StockOutScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Discard changes?'),
-        content: const Text('You have unsaved changes. Are you sure you want to go back?'),
+        content: const Text(
+          'You have unsaved changes. Are you sure you want to go back?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.dangerColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.dangerColor,
+            ),
             child: const Text('Discard'),
           ),
         ],
@@ -106,8 +116,11 @@ class _StockOutScreenState extends State<StockOutScreen> {
                 color: AppTheme.primaryColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.outbox_rounded,
-                  color: AppTheme.primaryColor, size: 20),
+              child: const Icon(
+                Icons.outbox_rounded,
+                color: AppTheme.primaryColor,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 10),
             const Text('Confirm Stock Out'),
@@ -139,8 +152,11 @@ class _StockOutScreenState extends State<StockOutScreen> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded,
-                color: AppTheme.warningColor, size: 24),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: AppTheme.warningColor,
+              size: 24,
+            ),
             const SizedBox(width: 8),
             const Text('Large Quantity'),
           ],
@@ -211,28 +227,42 @@ class _StockOutScreenState extends State<StockOutScreen> {
       return;
     }
     final success = await context.read<StockProvider>().removeStock(
-          productId: _selectedProduct!.id,
-          productName: _selectedProduct!.name,
-          quantity: qty,
-          location: _selectedLocation,
-          userId: user.uid,
-          userName: user.name,
-          reason: _reasonController.text.trim(),
-          vendorId: _selectedVendorId,
-          vendorName: _selectedVendorName,
-        );
+      productId: _selectedProduct!.id,
+      productName: _selectedProduct!.name,
+      quantity: qty,
+      location: _selectedLocation,
+      userId: user.uid,
+      userName: user.name,
+      reason: _reasonController.text.trim(),
+      vendorId: _selectedVendorId,
+      vendorName: _selectedVendorName,
+    );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (success) {
+      context.read<ProductProvider>().refreshProducts();
       HapticFeedback.mediumImpact();
+      _quantityController.clear();
+      _reasonController.clear();
+      _locationController.clear();
+      setState(() {
+        if (widget.product == null) _selectedProduct = null;
+        _selectedLocation = '';
+        _selectedVendorId = '';
+        _selectedVendorName = '';
+        _submitted = false;
+        _formKey = GlobalKey<FormState>();
+      });
       showSuccessOverlay(context, message: 'Stock removed successfully');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.read<StockProvider>().errorMessage ??
-              'Failed to remove stock'),
+          content: Text(
+            context.read<StockProvider>().errorMessage ??
+                'Failed to remove stock',
+          ),
           backgroundColor: AppTheme.dangerColor,
           duration: const Duration(seconds: 4),
         ),
@@ -241,6 +271,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
   }
 
   void _showProductPicker(List<ProductModel> products) {
+    _productSearch = '';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -251,19 +282,22 @@ class _StockOutScreenState extends State<StockOutScreen> {
             final filtered = _productSearch.isEmpty
                 ? products
                 : products
-                    .where((p) =>
-                        p.name.toLowerCase().contains(
-                            _productSearch.toLowerCase()) ||
-                        p.categoryName.toLowerCase().contains(
-                            _productSearch.toLowerCase()))
-                    .toList();
+                      .where(
+                        (p) =>
+                            p.name.toLowerCase().contains(
+                              _productSearch.toLowerCase(),
+                            ) ||
+                            p.categoryName.toLowerCase().contains(
+                              _productSearch.toLowerCase(),
+                            ),
+                      )
+                      .toList();
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.7,
               decoration: const BoxDecoration(
                 color: AppTheme.surfaceColor,
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 children: [
@@ -272,7 +306,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: AppTheme.emptyStateIcon,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -293,47 +327,56 @@ class _StockOutScreenState extends State<StockOutScreen> {
                     child: filtered.isEmpty
                         ? Center(
                             child: Column(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.search_off_rounded,
-                                    size: 48,
-                                    color: Colors.grey[350]),
+                                Icon(
+                                  Icons.search_off_rounded,
+                                  size: 48,
+                                  color: AppTheme.iconMuted,
+                                ),
                                 const SizedBox(height: 8),
                                 Text(
                                   'No products match your search',
                                   style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 14),
+                                    color: AppTheme.textTertiary,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ],
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final p = filtered[index];
                               final isSelected = _selectedProduct?.id == p.id;
-                              final stockColor =
-                                  AppTheme.getStockColor(p.quantity,
-                                      threshold:
-                                          p.lowStockThreshold);
+                              final stockColor = AppTheme.getStockColor(
+                                p.quantity,
+                                threshold: p.lowStockThreshold,
+                              );
                               return ListTile(
                                 selected: isSelected,
-                                selectedTileColor: AppTheme.primaryColor.withValues(alpha: 0.08),
-                                shape: isSelected ? RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
-                                ) : null,
+                                selectedTileColor: AppTheme.primaryColor
+                                    .withValues(alpha: 0.08),
+                                shape: isSelected
+                                    ? RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        side: BorderSide(
+                                          color: AppTheme.primaryColor
+                                              .withValues(alpha: 0.3),
+                                        ),
+                                      )
+                                    : null,
                                 onTap: () {
                                   final locs = p.locationQuantities.entries
                                       .where((e) => e.value > 0)
                                       .toList();
                                   setState(() {
                                     _selectedProduct = p;
-                                    _selectedLocation = locs.length == 1 ? locs.first.key : '';
+                                    _selectedLocation = locs.length == 1
+                                        ? locs.first.key
+                                        : '';
                                     _locationController.clear();
                                     _productSearch = '';
                                   });
@@ -343,25 +386,24 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                   width: 42,
                                   height: 42,
                                   decoration: BoxDecoration(
-                                    color: stockColor
-                                        .withValues(alpha: 0.12),
-                                    borderRadius:
-                                        BorderRadius.circular(10),
+                                    color: stockColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: stockColor,
-                                      size: 20),
+                                    Icons.inventory_2_rounded,
+                                    color: stockColor,
+                                    size: 20,
+                                  ),
                                 ),
                                 title: Text(
                                   p.name,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w600),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 subtitle: Text(
                                   '${p.categoryName} \u2022 ${_locationBreakdown(p)}',
-                                  style:
-                                      const TextStyle(fontSize: 12),
+                                  style: const TextStyle(fontSize: 12),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -391,303 +433,362 @@ class _StockOutScreenState extends State<StockOutScreen> {
     if (user != null && !user.hasPermission('canStockOut')) {
       return Scaffold(
         appBar: AppBar(title: const Text('Stock Out')),
-        body: const Center(child: Text('You do not have permission to access this feature.')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
       );
     }
 
-    final products = context.watch<ProductProvider>().allProducts
-        .where((p) => p.quantity > 0 && p.locationQuantities.values.any((q) => q > 0))
+    final allProducts = context.watch<ProductProvider>().allProducts;
+    final products = allProducts
+        .where(
+          (p) =>
+              p.quantity > 0 && p.locationQuantities.values.any((q) => q > 0),
+        )
         .toList();
 
-    final productLocations = _selectedProduct?.locationQuantities.entries
+    final productLocations =
+        _selectedProduct?.locationQuantities.entries
             .where((e) => e.value > 0)
             .map((e) => e.key)
             .toList() ??
         [];
 
+    if (allProducts.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: AppBarTitleRow(
+            icon: Icons.remove_circle_rounded,
+            color: AppTheme.primaryColor,
+            title: 'Stock Out',
+          ),
+        ),
+        body: EmptyStateWidget(
+          icon: Icons.inventory_2_rounded,
+          title: 'No Products Yet',
+          subtitle: 'Add your first product to start dispatching stock.',
+          buttonText: 'Add Product',
+          onButtonPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddEditProductScreen()),
+            );
+          },
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard()) Navigator.of(context).pop();
-      },
-      child: GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        if (_submitted) {
-          setState(() {
-            _submitted = false;
-            _formKey = GlobalKey<FormState>();
-          });
+        if (await _confirmDiscard() && context.mounted) {
+          Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.remove_circle_rounded, color: AppTheme.primaryColor, size: 20),
+      child: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          if (_submitted) {
+            setState(() {
+              _submitted = false;
+              _formKey = GlobalKey<FormState>();
+            });
+          }
+        },
+        child: Scaffold(
+          backgroundColor: AppTheme.backgroundColor,
+          appBar: AppBar(
+            title: AppBarTitleRow(
+              icon: Icons.remove_circle_rounded,
+              color: AppTheme.primaryColor,
+              title: 'Stock Out',
             ),
-            const SizedBox(width: 10),
-            const Text('Stock Out'),
-          ],
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
-        child: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-        child: Form(
-          key: _formKey,
-          autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Select Product *',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppTheme.textPrimary,
+          ),
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: AppTheme.scaffoldGradient,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.formMaxWidth(context),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Material(
-                color: AppTheme.inputFillColor,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: () => _showProductPicker(products),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: AppTheme.inputBorderColor),
-                    ),
-                    child: Row(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.all(
+                    Responsive.horizontalPadding(context),
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: _submitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(
-                          Icons.inventory_2_rounded,
-                          color: _selectedProduct != null
-                              ? AppTheme.primaryColor
-                              : AppTheme.textSecondary,
-                          size: 22,
+                        const Text(
+                          'Select Product *',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _selectedProduct != null
-                              ? Text(
-                                  _selectedProduct!.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                  ),
-                                )
-                              : const Text(
-                                  'Tap to select a product...',
-                                  style: TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 15,
-                                  ),
+                        const SizedBox(height: 8),
+                        Material(
+                          color: AppTheme.inputFillColor,
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => _showProductPicker(products),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.inputBorderColor,
                                 ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.inventory_2_rounded,
+                                    color: _selectedProduct != null
+                                        ? AppTheme.primaryColor
+                                        : AppTheme.textSecondary,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _selectedProduct != null
+                                        ? Text(
+                                            _selectedProduct!.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Tap to select a product...',
+                                            style: TextStyle(
+                                              color: AppTheme.textSecondary,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        const Icon(Icons.arrow_drop_down_rounded,
-                            color: AppTheme.textSecondary),
+
+                        const SizedBox(height: 20),
+
+                        // Location selector - only product's existing locations
+                        if (_selectedProduct != null &&
+                            productLocations.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _selectedLocation.isEmpty
+                                  ? null
+                                  : _selectedLocation,
+                              decoration: const InputDecoration(
+                                labelText: 'Location *',
+                                prefixIcon: Icon(Icons.location_on_rounded),
+                              ),
+                              hint: const Text('Select location'),
+                              items: productLocations.map((loc) {
+                                final qty =
+                                    _selectedProduct!.locationQuantities[loc] ??
+                                    0;
+                                return DropdownMenuItem(
+                                  value: loc,
+                                  child: Text(
+                                    '$loc ($qty ${_selectedProduct!.unit})',
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedLocation = value ?? '';
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please select a location';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+
+                        if (_selectedProduct != null &&
+                            productLocations.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              'No stock at any location for this product.',
+                              style: TextStyle(
+                                color: AppTheme.dangerColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+
+                        if (_selectedLocation.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              'Available at $_selectedLocation: $_availableAtLocation ${_selectedProduct?.unit ?? "pcs"}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+
+                        TextFormField(
+                          controller: _quantityController,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: 'Quantity to Remove *',
+                            prefixIcon: const Icon(Icons.remove_rounded),
+                            suffixText: _selectedProduct?.unit ?? 'pcs',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Enter quantity';
+                            }
+                            final qty = int.tryParse(value);
+                            if (qty == null || qty <= 0) {
+                              return 'Enter a valid quantity';
+                            }
+                            if (qty > _availableAtLocation) {
+                              return 'Exceeds stock at $_selectedLocation ($_availableAtLocation)';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _reasonController,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            labelText: 'Reason (optional)',
+                            prefixIcon: Icon(Icons.note_rounded),
+                            hintText: 'e.g., Sold to customer, Returned',
+                          ),
+                          maxLines: 2,
+                        ),
+
+                        Consumer<SettingsProvider>(
+                          builder: (context, settings, _) {
+                            if (!settings.vendorsEnabled) {
+                              return const SizedBox.shrink();
+                            }
+                            final vendorProvider = context
+                                .watch<VendorProvider>();
+                            final activeVendors = vendorProvider.activeVendors;
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _selectedVendorId.isEmpty
+                                    ? null
+                                    : _selectedVendorId,
+                                decoration: InputDecoration(
+                                  labelText: 'Vendor (optional)',
+                                  prefixIcon: const Icon(
+                                    Icons.local_shipping_rounded,
+                                  ),
+                                  suffixIcon: _selectedVendorId.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            size: 18,
+                                          ),
+                                          onPressed: () => setState(() {
+                                            _selectedVendorId = '';
+                                            _selectedVendorName = '';
+                                          }),
+                                        )
+                                      : null,
+                                ),
+                                hint: const Text('Select vendor'),
+                                items: activeVendors.map((v) {
+                                  return DropdownMenuItem(
+                                    value: v.id,
+                                    child: Text(v.name),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  final v = vendorProvider.getVendorById(
+                                    value ?? '',
+                                  );
+                                  setState(() {
+                                    _selectedVendorId = value ?? '';
+                                    _selectedVendorName = v?.name ?? '';
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _quantityController,
+                          builder: (context, value, _) {
+                            final qty = int.tryParse(value.text) ?? 0;
+                            final exceedsStock = qty > _availableAtLocation;
+                            return ElevatedButton.icon(
+                              onPressed: _isLoading || exceedsStock
+                                  ? null
+                                  : _removeStock,
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_rounded),
+                              label: const Text('Remove Stock'),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              // Location selector - only product's existing locations
-              if (_selectedProduct != null && productLocations.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedLocation.isEmpty
-                        ? null
-                        : _selectedLocation,
-                    decoration: const InputDecoration(
-                      labelText: 'Location *',
-                      prefixIcon: Icon(Icons.location_on_rounded),
-                    ),
-                    hint: const Text('Select location'),
-                    items: productLocations.map((loc) {
-                      final qty =
-                          _selectedProduct!.locationQuantities[loc] ??
-                              0;
-                      return DropdownMenuItem(
-                        value: loc,
-                        child: Text(
-                            '$loc ($qty ${_selectedProduct!.unit})'),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedLocation = value ?? '';
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select a location';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-
-              if (_selectedProduct != null &&
-                  productLocations.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    'No stock at any location for this product.',
-                    style: TextStyle(
-                      color: AppTheme.dangerColor,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-
-              if (_selectedLocation.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    'Available at $_selectedLocation: $_availableAtLocation ${_selectedProduct?.unit ?? "pcs"}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-
-              TextFormField(
-                controller: _quantityController,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Quantity to Remove *',
-                  prefixIcon: const Icon(Icons.remove_rounded),
-                  suffixText: _selectedProduct?.unit ?? 'pcs',
-                ),
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly
-                ],
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w600),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Enter quantity';
-                  }
-                  final qty = int.tryParse(value);
-                  if (qty == null || qty <= 0) {
-                    return 'Enter a valid quantity';
-                  }
-                  if (qty > _availableAtLocation) {
-                    return 'Exceeds stock at $_selectedLocation ($_availableAtLocation)';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _reasonController,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Reason (optional)',
-                  prefixIcon: Icon(Icons.note_rounded),
-                  hintText: 'e.g., Sold to customer, Returned',
-                ),
-                maxLines: 2,
-              ),
-
-              Consumer<SettingsProvider>(
-                builder: (context, settings, _) {
-                  if (!settings.vendorsEnabled) return const SizedBox.shrink();
-                  final vendorProvider = context.watch<VendorProvider>();
-                  final activeVendors = vendorProvider.activeVendors;
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedVendorId.isEmpty ? null : _selectedVendorId,
-                      decoration: InputDecoration(
-                        labelText: 'Vendor (optional)',
-                        prefixIcon: const Icon(Icons.local_shipping_rounded),
-                        suffixIcon: _selectedVendorId.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18),
-                                onPressed: () => setState(() {
-                                  _selectedVendorId = '';
-                                  _selectedVendorName = '';
-                                }),
-                              )
-                            : null,
-                      ),
-                      hint: const Text('Select vendor'),
-                      items: activeVendors.map((v) {
-                        return DropdownMenuItem(
-                          value: v.id,
-                          child: Text(v.name),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        final v = vendorProvider.getVendorById(value ?? '');
-                        setState(() {
-                          _selectedVendorId = value ?? '';
-                          _selectedVendorName = v?.name ?? '';
-                        });
-                      },
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _quantityController,
-                builder: (context, value, _) {
-                  final qty = int.tryParse(value.text) ?? 0;
-                  final exceedsStock = qty > _availableAtLocation;
-                  return ElevatedButton.icon(
-                    onPressed: _isLoading || exceedsStock
-                        ? null
-                        : _removeStock,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white),
-                          )
-                        : const Icon(Icons.check_rounded),
-                    label: const Text('Remove Stock'),
-                  );
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),
-      ),
-      ),
-    ),
-    ),
     );
   }
 }

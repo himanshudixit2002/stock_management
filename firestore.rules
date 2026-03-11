@@ -17,11 +17,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && userDocExists() &&
-        (getUserData().role == 'admin' || getUserData().role == 'superadmin');
-    }
-
-    function isSuperAdmin() {
-      return isAuthenticated() && userDocExists() && getUserData().role == 'superadmin';
+        getUserData().role == 'admin';
     }
 
     function belongsToCompany(companyId) {
@@ -32,18 +28,15 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() &&
         (request.auth.uid == userId ||
-         (userDocExists() && getUserData().companyId == resource.data.companyId) ||
-         isSuperAdmin());
+         (userDocExists() && getUserData().companyId == resource.data.companyId));
 
       allow create: if isAuthenticated() && request.auth.uid == userId;
 
-      allow update: if isSuperAdmin() ||
-        (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
+      allow update: if (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
         (isAuthenticated() && request.auth.uid == userId &&
           request.resource.data.role == resource.data.role);
 
-      allow delete: if isSuperAdmin() ||
-        (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
+      allow delete: if (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
         (isAuthenticated() && request.auth.uid == userId);
     }
 
@@ -51,6 +44,17 @@ service cloud.firestore {
     match /metadata/{docId} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated();
+    }
+
+    // Notifications (created by Cloud Functions, read by recipients)
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.recipientUid == request.auth.uid;
+      allow create: if false; // Only Cloud Functions can create
     }
 
     // Companies collection
@@ -78,7 +82,7 @@ service cloud.firestore {
       match /transactions/{transactionId} {
         allow read: if belongsToCompany(companyId);
         allow create: if belongsToCompany(companyId);
-        allow update: if false;
+        allow update: if belongsToCompany(companyId) && isAdmin();
         allow delete: if belongsToCompany(companyId) && isAdmin();
       }
 

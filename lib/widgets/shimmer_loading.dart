@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/theme.dart';
 
 enum ShimmerLayout { card, stat, listTile }
 
@@ -57,7 +58,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
       itemCount: widget.itemCount,
       itemBuilder: (_, i) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: _shimmerBox(height: 80, borderRadius: 14),
+        child: _shimmerBox(height: 80, borderRadius: 20),
       ),
     );
   }
@@ -69,7 +70,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
         (i) => Expanded(
           child: Padding(
             padding: EdgeInsets.only(left: i == 0 ? 0 : 10),
-            child: _shimmerBox(height: 100, borderRadius: 14),
+            child: _shimmerBox(height: 100, borderRadius: 20),
           ),
         ),
       ),
@@ -86,7 +87,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: [
-            _shimmerBox(width: 44, height: 44, borderRadius: 12),
+            _shimmerBox(width: 44, height: 44, borderRadius: 16),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -95,13 +96,13 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
                   FractionallySizedBox(
                     widthFactor: 0.7,
                     alignment: Alignment.centerLeft,
-                    child: _shimmerBox(height: 14, borderRadius: 4),
+                    child: _shimmerBox(height: 14, borderRadius: 8),
                   ),
                   const SizedBox(height: 6),
                   FractionallySizedBox(
                     widthFactor: 0.5,
                     alignment: Alignment.centerLeft,
-                    child: _shimmerBox(height: 10, borderRadius: 4),
+                    child: _shimmerBox(height: 10, borderRadius: 8),
                   ),
                 ],
               ),
@@ -126,10 +127,10 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
         gradient: LinearGradient(
           begin: Alignment(-1.0 + 2.0 * value, 0),
           end: Alignment(1.0 + 2.0 * value, 0),
-          colors: const [
-            Color(0xFFECEFF1),
-            Color(0xFFF5F5F5),
-            Color(0xFFECEFF1),
+          colors: [
+            AppTheme.dividerColor,
+            AppTheme.inputFillColor,
+            AppTheme.dividerColor,
           ],
         ),
       ),
