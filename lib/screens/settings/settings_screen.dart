@@ -42,10 +42,10 @@ class SettingsScreen extends StatelessWidget {
           children: [
             // Profile card
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: AppTheme.heroGradient,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
               ),
               child: Row(
@@ -59,19 +59,19 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                     child: CircleAvatar(
-                      radius: 30,
+                      radius: 26,
                       backgroundColor: Colors.white.withValues(alpha: 0.15),
                       child: Text(
                         initials,
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 19,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.surfaceColor,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,54 +92,48 @@ class SettingsScreen extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.85),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                ),
-                              ),
-                              child: Text(
-                                user.isAdmin ? 'ADMIN' : 'STAFF',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.surfaceColor,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
+                        if (user.companyName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            user.companyName,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.95),
                             ),
-                            if (user.companyName.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  user.companyName,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Text(
+                      user.isAdmin ? 'ADMIN' : 'STAFF',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.surfaceColor,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
 
             _SectionHeader(title: 'Account', color: AppTheme.primaryColor),
             _SettingsCard(
@@ -151,14 +145,14 @@ class SettingsScreen extends StatelessWidget {
                   subtitle: 'Update your name and phone',
                   onTap: () => _showEditProfileDialog(context),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.lock_reset_rounded,
                   iconColor: AppTheme.indigoColor,
                   title: 'Change Password',
                   onTap: () => _showChangePasswordDialog(context),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.delete_forever_rounded,
                   iconColor: AppTheme.dangerColor,
@@ -170,28 +164,28 @@ class SettingsScreen extends StatelessWidget {
             ),
 
             if (user.isAdmin) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               _SectionHeader(title: 'Features', color: AppTheme.infoColor),
               _SettingsCard(
                 children: [
                   Consumer<SettingsProvider>(
                     builder: (context, settings, _) => SwitchListTile(
                       secondary: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: AppTheme.successColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.attach_money_rounded,
                           color: AppTheme.successColor,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                       title: const Text(
                         'Enable Pricing',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -219,30 +213,30 @@ class SettingsScreen extends StatelessWidget {
                         }
                       },
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 2,
+                        horizontal: 12,
+                        vertical: 0,
                       ),
                     ),
                   ),
-                  const Divider(height: 1, indent: 56),
+                  const Divider(height: 1, indent: 48),
                   Consumer<SettingsProvider>(
                     builder: (context, settings, _) => SwitchListTile(
                       secondary: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: AppTheme.indigoColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.local_shipping_rounded,
                           color: AppTheme.indigoColor,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                       title: const Text(
                         'Enable Vendors',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -270,15 +264,15 @@ class SettingsScreen extends StatelessWidget {
                         }
                       },
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 2,
+                        horizontal: 12,
+                        vertical: 0,
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               _SectionHeader(
                 title: 'Product Attributes',
                 color: AppTheme.accentColor,
@@ -302,7 +296,7 @@ class SettingsScreen extends StatelessWidget {
                           context.read<SettingsProvider>().removeCompany(name),
                     ),
                   ),
-                  const Divider(height: 1, indent: 56),
+                  const Divider(height: 1, indent: 48),
                   _SettingsTile(
                     icon: Icons.straighten_rounded,
                     iconColor: AppTheme.infoColor,
@@ -319,7 +313,7 @@ class SettingsScreen extends StatelessWidget {
                           context.read<SettingsProvider>().removeSize(name),
                     ),
                   ),
-                  const Divider(height: 1, indent: 56),
+                  const Divider(height: 1, indent: 48),
                   _SettingsTile(
                     icon: Icons.location_on_rounded,
                     iconColor: AppTheme.warningColor,
@@ -340,7 +334,7 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               _SectionHeader(
                 title: 'Administration',
                 color: AppTheme.warningColor,
@@ -355,7 +349,7 @@ class SettingsScreen extends StatelessWidget {
                     onTap: () =>
                         Navigator.pushNamed(context, AppRoutes.userManagement),
                   ),
-                  const Divider(height: 1, indent: 56),
+                  const Divider(height: 1, indent: 48),
                   _SettingsTile(
                     icon: Icons.shield_rounded,
                     iconColor: AppTheme.warningColor,
@@ -373,7 +367,7 @@ class SettingsScreen extends StatelessWidget {
                       }
                       return Column(
                         children: [
-                          const Divider(height: 1, indent: 56),
+                          const Divider(height: 1, indent: 48),
                           _SettingsTile(
                             icon: Icons.local_shipping_rounded,
                             iconColor: AppTheme.indigoColor,
@@ -390,7 +384,7 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _SectionHeader(title: 'Data', color: AppTheme.successColor),
             _SettingsCard(
               children: [
@@ -401,7 +395,7 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () =>
                       Navigator.pushNamed(context, AppRoutes.excelImport),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.file_download_rounded,
                   iconColor: AppTheme.successColor,
@@ -412,7 +406,7 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _SectionHeader(title: 'Legal', color: AppTheme.textSecondary),
             _SettingsCard(
               children: [
@@ -425,7 +419,7 @@ class SettingsScreen extends StatelessWidget {
                     'https://smartinventory.com/privacy-policy.html',
                   ),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.description_rounded,
                   iconColor: AppTheme.indigoColor,
@@ -435,7 +429,7 @@ class SettingsScreen extends StatelessWidget {
                     'https://smartinventory.com/terms.html',
                   ),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.support_agent_rounded,
                   iconColor: AppTheme.accentColor,
@@ -445,7 +439,7 @@ class SettingsScreen extends StatelessWidget {
                     'https://smartinventory.com/support.html',
                   ),
                 ),
-                const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 48),
                 _SettingsTile(
                   icon: Icons.delete_sweep_rounded,
                   iconColor: AppTheme.dangerColor,
@@ -458,12 +452,12 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             // Gradient logout button
             Container(
               decoration: BoxDecoration(
                 gradient: AppTheme.dangerGradient,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: AppTheme.coloredShadow(AppTheme.dangerColor),
               ),
               child: ElevatedButton.icon(
@@ -474,7 +468,7 @@ class SettingsScreen extends StatelessWidget {
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   foregroundColor: AppTheme.surfaceColor,
-                  minimumSize: const Size(double.infinity, 52),
+                  minimumSize: const Size(double.infinity, 48),
                 ),
               ),
             ),
@@ -1083,12 +1077,12 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 10),
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Row(
         children: [
           Container(
             width: 3,
-            height: 14,
+            height: 12,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(2),
@@ -1098,7 +1092,7 @@ class _SectionHeader extends StatelessWidget {
           Text(
             title.toUpperCase(),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppTheme.iconMuted,
               letterSpacing: 1.2,
@@ -1143,30 +1137,30 @@ class _SettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(icon, color: iconColor, size: 18),
       ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
       subtitle: subtitle != null
           ? Text(
               subtitle!,
-              style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+              style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
             )
           : null,
       trailing: Icon(
         Icons.arrow_forward_ios_rounded,
         color: AppTheme.iconMuted,
-        size: 16,
+        size: 14,
       ),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
     );
   }
 }

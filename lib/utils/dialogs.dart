@@ -15,24 +15,9 @@ Future<bool> showConfirmDialog(
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
       ),
       content: Text(
         message,

@@ -17,6 +17,15 @@ class CategoryProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void reset() {
+    _categoriesSubscription?.cancel();
+    _categoriesSubscription = null;
+    _categories = [];
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
     _categoriesSubscription?.cancel();

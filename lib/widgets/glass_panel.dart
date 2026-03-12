@@ -19,7 +19,7 @@ class GlassPanel extends StatelessWidget {
   const GlassPanel({
     super.key,
     required this.child,
-    this.borderRadius = 22,
+    this.borderRadius = 16,
     this.blurSigma,
     this.padding,
     this.border,
@@ -75,7 +75,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.borderRadius = 20,
+    this.borderRadius = 16,
     this.useContentVariant = true,
     this.semanticLabel,
   });
@@ -157,7 +157,7 @@ class GlassSectionCard extends StatelessWidget {
     final content = Container(
       decoration: BoxDecoration(
         color: kIsWeb ? AppTheme.glassSurfaceContent : AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.glassBorderContent, width: 1),
         boxShadow: kIsWeb ? null : AppTheme.cardShadow,
       ),
@@ -169,9 +169,9 @@ class GlassSectionCard extends StatelessWidget {
             Padding(
               padding: EdgeInsets.fromLTRB(
                 Responsive.cardPadding(context),
-                16,
+                12,
                 Responsive.cardPadding(context),
-                8,
+                6,
               ),
               child: Row(
                 children: [
@@ -195,7 +195,7 @@ class GlassSectionCard extends StatelessWidget {
                           )
                         : const SizedBox.shrink(),
                   ),
-                  ?trailing,
+                  if (trailing != null) ...[trailing!],
                 ],
               ),
             ),
@@ -210,7 +210,7 @@ class GlassSectionCard extends StatelessWidget {
 
     if (kIsWeb) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: content,

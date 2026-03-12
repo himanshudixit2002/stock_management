@@ -77,7 +77,7 @@ class DashboardScreen extends StatelessWidget {
             context.read<StockProvider>().initialize(companyId: companyId);
           },
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: Responsive.scrollPhysics(context),
             padding: EdgeInsets.fromLTRB(
               Responsive.horizontalPadding(context),
               8,
@@ -173,14 +173,14 @@ class DashboardScreen extends StatelessWidget {
                     // Stats Cards
                     const _StatsRow(),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
                     // Quick Actions
                     Text(
                       'Quick Actions',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final actions = [
@@ -357,7 +357,7 @@ class _StatsRow extends StatelessWidget {
               color: AppTheme.primaryColor,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: _StatCard(
               title: 'Low Stock',
@@ -367,7 +367,7 @@ class _StatsRow extends StatelessWidget {
               onTap: () => _showLowStockSheet(context),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: _StatCard(
               title: 'Out of Stock',
@@ -645,12 +645,12 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -660,7 +660,7 @@ class _StatCard extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color.withValues(alpha: 0.2)),
           ),
           child: Column(
@@ -668,7 +668,7 @@ class _StatCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, color: color, size: 22),
+                  Icon(icon, color: color, size: 20),
                   if (onTap != null) ...[
                     const Spacer(),
                     Icon(
@@ -679,7 +679,7 @@ class _StatCard extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 transitionBuilder: (child, animation) => FadeTransition(
@@ -696,7 +696,7 @@ class _StatCard extends StatelessWidget {
                   value,
                   key: ValueKey(value),
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: color,
                     letterSpacing: -0.5,
@@ -741,27 +741,27 @@ class _QuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppTheme.surfaceColor,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppTheme.dividerColor),
           ),
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 label,
                 style: const TextStyle(
@@ -822,25 +822,25 @@ class _ActivityTile extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.dividerColor),
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: typeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(typeIcon, color: typeColor, size: 20),
+            child: Icon(typeIcon, color: typeColor, size: 16),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

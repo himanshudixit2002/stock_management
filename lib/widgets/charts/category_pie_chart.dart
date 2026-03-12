@@ -4,15 +4,17 @@ import '../chart_empty_state.dart';
 import '../../config/theme.dart';
 
 class CategoryPieChart extends StatefulWidget {
-  final Map<String, double> data; // categoryName -> value
-  final String valueLabel; // e.g. 'products', 'value'
+  final Map<String, double> data;
+  final String valueLabel;
   final bool isCurrency;
+  final void Function(String category, double value)? onSliceTap;
 
   const CategoryPieChart({
     super.key,
     required this.data,
     this.valueLabel = '',
     this.isCurrency = false,
+    this.onSliceTap,
   });
 
   @override
@@ -58,17 +60,24 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                 PieChartData(
                   pieTouchData: PieTouchData(
                     touchCallback: (event, pieTouchResponse) {
-                      setState(() {
-                        if (!event.isInterestedForInteractions ||
-                            pieTouchResponse == null ||
-                            pieTouchResponse.touchedSection == null) {
-                          _touchedIndex = -1;
-                          return;
-                        }
-                        _touchedIndex = pieTouchResponse
-                            .touchedSection!
-                            .touchedSectionIndex;
-                      });
+                      final newIdx = (!event.isInterestedForInteractions ||
+                              pieTouchResponse == null ||
+                              pieTouchResponse.touchedSection == null)
+                          ? -1
+                          : pieTouchResponse
+                              .touchedSection!.touchedSectionIndex;
+
+                      setState(() => _touchedIndex = newIdx);
+
+                      if (widget.onSliceTap != null &&
+                          event is FlTapUpEvent &&
+                          newIdx >= 0 &&
+                          newIdx < entries.length) {
+                        widget.onSliceTap!(
+                          entries[newIdx].key,
+                          entries[newIdx].value,
+                        );
+                      }
                     },
                   ),
                   borderData: FlBorderData(show: false),
@@ -103,26 +112,31 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                 final valStr = widget.isCurrency
                     ? '${AppTheme.currencySymbol}${entry.value.toStringAsFixed(0)}'
                     : entry.value.toStringAsFixed(0);
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: _colors[i % _colors.length],
-                        shape: BoxShape.circle,
+                return GestureDetector(
+                  onTap: widget.onSliceTap != null
+                      ? () => widget.onSliceTap!(entry.key, entry.value)
+                      : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _colors[i % _colors.length],
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${entry.key} ($valStr)',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
+                      const SizedBox(width: 4),
+                      Text(
+                        '${entry.key} ($valStr)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               }),
             ),

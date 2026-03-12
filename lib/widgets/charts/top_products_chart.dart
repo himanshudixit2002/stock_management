@@ -6,12 +6,14 @@ class TopProductsChart extends StatelessWidget {
   final List<MapEntry<String, int>> data;
   final Color barColor;
   final String valueLabel;
+  final void Function(String name, int value)? onItemTap;
 
   const TopProductsChart({
     super.key,
     required this.data,
     this.barColor = AppTheme.primaryColor,
     this.valueLabel = '',
+    this.onItemTap,
   });
 
   @override
@@ -28,7 +30,7 @@ class TopProductsChart extends StatelessWidget {
         final item = entry.value;
         final fraction = maxVal > 0 ? item.value / maxVal : 0.0;
 
-        return Padding(
+        final row = Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(
             children: [
@@ -95,6 +97,15 @@ class TopProductsChart extends StatelessWidget {
             ],
           ),
         );
+
+        if (onItemTap != null) {
+          return InkWell(
+            onTap: () => onItemTap!(item.key, item.value),
+            borderRadius: BorderRadius.circular(6),
+            child: row,
+          );
+        }
+        return row;
       }).toList(),
     );
   }

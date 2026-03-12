@@ -186,6 +186,36 @@ class ProductProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reset() {
+    _products = [];
+    _filteredProducts = [];
+    _lowStockProducts = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _searchQuery = '';
+    _selectedCategoryId = null;
+    _selectedLocation = null;
+    _selectedCompany = null;
+    _selectedSize = null;
+    _selectedStockStatus = null;
+    _selectedVendorId = null;
+    _sortBy = 'name';
+    _filterStartDate = null;
+    _filterEndDate = null;
+    _lastDoc = null;
+    _hasMoreProducts = true;
+    _isLoadingMore = false;
+    _searchResults = null;
+    _searchResultsRaw = null;
+    _isSearching = false;
+    _searchGeneration = 0;
+    _analyticsProducts = null;
+    _isLoadingAnalytics = false;
+    _analyticsFetchedAt = null;
+    _invalidateAnalytics();
+    notifyListeners();
+  }
+
   Future<void> initialize({required String companyId}) async {
     _databaseService.setCompanyId(companyId);
 

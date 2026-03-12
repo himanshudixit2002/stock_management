@@ -48,6 +48,8 @@ class StockProvider extends ChangeNotifier {
   String? _cachedPeakActivityDay;
   Map<String, Map<TransactionType, int>>? _cachedTransactionsByWeek;
   Map<String, Map<TransactionType, int>>? _cachedTransactionsByMonth;
+  Map<String, int>? _cachedPreviousPeriodTotals;
+  Map<String, double>? _cachedPeriodChangePercentages;
 
   void _invalidateAnalytics() {
     _filtersDirty = true;
@@ -66,6 +68,8 @@ class StockProvider extends ChangeNotifier {
     _cachedPeakActivityDay = null;
     _cachedTransactionsByWeek = null;
     _cachedTransactionsByMonth = null;
+    _cachedPreviousPeriodTotals = null;
+    _cachedPeriodChangePercentages = null;
   }
 
   List<StockTransactionModel> get recentTransactions {
@@ -409,6 +413,84 @@ class StockProvider extends ChangeNotifier {
     return _cachedTransactionsByMonth!;
   }
 
+  /// Computes totals for the period immediately before the current filter window.
+  /// Keys: 'stockIn', 'stockOut', 'damage', 'transfer', 'count'.
+  Map<String, int> get previousPeriodTotals {
+    if (_cachedPreviousPeriodTotals != null && !_filtersDirty) {
+      return _cachedPreviousPeriodTotals!;
+    }
+    final now = DateTime.now();
+    final currentEnd = _filterEndDate ?? now;
+    final currentStart = _filterStartDate ??
+        currentEnd.subtract(const Duration(days: 30));
+    final duration = currentEnd.difference(currentStart);
+    final prevEnd = currentStart.subtract(const Duration(days: 1));
+    final prevStart = prevEnd.subtract(duration);
+
+    final prevStartDay = DateTime(prevStart.year, prevStart.month, prevStart.day);
+    final prevEndExcl = DateTime(prevEnd.year, prevEnd.month, prevEnd.day + 1);
+
+    int stockIn = 0, stockOut = 0, damage = 0, transfer = 0, count = 0;
+    for (final t in _recentTransactions) {
+      if (t.date.isBefore(prevStartDay) || !t.date.isBefore(prevEndExcl)) continue;
+      if (_filterUserId.isNotEmpty && t.userId != _filterUserId) continue;
+      if (_filterVendorId.isNotEmpty && t.vendorId != _filterVendorId) continue;
+      if (_filterProductId.isNotEmpty) {
+        final lc = _filterProductId.toLowerCase();
+        if (t.productId != _filterProductId &&
+            !t.productName.toLowerCase().contains(lc)) {
+          continue;
+        }
+      }
+      count++;
+      switch (t.type) {
+        case TransactionType.stockIn:
+          stockIn += t.quantity;
+        case TransactionType.stockOut:
+          stockOut += t.quantity;
+        case TransactionType.damage:
+          damage += t.quantity;
+        case TransactionType.transfer:
+          transfer += t.quantity;
+        case TransactionType.adjustment:
+          break;
+      }
+    }
+    _cachedPreviousPeriodTotals = {
+      'stockIn': stockIn,
+      'stockOut': stockOut,
+      'damage': damage,
+      'transfer': transfer,
+      'count': count,
+    };
+    return _cachedPreviousPeriodTotals!;
+  }
+
+  /// % change for each metric vs the previous period.
+  /// Returns values like 25.0 for +25%, -10.0 for -10%. null-safe: 0 if no prior data.
+  Map<String, double> get periodChangePercentages {
+    if (_cachedPeriodChangePercentages != null && !_filtersDirty) {
+      return _cachedPeriodChangePercentages!;
+    }
+    final prev = previousPeriodTotals;
+    double pct(int current, int previous) {
+      if (previous == 0) return current > 0 ? 100.0 : 0.0;
+      return ((current - previous) / previous) * 100;
+    }
+    _cachedPeriodChangePercentages = {
+      'stockIn': pct(stockInTotal, prev['stockIn']!),
+      'stockOut': pct(stockOutTotal, prev['stockOut']!),
+      'damage': pct(damageTotal, prev['damage']!),
+      'transfer': pct(transferTotal, prev['transfer']!),
+      'count': pct(recentTransactions.length, prev['count']!),
+      'netFlow': pct(
+        netStockChange,
+        prev['stockIn']! - prev['stockOut']! - prev['damage']!,
+      ),
+    };
+    return _cachedPeriodChangePercentages!;
+  }
+
   Map<TransactionType, int> get todayTransactions {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -443,6 +525,24 @@ class StockProvider extends ChangeNotifier {
   // --- Initialization ---
 
   Timer? _loadingTimeout;
+
+  void reset() {
+    _transactionsSubscription?.cancel();
+    _transactionsSubscription = null;
+    _loadingTimeout?.cancel();
+    _loadingTimeout = null;
+    _recentTransactions = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _filterStartDate = null;
+    _filterEndDate = null;
+    _filterUserId = '';
+    _filterProductId = '';
+    _filterVendorId = '';
+    _sortBy = 'date_desc';
+    _invalidateAnalytics();
+    notifyListeners();
+  }
 
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);

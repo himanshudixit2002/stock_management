@@ -55,6 +55,15 @@ class VendorProvider extends ChangeNotifier {
     return getVendorNameMap();
   }
 
+  void reset() {
+    _vendorsSubscription?.cancel();
+    _vendorsSubscription = null;
+    _vendors = [];
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
     _vendorsSubscription?.cancel();

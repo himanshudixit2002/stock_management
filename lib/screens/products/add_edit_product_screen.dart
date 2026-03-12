@@ -379,24 +379,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    isEditing ? Icons.edit_rounded : Icons.add_box_rounded,
-                    color: AppTheme.primaryColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(isEditing ? 'Edit Product' : 'Add Product'),
-              ],
-            ),
+            title: Text(isEditing ? 'Edit Product' : 'Add Product'),
           ),
           body: Center(
             child: ConstrainedBox(

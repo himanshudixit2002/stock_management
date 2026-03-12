@@ -388,10 +388,10 @@ class _HomeTab extends StatelessWidget {
               children: [
                 // Profile bar
                 Container(
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     gradient: AppTheme.heroGradient,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
                   ),
                   child: Row(
@@ -405,7 +405,7 @@ class _HomeTab extends StatelessWidget {
                           ),
                         ),
                         child: CircleAvatar(
-                          radius: 26,
+                          radius: 22,
                           backgroundColor: Colors.white.withValues(alpha: 0.15),
                           child: Text(
                             initials,
@@ -417,7 +417,7 @@ class _HomeTab extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,8 +445,9 @@ class _HomeTab extends StatelessWidget {
                                 child: Text(
                                   user.companyName,
                                   style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withValues(alpha: 0.95),
                                   ),
                                 ),
                               ),
@@ -670,10 +671,10 @@ class _ActionCardState extends State<_ActionCard> {
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           decoration: BoxDecoration(
             gradient: widget.gradient,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: widget.gradient.colors.first.withValues(alpha: 0.3),
@@ -685,14 +686,14 @@ class _ActionCardState extends State<_ActionCard> {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(widget.icon, color: Colors.white, size: 28),
+                child: Icon(widget.icon, color: Colors.white, size: 24),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 widget.label,
                 style: const TextStyle(
@@ -866,20 +867,20 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassCard(
       onTap: isLoading ? null : onTap,
-      borderRadius: 20,
+      borderRadius: 16,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             isLoading
                 ? SizedBox(
                     width: 24,
@@ -1093,7 +1094,7 @@ class _TransactionTile extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: GlassCard(
         onTap: () {
           final product = context
@@ -1109,25 +1110,25 @@ class _TransactionTile extends StatelessWidget {
             );
           }
         },
-        borderRadius: 20,
+        borderRadius: 16,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border(left: BorderSide(color: color, width: 3)),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: color, size: 16),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -404,24 +404,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.sync_rounded,
-                color: AppTheme.primaryColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text('Update from Excel'),
-          ],
-        ),
+        title: const Text('Update from Excel'),
         actions: [
           if (_currentStep > 1)
             TextButton.icon(
@@ -440,12 +423,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                 maxWidth: Responsive.contentMaxWidth(context),
               ),
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(hPad, 20, hPad, 32),
+                padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildStepIndicator(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     if (_error != null) _buildError(),
                     if (_currentStep == 1) _buildStep1(),
                     if (_currentStep == 2) _buildStep2(),
@@ -479,8 +462,8 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isActive ? AppTheme.primaryColor : AppTheme.surfaceColor,
@@ -493,22 +476,22 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           ),
           child: Center(
             child: isActive && !isCurrent
-                ? const Icon(Icons.check, size: 16, color: Colors.white)
+                ? const Icon(Icons.check, size: 14, color: Colors.white)
                 : Text(
                     '$step',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: isActive ? Colors.white : AppTheme.textTertiary,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
             color: isCurrent ? AppTheme.primaryColor : AppTheme.textTertiary,
           ),
@@ -524,7 +507,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       flex: 1,
       child: Container(
         height: 2,
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 18),
         color: isActive ? AppTheme.primaryColor : AppTheme.glassBorderContent,
       ),
     );
@@ -532,28 +515,28 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
   Widget _buildError() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
-        borderRadius: 12,
+        borderRadius: 10,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.dangerColor, size: 20),
-              const SizedBox(width: 10),
+              const Icon(Icons.error_outline, color: AppTheme.dangerColor, size: 18),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _error!,
                   style: const TextStyle(
                     color: AppTheme.dangerColor,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
               GestureDetector(
                 onTap: () => setState(() => _error = null),
-                child: const Icon(Icons.close, size: 18, color: AppTheme.textTertiary),
+                child: const Icon(Icons.close, size: 16, color: AppTheme.textTertiary),
               ),
             ],
           ),
@@ -568,27 +551,27 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GlassCard(
-          borderRadius: 16,
+          borderRadius: 14,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         Icons.download_rounded,
                         color: AppTheme.primaryColor,
-                        size: 24,
+                        size: 20,
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -596,16 +579,16 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                           Text(
                             'Step 1: Download Current Data',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.textPrimary,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          SizedBox(height: 2),
                           Text(
-                            'Export your products as an Excel file with IDs for editing.',
+                            'Export products as Excel for editing.',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               color: AppTheme.textSecondary,
                             ),
                           ),
@@ -614,7 +597,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 _instructionRow(
                   '1',
                   'Download the file below ($productCount products)',
@@ -632,43 +615,53 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                   '5',
                   'Save and come back to upload the modified file',
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 44,
                   child: ElevatedButton.icon(
                     onPressed: _isExporting ? null : _downloadForUpdate,
                     icon: _isExporting
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
+                            width: 16,
+                            height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.download_rounded),
-                    label: Text(
-                      _isExporting ? 'Exporting...' : 'Download Products Excel',
+                        : const Icon(Icons.download_rounded, size: 18),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _isExporting ? 'Exporting...' : 'Download Products Excel',
+                        style: const TextStyle(fontSize: 14),
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  height: 44,
+                  height: 40,
                   child: OutlinedButton.icon(
                     onPressed: _pickAndParse,
-                    icon: const Icon(Icons.upload_file_rounded, size: 20),
-                    label: const Text('I already have the file, upload now'),
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'I already have the file, upload now',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
@@ -683,36 +676,36 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
   Widget _instructionRow(String number, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 22,
-            height: 22,
+            width: 20,
+            height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: AppTheme.primaryColor.withValues(alpha: 0.08),
             ),
             child: Center(
               child: Text(
                 number,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primaryColor,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 color: AppTheme.textSecondary,
-                height: 1.4,
+                height: 1.3,
               ),
             ),
           ),
@@ -723,22 +716,26 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
   Widget _buildStep2() {
     return GlassCard(
-      borderRadius: 16,
+      borderRadius: 14,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             if (_isParsing)
               const Padding(
-                padding: EdgeInsets.all(40),
+                padding: EdgeInsets.symmetric(vertical: 28),
                 child: Column(
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                    SizedBox(height: 12),
                     Text(
                       'Analyzing changes...',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: AppTheme.textSecondary,
                       ),
                     ),
@@ -748,14 +745,14 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             else ...[
               const Icon(
                 Icons.upload_file_rounded,
-                size: 48,
+                size: 40,
                 color: AppTheme.primaryColor,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
-                'File selected: $_fileName',
+                'File: $_fileName',
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
                 ),
@@ -763,10 +760,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               const Text(
                 'Processing...',
-                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
             ],
           ],
@@ -781,7 +778,6 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Summary cards
         Row(
           children: [
             _summaryCard(
@@ -790,7 +786,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               Icons.edit_rounded,
               AppTheme.primaryColor,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             _summaryCard(
               'New',
               _newCount,
@@ -799,7 +795,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(
           children: [
             _summaryCard(
@@ -808,7 +804,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               Icons.check_circle_outline,
               AppTheme.textTertiary,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             _summaryCard(
               'Errors',
               _errorCount,
@@ -818,7 +814,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           ],
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         // Modified products list
         if (_modifiedCount > 0) ...[
@@ -850,79 +846,79 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           const SizedBox(height: 16),
         ],
 
-        // Action buttons
         if (_modifiedCount > 0 || _newCount > 0) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           SizedBox(
-            height: 50,
+            height: 44,
             child: ElevatedButton.icon(
               onPressed: _isApplying ? null : _applyChanges,
               icon: _isApplying
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.check_circle_rounded),
+                  : const Icon(Icons.check_circle_rounded, size: 18),
               label: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   _isApplying
-                      ? 'Applying Changes...'
-                      : 'Apply ($_modifiedCount updates, $_newCount new)',
+                      ? 'Applying...'
+                      : 'Apply $_modifiedCount updates, $_newCount new',
+                  style: const TextStyle(fontSize: 14),
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 44,
+            height: 40,
             child: OutlinedButton(
               onPressed: _reset,
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(fontSize: 13)),
             ),
           ),
         ],
 
         if (_modifiedCount == 0 && _newCount == 0) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           GlassCard(
             borderRadius: 12,
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   Icon(
                     Icons.check_circle_outline,
-                    size: 40,
+                    size: 36,
                     color: AppTheme.successColor,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   const Text(
                     'No changes detected',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   const Text(
                     'All products in the file match your current data.',
-                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -937,20 +933,20 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
   Widget _summaryCard(String label, int count, IconData icon, Color color) {
     return Expanded(
       child: GlassCard(
-        borderRadius: 12,
+        borderRadius: 10,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 10),
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     '$count',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: color,
                     ),
@@ -958,7 +954,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                   Text(
                     label,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: AppTheme.textSecondary,
                     ),
                   ),
@@ -977,22 +973,22 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
           decoration: BoxDecoration(
             color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             '$count',
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: AppTheme.primaryColor,
             ),
@@ -1017,30 +1013,30 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: GlassCard(
-        borderRadius: 12,
+        borderRadius: 10,
         onTap: () => setState(() => _expanded = !_expanded),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Icon(
                       Icons.edit_rounded,
                       color: AppTheme.primaryColor,
-                      size: 16,
+                      size: 14,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1048,7 +1044,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                         Text(
                           widget.diff.productName,
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),
@@ -1058,7 +1054,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                         Text(
                           '${widget.diff.fieldChanges.length} field(s) changed',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppTheme.textTertiary,
                           ),
                         ),
@@ -1070,31 +1066,31 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
                     color: AppTheme.textTertiary,
-                    size: 20,
+                    size: 18,
                   ),
                 ],
               ),
               if (_expanded) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 const Divider(height: 1),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 ...widget.diff.fieldChanges.map(
                   (c) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.only(bottom: 5),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ConstrainedBox(
                           constraints: const BoxConstraints(
-                            minWidth: 60,
-                            maxWidth: 100,
+                            minWidth: 56,
+                            maxWidth: 90,
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.only(right: 6),
                             child: Text(
                               c.field,
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                                 color: AppTheme.textSecondary,
                               ),
@@ -1110,7 +1106,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                               Text(
                                 c.oldValue.isEmpty ? '(empty)' : c.oldValue,
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   color: AppTheme.dangerColor,
                                   decoration: TextDecoration.lineThrough,
                                 ),
@@ -1120,7 +1116,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                               Text(
                                 c.newValue.isEmpty ? '(empty)' : c.newValue,
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: AppTheme.successColor,
                                 ),
@@ -1151,26 +1147,26 @@ class _NewProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = diff.parsedData;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: GlassCard(
-        borderRadius: 12,
+        borderRadius: 10,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   color: AppTheme.successColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Icon(
                   Icons.add_circle_outline,
                   color: AppTheme.successColor,
-                  size: 16,
+                  size: 14,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1178,7 +1174,7 @@ class _NewProductCard extends StatelessWidget {
                     Text(
                       data['name']?.toString() ?? 'Unnamed',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary,
                       ),
@@ -1192,7 +1188,7 @@ class _NewProductCard extends StatelessWidget {
                         data['size'],
                       ].where((v) => v != null && v.toString().isNotEmpty).join(' · '),
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: AppTheme.textTertiary,
                       ),
                       maxLines: 1,
@@ -1202,15 +1198,15 @@ class _NewProductCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppTheme.successColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(5),
                 ),
                 child: const Text(
                   'NEW',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.successColor,
                   ),
@@ -1231,19 +1227,19 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: GlassCard(
-        borderRadius: 12,
+        borderRadius: 10,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               const Icon(
                 Icons.warning_amber_rounded,
                 color: AppTheme.dangerColor,
-                size: 20,
+                size: 18,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1253,7 +1249,7 @@ class _ErrorCard extends StatelessWidget {
                           ? diff.productName
                           : 'Unknown product',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary,
                       ),
@@ -1262,7 +1258,7 @@ class _ErrorCard extends StatelessWidget {
                       Text(
                         diff.errorMessage!,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: AppTheme.dangerColor,
                         ),
                       ),

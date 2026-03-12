@@ -25,6 +25,20 @@ class SettingsProvider extends ChangeNotifier {
   DocumentReference get _companyDoc =>
       _firestore.collection('companies').doc(_companyId);
 
+  String get companyId => _companyId;
+
+  void reset() {
+    _companyId = '';
+    _pricingEnabled = false;
+    _vendorsEnabled = false;
+    _initialized = false;
+    _errorMessage = null;
+    _companies = [];
+    _sizes = [];
+    _locations = [];
+    notifyListeners();
+  }
+
   Future<void> initialize(String companyId) async {
     _companyId = companyId;
     _pricingEnabled = false;

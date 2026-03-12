@@ -26,10 +26,10 @@ class StockBadge extends StatelessWidget {
     return Semantics(
       label: '$label: ${product.quantity} ${product.unit}',
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
@@ -40,14 +40,14 @@ class StockBadge extends StatelessWidget {
                 product.quantity,
                 threshold: product.lowStockThreshold,
               ),
-              size: 12,
+              size: 10,
               color: color,
             ),
             const SizedBox(width: 4),
             Text(
               showQuantity ? '${product.quantity} ${product.unit}' : label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),

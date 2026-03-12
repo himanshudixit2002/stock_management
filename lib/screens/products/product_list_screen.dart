@@ -148,130 +148,103 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.inventory_2_rounded,
-                color: AppTheme.primaryColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text('Products (${productProvider.products.length})'),
-            if (productProvider.isLoadingAnalytics &&
-                !productProvider.isAnalyticsLoaded)
-              const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        automaticallyImplyLeading: true,
-        actions: [
-          PopupMenuButton<String>(
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.inputFillColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.sort_rounded, size: 20),
-            ),
-            tooltip: 'Sort',
-            onSelected: (value) {
-              productProvider.sortProducts(value);
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'name', child: Text('Name (A-Z)')),
-              const PopupMenuItem(
-                value: 'quantity',
-                child: Text('Stock (Low-High)'),
-              ),
-              const PopupMenuItem(
-                value: 'quantity_desc',
-                child: Text('Stock (High-Low)'),
-              ),
-            ],
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
-          child: Column(
-            children: [
-              // Search bar + filter toggle
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  Responsive.horizontalPadding(context),
-                  8,
-                  Responsive.horizontalPadding(context),
-                  4,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildSearchBar(productProvider)),
-                    const SizedBox(width: 10),
-                    _buildFilterButton(productProvider, isMobile),
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  pinned: true,
+                  floating: true,
+                  snap: true,
+                  elevation: 0,
+                  backgroundColor: AppTheme.surfaceColor,
+                  surfaceTintColor: Colors.transparent,
+                  automaticallyImplyLeading: true,
+                  title: Text(
+                    'Products (${productProvider.products.length})',
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  actions: [
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.sort_rounded, size: 22),
+                      tooltip: 'Sort',
+                      onSelected: (value) {
+                        productProvider.sortProducts(value);
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'name', child: Text('Name (A-Z)')),
+                        const PopupMenuItem(
+                          value: 'quantity',
+                          child: Text('Stock (Low-High)'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'quantity_desc',
+                          child: Text('Stock (High-Low)'),
+                        ),
+                      ],
+                    ),
                   ],
-                ),
-              ),
-
-              // Inline filter panel (wide screens only)
-              if (!isMobile)
-                ClipRect(
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeInOutCubic,
-                    child: _showFilters
-                        ? const _FilterSection()
-                        : const SizedBox.shrink(),
+                  bottom: PreferredSize(
+                    preferredSize: const Size(double.infinity, 72),
+                    child: Container(
+                      color: AppTheme.surfaceColor,
+                      padding: EdgeInsets.fromLTRB(
+                        Responsive.horizontalPadding(context),
+                        8,
+                        Responsive.horizontalPadding(context),
+                        8,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildSearchBar(productProvider)),
+                          const SizedBox(width: 10),
+                          _buildFilterButton(productProvider, isMobile),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-
-              // Active filter chips row
-              _ActiveFilterChips(
-                onClearAll: () {
-                  productProvider.clearFilters();
-                  _searchController.clear();
-                  setState(() {});
-                },
-              ),
-
-              // Product list with pull-to-refresh
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () async {
-                    await productProvider.refreshProducts();
-                    if (mounted) {
+                SliverToBoxAdapter(
+                  child: _PrimaryFilterChips(productProvider: productProvider),
+                ),
+                SliverToBoxAdapter(
+                  child: _ActiveFilterChips(
+                    onClearAll: () {
+                      productProvider.clearFilters();
                       _searchController.clear();
                       setState(() {});
-                    }
-                  },
-                  child: Builder(
+                    },
+                  ),
+                ),
+                if (!isMobile && _showFilters)
+                  SliverToBoxAdapter(
+                    child: const _FilterSection(),
+                  ),
+              ];
+            },
+            body: RefreshIndicator(
+              onRefresh: () async {
+                await productProvider.refreshProducts();
+                if (mounted) {
+                  _searchController.clear();
+                  setState(() {});
+                }
+              },
+              child: Builder(
                     builder: (context) {
                       if (productProvider.isLoading) {
                         _startLoadingTimer();
                         if (_loadingTooLong) {
                           return SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
+                            physics: Responsive.scrollPhysics(context),
                             child: SizedBox(
                               height: MediaQuery.of(context).size.height * 0.5,
                               child: Center(
@@ -321,7 +294,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
                       if (productProvider.errorMessage != null) {
                         return SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
+                          physics: Responsive.scrollPhysics(context),
                           child: SizedBox(
                             height: MediaQuery.of(context).size.height * 0.5,
                             child: EmptyStateWidget(
@@ -343,7 +316,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       if (productProvider.products.isEmpty) {
                         if (isSearchOrDebounce) {
                           return SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
+                            physics: Responsive.scrollPhysics(context),
                             child: SizedBox(
                               height: MediaQuery.of(context).size.height * 0.5,
                               child: const Center(
@@ -377,7 +350,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         if (productProvider.hasActiveFilters &&
                             productProvider.isLoadingAnalytics) {
                           return SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
+                            physics: Responsive.scrollPhysics(context),
                             child: SizedBox(
                               height: MediaQuery.of(context).size.height * 0.5,
                               child: const Center(
@@ -407,7 +380,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         }
 
                         return SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
+                          physics: Responsive.scrollPhysics(context),
                           child: SizedBox(
                             height: MediaQuery.of(context).size.height * 0.6,
                             child: EmptyStateWidget(
@@ -437,10 +410,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 ),
               ),
-            ],
           ),
         ),
-      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -485,8 +456,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: AppTheme.inputFillColor,
             borderRadius: BorderRadius.circular(16),
@@ -518,7 +489,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               filled: false,
               border: InputBorder.none,
               prefixIcon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 150),
                 child: isSearchActive
                     ? const SizedBox(
                         key: ValueKey('searching'),
@@ -598,7 +569,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
         // Subtle progress bar visible during search
         AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 150),
           height: isSearchActive ? 2 : 0,
           margin: const EdgeInsets.symmetric(horizontal: 20),
           child: isSearchActive
@@ -718,7 +689,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
     if (gridColumns > 1) {
       return GridView.builder(
         controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: Responsive.scrollPhysics(context),
+        addAutomaticKeepAlives: false,
         padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 90),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: gridColumns,
@@ -737,7 +709,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     return ListView.builder(
       controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
+      physics: Responsive.scrollPhysics(context),
+      addAutomaticKeepAlives: false,
       padding: const EdgeInsets.only(top: 4, bottom: 90),
       itemCount: itemCount,
       itemBuilder: (context, index) {
@@ -750,7 +723,87 @@ class _ProductListScreenState extends State<ProductListScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// Active filter chips row (shown below search bar when filters are active)
+// Primary inline filter chips: Category + Stock Status (always visible)
+// ---------------------------------------------------------------------------
+class _PrimaryFilterChips extends StatelessWidget {
+  final ProductProvider productProvider;
+  const _PrimaryFilterChips({required this.productProvider});
+
+  @override
+  Widget build(BuildContext context) {
+    final categoryProvider = context.watch<CategoryProvider>();
+    final isWide = Responsive.isWide(context);
+
+    final children = <Widget>[
+      _FilterChipItem(
+        label: 'All categories',
+        isSelected: productProvider.selectedCategoryId == null,
+        onTap: () => productProvider.filterByCategory(null),
+      ),
+      ...categoryProvider.categories.map((category) {
+        return _FilterChipItem(
+          label: category.name,
+          isSelected: productProvider.selectedCategoryId == category.id,
+          onTap: () => productProvider.filterByCategory(
+            productProvider.selectedCategoryId == category.id ? null : category.id,
+          ),
+        );
+      }),
+      _FilterChipItem(
+        label: 'All status',
+        isSelected: productProvider.selectedStockStatus == null,
+        onTap: () => productProvider.filterByStockStatus(null),
+      ),
+      _FilterChipItem(
+        label: 'In Stock',
+        isSelected: productProvider.selectedStockStatus == 'in_stock',
+        onTap: () => productProvider.filterByStockStatus(
+          productProvider.selectedStockStatus == 'in_stock' ? null : 'in_stock',
+        ),
+        dotColor: AppTheme.stockGood,
+      ),
+      _FilterChipItem(
+        label: 'Low Stock',
+        isSelected: productProvider.selectedStockStatus == 'low_stock',
+        onTap: () => productProvider.filterByStockStatus(
+          productProvider.selectedStockStatus == 'low_stock' ? null : 'low_stock',
+        ),
+        dotColor: AppTheme.stockLow,
+      ),
+      _FilterChipItem(
+        label: 'Out of Stock',
+        isSelected: productProvider.selectedStockStatus == 'out_of_stock',
+        onTap: () => productProvider.filterByStockStatus(
+          productProvider.selectedStockStatus == 'out_of_stock'
+              ? null
+              : 'out_of_stock',
+        ),
+        dotColor: AppTheme.stockOut,
+      ),
+    ];
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        Responsive.horizontalPadding(context),
+        4,
+        Responsive.horizontalPadding(context),
+        4,
+      ),
+      child: isWide
+          ? Wrap(spacing: 6, runSpacing: 6, children: children)
+          : SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: children,
+              ),
+            ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Active filter chips row (shown when secondary filters from "More" are active)
 // ---------------------------------------------------------------------------
 class _ActiveFilterChips extends StatelessWidget {
   final VoidCallback onClearAll;
@@ -759,23 +812,8 @@ class _ActiveFilterChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
-    final categoryProvider = context.watch<CategoryProvider>();
-
-    if (!productProvider.hasActiveFilters) return const SizedBox.shrink();
 
     final chips = <_ActiveChipData>[];
-
-    if (productProvider.selectedCategoryId != null) {
-      final catName = categoryProvider.categories
-          .where((c) => c.id == productProvider.selectedCategoryId)
-          .map((c) => c.name)
-          .firstOrNull;
-      chips.add(_ActiveChipData(
-        label: catName ?? 'Category',
-        icon: Icons.category_rounded,
-        onRemove: () => productProvider.filterByCategory(null),
-      ));
-    }
     if (productProvider.selectedCompany != null) {
       chips.add(_ActiveChipData(
         label: productProvider.selectedCompany!,
@@ -797,19 +835,6 @@ class _ActiveFilterChips extends StatelessWidget {
         onRemove: () => productProvider.filterByLocation(null),
       ));
     }
-    if (productProvider.selectedStockStatus != null) {
-      final statusLabel = switch (productProvider.selectedStockStatus) {
-        'in_stock' => 'In Stock',
-        'low_stock' => 'Low Stock',
-        'out_of_stock' => 'Out of Stock',
-        _ => productProvider.selectedStockStatus!,
-      };
-      chips.add(_ActiveChipData(
-        label: statusLabel,
-        icon: Icons.inventory_rounded,
-        onRemove: () => productProvider.filterByStockStatus(null),
-      ));
-    }
     if (productProvider.selectedVendorId != null) {
       chips.add(_ActiveChipData(
         label: 'Vendor',
@@ -824,6 +849,8 @@ class _ActiveFilterChips extends StatelessWidget {
         onRemove: () => productProvider.filterByDateRange(null, null),
       ));
     }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -981,7 +1008,7 @@ class _FilterBottomSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Filters',
+                      'More Filters',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -1094,14 +1121,13 @@ class _FilterContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
-    final categoryProvider = context.watch<CategoryProvider>();
     final isWide = Responsive.isWide(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Date range filter
+        // More filters: Date, Company, Size, Location, Vendor (Category + Stock in primary chips)
         const _FilterLabel(label: 'Added Date'),
         const SizedBox(height: 6),
         _FilterChipGroup(
@@ -1140,32 +1166,6 @@ class _FilterContent extends StatelessWidget {
         ),
 
         const SizedBox(height: 12),
-
-        // Category filter
-        const _FilterLabel(label: 'Category'),
-        const SizedBox(height: 6),
-        _FilterChipGroup(
-          isWide: isWide,
-          children: [
-            _FilterChipItem(
-              label: 'All',
-              isSelected: productProvider.selectedCategoryId == null,
-              onTap: () => productProvider.filterByCategory(null),
-            ),
-            ...categoryProvider.categories.map((category) {
-              return _FilterChipItem(
-                label: category.name,
-                isSelected:
-                    productProvider.selectedCategoryId == category.id,
-                onTap: () => productProvider.filterByCategory(
-                  productProvider.selectedCategoryId == category.id
-                      ? null
-                      : category.id,
-                ),
-              );
-            }),
-          ],
-        ),
 
         // Company filter
         Consumer<SettingsProvider>(
@@ -1281,51 +1281,6 @@ class _FilterContent extends StatelessWidget {
               ],
             );
           },
-        ),
-
-        // Stock status filter
-        const _FilterLabel(label: 'Stock Status'),
-        const SizedBox(height: 6),
-        _FilterChipGroup(
-          isWide: isWide,
-          children: [
-            _FilterChipItem(
-              label: 'All',
-              isSelected: productProvider.selectedStockStatus == null,
-              onTap: () => productProvider.filterByStockStatus(null),
-            ),
-            _FilterChipItem(
-              label: 'In Stock',
-              isSelected: productProvider.selectedStockStatus == 'in_stock',
-              onTap: () => productProvider.filterByStockStatus(
-                productProvider.selectedStockStatus == 'in_stock'
-                    ? null
-                    : 'in_stock',
-              ),
-              dotColor: AppTheme.stockGood,
-            ),
-            _FilterChipItem(
-              label: 'Low Stock',
-              isSelected: productProvider.selectedStockStatus == 'low_stock',
-              onTap: () => productProvider.filterByStockStatus(
-                productProvider.selectedStockStatus == 'low_stock'
-                    ? null
-                    : 'low_stock',
-              ),
-              dotColor: AppTheme.stockLow,
-            ),
-            _FilterChipItem(
-              label: 'Out of Stock',
-              isSelected:
-                  productProvider.selectedStockStatus == 'out_of_stock',
-              onTap: () => productProvider.filterByStockStatus(
-                productProvider.selectedStockStatus == 'out_of_stock'
-                    ? null
-                    : 'out_of_stock',
-              ),
-              dotColor: AppTheme.stockOut,
-            ),
-          ],
         ),
 
         Consumer<SettingsProvider>(
@@ -1473,10 +1428,10 @@ class _FilterChipItemState extends State<_FilterChipItem> {
         child: AnimatedScale(
           scale: _pressed ? 0.93 : 1.0,
           duration: const Duration(milliseconds: 120),
-          curve: Curves.easeInOut,
+          curve: Curves.easeOutCubic,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: widget.isSelected

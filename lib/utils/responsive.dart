@@ -120,6 +120,13 @@ class Responsive {
   static double minTouchTargetPadding(BuildContext context) {
     return (minTouchTargetSize - iconSize(context)) / 2;
   }
+
+  /// Android: ClampingScrollPhysics for native feel. Others: AlwaysScrollableScrollPhysics.
+  static ScrollPhysics scrollPhysics(BuildContext context) {
+    return Theme.of(context).platform == TargetPlatform.android
+        ? const ClampingScrollPhysics()
+        : const AlwaysScrollableScrollPhysics();
+  }
 }
 
 class ResponsiveBuilder extends StatelessWidget {

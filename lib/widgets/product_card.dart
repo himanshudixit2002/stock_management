@@ -60,24 +60,14 @@ class _ProductCardState extends State<ProductCard> {
           curve: Curves.easeOut,
           child: GlassCard(
             onTap: widget.onTap,
-            borderRadius: 20,
+            borderRadius: 16,
             child: Row(
               children: [
-                Container(
-                  width: 4,
-                  decoration: BoxDecoration(
-                    color: stockColor,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      bottomLeft: Radius.circular(20),
-                    ),
-                  ),
-                ),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isGrid ? 10 : 14,
-                      vertical: isGrid ? 8 : 12,
+                      horizontal: isGrid ? 8 : 10,
+                      vertical: isGrid ? 6 : 8,
                     ),
                     child: isGrid
                         ? _buildGridContent(product, stockColor, stockLabel)
@@ -86,7 +76,7 @@ class _ProductCardState extends State<ProductCard> {
                 ),
                 if (widget.onTap != null)
                   Padding(
-                    padding: EdgeInsets.only(right: isGrid ? 6 : 10),
+                    padding: EdgeInsets.only(right: isGrid ? 6 : 8),
                     child: Icon(
                       Icons.arrow_forward_ios_rounded,
                       color: AppTheme.iconMuted,
@@ -134,7 +124,7 @@ class _ProductCardState extends State<ProductCard> {
             ),
             const SizedBox(width: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: stockColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
@@ -144,7 +134,7 @@ class _ProductCardState extends State<ProductCard> {
                 style: TextStyle(
                   color: stockColor,
                   fontWeight: FontWeight.w700,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
               ),
             ),
@@ -203,7 +193,16 @@ class _ProductCardState extends State<ProductCard> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
+            Container(
+              width: 6,
+              height: 6,
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: stockColor,
+                shape: BoxShape.circle,
+              ),
+            ),
             StockBadge(product: product),
           ],
         ),
@@ -368,7 +367,7 @@ class _ProductCardState extends State<ProductCard> {
                   onTap: widget.onStockIn!,
                 ),
               if (widget.onStockIn != null && widget.onStockOut != null)
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
               if (widget.onStockOut != null)
                 _MiniActionButton(
                   icon: Icons.remove_rounded,

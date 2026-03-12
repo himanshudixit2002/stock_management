@@ -43,24 +43,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.info_rounded,
-                color: AppTheme.primaryColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text('Product Details'),
-          ],
-        ),
+        title: const Text('Product Details'),
         actions: [
           if (canManageProducts) ...[
             IconButton(
@@ -97,7 +80,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               maxWidth: Responsive.contentMaxWidth(context),
             ),
             child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: Responsive.scrollPhysics(context),
               padding: EdgeInsets.fromLTRB(
                 Responsive.horizontalPadding(context),
                 8,
@@ -711,24 +694,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppTheme.dangerColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.delete_forever_rounded,
-                  color: AppTheme.dangerColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text('Delete Product'),
-            ],
-          ),
+          title: const Text('Delete Product'),
           content: Text(
             'Are you sure you want to delete "${product.name}"? This will also delete all stock history. This cannot be undone.',
           ),

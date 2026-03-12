@@ -105,17 +105,12 @@ class AppTheme {
     end: Alignment.bottomCenter,
   );
 
-  // Shadow helpers (Apple-style layered depth)
+  // Shadow helpers (single subtle shadow)
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.03),
-      blurRadius: 8,
-      offset: const Offset(0, 1),
-    ),
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.05),
-      blurRadius: 16,
-      offset: const Offset(0, 4),
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
     ),
   ];
 
@@ -140,21 +135,21 @@ class AppTheme {
     ),
   ];
 
-  // Decoration helpers (Apple-style rounded corners 20-24px)
+  // Decoration helpers (rounded corners 16px)
   static BoxDecoration get cardDecoration => BoxDecoration(
     color: Colors.white,
-    borderRadius: BorderRadius.circular(22),
+    borderRadius: BorderRadius.circular(16),
     boxShadow: cardShadow,
   );
 
   static BoxDecoration get elevatedCardDecoration => BoxDecoration(
     color: Colors.white,
-    borderRadius: BorderRadius.circular(22),
+    borderRadius: BorderRadius.circular(16),
     boxShadow: softShadow,
   );
 
   static BoxDecoration glassDecoration({
-    double borderRadius = 22,
+    double borderRadius = 16,
     Border? border,
   }) => BoxDecoration(
     color: glassOverlay,
@@ -163,7 +158,7 @@ class AppTheme {
   );
 
   static BoxDecoration glassContentDecoration({
-    double borderRadius = 22,
+    double borderRadius = 16,
     Border? border,
   }) => BoxDecoration(
     color: glassSurfaceContent,
@@ -337,7 +332,7 @@ class AppTheme {
 
       cardTheme: CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         color: surfaceColor,
         surfaceTintColor: Colors.transparent,
@@ -369,7 +364,7 @@ class AppTheme {
       ),
 
       dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,

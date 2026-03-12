@@ -8,12 +8,37 @@ import '../../models/stock_transaction_model.dart';
 class TransactionLineChart extends StatelessWidget {
   final Map<String, Map<TransactionType, int>> dataByDay;
   final int days;
+  /// 'daily', 'weekly', or 'monthly' -- controls bottom axis labels.
+  final String granularity;
 
   const TransactionLineChart({
     super.key,
     required this.dataByDay,
     this.days = 7,
+    this.granularity = 'daily',
   });
+
+  String _formatLabel(String key) {
+    switch (granularity) {
+      case 'weekly':
+        // key like "2026-W10" → "W10"
+        final wIdx = key.indexOf('W');
+        return wIdx >= 0 ? key.substring(wIdx) : key;
+      case 'monthly':
+        // key like "2026-03" → "Mar"
+        final parts = key.split('-');
+        if (parts.length == 2) {
+          final month = int.tryParse(parts[1]);
+          if (month != null && month >= 1 && month <= 12) {
+            return DateFormat('MMM').format(DateTime(2000, month));
+          }
+        }
+        return key;
+      default:
+        final date = DateTime.tryParse(key);
+        return date != null ? DateFormat('dd/MM').format(date) : key;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +46,6 @@ class TransactionLineChart extends StatelessWidget {
       return const ChartEmptyState(message: 'No transaction data available');
     }
 
-    // Get sorted date keys and take last N days
     final allKeys = dataByDay.keys.toList()..sort();
     final keys = allKeys.length > days
         ? allKeys.sublist(allKeys.length - days)
@@ -62,10 +86,7 @@ class TransactionLineChart extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    horizontalInterval: (maxY / 4).ceilToDouble().clamp(
-                      1,
-                      9999,
-                    ),
+                    horizontalInterval: (maxY / 4).ceilToDouble().clamp(1, 9999),
                     getDrawingHorizontalLine: (value) =>
                         FlLine(color: AppTheme.dividerColor, strokeWidth: 1),
                   ),
@@ -93,18 +114,13 @@ class TransactionLineChart extends StatelessWidget {
                           if (idx < 0 || idx >= keys.length) {
                             return const SizedBox.shrink();
                           }
-                          // Show every other label if too many
                           if (keys.length > 10 && idx % 2 != 0) {
                             return const SizedBox.shrink();
                           }
-                          final date = DateTime.tryParse(keys[idx]);
-                          final label = date != null
-                              ? DateFormat('dd/MM').format(date)
-                              : keys[idx].substring(5);
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              label,
+                              _formatLabel(keys[idx]),
                               style: const TextStyle(
                                 fontSize: 9,
                                 color: AppTheme.textSecondary,
@@ -127,13 +143,9 @@ class TransactionLineChart extends StatelessWidget {
                   minY: 0,
                   maxY: maxY * 1.15,
                   lineBarsData: [
-                    _lineData(stockInSpots, AppTheme.successColor, 'Stock In'),
-                    _lineData(
-                      stockOutSpots,
-                      AppTheme.primaryColor,
-                      'Stock Out',
-                    ),
-                    _lineData(damageSpots, AppTheme.dangerColor, 'Damage'),
+                    _lineData(stockInSpots, AppTheme.successColor),
+                    _lineData(stockOutSpots, AppTheme.primaryColor),
+                    _lineData(damageSpots, AppTheme.dangerColor),
                   ],
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
@@ -177,7 +189,7 @@ class TransactionLineChart extends StatelessWidget {
     );
   }
 
-  LineChartBarData _lineData(List<FlSpot> spots, Color color, String label) {
+  LineChartBarData _lineData(List<FlSpot> spots, Color color) {
     return LineChartBarData(
       spots: spots,
       isCurved: true,

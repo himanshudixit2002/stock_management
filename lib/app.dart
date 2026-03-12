@@ -177,6 +177,7 @@ class _AuthWrapperState extends State<AuthWrapper>
   bool _providersInitializing = false;
   String? _initError;
   String? _providerInitError;
+  String? _activeCompanyId;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
@@ -212,6 +213,7 @@ class _AuthWrapperState extends State<AuthWrapper>
 
       if (authProvider.isLoggedIn && authProvider.currentUser != null) {
         if (mounted) {
+          _activeCompanyId = authProvider.currentUser!.companyId;
           await _initializeProviders(authProvider.currentUser!.companyId);
         }
       } else if (authProvider.currentUser == null) {
@@ -232,6 +234,15 @@ class _AuthWrapperState extends State<AuthWrapper>
         });
       }
     }
+  }
+
+  void _resetAllProviders() {
+    context.read<SettingsProvider>().reset();
+    context.read<CategoryProvider>().reset();
+    context.read<StockProvider>().reset();
+    context.read<VendorProvider>().reset();
+    context.read<ProductProvider>().reset();
+    _providersInitializing = false;
   }
 
   Future<void> _initializeProviders(String companyId) async {
@@ -384,11 +395,19 @@ class _AuthWrapperState extends State<AuthWrapper>
     final authProvider = context.watch<AuthProvider>();
 
     if (authProvider.isLoggedIn) {
+      final currentCompanyId = authProvider.currentUser!.companyId;
       final settings = context.watch<SettingsProvider>();
-      if (!settings.isInitialized) {
-        _initializeProviders(authProvider.currentUser!.companyId).catchError((
-          e,
-        ) {
+
+      final companyChanged = _activeCompanyId != null &&
+          _activeCompanyId != currentCompanyId;
+      final needsInit = !settings.isInitialized || companyChanged;
+
+      if (needsInit) {
+        if (companyChanged) {
+          _resetAllProviders();
+        }
+        _activeCompanyId = currentCompanyId;
+        _initializeProviders(currentCompanyId).catchError((e) {
           if (mounted) {
             setState(
               () => _providerInitError = friendlyError(
@@ -433,9 +452,7 @@ class _AuthWrapperState extends State<AuthWrapper>
                     ElevatedButton.icon(
                       onPressed: () {
                         setState(() => _providerInitError = null);
-                        _initializeProviders(
-                          authProvider.currentUser!.companyId,
-                        ).catchError((e) {
+                        _initializeProviders(currentCompanyId).catchError((e) {
                           if (mounted) {
                             setState(
                               () => _providerInitError = friendlyError(
@@ -482,8 +499,13 @@ class _AuthWrapperState extends State<AuthWrapper>
         );
       }
 
+      _activeCompanyId = currentCompanyId;
       return const HomeScreen();
     } else {
+      if (_activeCompanyId != null) {
+        _resetAllProviders();
+        _activeCompanyId = null;
+      }
       return const LandingScreen();
     }
   }
