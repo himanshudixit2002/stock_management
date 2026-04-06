@@ -16,8 +16,8 @@ class AppTheme {
   static const Color backgroundColor = Color(0xFFF7F8FA);
   static const Color surfaceColor = Colors.white;
   static const Color textPrimary = Color(0xFF263238);
-  static const Color textSecondary = Color(0xFF5C6B73);
-  static const Color textTertiary = Color(0xFF5C6B73);
+  static const Color textSecondary = Color(0xFF4A5568);
+  static const Color textTertiary = Color(0xFF576574);
   static const Color textMuted = Color(0xFF6B7B85);
   static const Color iconMuted = Color(0xFF6B7B85);
   static const Color emptyStateIcon = Color(0xFF8B9CA6);
@@ -43,6 +43,84 @@ class AppTheme {
   // Input field colors
   static const Color inputFillColor = Color(0xFFF5F7FA);
   static const Color inputBorderColor = Color(0xFFE0E3E8);
+
+  // Dark-mode counterpart constants
+  static const Color _darkBg = Color(0xFF121212);
+  static const Color _darkSurface = Color(0xFF1E1E1E);
+  static const Color _darkCard = Color(0xFF252525);
+  static const Color _darkText = Color(0xFFE0E0E0);
+  static const Color _darkTextSec = Color(0xFFBDBDBD);
+  static const Color _darkTextTer = Color(0xFF9E9E9E);
+  static const Color _darkDivider = Color(0xFF333333);
+  static const Color _darkInputFill = Color(0xFF2A2A2A);
+
+  // Context-aware color getters (automatically pick light/dark)
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color bg(BuildContext context) =>
+      isDark(context) ? _darkBg : backgroundColor;
+
+  static Color surface(BuildContext context) =>
+      isDark(context) ? _darkSurface : surfaceColor;
+
+  static Color card(BuildContext context) =>
+      isDark(context) ? _darkCard : Colors.white;
+
+  static Color textPri(BuildContext context) =>
+      isDark(context) ? _darkText : textPrimary;
+
+  static Color textSec(BuildContext context) =>
+      isDark(context) ? _darkTextSec : textSecondary;
+
+  static Color textTer(BuildContext context) =>
+      isDark(context) ? _darkTextTer : textTertiary;
+
+  static Color dividerC(BuildContext context) =>
+      isDark(context) ? _darkDivider : dividerColor;
+
+  static Color inputFill(BuildContext context) =>
+      isDark(context) ? _darkInputFill : inputFillColor;
+
+  static Color inputBorder(BuildContext context) =>
+      isDark(context) ? const Color(0xFF444444) : inputBorderColor;
+
+  static Color dividerStrongC(BuildContext context) =>
+      isDark(context) ? const Color(0xFF3A3A3A) : dividerStrong;
+
+  static Color emptyIcon(BuildContext context) =>
+      isDark(context) ? const Color(0xFF888888) : emptyStateIcon;
+
+  static Color iconMute(BuildContext context) =>
+      isDark(context) ? const Color(0xFF888888) : iconMuted;
+
+  static Color textMute(BuildContext context) =>
+      isDark(context) ? const Color(0xFF888888) : textMuted;
+
+  static LinearGradient scaffoldGrad(BuildContext context) => isDark(context)
+      ? const LinearGradient(
+          colors: [Color(0xFF121212), Color(0xFF161616), Color(0xFF1A1A1A)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        )
+      : scaffoldGradient;
+
+  // Glass tokens that adapt to dark mode
+  static Color glassSurface(BuildContext context) => isDark(context)
+      ? Colors.white.withValues(alpha: 0.06)
+      : Colors.white.withValues(alpha: 0.25);
+
+  static Color glassBorder(BuildContext context) => isDark(context)
+      ? Colors.white.withValues(alpha: 0.1)
+      : Colors.white.withValues(alpha: 0.4);
+
+  static Color glassContent(BuildContext context) => isDark(context)
+      ? const Color(0xFF2A2A2A).withValues(alpha: 0.95)
+      : Colors.white.withValues(alpha: 0.82);
+
+  static Color glassBorderCont(BuildContext context) => isDark(context)
+      ? Colors.white.withValues(alpha: 0.15)
+      : Colors.white.withValues(alpha: 0.7);
 
   // Liquid glass tokens
   static Color get glassSurfaceLight => Colors.white.withValues(alpha: 0.25);
@@ -142,10 +220,23 @@ class AppTheme {
     boxShadow: cardShadow,
   );
 
+  static BoxDecoration cardDeco(BuildContext context) => BoxDecoration(
+    color: card(context),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: dividerC(context)),
+  );
+
   static BoxDecoration get elevatedCardDecoration => BoxDecoration(
     color: Colors.white,
     borderRadius: BorderRadius.circular(16),
     boxShadow: softShadow,
+  );
+
+  static BoxDecoration elevatedCardDeco(BuildContext context) => BoxDecoration(
+    color: card(context),
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: isDark(context) ? [] : softShadow,
+    border: isDark(context) ? Border.all(color: dividerC(context)) : null,
   );
 
   static BoxDecoration glassDecoration({
@@ -157,6 +248,18 @@ class AppTheme {
     border: border ?? Border.all(color: glassBorderLight, width: 1),
   );
 
+  static BoxDecoration glassDeco(
+    BuildContext context, {
+    double borderRadius = 16,
+    Border? border,
+  }) => BoxDecoration(
+    color: isDark(context)
+        ? Colors.white.withValues(alpha: 0.04)
+        : glassOverlay,
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: border ?? Border.all(color: glassBorder(context), width: 1),
+  );
+
   static BoxDecoration glassContentDecoration({
     double borderRadius = 16,
     Border? border,
@@ -164,6 +267,16 @@ class AppTheme {
     color: glassSurfaceContent,
     borderRadius: BorderRadius.circular(borderRadius),
     border: border ?? Border.all(color: glassBorderContent, width: 1),
+  );
+
+  static BoxDecoration glassContentDeco(
+    BuildContext context, {
+    double borderRadius = 16,
+    Border? border,
+  }) => BoxDecoration(
+    color: glassContent(context),
+    borderRadius: BorderRadius.circular(borderRadius),
+    border: border ?? Border.all(color: glassBorderCont(context), width: 1),
   );
 
   static Color getStockColor(int quantity, {int threshold = 10}) {
@@ -271,7 +384,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 56),
+          minimumSize: const Size(double.infinity, 52),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -288,7 +401,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryColor,
-          minimumSize: const Size(double.infinity, 56),
+          minimumSize: const Size(double.infinity, 52),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -380,16 +493,278 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: const Color(0xFFF0F4F8),
         selectedColor: primaryColor,
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: textPrimary,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: textTertiary,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        side: BorderSide.none,
+        side: const BorderSide(color: dividerStrong, width: 1),
       ),
 
       dividerTheme: const DividerThemeData(
         color: dividerColor,
         thickness: 1,
         space: 1,
+      ),
+
+      scrollbarTheme: const ScrollbarThemeData(
+        thumbVisibility: WidgetStatePropertyAll(false),
+        trackVisibility: WidgetStatePropertyAll(false),
+        thickness: WidgetStatePropertyAll(0),
+      ),
+
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+    );
+  }
+
+  static ThemeData get darkTheme {
+    const darkBg = Color(0xFF121212);
+    const darkSurface = Color(0xFF1E1E1E);
+    const darkCard = Color(0xFF252525);
+    const darkText = Color(0xFFE0E0E0);
+    const darkTextSecondary = Color(0xFF9E9E9E);
+    const darkDivider = Color(0xFF333333);
+    const darkInputFill = Color(0xFF2A2A2A);
+    const darkInputBorder = Color(0xFF3A3A3A);
+    const darkHintText = Color(0xFFB0B0B0);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        brightness: Brightness.dark,
+        primary: primaryLight,
+        secondary: accentColor,
+        surface: darkSurface,
+        error: dangerColor,
+      ),
+      scaffoldBackgroundColor: darkBg,
+      splashFactory: InkSparkle.splashFactory,
+
+      appBarTheme: AppBarTheme(
+        backgroundColor: darkSurface,
+        foregroundColor: darkText,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        centerTitle: false,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withValues(alpha: 0.3),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: darkSurface,
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: darkText,
+          letterSpacing: -0.3,
+        ),
+        iconTheme: const IconThemeData(color: darkText, size: 22),
+      ),
+
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: darkText,
+          letterSpacing: -0.5,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: darkText,
+          letterSpacing: -0.3,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: darkText,
+        ),
+        bodyLarge: TextStyle(fontSize: 16, color: darkText, height: 1.5),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          color: darkTextSecondary,
+          height: 1.4,
+          letterSpacing: -0.2,
+        ),
+        bodySmall: TextStyle(fontSize: 12, color: darkTextSecondary),
+        labelLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryLight,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          elevation: 0,
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryLight,
+          minimumSize: const Size(double.infinity, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          side: const BorderSide(color: primaryLight, width: 1.5),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkInputFill,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: darkInputBorder, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: primaryLight, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: dangerColor),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: dangerColor, width: 2),
+        ),
+        labelStyle: const TextStyle(fontSize: 15, color: darkTextSecondary),
+        hintStyle: const TextStyle(fontSize: 14, color: darkHintText),
+        prefixIconColor: darkTextSecondary,
+      ),
+
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: darkCard,
+        surfaceTintColor: Colors.transparent,
+      ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primaryLight,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkSurface,
+        selectedItemColor: primaryLight,
+        unselectedItemColor: darkTextSecondary,
+        selectedLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+        selectedIconTheme: IconThemeData(size: 26),
+        unselectedIconTheme: IconThemeData(size: 22),
+        type: BottomNavigationBarType.fixed,
+        elevation: 12,
+      ),
+
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: darkCard,
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+      ),
+
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+
+      chipTheme: ChipThemeData(
+        backgroundColor: darkCard,
+        selectedColor: primaryLight.withValues(alpha: 0.28),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: darkText,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: darkTextSecondary,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        side: const BorderSide(color: darkDivider, width: 1),
+      ),
+
+      dividerTheme: const DividerThemeData(
+        color: darkDivider,
+        thickness: 1,
+        space: 1,
+      ),
+
+      scrollbarTheme: const ScrollbarThemeData(
+        thumbVisibility: WidgetStatePropertyAll(false),
+        trackVisibility: WidgetStatePropertyAll(false),
+        thickness: WidgetStatePropertyAll(0),
       ),
 
       pageTransitionsTheme: const PageTransitionsTheme(

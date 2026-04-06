@@ -5,9 +5,13 @@ import 'package:flutter/foundation.dart';
 import '../models/product_model.dart';
 import '../services/database_service.dart';
 import '../utils/error_helpers.dart';
+import '../utils/product_search.dart';
 
 class ProductProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
+
+  /// Shared in-flight analytics load so [search] can await the same future as [initialize].
+  Future<void>? _analyticsInFlight;
 
   String get companyId => _databaseService.companyId;
 
@@ -45,6 +49,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel> get _analyticsSource => _analyticsProducts ?? _products;
   bool get isLoadingAnalytics => _isLoadingAnalytics;
   bool get isAnalyticsLoaded => _analyticsProducts != null;
+  DateTime? get analyticsFetchedAt => _analyticsFetchedAt;
 
   /// Full product set for Dashboard/Reports. Use this for analytics displays.
   List<ProductModel> get analyticsProducts => _analyticsSource;
@@ -91,6 +96,12 @@ class ProductProvider extends ChangeNotifier {
   bool get hasMoreProducts => _hasMoreProducts;
   bool get isLoadingMore => _isLoadingMore;
   String? get errorMessage => _errorMessage;
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   String get searchQuery => _searchQuery;
   String? get selectedCategoryId => _selectedCategoryId;
   String? get selectedLocation => _selectedLocation;
@@ -315,8 +326,6 @@ class ProductProvider extends ChangeNotifier {
   /// Cached for 2 minutes to avoid redundant fetches.
   /// Called automatically by initialize() and manually after stock operations.
   Future<void> loadAnalytics() async {
-    if (_isLoadingAnalytics) return;
-
     final now = DateTime.now();
     if (_analyticsProducts != null &&
         _analyticsFetchedAt != null &&
@@ -324,12 +333,22 @@ class ProductProvider extends ChangeNotifier {
             _analyticsCacheMinutes) {
       return;
     }
+
+    _analyticsInFlight ??= _loadAnalyticsBody().whenComplete(() {
+      _analyticsInFlight = null;
+    });
+    await _analyticsInFlight!;
+  }
+
+  Future<void> _loadAnalyticsBody() async {
+    final loadForCompany = _databaseService.companyId;
     _isLoadingAnalytics = true;
     notifyListeners();
     try {
       final products = await _databaseService
           .getAllProductsOnce()
           .timeout(const Duration(seconds: 15));
+      if (_databaseService.companyId != loadForCompany) return;
       _products = products;
       _analyticsProducts = products;
       _analyticsFetchedAt = DateTime.now();
@@ -340,6 +359,7 @@ class ProductProvider extends ChangeNotifier {
       _hasMoreProducts = false;
       _invalidateAnalytics();
     } catch (e) {
+      if (_databaseService.companyId != loadForCompany) return;
       // Fall back to whatever is already loaded so dashboard isn't empty.
       // Always set _analyticsProducts so isAnalyticsLoaded becomes true and
       // the UI stops showing loading spinners.
@@ -347,7 +367,9 @@ class ProductProvider extends ChangeNotifier {
       _invalidateAnalytics();
     } finally {
       _isLoadingAnalytics = false;
-      _applyFilters();
+      if (_databaseService.companyId == loadForCompany) {
+        _applyFilters();
+      }
       notifyListeners();
     }
   }
@@ -365,14 +387,21 @@ class ProductProvider extends ChangeNotifier {
       notifyListeners();
       try {
         _errorMessage = null;
-        final results = await _databaseService.searchProductsByName(
+        await loadAnalytics();
+        if (_searchGeneration != generation) return;
+
+        final catalog = analyticsProducts;
+        final ranked = searchProductsRanked(
+          catalog,
           _searchQuery,
-          limit: 100,
+          limit: 150,
         );
         if (_searchGeneration != generation) return;
+
+        final results = ranked.map((r) => r.product).toList();
         _searchResultsRaw = results;
         _searchResults = _applyNonSearchFilters(results);
-        _sortProductList(_searchResults!);
+        _applySortToSearchResultsIfNeeded();
       } catch (e) {
         if (_searchGeneration != generation) return;
         _searchResultsRaw = [];
@@ -462,6 +491,14 @@ class ProductProvider extends ChangeNotifier {
       case 'quantity_desc':
         list.sort((a, b) => b.quantity.compareTo(a.quantity));
         break;
+    }
+  }
+
+  /// Search results are ranked by relevance when sort is [name]; other sorts reorder hits.
+  void _applySortToSearchResultsIfNeeded() {
+    if (_searchResults == null || _searchResults!.isEmpty) return;
+    if (_sortBy != 'name') {
+      _sortProductList(_searchResults!);
     }
   }
 
@@ -630,7 +667,7 @@ class ProductProvider extends ChangeNotifier {
     // instead of replacing with local data.
     if (_searchResultsRaw != null && _searchQuery.length >= 2) {
       _searchResults = _applyNonSearchFilters(_searchResultsRaw!);
-      _sortProductList(_searchResults!);
+      _applySortToSearchResultsIfNeeded();
     }
 
     _sortProductList(filtered);

@@ -130,9 +130,9 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       const SizedBox(width: 4),
                       Text(
                         '${entry.key} ($valStr)',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: AppTheme.textSecondary,
+                          color: AppTheme.textSec(context),
                         ),
                       ),
                     ],

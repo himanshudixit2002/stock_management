@@ -8,7 +8,6 @@ import '../models/category_model.dart';
 import '../models/vendor_model.dart';
 import '../models/stock_transaction_model.dart';
 import 'file_helper.dart' as file_helper;
-import 'database_service.dart';
 
 class ExportResult {
   final String fileName;
@@ -47,6 +46,7 @@ class ExcelService {
       'Category',
       'Company',
       'Size',
+      'Barcode',
       'Locations',
       'Quantity',
       'Unit',
@@ -73,76 +73,21 @@ class ExcelService {
           .map((e) => '${e.key}:${e.value}')
           .join(', ');
 
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: dataRow))
-          .value = IntCellValue(
-        row + 1,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.name,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.categoryName,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.company,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.size,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow))
-          .value = TextCellValue(
-        locStr,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow))
-          .value = IntCellValue(
-        product.quantity,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.unit,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow))
-          .value = DoubleCellValue(
-        product.costPrice,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow))
-          .value = DoubleCellValue(
-        product.sellingPrice,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow))
-          .value = IntCellValue(
-        product.lowStockThreshold,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.stockStatus,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 12, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.description,
-      );
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 13, rowIndex: dataRow))
-          .value = TextCellValue(
-        product.preferredVendorName,
-      );
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: dataRow)).value = IntCellValue(row + 1);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: dataRow)).value = TextCellValue(product.name);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: dataRow)).value = TextCellValue(product.categoryName);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow)).value = TextCellValue(product.company);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow)).value = TextCellValue(product.size);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow)).value = TextCellValue(product.barcode);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow)).value = TextCellValue(locStr);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow)).value = IntCellValue(product.quantity);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow)).value = TextCellValue(product.unit);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow)).value = DoubleCellValue(product.costPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow)).value = DoubleCellValue(product.sellingPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow)).value = IntCellValue(product.lowStockThreshold);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 12, rowIndex: dataRow)).value = TextCellValue(product.stockStatus);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 13, rowIndex: dataRow)).value = TextCellValue(product.description);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 14, rowIndex: dataRow)).value = TextCellValue(product.preferredVendorName);
     }
 
     sheet.setColumnWidth(0, 6);
@@ -150,15 +95,16 @@ class ExcelService {
     sheet.setColumnWidth(2, 18);
     sheet.setColumnWidth(3, 18);
     sheet.setColumnWidth(4, 14);
-    sheet.setColumnWidth(5, 30);
-    sheet.setColumnWidth(6, 10);
-    sheet.setColumnWidth(7, 8);
-    sheet.setColumnWidth(8, 12);
+    sheet.setColumnWidth(5, 18);
+    sheet.setColumnWidth(6, 30);
+    sheet.setColumnWidth(7, 10);
+    sheet.setColumnWidth(8, 8);
     sheet.setColumnWidth(9, 12);
-    sheet.setColumnWidth(10, 18);
-    sheet.setColumnWidth(11, 12);
-    sheet.setColumnWidth(12, 30);
-    sheet.setColumnWidth(13, 20);
+    sheet.setColumnWidth(10, 12);
+    sheet.setColumnWidth(11, 18);
+    sheet.setColumnWidth(12, 12);
+    sheet.setColumnWidth(13, 30);
+    sheet.setColumnWidth(14, 20);
 
     excel.rename(excel.tables.keys.first, 'Products');
     final fileBytes = excel.save();
@@ -203,6 +149,7 @@ class ExcelService {
       'Category',
       'Company',
       'Size',
+      'Barcode',
       'Locations',
       'Quantity',
       'Unit',
@@ -228,45 +175,20 @@ class ExcelService {
           .map((e) => '${e.key}:${e.value}')
           .join(', ');
 
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: dataRow))
-          .value = TextCellValue(product.id);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: dataRow))
-          .value = TextCellValue(product.name);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: dataRow))
-          .value = TextCellValue(product.categoryName);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow))
-          .value = TextCellValue(product.company);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow))
-          .value = TextCellValue(product.size);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow))
-          .value = TextCellValue(locStr);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow))
-          .value = IntCellValue(product.quantity);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow))
-          .value = TextCellValue(product.unit);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow))
-          .value = DoubleCellValue(product.costPrice);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow))
-          .value = DoubleCellValue(product.sellingPrice);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow))
-          .value = IntCellValue(product.lowStockThreshold);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow))
-          .value = TextCellValue(product.description);
-      sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: 12, rowIndex: dataRow))
-          .value = TextCellValue(product.preferredVendorName);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: dataRow)).value = TextCellValue(product.id);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: dataRow)).value = TextCellValue(product.name);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: dataRow)).value = TextCellValue(product.categoryName);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: dataRow)).value = TextCellValue(product.company);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: dataRow)).value = TextCellValue(product.size);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: dataRow)).value = TextCellValue(product.barcode);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: dataRow)).value = TextCellValue(locStr);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: dataRow)).value = IntCellValue(product.quantity);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: dataRow)).value = TextCellValue(product.unit);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: dataRow)).value = DoubleCellValue(product.costPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 10, rowIndex: dataRow)).value = DoubleCellValue(product.sellingPrice);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 11, rowIndex: dataRow)).value = IntCellValue(product.lowStockThreshold);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 12, rowIndex: dataRow)).value = TextCellValue(product.description);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 13, rowIndex: dataRow)).value = TextCellValue(product.preferredVendorName);
     }
 
     sheet.setColumnWidth(0, 22);
@@ -274,14 +196,15 @@ class ExcelService {
     sheet.setColumnWidth(2, 18);
     sheet.setColumnWidth(3, 18);
     sheet.setColumnWidth(4, 14);
-    sheet.setColumnWidth(5, 30);
-    sheet.setColumnWidth(6, 10);
-    sheet.setColumnWidth(7, 8);
-    sheet.setColumnWidth(8, 12);
+    sheet.setColumnWidth(5, 18);
+    sheet.setColumnWidth(6, 30);
+    sheet.setColumnWidth(7, 10);
+    sheet.setColumnWidth(8, 8);
     sheet.setColumnWidth(9, 12);
-    sheet.setColumnWidth(10, 18);
-    sheet.setColumnWidth(11, 30);
-    sheet.setColumnWidth(12, 20);
+    sheet.setColumnWidth(10, 12);
+    sheet.setColumnWidth(11, 18);
+    sheet.setColumnWidth(12, 30);
+    sheet.setColumnWidth(13, 20);
 
     excel.rename(excel.tables.keys.first, 'Products');
     final fileBytes = excel.save();
@@ -360,6 +283,8 @@ class ExcelService {
       } else if (cellValue.contains('vendor') ||
           cellValue.contains('preferred vendor')) {
         columnMap['preferredVendor'] = i;
+      } else if (cellValue == 'barcode' || cellValue.contains('barcode')) {
+        columnMap['barcode'] = i;
       }
     }
 
@@ -381,6 +306,7 @@ class ExcelService {
       productData['category'] = _getCellString(row, columnMap['category']);
       productData['company'] = _getCellString(row, columnMap['company']);
       productData['size'] = _getCellString(row, columnMap['size']);
+      productData['barcode'] = _getCellString(row, columnMap['barcode']);
       productData['locations'] = _getCellString(row, columnMap['locations']);
       productData['quantity'] = _getCellInt(row, columnMap['quantity']);
       productData['unit'] = _getCellString(
@@ -405,6 +331,7 @@ class ExcelService {
         row,
         columnMap['preferredVendor'],
       );
+      productData['barcode'] = _getCellString(row, columnMap['barcode']);
 
       if (productData['name'].toString().isNotEmpty) {
         products.add(productData);
@@ -425,29 +352,59 @@ class ExcelService {
     Map<String, VendorModel> vendorMap,
   ) {
     final productMap = <String, ProductModel>{};
+    final barcodeIndex = <String, ProductModel>{};
+    final compositeIdx = <String, ProductModel>{};
     for (final p in currentProducts) {
       productMap[p.id] = p;
+      if (p.barcode.isNotEmpty) {
+        barcodeIndex.putIfAbsent(p.barcode.trim().toLowerCase(), () => p);
+      }
+      final key = compositeKey(p.name, p.categoryName, p.company, p.size);
+      if (key != '|||') {
+        compositeIdx[key] = p;
+      }
     }
 
     final diffs = <ProductUpdateDiff>[];
     for (final row in parsedRows) {
-      final id = row['id']?.toString().trim() ?? '';
+      var id = row['id']?.toString().trim() ?? '';
       final name = row['name']?.toString().trim() ?? '';
 
+      // If ID is empty or not found, try to match by barcode or composite key
       if (id.isEmpty || !productMap.containsKey(id)) {
-        diffs.add(ProductUpdateDiff(
-          productId: id,
-          productName: name,
-          status: id.isEmpty
-              ? UpdateStatus.newProduct
-              : UpdateStatus.error,
-          errorMessage: id.isNotEmpty && !productMap.containsKey(id)
-              ? 'Product ID not found in database'
-              : null,
-          fieldChanges: [],
-          parsedData: row,
-        ));
-        continue;
+        ProductModel? match;
+        final barcode = row['barcode']?.toString().trim() ?? '';
+        if (barcode.isNotEmpty) {
+          match = barcodeIndex[barcode.toLowerCase()];
+        }
+        if (match == null && name.isNotEmpty) {
+          final cat = row['category']?.toString().trim() ?? '';
+          final company = row['company']?.toString().trim() ?? '';
+          final size = row['size']?.toString().trim() ?? '';
+          final key = compositeKey(name, cat, company, size);
+          if (key != '|||') {
+            match = compositeIdx[key];
+          }
+        }
+
+        if (match != null) {
+          id = match.id;
+          row['id'] = id;
+        } else {
+          diffs.add(ProductUpdateDiff(
+            productId: id,
+            productName: name,
+            status: id.isEmpty
+                ? UpdateStatus.newProduct
+                : UpdateStatus.error,
+            errorMessage: id.isNotEmpty && !productMap.containsKey(id)
+                ? 'Product ID not found in database'
+                : null,
+            fieldChanges: [],
+            parsedData: row,
+          ));
+          continue;
+        }
       }
 
       final existing = productMap[id]!;
@@ -591,6 +548,8 @@ class ExcelService {
       } else if (cellValue.contains('vendor') ||
           cellValue.contains('preferred vendor')) {
         columnMap['preferredVendor'] = i;
+      } else if (cellValue == 'barcode' || cellValue.contains('barcode')) {
+        columnMap['barcode'] = i;
       }
     }
 
@@ -641,6 +600,7 @@ class ExcelService {
         row,
         columnMap['preferredVendor'],
       );
+      productData['barcode'] = _getCellString(row, columnMap['barcode']);
 
       if (productData['name'].toString().isNotEmpty) {
         products.add(productData);
@@ -723,6 +683,7 @@ class ExcelService {
         lowStockThreshold: threshold,
         costPrice: _parseDouble(item['costPrice']),
         sellingPrice: _parseDouble(item['sellingPrice']),
+        barcode: item['barcode']?.toString().trim() ?? '',
         preferredVendorId: vendor?.id ?? '',
         preferredVendorName: vendor?.name ?? vendorName,
         createdAt: now,
@@ -734,6 +695,77 @@ class ExcelService {
   Map<String, int> parseLocationString(String locStr) => _parseLocationString(locStr);
   int parseIntValue(dynamic value) => _parseInt(value);
   double parseDoubleValue(dynamic value) => _parseDouble(value);
+
+  /// Builds a composite key for matching: name|category|company|size (lowercase, trimmed)
+  static String compositeKey(String name, String category, String company, String size) {
+    return '${name.trim().toLowerCase()}|${category.trim().toLowerCase()}|${company.trim().toLowerCase()}|${size.trim().toLowerCase()}';
+  }
+
+  /// Smart merge: matches imported rows against existing products by barcode then composite key.
+  /// Returns two lists: products to update (with merged data) and truly new products.
+  SmartMergeResult matchExistingProducts({
+    required List<ProductModel> importedProducts,
+    required List<ProductModel> existingProducts,
+  }) {
+    final barcodeIndex = <String, ProductModel>{};
+    final compositeIndex = <String, ProductModel>{};
+
+    for (final p in existingProducts) {
+      if (p.barcode.isNotEmpty) {
+        barcodeIndex.putIfAbsent(p.barcode.trim().toLowerCase(), () => p);
+      }
+      final key = compositeKey(p.name, p.categoryName, p.company, p.size);
+      if (key != '|||') {
+        compositeIndex[key] = p;
+      }
+    }
+
+    final updates = <MergedProduct>[];
+    final newProducts = <ProductModel>[];
+
+    for (final imported in importedProducts) {
+      ProductModel? match;
+
+      if (imported.barcode.isNotEmpty) {
+        match = barcodeIndex[imported.barcode.trim().toLowerCase()];
+      }
+      if (match == null) {
+        final key = compositeKey(imported.name, imported.categoryName, imported.company, imported.size);
+        if (key != '|||') {
+          match = compositeIndex[key];
+        }
+      }
+
+      if (match != null) {
+        updates.add(MergedProduct(
+          existing: match,
+          imported: imported,
+          merged: match.copyWith(
+            quantity: match.quantity + imported.quantity,
+            locationQuantities: _mergeLocations(match.locationQuantities, imported.locationQuantities),
+            costPrice: imported.costPrice > 0 ? imported.costPrice : match.costPrice,
+            sellingPrice: imported.sellingPrice > 0 ? imported.sellingPrice : match.sellingPrice,
+            barcode: imported.barcode.isNotEmpty ? imported.barcode : match.barcode,
+            description: imported.description.isNotEmpty ? imported.description : match.description,
+            lowStockThreshold: imported.lowStockThreshold > 0 ? imported.lowStockThreshold : match.lowStockThreshold,
+            updatedAt: DateTime.now(),
+          ),
+        ));
+      } else {
+        newProducts.add(imported);
+      }
+    }
+
+    return SmartMergeResult(updates: updates, newProducts: newProducts);
+  }
+
+  Map<String, int> _mergeLocations(Map<String, int> existing, Map<String, int> imported) {
+    final result = Map<String, int>.from(existing);
+    for (final entry in imported.entries) {
+      result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+    }
+    return result;
+  }
 
   int _parseInt(dynamic value) {
     if (value == null) return 0;
@@ -771,14 +803,11 @@ class ExcelService {
       if (trimmed.isEmpty) continue;
       final colonIdx = trimmed.lastIndexOf(':');
       if (colonIdx > 0) {
-        final name = DatabaseService.normalizeLocation(
-          trimmed.substring(0, colonIdx).trim(),
-        );
+        final name = trimmed.substring(0, colonIdx).trim();
         final qty = int.tryParse(trimmed.substring(colonIdx + 1).trim()) ?? 0;
         if (name.isNotEmpty) result[name] = qty;
       } else {
-        final name = DatabaseService.normalizeLocation(trimmed);
-        if (name.isNotEmpty) result[name] = 0;
+        if (trimmed.isNotEmpty) result[trimmed] = 0;
       }
     }
     return result;
@@ -1015,8 +1044,8 @@ class ExcelService {
     final excel = Excel.createExcel();
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
-    // Rename Sheet1 to Summary, then add Products and other sheets
-    excel.rename('Sheet1', 'Summary');
+    final defaultSheet = excel.tables.keys.first;
+    excel.rename(defaultSheet, 'Summary');
     final summary = excel['Summary'];
     final prodSheet = excel['Products'];
 
@@ -1316,12 +1345,12 @@ class ExcelService {
       horizontalAlign: HorizontalAlign.Center,
     );
 
-    // Order matches export format for consistency (Product Name → Locations → Quantity → ... → Description → Preferred Vendor)
     final headers = [
       'Product Name',
       'Category',
       'Company',
       'Size',
+      'Barcode',
       'Locations',
       'Quantity',
       'Unit',
@@ -1345,6 +1374,7 @@ class ExcelService {
       'General',
       'Brand A',
       '10x10',
+      '1234567890',
       'pos1',
       '50',
       'pcs',
@@ -1655,6 +1685,8 @@ class ExcelService {
       } else if (cellValue.contains('vendor') ||
           cellValue.contains('preferred vendor')) {
         columnMap['preferredVendor'] = i;
+      } else if (cellValue.contains('barcode') || cellValue == 'sku') {
+        columnMap['barcode'] = i;
       }
     }
 
@@ -1700,6 +1732,7 @@ class ExcelService {
         row,
         columnMap['preferredVendor'],
       );
+      productData['barcode'] = _getCsvCellString(row, columnMap['barcode']);
 
       if (productData['name'].toString().isNotEmpty) {
         products.add(productData);
@@ -1777,4 +1810,26 @@ class ProductUpdateDiff {
     required this.parsedData,
     this.errorMessage,
   });
+}
+
+class MergedProduct {
+  final ProductModel existing;
+  final ProductModel imported;
+  final ProductModel merged;
+
+  const MergedProduct({
+    required this.existing,
+    required this.imported,
+    required this.merged,
+  });
+}
+
+class SmartMergeResult {
+  final List<MergedProduct> updates;
+  final List<ProductModel> newProducts;
+
+  const SmartMergeResult({required this.updates, required this.newProducts});
+
+  int get updateCount => updates.length;
+  int get newCount => newProducts.length;
 }

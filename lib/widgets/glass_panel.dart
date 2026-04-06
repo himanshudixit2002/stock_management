@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../utils/responsive.dart';
 
@@ -28,13 +29,13 @@ class GlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sigma = blurSigma ?? 10.0;
+    final sigma = blurSigma ?? 4.0;
     final surface = useContentVariant
-        ? (kIsWeb ? AppTheme.glassSurfaceContent : AppTheme.surfaceColor)
-        : (kIsWeb ? AppTheme.glassSurfaceLight : AppTheme.surfaceColor);
+        ? (kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context))
+        : (kIsWeb ? AppTheme.glassSurface(context) : AppTheme.surface(context));
     final borderColor = useContentVariant
-        ? AppTheme.glassBorderContent
-        : (kIsWeb ? AppTheme.glassBorderLight : AppTheme.dividerColor);
+        ? AppTheme.glassBorderCont(context)
+        : (kIsWeb ? AppTheme.glassBorder(context) : AppTheme.dividerC(context));
 
     final container = Container(
       padding: padding,
@@ -42,27 +43,30 @@ class GlassPanel extends StatelessWidget {
         color: surface,
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(color: borderColor, width: 1),
-        boxShadow: kIsWeb ? null : AppTheme.cardShadow,
+        boxShadow: kIsWeb ? null : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: child,
     );
 
     if (kIsWeb) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: container,
+      return RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+            child: container,
+          ),
         ),
       );
     }
-    return container;
+    return RepaintBoundary(child: container);
   }
 }
 
 /// Glass-style card for list/grid items with InkWell support.
 /// Uses content variant by default for text readability.
-class GlassCard extends StatelessWidget {
+/// Includes subtle scale-down press feedback when tappable.
+class GlassCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double borderRadius;
@@ -81,29 +85,59 @@ class GlassCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final sigma = 10.0;
-    final surface = useContentVariant
-        ? (kIsWeb ? AppTheme.glassSurfaceContent : AppTheme.surfaceColor)
-        : (kIsWeb ? AppTheme.glassSurfaceLight : AppTheme.surfaceColor);
-    final borderColor = useContentVariant
-        ? AppTheme.glassBorderContent
-        : (kIsWeb ? AppTheme.glassBorderLight : AppTheme.dividerColor);
+  State<GlassCard> createState() => _GlassCardState();
+}
 
-    final container = Container(
+class _GlassCardState extends State<GlassCard> {
+  bool _isPressed = false;
+  bool _isHovered = false;
+
+  void _handleTapDown(TapDownDetails _) {
+    setState(() => _isPressed = true);
+  }
+
+  void _handleTapUp(TapUpDetails _) {
+    setState(() => _isPressed = false);
+  }
+
+  void _handleTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sigma = 4.0;
+    final surface = widget.useContentVariant
+        ? (kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context))
+        : (kIsWeb ? AppTheme.glassSurface(context) : AppTheme.surface(context));
+    final baseBorderColor = widget.useContentVariant
+        ? AppTheme.glassBorderCont(context)
+        : (kIsWeb ? AppTheme.glassBorder(context) : AppTheme.dividerC(context));
+
+    final borderColor = (kIsWeb && _isHovered && widget.onTap != null)
+        ? AppTheme.primaryColor.withValues(alpha: 0.5)
+        : baseBorderColor;
+
+    final container = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: borderColor, width: 1),
-        boxShadow: kIsWeb ? null : AppTheme.cardShadow,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: Border.all(color: borderColor, width: _isHovered && kIsWeb ? 1.5 : 1),
+        boxShadow: kIsWeb
+            ? (_isHovered && widget.onTap != null
+                ? [BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 2))]
+                : null)
+            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
-      child: child,
+      child: widget.child,
     );
 
     final Widget panel;
     if (kIsWeb) {
       panel = ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: container,
@@ -113,22 +147,45 @@ class GlassCard extends StatelessWidget {
       panel = container;
     }
 
-    if (onTap != null) {
-      return Semantics(
+    if (widget.onTap != null) {
+      final interactive = Semantics(
         button: true,
-        label: semanticLabel,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(borderRadius),
-            child: panel,
+        label: widget.semanticLabel,
+        child: GestureDetector(
+          onTapDown: _handleTapDown,
+          onTapUp: _handleTapUp,
+          onTapCancel: _handleTapCancel,
+          child: AnimatedScale(
+            scale: _isPressed ? 0.97 : 1.0,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeInOut,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  widget.onTap!();
+                },
+                borderRadius: BorderRadius.circular(widget.borderRadius),
+                child: panel,
+              ),
+            ),
           ),
         ),
       );
+
+      if (kIsWeb) {
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: interactive,
+        );
+      }
+      return interactive;
     }
-    return semanticLabel != null
-        ? Semantics(label: semanticLabel, child: panel)
+    return widget.semanticLabel != null
+        ? Semantics(label: widget.semanticLabel, child: panel)
         : panel;
   }
 }
@@ -152,14 +209,14 @@ class GlassSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sigma = 10.0;
+    final sigma = 4.0;
 
     final content = Container(
       decoration: BoxDecoration(
-        color: kIsWeb ? AppTheme.glassSurfaceContent : AppTheme.surfaceColor,
+        color: kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.glassBorderContent, width: 1),
-        boxShadow: kIsWeb ? null : AppTheme.cardShadow,
+        border: Border.all(color: AppTheme.glassBorderCont(context), width: 1),
+        boxShadow: kIsWeb ? null : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,10 +244,10 @@ class GlassSectionCard extends StatelessWidget {
                     child: title != null && title!.isNotEmpty
                         ? Text(
                             title!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.textPri(context),
                             ),
                           )
                         : const SizedBox.shrink(),

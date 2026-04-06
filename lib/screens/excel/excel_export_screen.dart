@@ -7,10 +7,12 @@ import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
+import '../../config/permissions.dart';
 
 class ExcelExportScreen extends StatefulWidget {
   const ExcelExportScreen({super.key});
@@ -65,13 +67,7 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
 
       {
         HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report generated successfully!'),
-            backgroundColor: AppTheme.successColor,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        showSuccessSnackBar(context, 'Report generated successfully!');
       }
     } catch (e) {
       if (!mounted) return;
@@ -162,23 +158,27 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
         await _excelService.saveAndShare(_exportResult!);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Could not share the file. Please try again.',
-              ),
-              backgroundColor: AppTheme.dangerColor,
-            ),
-          );
+          showErrorSnackBar(context, 'Could not share the file. Please try again.');
         }
       }
     }
   }
 
+  Future<void> _onPullRefreshCatalog() async {
+    final product = context.read<ProductProvider>();
+    final cid = product.companyId;
+    if (cid.isNotEmpty) {
+      await product.refreshProducts();
+      if (!mounted) return;
+      context.read<CategoryProvider>().initialize(companyId: cid);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission('canExport')) {
+    if (user == null || !user.hasPermission(AppPermissions.exportData)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Export Data')),
         body: const Center(
@@ -188,7 +188,7 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: AppBarTitleRow(
           icon: Icons.file_download_rounded,
@@ -197,17 +197,20 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: Responsive.formMaxWidth(context),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: RefreshIndicator(
+          onRefresh: _onPullRefreshCatalog,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.formMaxWidth(context),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   GlassPanel(
                     borderRadius: 20,
                     padding: const EdgeInsets.all(24),
@@ -225,11 +228,11 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Choose the report type and format to generate your export file.',
                           style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.textSec(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -369,6 +372,7 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
             ),
           ),
         ),
+        ),
       ),
     );
   }
@@ -457,10 +461,10 @@ class _ReportTypeOption extends StatelessWidget {
           decoration: BoxDecoration(
             color: isSelected
                 ? AppTheme.primaryColor.withValues(alpha: 0.1)
-                : AppTheme.surfaceColor,
+                : AppTheme.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerColor,
+              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerC(context),
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -471,7 +475,7 @@ class _ReportTypeOption extends StatelessWidget {
                 size: 28,
                 color: isSelected
                     ? AppTheme.primaryColor
-                    : AppTheme.textSecondary,
+                    : AppTheme.textSec(context),
               ),
               const SizedBox(height: 6),
               Text(
@@ -481,14 +485,14 @@ class _ReportTypeOption extends StatelessWidget {
                   fontSize: 13,
                   color: isSelected
                       ? AppTheme.primaryColor
-                      : AppTheme.textPrimary,
+                      : AppTheme.textPri(context),
                 ),
               ),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textSec(context),
                 ),
               ),
             ],
@@ -528,10 +532,10 @@ class _FormatOption extends StatelessWidget {
           decoration: BoxDecoration(
             color: isSelected
                 ? AppTheme.primaryColor.withValues(alpha: 0.1)
-                : AppTheme.surfaceColor,
+                : AppTheme.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerColor,
+              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerC(context),
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -544,8 +548,8 @@ class _FormatOption extends StatelessWidget {
                 color: isSelected
                     ? AppTheme.primaryColor
                     : (enabled
-                          ? AppTheme.textSecondary
-                          : AppTheme.dividerColor),
+                          ? AppTheme.textSec(context)
+                          : AppTheme.dividerC(context)),
               ),
               const SizedBox(width: 8),
               Text(
@@ -556,8 +560,8 @@ class _FormatOption extends StatelessWidget {
                   color: isSelected
                       ? AppTheme.primaryColor
                       : (enabled
-                            ? AppTheme.textPrimary
-                            : AppTheme.textSecondary),
+                            ? AppTheme.textPri(context)
+                            : AppTheme.textSec(context)),
                 ),
               ),
             ],

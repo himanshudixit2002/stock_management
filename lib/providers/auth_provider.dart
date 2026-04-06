@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../providers/role_provider.dart';
 import '../utils/error_helpers.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -10,17 +11,61 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  RoleProvider? _roleProvider;
+
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isLoggedIn => _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
 
+  /// Re-resolve when the roles stream emits (roles load after first frame).
+  void _onRoleProviderChanged() {
+    _resolveUserPermissions();
+    notifyListeners();
+  }
+
+  /// Attach the RoleProvider so resolved permissions can be computed.
+  void attachRoleProvider(RoleProvider roleProvider) {
+    _roleProvider?.removeListener(_onRoleProviderChanged);
+    _roleProvider = roleProvider;
+    _roleProvider!.addListener(_onRoleProviderChanged);
+    _resolveUserPermissions();
+    notifyListeners();
+  }
+
+  void detachRoleProvider() {
+    _roleProvider?.removeListener(_onRoleProviderChanged);
+    _roleProvider = null;
+  }
+
+  @override
+  void dispose() {
+    detachRoleProvider();
+    super.dispose();
+  }
+
+  void _resolveUserPermissions() {
+    if (_currentUser == null || _roleProvider == null) return;
+    final roleId = _currentUser!.roleId;
+    if (roleId.isEmpty) {
+      // Legacy user — do not keep RBAC overlay from a previous workspace
+      _currentUser!.resolvedPermissions = null;
+      return;
+    }
+    _currentUser!.resolvedPermissions = _roleProvider!.resolvePermissions(
+      roleId: roleId,
+      overrides: _currentUser!.permissions,
+    );
+  }
+
   Future<void> initialize() async {
+    _errorMessage = null;
     final firebaseUser = _authService.currentUser;
     if (firebaseUser != null) {
       try {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
+        _resolveUserPermissions();
       } catch (e) {
         _currentUser = null;
         _errorMessage = friendlyError(
@@ -32,12 +77,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Re-fetches the current user doc from Firestore and notifies listeners.
   Future<void> refreshCurrentUser() async {
+    _errorMessage = null;
     final firebaseUser = _authService.currentUser;
     if (firebaseUser != null) {
       try {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
+        _resolveUserPermissions();
         notifyListeners();
       } catch (e) {
         _errorMessage = friendlyError(
@@ -68,6 +114,7 @@ class AuthProvider extends ChangeNotifier {
         companyName: companyName,
         phone: phone,
       );
+      _resolveUserPermissions();
       _isLoading = false;
       notifyListeners();
       return _currentUser != null;
@@ -96,6 +143,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
+      _resolveUserPermissions();
       _isLoading = false;
       notifyListeners();
       return true;
@@ -150,9 +198,10 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     try {
       await _authService.logout();
-    } catch (_) {
-      // Clear local state regardless of server-side logout result
+    } catch (e) {
+      _errorMessage = e.toString();
     }
+    detachRoleProvider();
     _currentUser = null;
     notifyListeners();
   }
@@ -173,6 +222,19 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _authService.updateUserRole(uid, newRole);
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> updateUserRoleId(String uid, String roleId) async {
+    if (_isLoading) return;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await _authService.updateUserRoleAssignment(uid, roleId);
     } catch (e) {
       _errorMessage = friendlyError(e);
     }
@@ -216,6 +278,7 @@ class AuthProvider extends ChangeNotifier {
         name: name ?? _currentUser!.name,
         phone: phone ?? _currentUser!.phone,
       );
+      _resolveUserPermissions();
       _isLoading = false;
       notifyListeners();
       return true;
@@ -234,6 +297,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       await _authService.deleteAccount(password);
+      detachRoleProvider();
       _currentUser = null;
       _isLoading = false;
       notifyListeners();
@@ -263,11 +327,178 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<CompanyMembership?> createNewCompany(String companyName) async {
+    if (_currentUser == null) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final membership = await _authService.createNewCompany(
+        uid: _currentUser!.uid,
+        companyName: companyName,
+      );
+      await refreshCurrentUser();
+      _isLoading = false;
+      notifyListeners();
+      return membership;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> switchCompany(CompanyMembership membership) async {
+    if (_currentUser == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.switchCompany(
+        uid: _currentUser!.uid,
+        companyId: membership.companyId,
+        companyName: membership.companyName,
+        role: membership.role,
+        roleId: membership.roleId,
+      );
+      await refreshCurrentUser();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<String?> generateInviteCode() async {
+    if (_currentUser == null) return null;
+    try {
+      return await _authService.generateInviteCode(
+        companyId: _currentUser!.companyId,
+        companyName: _currentUser!.companyName,
+      );
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Backfill permanent join code for a workspace (creator only).
+  Future<String?> ensurePermanentJoinCodeForCompany(String companyId) async {
+    if (_currentUser == null) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final code = await _authService.ensurePermanentJoinCodeForCompany(
+        companyId: companyId,
+        uid: _currentUser!.uid,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return code;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<String?> regeneratePermanentJoinCode() async {
+    if (_currentUser == null) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final code = await _authService.regeneratePermanentJoinCode(
+        companyId: _currentUser!.companyId,
+        companyName: _currentUser!.companyName,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return code;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<Map<String, String>> getPermanentJoinCodesForSwitcher(
+    Iterable<String> companyIds,
+  ) {
+    return _authService.getPermanentJoinCodesForCompanies(companyIds);
+  }
+
+  Future<({Map<String, String> joinCodes, Set<String> creatorCompanyIds})>
+      getCompanySwitcherMeta(Iterable<String> companyIds) {
+    return _authService.getCompanySwitcherMeta(
+      companyIds,
+      _currentUser?.uid ?? '',
+    );
+  }
+
+  Future<bool> joinCompany(String inviteCode) async {
+    if (_currentUser == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.joinCompany(
+        uid: _currentUser!.uid,
+        inviteCode: inviteCode,
+      );
+      await refreshCurrentUser();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> leaveCompany(CompanyMembership membership) async {
+    if (_currentUser == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.leaveCompany(
+        uid: _currentUser!.uid,
+        membership: membership,
+      );
+      await refreshCurrentUser();
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> addStaffUser({
     required String name,
     required String email,
     required String password,
     required String adminPassword,
+    String roleId = '',
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -286,12 +517,13 @@ class AuthProvider extends ChangeNotifier {
         companyName: companyName,
         adminEmail: adminEmail,
         adminPassword: adminPassword,
+        roleId: roleId,
       );
 
-      // Re-fetch admin user data (we're signed back in as admin)
       final currentFirebaseUser = _authService.currentUser;
       if (currentFirebaseUser != null) {
         _currentUser = await _authService.getUserData(currentFirebaseUser.uid);
+        _resolveUserPermissions();
       }
 
       _isLoading = false;
@@ -302,6 +534,17 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Ensure roles exist and migrate legacy user if needed.
+  Future<void> ensureRbacReady() async {
+    if (_currentUser == null) return;
+    final companyId = _currentUser!.companyId;
+    await _authService.ensureRolesSeeded(companyId);
+    if (_currentUser!.roleId.isEmpty) {
+      await _authService.migrateUserToRbac(_currentUser!.uid, companyId);
+      await refreshCurrentUser();
     }
   }
 }

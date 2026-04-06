@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
@@ -12,6 +14,9 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
+import '../../widgets/product_picker.dart';
+import '../../widgets/searchable_picker.dart';
+import '../../config/permissions.dart';
 
 class StockAdjustmentScreen extends StatefulWidget {
   final ProductModel? product;
@@ -38,29 +43,12 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
 
   Future<bool> _confirmDiscard() async {
     if (!_hasUnsavedChanges) return true;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved changes. Are you sure you want to go back?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.dangerColor,
-            ),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: 'Discard changes?',
+      message: 'You have unsaved changes. Are you sure you want to go back?',
+      confirmLabel: 'Discard',
     );
-    return result ?? false;
   }
 
   int get _currentStock {
@@ -79,10 +67,16 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     if (widget.product != null) {
       _selectedProduct = widget.product;
     }
+    _actualCountCtrl.addListener(_onChanged);
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _actualCountCtrl.removeListener(_onChanged);
     _actualCountCtrl.dispose();
     _reasonCtrl.dispose();
     super.dispose();
@@ -92,12 +86,9 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null || _selectedLocation == null) return;
     if (_difference == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Actual count matches current stock. No adjustment needed.',
-          ),
-        ),
+      showInfoSnackBar(
+        context,
+        'Actual count matches current stock. No adjustment needed.',
       );
       return;
     }
@@ -129,28 +120,40 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
         showSuccessOverlay(
           context,
           message:
-              'Stock adjusted by ${_difference > 0 ? '+' : ''}$_difference ${_selectedProduct?.unit ?? 'units'}',
+              'Adjusted by ${_difference > 0 ? '+' : ''}$_difference ${_selectedProduct?.unit ?? 'units'}',
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(stockProvider.errorMessage ?? 'Adjustment failed'),
-          backgroundColor: AppTheme.dangerColor,
-        ),
+      showErrorSnackBar(
+        context,
+        stockProvider.errorMessage ?? 'Adjustment failed',
       );
     }
+  }
+
+  Future<void> _pickProduct(List<ProductModel> products) async {
+    final p = await showProductPicker(
+      context: context,
+      products: products,
+      selectedProductId: _selectedProduct?.id,
+    );
+    if (p == null || !mounted) return;
+    setState(() {
+      _selectedProduct = p;
+      _selectedLocation = null;
+      _actualCountCtrl.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final canAdjust =
-        auth.currentUser?.hasPermission('canAdjustStock') ?? false;
+        auth.currentUser?.hasPermission(AppPermissions.adjustStock) ?? false;
 
     if (!canAdjust) {
       return Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         appBar: AppBar(
           title: const AppBarTitleRow(
             icon: Icons.tune_rounded,
@@ -159,7 +162,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
           ),
         ),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: const Center(
             child: EmptyStateWidget(
               icon: Icons.lock_outline_rounded,
@@ -177,6 +180,54 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     final products = productProvider.allProducts;
     final locations = settings.locations;
 
+    if (_selectedProduct != null) {
+      final fresh = products.where((p) => p.id == _selectedProduct!.id).firstOrNull;
+      if (fresh != null) {
+        _selectedProduct = fresh;
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _selectedProduct = null);
+        });
+      }
+    }
+
+    if (locations.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppTheme.bg(context),
+        appBar: AppBar(
+          title: const AppBarTitleRow(
+            icon: Icons.tune_rounded,
+            color: AppTheme.warningColor,
+            title: 'Stock Adjustment',
+          ),
+        ),
+        body: Container(
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: Center(
+            child: EmptyStateWidget(
+              icon: Icons.location_off_rounded,
+              title: 'No Locations Configured',
+              subtitle: 'Add locations in Settings before adjusting stock.',
+              buttonText: 'Go to Settings',
+              onButtonPressed: () {
+                Navigator.pushNamed(context, AppRoutes.settings, arguments: 'locations');
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    final locQty = _selectedProduct?.locationQuantities ?? {};
+    final seen = <String>{};
+    final allLocations = <String>[];
+    for (final loc in locQty.keys) {
+      if (seen.add(loc.toLowerCase())) allLocations.add(loc);
+    }
+    for (final loc in locations) {
+      if (seen.add(loc.toLowerCase())) allLocations.add(loc);
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -186,21 +237,24 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         appBar: AppBar(
-          title: AppBarTitleRow(
+          title: const AppBarTitleRow(
             icon: Icons.tune_rounded,
             color: AppTheme.warningColor,
             title: 'Stock Adjustment',
           ),
         ),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: products.isEmpty
-              ? const EmptyStateWidget(
+              ? EmptyStateWidget(
                   icon: Icons.inventory_2_outlined,
                   title: 'No Products Yet',
                   subtitle: 'Add products before adjusting stock.',
+                  buttonText: 'Add Product',
+                  onButtonPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.addProduct),
                 )
               : SingleChildScrollView(
                   padding: EdgeInsets.all(
@@ -216,238 +270,247 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            GlassPanel(
-                              borderRadius: 20,
-                              padding: const EdgeInsets.all(20),
-                              useContentVariant: true,
+                            // Product selector
+                            GlassSectionCard(
+                              title: 'Product & Location',
+                              icon: Icons.inventory_2_rounded,
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  const Icon(
-                                    Icons.tune_rounded,
-                                    size: 40,
-                                    color: AppTheme.warningColor,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Adjust Stock Count',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Enter the actual physical count after a stock audit. The difference will be recorded automatically.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: AppTheme.textSecondary,
+                                  GestureDetector(
+                                    onTap: widget.product != null
+                                        ? null
+                                        : () => _pickProduct(products),
+                                    child: InputDecorator(
+                                      decoration: InputDecoration(
+                                        labelText: 'Product *',
+                                        prefixIcon: const Icon(Icons.inventory_2_rounded),
+                                        suffixIcon: widget.product == null
+                                            ? const Icon(Icons.arrow_drop_down)
+                                            : null,
+                                        errorText: _selectedProduct == null &&
+                                                _saving
+                                            ? 'Select a product'
+                                            : null,
+                                      ),
+                                      child: Text(
+                                        _selectedProduct?.name ?? 'Tap to select product',
+                                        style: TextStyle(
+                                          color: _selectedProduct != null
+                                              ? AppTheme.textPri(context)
+                                              : AppTheme.textSec(context),
+                                          fontWeight: _selectedProduct != null
+                                              ? FontWeight.w500
+                                              : FontWeight.normal,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ),
+
+                                  if (_selectedProduct != null) ...[
+                                    const SizedBox(height: 12),
+                                    _StockSummary(product: _selectedProduct!),
+                                    const SizedBox(height: 12),
+                                    FormField<String>(
+                                      validator: (_) => _selectedLocation == null ? 'Select a location' : null,
+                                      builder: (field) => GestureDetector(
+                                        onTap: () async {
+                                          final result = await showSearchablePicker(
+                                            context: context,
+                                            title: 'Location',
+                                            selectedValue: _selectedLocation,
+                                            items: allLocations.map((l) {
+                                              final qty = locQty[l];
+                                              return PickerItem(
+                                                value: l,
+                                                label: l,
+                                                subtitle: qty != null ? '$qty ${_selectedProduct!.unit}' : null,
+                                                icon: Icons.place_rounded,
+                                                iconColor: AppTheme.primaryColor,
+                                              );
+                                            }).toList(),
+                                          );
+                                          if (result != null) {
+                                            setState(() {
+                                              _selectedLocation = result;
+                                              _actualCountCtrl.clear();
+                                            });
+                                            field.didChange(result);
+                                          }
+                                        },
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'Location *',
+                                            prefixIcon: const Icon(Icons.place_rounded),
+                                            errorText: field.errorText,
+                                          ),
+                                          child: Text(
+                                            _selectedLocation ?? 'Tap to select',
+                                            style: TextStyle(
+                                              color: _selectedLocation != null ? null : AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 20),
-
-                            GlassSectionCard(
-                              title: 'Product',
-                              icon: Icons.inventory_2_rounded,
-                              child: DropdownButtonFormField<ProductModel>(
-                                initialValue: _selectedProduct,
-                                decoration: const InputDecoration(
-                                  labelText: 'Select Product',
-                                  prefixIcon: Icon(Icons.search_rounded),
-                                ),
-                                isExpanded: true,
-                                items: products
-                                    .map(
-                                      (p) => DropdownMenuItem(
-                                        value: p,
-                                        child: Text(
-                                          p.name,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (p) => setState(() {
-                                  _selectedProduct = p;
-                                  _selectedLocation = null;
-                                  _actualCountCtrl.clear();
-                                }),
-                                validator: (v) =>
-                                    v == null ? 'Select a product' : null,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            GlassSectionCard(
-                              title: 'Location',
-                              icon: Icons.location_on_rounded,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _selectedLocation,
-                                decoration: const InputDecoration(
-                                  labelText: 'Select Location',
-                                  prefixIcon: Icon(Icons.place_rounded),
-                                ),
-                                isExpanded: true,
-                                items: locations
-                                    .map(
-                                      (l) => DropdownMenuItem(
-                                        value: l,
-                                        child: Text(l),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (l) => setState(() {
-                                  _selectedLocation = l;
-                                  _actualCountCtrl.clear();
-                                }),
-                                validator: (v) =>
-                                    v == null ? 'Select a location' : null,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
 
                             if (_selectedProduct != null &&
                                 _selectedLocation != null) ...[
+                              const SizedBox(height: 16),
                               GlassSectionCard(
-                                title: 'Stock Count',
+                                title: 'Adjustment',
                                 icon: Icons.calculate_rounded,
                                 child: Column(
                                   children: [
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: _InfoBox(
-                                            label: 'Current Stock',
-                                            value: '$_currentStock',
-                                            color: AppTheme.textPrimary,
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                'System Stock',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppTheme.textSec(context),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '$_currentStock',
+                                                style: TextStyle(
+                                                  fontSize: 28,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppTheme.textPri(context),
+                                                ),
+                                              ),
+                                              Text(
+                                                _selectedProduct!.unit,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppTheme.textSec(context),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          color: AppTheme.textSec(context).withValues(alpha: 0.4),
+                                        ),
                                         Expanded(
-                                          child: TextFormField(
-                                            controller: _actualCountCtrl,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Actual Count',
-                                              prefixIcon: Icon(
-                                                Icons.edit_rounded,
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                'Actual Count',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppTheme.textSec(context),
+                                                ),
                                               ),
-                                            ),
-                                            keyboardType: TextInputType.number,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter
-                                                  .digitsOnly,
+                                              const SizedBox(height: 4),
+                                              SizedBox(
+                                                width: 100,
+                                                child: TextFormField(
+                                                  controller: _actualCountCtrl,
+                                                  keyboardType: TextInputType.number,
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    fontSize: 28,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                  decoration: InputDecoration(
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                      borderSide: BorderSide.none,
+                                                    ),
+                                                    filled: true,
+                                                    fillColor: AppTheme.inputFill(context),
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(vertical: 8),
+                                                    hintText: '0',
+                                                    hintStyle: TextStyle(
+                                                      color: AppTheme.textSec(context)
+                                                          .withValues(alpha: 0.4),
+                                                    ),
+                                                  ),
+                                                  inputFormatters: [
+                                                    FilteringTextInputFormatter.digitsOnly,
+                                                  ],
+                                                  validator: (v) {
+                                                    if (v == null || v.isEmpty) {
+                                                      return 'Required';
+                                                    }
+                                                    return null;
+                                                  },
+                                                ),
+                                              ),
                                             ],
-                                            onChanged: (_) => setState(() {}),
-                                            validator: (v) {
-                                              if (v == null || v.isEmpty) {
-                                                return 'Required';
-                                              }
-                                              return null;
-                                            },
                                           ),
                                         ),
                                       ],
                                     ),
                                     if (_actualCountCtrl.text.isNotEmpty) ...[
-                                      const SizedBox(height: 16),
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              (_difference == 0
-                                                      ? AppTheme.textSecondary
-                                                      : _difference > 0
-                                                      ? AppTheme.successColor
-                                                      : AppTheme.dangerColor)
-                                                  .withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              _difference == 0
-                                                  ? Icons.check_circle_rounded
-                                                  : _difference > 0
-                                                  ? Icons.arrow_upward_rounded
-                                                  : Icons
-                                                        .arrow_downward_rounded,
-                                              color: _difference == 0
-                                                  ? AppTheme.textSecondary
-                                                  : _difference > 0
-                                                  ? AppTheme.successColor
-                                                  : AppTheme.dangerColor,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              _difference == 0
-                                                  ? 'No difference'
-                                                  : 'Difference: ${_difference > 0 ? '+' : ''}$_difference ${_selectedProduct!.unit}',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                color: _difference == 0
-                                                    ? AppTheme.textSecondary
-                                                    : _difference > 0
-                                                    ? AppTheme.successColor
-                                                    : AppTheme.dangerColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                      const SizedBox(height: 12),
+                                      _DifferenceBadge(
+                                        difference: _difference,
+                                        unit: _selectedProduct!.unit,
                                       ),
                                     ],
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              GlassPanel(
+                                padding: const EdgeInsets.all(12),
+                                child: TextFormField(
+                                  controller: _reasonCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Reason (optional)',
+                                    hintText: 'e.g. Physical count audit',
+                                    prefixIcon: Icon(Icons.notes_rounded),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                  ),
+                                  maxLines: 1,
+                                  textCapitalization: TextCapitalization.sentences,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _saving || _difference == 0
+                                    ? null
+                                    : _submit,
+                                icon: _saving
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.check_rounded),
+                                label: Text(
+                                  _saving
+                                      ? 'Saving...'
+                                      : _difference == 0 &&
+                                              _actualCountCtrl.text.isNotEmpty
+                                          ? 'No Change Needed'
+                                          : 'Apply Adjustment',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.warningColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                             ],
-
-                            GlassSectionCard(
-                              title: 'Reason',
-                              icon: Icons.note_rounded,
-                              child: TextFormField(
-                                controller: _reasonCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'Reason for adjustment',
-                                  hintText: 'e.g. Physical count audit',
-                                  prefixIcon: Icon(Icons.notes_rounded),
-                                ),
-                                maxLines: 2,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            ElevatedButton.icon(
-                              onPressed: _saving ? null : _submit,
-                              icon: _saving
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.check_rounded),
-                              label: Text(
-                                _saving ? 'Saving...' : 'Apply Adjustment',
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.warningColor,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
                           ],
                         ),
                       ),
@@ -460,37 +523,155 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
   }
 }
 
-class _InfoBox extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _InfoBox({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+class _StockSummary extends StatelessWidget {
+  final ProductModel product;
+  const _StockSummary({required this.product});
 
   @override
   Widget build(BuildContext context) {
+    final locQty = product.locationQuantities;
+    if (locQty.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppTheme.warningColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded,
+                size: 16, color: AppTheme.warningColor),
+            const SizedBox(width: 8),
+            Text(
+              'No stock in any location',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.warningColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.inputFillColor,
-        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.inputFill(context),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         children: [
+          ...locQty.entries.map((e) {
+            final isLast = e.key == locQty.keys.last;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        bottom: BorderSide(
+                          color: AppTheme.dividerC(context),
+                          width: 0.5,
+                        ),
+                      ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on_outlined,
+                      size: 14, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      e.key,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  Text(
+                    '${e.value} ${product.unit}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.06),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(10)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSec(context),
+                  ),
+                ),
+                Text(
+                  '${product.quantity} ${product.unit}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DifferenceBadge extends StatelessWidget {
+  final int difference;
+  final String unit;
+  const _DifferenceBadge({required this.difference, required this.unit});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = difference == 0
+        ? AppTheme.textSec(context)
+        : difference > 0
+            ? AppTheme.successColor
+            : AppTheme.dangerColor;
+    final icon = difference == 0
+        ? Icons.check_circle_rounded
+        : difference > 0
+            ? Icons.trending_up_rounded
+            : Icons.trending_down_rounded;
+    final label = difference == 0
+        ? 'No difference'
+        : '${difference > 0 ? '+' : ''}$difference $unit';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
             style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
               color: color,
             ),
           ),

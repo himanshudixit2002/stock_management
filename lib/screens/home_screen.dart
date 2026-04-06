@@ -1,17 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/stock_provider.dart';
+import '../providers/notification_provider.dart';
+import '../providers/favorites_provider.dart';
+import '../providers/home_customization_provider.dart';
+import '../providers/billing_settings_provider.dart';
+import '../providers/settings_provider.dart';
 import '../config/routes.dart';
 import '../config/theme.dart';
 import '../models/user_model.dart';
 import '../models/stock_transaction_model.dart';
 import '../utils/responsive.dart';
+import '../utils/dialogs.dart';
+import '../widgets/feature_tour.dart';
 import 'products/product_list_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
+import '../widgets/animated_list_item.dart';
 import '../widgets/glass_panel.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,6 +36,7 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   DateTime? _lastBackPress;
+  bool _showTour = false;
 
   void switchToTab(int index) {
     setState(() => _currentIndex = index);
@@ -47,11 +60,19 @@ class HomeScreenState extends State<HomeScreen> {
     _loadAnalyticsIfNeeded(index);
   }
 
+  Future<void> _checkFeatureTour() async {
+    final completed = await FeatureTour.isCompleted();
+    if (!completed && mounted) {
+      setState(() => _showTour = true);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadAnalyticsIfNeeded(0);
+      _checkFeatureTour();
     });
   }
 
@@ -98,16 +119,19 @@ class HomeScreenState extends State<HomeScreen> {
 
     if (isWide) {
       scaffold = Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: Row(
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
+                  color: AppTheme.surface(context),
                   border: Border(
-                    right: BorderSide(color: AppTheme.dividerColor, width: 1),
+                    right: BorderSide(
+                      color: AppTheme.dividerC(context),
+                      width: 1,
+                    ),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -121,24 +145,25 @@ class HomeScreenState extends State<HomeScreen> {
                   selectedIndex: safeIndex,
                   onDestinationSelected: (i) => _onTabSelected(i),
                   labelType: NavigationRailLabelType.all,
+                  minWidth: 80,
                   backgroundColor: Colors.transparent,
                   indicatorColor: AppTheme.primaryColor.withValues(alpha: 0.1),
                   selectedIconTheme: const IconThemeData(
                     color: AppTheme.primaryColor,
-                    size: 24,
+                    size: 26,
                   ),
                   unselectedIconTheme: IconThemeData(
-                    color: AppTheme.iconMuted,
-                    size: 22,
+                    color: AppTheme.iconMute(context),
+                    size: 24,
                   ),
                   selectedLabelTextStyle: const TextStyle(
                     color: AppTheme.primaryColor,
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                   unselectedLabelTextStyle: TextStyle(
-                    color: AppTheme.iconMuted,
-                    fontSize: 11,
+                    color: AppTheme.iconMute(context),
+                    fontSize: 12,
                   ),
                   leading: Padding(
                     padding: const EdgeInsets.only(top: 16, bottom: 12),
@@ -180,9 +205,9 @@ class HomeScreenState extends State<HomeScreen> {
       );
     } else {
       scaffold = Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: IndexedStack(
             index: safeIndex,
             children: tabs.map((t) => t.body).toList(),
@@ -196,34 +221,41 @@ class HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final isDark = AppTheme.isDark(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: AppTheme.surfaceColor,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: AppTheme.surface(context),
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
+          if (_currentIndex != 0) {
+            setState(() => _currentIndex = 0);
+            return;
+          }
           final now = DateTime.now();
           if (_lastBackPress != null &&
               now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
-            Navigator.of(context).pop();
+            SystemNavigator.pop();
             return;
           }
           _lastBackPress = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          showInfoSnackBar(context, 'Press back again to exit');
         },
-        child: scaffold,
+        child: Stack(
+          children: [
+            scaffold,
+            if (_showTour)
+              FeatureTour(onComplete: () => setState(() => _showTour = false)),
+          ],
+        ),
       ),
     );
   }
@@ -252,9 +284,11 @@ class _CustomBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: AppTheme.surface(context),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(top: BorderSide(color: AppTheme.dividerColor, width: 1)),
+        border: Border(
+          top: BorderSide(color: AppTheme.dividerC(context), width: 1),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -266,7 +300,7 @@ class _CustomBottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
           child: Row(
             children: List.generate(tabs.length, (i) {
               final isSelected = i == currentIndex;
@@ -281,7 +315,7 @@ class _CustomBottomNav extends StatelessWidget {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -302,7 +336,7 @@ class _CustomBottomNav extends StatelessWidget {
                             isSelected ? tab.icon : tab.inactiveIcon,
                             color: isSelected
                                 ? AppTheme.primaryColor
-                                : AppTheme.textTertiary,
+                                : AppTheme.textTer(context),
                             size: isSelected ? 24 : 22,
                           ),
                         ),
@@ -316,7 +350,7 @@ class _CustomBottomNav extends StatelessWidget {
                                 : FontWeight.w500,
                             color: isSelected
                                 ? AppTheme.primaryColor
-                                : AppTheme.textTertiary,
+                                : AppTheme.textTer(context),
                           ),
                           child: Text(tab.label),
                         ),
@@ -336,14 +370,92 @@ class _CustomBottomNav extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Home Tab
 // ---------------------------------------------------------------------------
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab();
 
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
   static String _greeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good morning,';
     if (hour < 17) return 'Good afternoon,';
     return 'Good evening,';
+  }
+
+  void _showQuickActionsSheet(
+    BuildContext context,
+    List<_SpeedDialItem> items,
+  ) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      constraints: Responsive.sheetConstraints(context),
+      backgroundColor: Colors.transparent,
+      transitionAnimationController: AnimationController(
+        vsync: Navigator.of(context),
+        duration: const Duration(milliseconds: 300),
+      ),
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surface(ctx),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppTheme.textSec(ctx).withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Quick actions',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSec(ctx),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...items.map(
+                (item) => ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: item.color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(item.icon, color: item.color, size: 22),
+                  ),
+                  title: Text(
+                    item.label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPri(ctx),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, item.route);
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -366,182 +478,571 @@ class _HomeTab extends StatelessWidget {
               .toUpperCase()
         : '?';
 
+    final speedDialItems = <_SpeedDialItem>[
+      if (perms['canStockIn'] == true)
+        _SpeedDialItem(
+          Icons.add_circle_rounded,
+          'Stock In',
+          AppTheme.successColor,
+          AppRoutes.stockIn,
+        ),
+      if (perms['canStockOut'] == true)
+        _SpeedDialItem(
+          Icons.remove_circle_rounded,
+          'Stock Out',
+          AppTheme.primaryColor,
+          AppRoutes.stockOut,
+        ),
+      if (perms['canTransfer'] == true)
+        _SpeedDialItem(
+          Icons.swap_horiz_rounded,
+          'Transfer',
+          AppTheme.indigoColor,
+          AppRoutes.stockTransfer,
+        ),
+      if (perms['canDamage'] == true)
+        _SpeedDialItem(
+          Icons.broken_image_rounded,
+          'Damage',
+          AppTheme.dangerColor,
+          AppRoutes.damageReport,
+        ),
+      if (perms['canAdjustStock'] == true)
+        _SpeedDialItem(
+          Icons.tune_rounded,
+          'Adjust',
+          AppTheme.warningColor,
+          AppRoutes.stockAdjustment,
+        ),
+    ];
+
     return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: RefreshIndicator(
-            onRefresh: () async {
-              final pp = context.read<ProductProvider>();
-              pp.invalidateAnalytics();
-              await pp.loadAnalytics();
-            },
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                Responsive.horizontalPadding(context),
-                20,
-                Responsive.horizontalPadding(context),
-                32,
+      child: Stack(
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: Responsive.contentMaxWidth(context),
               ),
-              children: [
-                // Profile bar
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.heroGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  final pp = context.read<ProductProvider>();
+                  pp.invalidateAnalytics();
+                  await pp.loadAnalytics();
+                },
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    Responsive.horizontalPadding(context),
+                    12,
+                    Responsive.horizontalPadding(context),
+                    24,
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 2.5,
-                          ),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface(context),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.inputBorder(context),
                         ),
-                        child: CircleAvatar(
-                          radius: 22,
-                          backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.globalSearch,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search_rounded,
+                                    size: 22,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Search products, vendors, barcodes…',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: AppTheme.textSec(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ),
+                          Consumer<NotificationProvider>(
+                            builder: (context, notifProvider, _) {
+                              final unread = notifProvider.unreadCount;
+                              return IconButton(
+                                icon: Badge(
+                                  isLabelVisible: unread > 0,
+                                  label: Text(
+                                    unread > 99 ? '99+' : '$unread',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.notifications_outlined,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                ),
+                                tooltip: 'Notifications',
+                                onPressed: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.notifications,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Selector<ProductProvider, DateTime?>(
+                      selector: (_, p) => p.analyticsFetchedAt,
+                      builder: (context, fetchedAt, _) {
+                        if (fetchedAt == null) return const SizedBox.shrink();
+                        final ago = DateTime.now().difference(fetchedAt);
+                        String label;
+                        if (ago.inSeconds < 60) {
+                          label = 'Updated just now';
+                        } else if (ago.inMinutes < 60) {
+                          label = 'Updated ${ago.inMinutes}m ago';
+                        } else {
+                          label =
+                              'Updated ${DateFormat.jm().format(fetchedAt)}';
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 2),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textTer(context),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // Profile bar
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.heroGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: AppTheme.coloredShadow(
+                          AppTheme.primaryColor,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 2.5,
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.15,
+                              ),
+                              child: Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _greeting(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  user.name,
+                                  style: const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                if (user.companyName.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.companySwitcher,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            user.companyName,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.95,
+                                              ),
+                                            ),
+                                          ),
+                                          if (user.companyMemberships.length >
+                                              1) ...[
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              Icons.swap_horiz_rounded,
+                                              size: 16,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                            ),
+                            child: Text(
+                              user.isAdmin ? 'ADMIN' : 'STAFF',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Action buttons
+                    if (isWide)
+                      _wideActionButtons(context, perms)
+                    else
+                      _narrowActionButtons(context, perms),
+
+                    const SizedBox(height: 16),
+
+                    _QuickStats(),
+
+                    const SizedBox(height: 16),
+                    const _InsightsCard(),
+
+                    const SizedBox(height: 16),
+                    const _FavoritesSection(),
+
+                    const SizedBox(height: 16),
+                    const _TipOfTheDay(),
+
+                    const SizedBox(height: 16),
+
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _QuickLink(
+                        icon: Icons.dashboard_rounded,
+                        label: 'View Dashboard',
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.dashboard),
+                      ),
+                    ),
+
+                    if (perms['canDamage'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _QuickLink(
+                          icon: Icons.report_problem_rounded,
+                          label: 'Damage Report',
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.damageHistory,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                    if (perms['canImport'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _QuickLink(
+                          icon: Icons.sync_rounded,
+                          label: 'Update from Excel',
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.excelUpdate,
+                          ),
+                        ),
+                      ),
+
+                    // Orders & Customers
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Orders & Customers',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final cols = Responsive.isDesktop(context) ? 4 : 2;
+                        final spacing = 10.0;
+                        final cardWidth =
+                            (constraints.maxWidth - spacing * (cols - 1)) /
+                            cols;
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
                           children: [
-                            Text(
-                              _greeting(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withValues(alpha: 0.7),
-                                fontWeight: FontWeight.w500,
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.receipt_long,
+                                label: 'Purchase Orders',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.purchaseOrders,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              user.name,
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.local_shipping,
+                                label: 'Sales Orders',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.salesOrders,
+                                ),
                               ),
                             ),
-                            if (user.companyName.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  user.companyName,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white.withValues(alpha: 0.95),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.assignment_return,
+                                label: 'Returns',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.returns,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.people,
+                                label: 'Customers',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.customers,
+                                ),
+                              ),
+                            ),
+                            if (context
+                                .watch<BillingSettingsProvider>()
+                                .billingEnabled)
+                              SizedBox(
+                                width: cardWidth,
+                                child: _NavTile(
+                                  icon: Icons.receipt_long_rounded,
+                                  label: 'Billing',
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.invoices,
                                   ),
                                 ),
                               ),
                           ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.15),
+                        );
+                      },
+                    ),
+
+                    // Smart Inventory
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        child: Text(
-                          user.isAdmin ? 'ADMIN' : 'STAFF',
-                          style: const TextStyle(
-                            fontSize: 11,
+                        const SizedBox(width: 8),
+                        Text(
+                          'Smart Inventory',
+                          style: TextStyle(
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.8,
+                            color: AppTheme.textPri(context),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final cols = Responsive.isDesktop(context) ? 4 : 2;
+                        final spacing = 10.0;
+                        final cardWidth =
+                            (constraints.maxWidth - spacing * (cols - 1)) /
+                            cols;
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
+                          children: [
+                            if (context
+                                .watch<SettingsProvider>()
+                                .barcodeEnabled)
+                              SizedBox(
+                                width: cardWidth,
+                                child: _NavTile(
+                                  icon: Icons.qr_code_scanner,
+                                  label: 'Barcode Scanner',
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.barcodeScanner,
+                                  ),
+                                ),
+                              ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.layers,
+                                label: 'Batch Tracking',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.batches,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.shopping_cart_checkout,
+                                label: 'Reorder',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.reorderSuggestions,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.trending_up,
+                                label: 'Stock Forecast',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.stockForecast,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: cardWidth,
+                              child: _NavTile(
+                                icon: Icons.fact_check,
+                                label: 'Stock Take',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.stockTakes,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    const _RecentActivity(),
+                  ],
                 ),
-
-                const SizedBox(height: 24),
-
-                // Action buttons
-                if (isWide)
-                  _wideActionButtons(context, perms)
-                else
-                  _narrowActionButtons(context, perms),
-
-                const SizedBox(height: 24),
-
-                _QuickStats(),
-
-                const SizedBox(height: 24),
-
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _QuickLink(
-                    icon: Icons.dashboard_rounded,
-                    label: 'View Dashboard',
-                    onTap: () =>
-                        Navigator.pushNamed(context, AppRoutes.dashboard),
-                  ),
-                ),
-
-                if (perms['canDamage'] == true)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _QuickLink(
-                      icon: Icons.report_problem_rounded,
-                      label: 'Damage Report',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.damageHistory),
-                    ),
-                  ),
-
-                if (perms['canManageCategories'] == true)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _QuickLink(
-                      icon: Icons.category_rounded,
-                      label: 'Manage Categories',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.categories),
-                    ),
-                  ),
-
-                if (perms['canImport'] == true)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _QuickLink(
-                      icon: Icons.sync_rounded,
-                      label: 'Update from Excel',
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.excelUpdate),
-                    ),
-                  ),
-
-                const _RecentActivity(),
-              ],
+              ),
             ),
           ),
-        ),
+          if (speedDialItems.isNotEmpty)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.elasticOut,
+                builder: (context, value, child) =>
+                    Transform.scale(scale: value, child: child),
+                child: FloatingActionButton(
+                  heroTag: 'speed_dial_main',
+                  tooltip: 'Quick actions',
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  onPressed: () =>
+                      _showQuickActionsSheet(context, speedDialItems),
+                  child: const Icon(Icons.flash_on_rounded),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -549,10 +1050,11 @@ class _HomeTab extends StatelessWidget {
   Widget _wideActionButtons(BuildContext context, Map<String, bool> perms) {
     final buttons = _buildActionButtons(context, perms);
     if (buttons.isEmpty) return const SizedBox.shrink();
-    final spaced = buttons
-        .expand((b) => [Expanded(child: b), const SizedBox(width: 12)])
-        .toList()
-      ..removeLast();
+    final spaced =
+        buttons
+            .expand((b) => [Expanded(child: b), const SizedBox(width: 12)])
+            .toList()
+          ..removeLast();
     return Row(children: spaced);
   }
 
@@ -576,60 +1078,27 @@ class _HomeTab extends StatelessWidget {
     BuildContext context,
     Map<String, bool> perms,
   ) {
-    final List<Widget> buttons = [];
-
-    if (perms['canStockIn'] == true) {
-      buttons.add(
-        _ActionCard(
-          icon: Icons.add_circle_rounded,
-          label: 'Stock In',
-          gradient: AppTheme.successGradient,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.stockIn),
-        ),
-      );
-    }
-    if (perms['canStockOut'] == true) {
-      buttons.add(
-        _ActionCard(
-          icon: Icons.remove_circle_rounded,
-          label: 'Stock Out',
-          gradient: AppTheme.primaryGradient,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.stockOut),
-        ),
-      );
-    }
-    if (perms['canDamage'] == true) {
-      buttons.add(
-        _ActionCard(
-          icon: Icons.broken_image_rounded,
-          label: 'Damage',
-          gradient: AppTheme.dangerGradient,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.damageReport),
-        ),
-      );
-    }
-    if (perms['canTransfer'] == true) {
-      buttons.add(
-        _ActionCard(
-          icon: Icons.swap_horiz_rounded,
-          label: 'Transfer',
-          gradient: AppTheme.indigoGradient,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.stockTransfer),
-        ),
-      );
-    }
-    if (perms['canAdjustStock'] == true) {
-      buttons.add(
-        _ActionCard(
-          icon: Icons.tune_rounded,
-          label: 'Adjust',
-          gradient: AppTheme.warningGradient,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.stockAdjustment),
-        ),
-      );
-    }
-
-    return buttons;
+    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
+    final settings = context.watch<SettingsProvider>();
+    final actions = context
+        .watch<HomeCustomizationProvider>()
+        .getVisibleActions(
+          perms,
+          billingEnabled: billingOn,
+          barcodeEnabled: settings.barcodeEnabled,
+          vendorsEnabled: settings.vendorsEnabled,
+          pricingEnabled: settings.pricingEnabled,
+        );
+    return actions
+        .map(
+          (action) => _ActionCard(
+            icon: action.icon,
+            label: action.label,
+            gradient: action.gradient,
+            onTap: () => Navigator.pushNamed(context, action.route),
+          ),
+        )
+        .toList();
   }
 }
 
@@ -658,7 +1127,10 @@ class _ActionCardState extends State<_ActionCard> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
         setState(() => _pressed = false);
@@ -707,6 +1179,7 @@ class _ActionCardState extends State<_ActionCard> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -724,7 +1197,8 @@ class _QuickStats extends StatelessWidget {
         auth.currentUser?.effectivePermissions ?? UserModel.defaultPermissions;
 
     final isInitialLoading = productProvider.isLoading;
-    final isRefiningData = productProvider.isLoadingAnalytics &&
+    final isRefiningData =
+        productProvider.isLoadingAnalytics &&
         !productProvider.isAnalyticsLoaded;
     final totalProducts = productProvider.totalProducts;
     final lowStock = productProvider.lowStockCount;
@@ -763,78 +1237,93 @@ class _QuickStats extends StatelessWidget {
           ),
         LayoutBuilder(
           builder: (context, constraints) {
-            final cardWidth = (constraints.maxWidth - 10) / 2;
+            final cols = Responsive.isDesktop(context) ? 4 : 2;
+            final spacing = 10.0;
+            final cardWidth =
+                (constraints.maxWidth - spacing * (cols - 1)) / cols;
             return Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: spacing,
+              runSpacing: spacing,
               children: [
-                SizedBox(
-                  width: cardWidth,
-                  child: _StatCard(
-                    label: 'Products',
-                    value: totalProducts,
-                    icon: Icons.inventory_2_rounded,
-                    color: AppTheme.primaryColor,
-                    isLoading: isInitialLoading,
-                    onTap: () {
-                      final idx = tabIndexFor('Products');
-                      if (idx > 0) {
-                        context
-                            .findAncestorStateOfType<HomeScreenState>()
-                            ?.switchToTab(idx);
-                      }
-                    },
+                AnimatedListItem(
+                  index: 0,
+                  child: SizedBox(
+                    width: cardWidth,
+                    child: _StatCard(
+                      label: 'Products',
+                      value: totalProducts,
+                      icon: Icons.inventory_2_rounded,
+                      color: AppTheme.primaryColor,
+                      isLoading: isInitialLoading,
+                      onTap: () {
+                        final idx = tabIndexFor('Products');
+                        if (idx > 0) {
+                          context
+                              .findAncestorStateOfType<HomeScreenState>()
+                              ?.switchToTab(idx);
+                        }
+                      },
+                    ),
                   ),
                 ),
-                SizedBox(
-                  width: cardWidth,
-                  child: _StatCard(
-                    label: 'Low Stock',
-                    value: lowStock,
-                    icon: Icons.warning_amber_rounded,
-                    color: lowStock > 0
-                        ? AppTheme.warningColor
-                        : AppTheme.successColor,
-                    isLoading: isInitialLoading,
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.lowStock);
-                    },
+                AnimatedListItem(
+                  index: 1,
+                  child: SizedBox(
+                    width: cardWidth,
+                    child: _StatCard(
+                      label: 'Low Stock',
+                      value: lowStock,
+                      icon: Icons.warning_amber_rounded,
+                      color: lowStock > 0
+                          ? AppTheme.warningColor
+                          : AppTheme.successColor,
+                      isLoading: isInitialLoading,
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.lowStock);
+                      },
+                    ),
                   ),
                 ),
-                SizedBox(
-                  width: cardWidth,
-                  child: _StatCard(
-                    label: 'Out of Stock',
-                    value: outOfStock,
-                    icon: Icons.remove_shopping_cart_rounded,
-                    color: AppTheme.dangerColor,
-                    isLoading: isInitialLoading,
-                    onTap: () {
-                      final idx = tabIndexFor('Products');
-                      if (idx > 0) {
-                        productProvider.filterByStockStatus('out_of_stock');
-                        context
-                            .findAncestorStateOfType<HomeScreenState>()
-                            ?.switchToTab(idx);
-                      }
-                    },
+                AnimatedListItem(
+                  index: 2,
+                  child: SizedBox(
+                    width: cardWidth,
+                    child: _StatCard(
+                      label: 'Out of Stock',
+                      value: outOfStock,
+                      icon: Icons.remove_shopping_cart_rounded,
+                      color: AppTheme.dangerColor,
+                      isLoading: isInitialLoading,
+                      onTap: () {
+                        final idx = tabIndexFor('Products');
+                        if (idx > 0) {
+                          productProvider.filterByStockStatus('out_of_stock');
+                          context
+                              .findAncestorStateOfType<HomeScreenState>()
+                              ?.switchToTab(idx);
+                        }
+                      },
+                    ),
                   ),
                 ),
-                SizedBox(
-                  width: cardWidth,
-                  child: _StatCard(
-                    label: 'Today',
-                    value: todayTxns,
-                    icon: Icons.receipt_long_rounded,
-                    color: AppTheme.infoColor,
-                    onTap: () {
-                      final idx = tabIndexFor('Reports');
-                      if (idx > 0) {
-                        context
-                            .findAncestorStateOfType<HomeScreenState>()
-                            ?.switchToTab(idx);
-                      }
-                    },
+                AnimatedListItem(
+                  index: 3,
+                  child: SizedBox(
+                    width: cardWidth,
+                    child: _StatCard(
+                      label: 'Today',
+                      value: todayTxns,
+                      icon: Icons.receipt_long_rounded,
+                      color: AppTheme.infoColor,
+                      onTap: () {
+                        final idx = tabIndexFor('Reports');
+                        if (idx > 0) {
+                          context
+                              .findAncestorStateOfType<HomeScreenState>()
+                              ?.switchToTab(idx);
+                        }
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -906,9 +1395,9 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.textSecondary,
+                color: AppTheme.textSec(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -958,11 +1447,485 @@ class _QuickLink extends StatelessWidget {
             const Spacer(),
             Icon(
               Icons.arrow_forward_ios_rounded,
-              color: AppTheme.iconMuted,
+              color: AppTheme.iconMute(context),
               size: 16,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Compact nav tile for grid sections
+// ---------------------------------------------------------------------------
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onTap: onTap,
+      borderRadius: 14,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: AppTheme.primaryColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPri(context),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Insights Card (auto-rotating)
+// ---------------------------------------------------------------------------
+class _InsightItem {
+  final IconData icon;
+  final String text;
+  final String route;
+  const _InsightItem(this.icon, this.text, this.route);
+}
+
+class _InsightsCard extends StatefulWidget {
+  const _InsightsCard();
+
+  @override
+  State<_InsightsCard> createState() => _InsightsCardState();
+}
+
+class _InsightsCardState extends State<_InsightsCard> {
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) setState(() => _index++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pp = context.watch<ProductProvider>();
+    final sp = context.watch<StockProvider>();
+
+    final now = DateTime.now();
+    final todayTxns = sp.allTransactions
+        .where(
+          (t) =>
+              t.date.year == now.year &&
+              t.date.month == now.month &&
+              t.date.day == now.day,
+        )
+        .length;
+
+    final insights = <_InsightItem>[
+      _InsightItem(
+        Icons.warning_amber_rounded,
+        'You have ${pp.lowStockCount} products below reorder level',
+        AppRoutes.lowStock,
+      ),
+      _InsightItem(
+        Icons.receipt_long_rounded,
+        'Total $todayTxns transactions today',
+        AppRoutes.transactionHistory,
+      ),
+      _InsightItem(
+        Icons.remove_shopping_cart_rounded,
+        '${pp.outOfStockCount} products out of stock',
+        AppRoutes.lowStock,
+      ),
+    ];
+
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    final current = insights[_index % insights.length];
+
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, current.route),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.primaryColor.withValues(alpha: 0.08),
+              AppTheme.warningColor.withValues(alpha: 0.06),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.primaryColor.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.warningColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.lightbulb_rounded,
+                color: AppTheme.warningColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                transitionBuilder: (child, anim) =>
+                    FadeTransition(opacity: anim, child: child),
+                child: Row(
+                  key: ValueKey<int>(_index % insights.length),
+                  children: [
+                    Icon(
+                      current.icon,
+                      size: 16,
+                      color: AppTheme.textSec(context),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        current.text,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppTheme.iconMute(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Favorites quick access
+// ---------------------------------------------------------------------------
+class _FavoritesSection extends StatelessWidget {
+  const _FavoritesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final favProvider = context.watch<FavoritesProvider>();
+    final productProvider = context.watch<ProductProvider>();
+
+    final favIds = favProvider.ids;
+    if (favIds.isEmpty) return const SizedBox.shrink();
+
+    final favProducts = productProvider.allProducts
+        .where((p) => favIds.contains(p.id))
+        .toList();
+    if (favProducts.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 18,
+              decoration: BoxDecoration(
+                color: AppTheme.dangerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Favorites',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPri(context),
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.favorites),
+              child: Text(
+                'View All',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (Responsive.isDesktop(context))
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: favProducts.map((product) {
+              return GestureDetector(
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.productDetail,
+                  arguments: product,
+                ),
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface(context),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppTheme.dividerC(context)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.favorite_rounded,
+                        size: 14,
+                        color: AppTheme.dangerColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        product.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          )
+        else
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: favProducts.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final product = favProducts[i];
+                return GestureDetector(
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.productDetail,
+                    arguments: product,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface(context),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.dividerC(context)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.favorite_rounded,
+                          size: 14,
+                          color: AppTheme.dangerColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          product.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tip of the Day
+// ---------------------------------------------------------------------------
+class _TipOfTheDay extends StatefulWidget {
+  const _TipOfTheDay();
+
+  @override
+  State<_TipOfTheDay> createState() => _TipOfTheDayState();
+}
+
+class _TipOfTheDayState extends State<_TipOfTheDay> {
+  static const _tips = [
+    'Use the barcode scanner to quickly find products by scanning their barcode.',
+    'Set low stock thresholds on each product so you get alerts before running out.',
+    'Export your inventory to Excel for easy sharing with your team.',
+    'Use the Stock Transfer feature to move items between warehouse locations.',
+    'Check the Dashboard regularly for visual insights into your inventory health.',
+    'Use the Damage Report to track and write off damaged goods properly.',
+    'Create purchase orders to streamline your restocking workflow.',
+    'Use batch tracking to monitor product expiry dates and lot numbers.',
+    'The ABC Analysis report helps you focus on your highest-value products.',
+    'Set up staff permissions to control who can perform stock operations.',
+    'Use the audit log to track every change made in the system.',
+    'Pin your most-used products as favorites for quick access from Home.',
+    'The profit & loss report gives you a clear picture of your margins.',
+    'Use the global search to find any product, vendor, or transaction instantly.',
+  ];
+
+  bool _dismissed = false;
+  bool _loaded = false;
+
+  String get _prefKey =>
+      'tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDismissed();
+  }
+
+  Future<void> _checkDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dismissed = prefs.getBool(_prefKey) ?? false;
+    if (mounted)
+      setState(() {
+        _dismissed = dismissed;
+        _loaded = true;
+      });
+  }
+
+  Future<void> _dismiss() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKey, true);
+    if (mounted) setState(() => _dismissed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || _dismissed) return const SizedBox.shrink();
+
+    final dayIndex = DateTime.now().difference(DateTime(2024)).inDays;
+    final tip = _tips[dayIndex % _tips.length];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.infoColor.withValues(alpha: 0.08),
+            AppTheme.primaryColor.withValues(alpha: 0.06),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.infoColor.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.infoColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.lightbulb_rounded,
+              color: AppTheme.infoColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tip of the Day',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.infoColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tip,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppTheme.textPri(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: AppTheme.iconMute(context),
+            ),
+            tooltip: 'Dismiss',
+            onPressed: _dismiss,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
       ),
     );
   }
@@ -998,7 +1961,7 @@ class _RecentActivity extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: AppTheme.textPri(context),
               ),
             ),
             const Spacer(),
@@ -1022,19 +1985,22 @@ class _RecentActivity extends StatelessWidget {
         if (recent.isEmpty)
           GlassPanel(
             borderRadius: 20,
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(20),
             useContentVariant: true,
             child: Column(
               children: [
                 Icon(
                   Icons.history_rounded,
                   size: 40,
-                  color: AppTheme.emptyStateIcon,
+                  color: AppTheme.emptyIcon(context),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'No recent transactions',
-                  style: TextStyle(color: AppTheme.textTertiary, fontSize: 14),
+                  style: TextStyle(
+                    color: AppTheme.textTer(context),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -1146,7 +2112,7 @@ class _TransactionTile extends StatelessWidget {
                       txn.location,
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textTertiary,
+                        color: AppTheme.textTer(context),
                       ),
                     ),
                   ],
@@ -1178,7 +2144,7 @@ class _TransactionTile extends StatelessWidget {
                     timeAgo,
                     style: TextStyle(
                       fontSize: 10,
-                      color: AppTheme.textTertiary,
+                      color: AppTheme.textTer(context),
                     ),
                   ),
                 ],
@@ -1189,4 +2155,12 @@ class _TransactionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SpeedDialItem {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String route;
+  const _SpeedDialItem(this.icon, this.label, this.color, this.route);
 }

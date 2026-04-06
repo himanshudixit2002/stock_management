@@ -12,10 +12,12 @@ import '../../providers/settings_provider.dart';
 import '../../models/vendor_model.dart';
 import '../../models/product_model.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
+import '../../config/permissions.dart';
 
 class ExcelImportScreen extends StatefulWidget {
   const ExcelImportScreen({super.key});
@@ -129,12 +131,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       if (user == null) {
         setState(() => _isImporting = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session expired. Please log in again.'),
-              backgroundColor: AppTheme.dangerColor,
-            ),
-          );
+          showErrorSnackBar(context, 'Session expired. Please log in again.');
         }
         return;
       }
@@ -209,7 +206,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         throw Exception('Failed to process product data: $e');
       }
 
-      // Sync companies, locations, sizes from import to Settings so filters work
+      // Sync companies, locations, sub-categories from import to Settings so filters work
       final companies = products
           .map((p) => p.company)
           .where((c) => c.trim().isNotEmpty)
@@ -233,63 +230,64 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       }
       if (sizes.isNotEmpty) await settingsProvider.addSizesFromImport(sizes);
 
-      // Check for potential duplicates and warn user
-      final existingKeys = productProvider.allProducts.map((p) {
-        final n = (p.name).trim().toLowerCase();
-        final c = (p.categoryName).trim().toLowerCase();
-        final co = (p.company).trim().toLowerCase();
-        final s = (p.size).trim().toLowerCase();
-        return '$n|$c|$co|$s';
-      }).toSet();
-      int potentialDuplicates = 0;
-      for (final p in products) {
-        final key =
-            '${(p.name).trim().toLowerCase()}|${(p.categoryName).trim().toLowerCase()}|${(p.company).trim().toLowerCase()}|${(p.size).trim().toLowerCase()}';
-        if (existingKeys.contains(key)) potentialDuplicates++;
-      }
-      if (potentialDuplicates > 0 && mounted) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Potential Duplicates'),
-            content: Text(
-              '$potentialDuplicates product(s) may already exist with the same name, category, company, and size. Importing will create duplicates.\n\nDo you want to continue?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.warningColor,
-                ),
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
+      // Smart merge: match by barcode then composite key
+      final mergeResult = _excelService.matchExistingProducts(
+        importedProducts: products,
+        existingProducts: productProvider.allProducts,
+      );
+
+      if (mergeResult.updateCount > 0 && mounted) {
+        final proceed = await showConfirmDialog(
+          context,
+          title: 'Smart Merge',
+          message:
+              '${mergeResult.updateCount} product(s) match existing products and will be updated (quantities add up, prices overwrite).\n'
+              '${mergeResult.newCount} new product(s) will be created.\n\n'
+              'Continue?',
+          confirmLabel: 'Import & Merge',
+          iconColor: AppTheme.infoColor,
+          icon: Icons.merge_rounded,
         );
-        if (proceed != true) {
+        if (!proceed) {
           setState(() => _isImporting = false);
           return;
         }
       }
 
-      int count = 0;
-      try {
-        count = await productProvider.bulkAddProducts(
-          products,
-          userId: user.uid,
-          userName: user.name,
-        );
-      } catch (e) {
-        throw Exception('Failed to save products to database: $e');
+      int updatedCount = 0;
+      int createdCount = 0;
+
+      // Update existing products
+      if (mergeResult.updates.isNotEmpty) {
+        try {
+          final mergedProducts = mergeResult.updates.map((m) => m.merged).toList();
+          updatedCount = await productProvider.bulkUpdateProducts(
+            mergedProducts,
+            userId: user.uid,
+            userName: user.name,
+          );
+        } catch (e) {
+          throw Exception('Failed to update existing products: $e');
+        }
+      }
+
+      // Create new products
+      if (mergeResult.newProducts.isNotEmpty) {
+        try {
+          createdCount = await productProvider.bulkAddProducts(
+            mergeResult.newProducts,
+            userId: user.uid,
+            userName: user.name,
+          );
+        } catch (e) {
+          throw Exception('Failed to create new products: $e');
+        }
       }
 
       setState(() => _isImporting = false);
 
-      if (count == 0) {
+      final total = updatedCount + createdCount;
+      if (total == 0) {
         throw Exception(
           productProvider.errorMessage ??
               'No products were imported. Please try again.',
@@ -297,12 +295,10 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Successfully imported $count products!'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
+        final parts = <String>[];
+        if (updatedCount > 0) parts.add('$updatedCount updated');
+        if (createdCount > 0) parts.add('$createdCount created');
+        showSuccessSnackBar(context, 'Import complete: ${parts.join(', ')}');
         Navigator.pop(context);
       }
     } catch (e) {
@@ -322,10 +318,21 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
     });
   }
 
+  Future<void> _onPullRefreshCatalog() async {
+    final product = context.read<ProductProvider>();
+    final cid = product.companyId;
+    if (cid.isNotEmpty) {
+      await product.refreshProducts();
+      if (!mounted) return;
+      context.read<CategoryProvider>().initialize(companyId: cid);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission('canImport')) {
+    if (user == null || !user.hasPermission(AppPermissions.importData)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Import Data')),
         body: const Center(
@@ -335,7 +342,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: AppBarTitleRow(
           icon: Icons.file_upload_rounded,
@@ -344,43 +351,47 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: Responsive.contentMaxWidth(context),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildStepSection(
-                    stepNumber: 1,
-                    title: 'Prepare Your File',
-                    isActive: true,
-                    isCompleted: _currentStep > 1,
-                    hasConnector: true,
-                    child: _buildStep1Content(),
-                  ),
-                  _buildStepSection(
-                    stepNumber: 2,
-                    title: 'Select & Upload File',
-                    isActive: _currentStep >= 2,
-                    isCompleted: _currentStep > 2,
-                    hasConnector: true,
-                    child: _buildStep2Content(),
-                  ),
-                  _buildStepSection(
-                    stepNumber: 3,
-                    title: 'Preview & Import',
-                    isActive: _currentStep >= 3,
-                    isCompleted: false,
-                    hasConnector: false,
-                    child: _buildStep3Content(),
-                  ),
-                  const SizedBox(height: 32),
-                ],
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: RefreshIndicator(
+          onRefresh: _onPullRefreshCatalog,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.contentMaxWidth(context),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStepSection(
+                      stepNumber: 1,
+                      title: 'Prepare Your File',
+                      isActive: true,
+                      isCompleted: _currentStep > 1,
+                      hasConnector: true,
+                      child: _buildStep1Content(),
+                    ),
+                    _buildStepSection(
+                      stepNumber: 2,
+                      title: 'Select & Upload File',
+                      isActive: _currentStep >= 2,
+                      isCompleted: _currentStep > 2,
+                      hasConnector: true,
+                      child: _buildStep2Content(),
+                    ),
+                    _buildStepSection(
+                      stepNumber: 3,
+                      title: 'Preview & Import',
+                      isActive: _currentStep >= 3,
+                      isCompleted: false,
+                      hasConnector: false,
+                      child: _buildStep3Content(),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ),
           ),
@@ -401,7 +412,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         ? AppTheme.successColor
         : isActive
         ? AppTheme.primaryColor
-        : AppTheme.textSecondary.withValues(alpha: 0.3);
+        : AppTheme.textSec(context).withValues(alpha: 0.3);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,17 +428,17 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
               ),
               child: Center(
                 child: isCompleted
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_rounded,
-                        color: AppTheme.surfaceColor,
+                        color: AppTheme.surface(context),
                         size: 18,
                       )
                     : Text(
                         '$stepNumber',
                         style: TextStyle(
                           color: isActive
-                              ? AppTheme.surfaceColor
-                              : AppTheme.textSecondary,
+                              ? AppTheme.surface(context)
+                              : AppTheme.textSec(context),
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
@@ -440,7 +451,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                 height: 24,
                 color: isCompleted
                     ? AppTheme.successColor.withValues(alpha: 0.4)
-                    : AppTheme.dividerColor,
+                    : AppTheme.dividerC(context),
               ),
           ],
         ),
@@ -457,8 +468,8 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: isActive
-                        ? AppTheme.textPrimary
-                        : AppTheme.textSecondary,
+                        ? AppTheme.textPri(context)
+                        : AppTheme.textSec(context),
                   ),
                 ),
               ),
@@ -502,9 +513,9 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Your file should have these columns (with or without headers):',
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
           ),
           const SizedBox(height: 10),
           _buildColumnTable(),
@@ -552,24 +563,16 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                             .generateImportTemplate();
                         await _excelService.saveAndShare(result);
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Template downloaded successfully.',
-                              ),
-                              backgroundColor: AppTheme.successColor,
-                            ),
+                          showSuccessSnackBar(
+                            context,
+                            'Template downloaded successfully.',
                           );
                         }
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Could not generate template: ${e.toString().replaceAll('Exception: ', '')}',
-                              ),
-                              backgroundColor: AppTheme.dangerColor,
-                            ),
+                          showErrorSnackBar(
+                            context,
+                            'Could not generate template: ${e.toString().replaceAll('Exception: ', '')}',
                           );
                         }
                       } finally {
@@ -609,39 +612,27 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
   }
 
   Future<void> _runSyncFromProducts(BuildContext context) async {
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sync Settings from existing products'),
-        content: const Text(
-          'Add companies, locations, and sizes from your existing products to Settings. '
+    final proceed = await showConfirmDialog(
+      context,
+      title: 'Sync Settings from existing products',
+      message:
+          'Add companies, locations, and sub-categories from your existing products to Settings. '
           'Use this if you imported products before this sync was available.\n\n'
           'This will read all products. For large inventories it may take a moment.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sync'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Sync',
+      icon: Icons.sync_rounded,
+      iconColor: AppTheme.primaryColor,
     );
-    if (proceed != true || !context.mounted) return;
+    if (!proceed || !context.mounted) return;
 
     setState(() => _isLoading = true);
     try {
       final user = context.read<AuthProvider>().currentUser;
       if (user == null || user.companyId.isEmpty) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not determine company. Please try again.'),
-              backgroundColor: AppTheme.dangerColor,
-            ),
+          showErrorSnackBar(
+            context,
+            'Could not determine company. Please try again.',
           );
         }
         return;
@@ -656,26 +647,13 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       await settingsProvider.syncFromProductList(products);
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Companies: ${settingsProvider.companies.length}, '
-            'Locations: ${settingsProvider.locations.length}, '
-            'Sizes: ${settingsProvider.sizes.length}',
-          ),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-        ),
+      showSuccessSnackBar(
+        context,
+        'Companies: ${settingsProvider.companies.length}, Locations: ${settingsProvider.locations.length}, Sub-Categories: ${settingsProvider.sizes.length}',
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: ${e.toString()}'),
-            backgroundColor: AppTheme.dangerColor,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showErrorSnackBar(context, 'Sync failed: ${e.toString()}');
       }
     } finally {
       if (context.mounted) setState(() => _isLoading = false);
@@ -689,6 +667,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       ['Category', ''],
       ['Company', ''],
       ['Size', ''],
+      ['Barcode', 'for matching'],
       ['Locations', 'pos1 or pos1:123'],
       ['Quantity', ''],
       ['Unit', 'default: pcs'],
@@ -702,7 +681,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.dividerColor),
+        border: Border.all(color: AppTheme.dividerC(context)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
@@ -734,7 +713,10 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
               (col) => TableRow(
                 decoration: BoxDecoration(
                   border: Border(
-                    top: BorderSide(color: AppTheme.dividerColor, width: 0.5),
+                    top: BorderSide(
+                      color: AppTheme.dividerC(context),
+                      width: 0.5,
+                    ),
                   ),
                 ),
                 children: [
@@ -756,7 +738,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                         fontSize: 11,
                         color: col[1] == 'required'
                             ? AppTheme.dangerColor
-                            : AppTheme.textSecondary,
+                            : AppTheme.textSec(context),
                         fontWeight: col[1] == 'required'
                             ? FontWeight.w600
                             : FontWeight.normal,
@@ -864,12 +846,12 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           InkWell(
             onTap: _clearFile,
             borderRadius: BorderRadius.circular(12),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
               child: Icon(
                 Icons.close_rounded,
                 size: 16,
-                color: AppTheme.textSecondary,
+                color: AppTheme.textSec(context),
               ),
             ),
           ),
@@ -883,23 +865,23 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppTheme.inputFillColor,
+          color: AppTheme.inputFill(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.dividerColor),
+          border: Border.all(color: AppTheme.dividerC(context)),
         ),
         child: Column(
           children: [
             Icon(
               Icons.table_chart_outlined,
               size: 36,
-              color: AppTheme.textSecondary.withValues(alpha: 0.4),
+              color: AppTheme.textSec(context).withValues(alpha: 0.4),
             ),
             const SizedBox(height: 8),
             Text(
               'Data preview will appear here after you select a file.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                color: AppTheme.textSec(context).withValues(alpha: 0.7),
                 fontSize: 13,
               ),
             ),
@@ -986,26 +968,26 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppTheme.warningColor.withValues(alpha: 0.06),
+            color: AppTheme.infoColor.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppTheme.warningColor.withValues(alpha: 0.15),
+              color: AppTheme.infoColor.withValues(alpha: 0.15),
             ),
           ),
           child: Row(
             children: [
               Icon(
-                Icons.warning_amber_rounded,
+                Icons.merge_rounded,
                 size: 20,
-                color: AppTheme.warningColor,
+                color: AppTheme.infoColor,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Note: Importing will create new products. To update stock for existing products, use the Stock In feature.',
+                  'Smart merge: Existing products (matched by barcode or name+category+company+size) will be updated. Quantities add up, prices overwrite. Unmatched rows become new products.',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.warningColor.withValues(alpha: 0.9),
+                    color: AppTheme.infoColor.withValues(alpha: 0.9),
                   ),
                 ),
               ),
@@ -1129,12 +1111,12 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         ElevatedButton.icon(
           onPressed: _isImporting ? null : _importData,
           icon: _isImporting
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppTheme.surfaceColor,
+                    color: AppTheme.surface(context),
                   ),
                 )
               : const Icon(Icons.cloud_upload_rounded),

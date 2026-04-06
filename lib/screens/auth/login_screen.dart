@@ -6,6 +6,8 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/glass_panel.dart';
+import '../../utils/dialogs.dart';
+import '../../utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,95 +34,210 @@ class _LoginScreenState extends State<LoginScreen> {
       text: _emailController.text.trim(),
     );
     final resetFormKey = GlobalKey<FormState>();
+    bool isSending = false;
 
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.lock_reset_rounded,
-                color: AppTheme.primaryColor,
-                size: 20,
+      constraints: Responsive.sheetConstraints(context),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.surface(context),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 4),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTheme.dividerC(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.lock_reset_rounded,
+                            color: AppTheme.primaryColor,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          'Reset Password',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetCtx),
+                          icon: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface(context),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: AppTheme.textSec(context),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    child: Form(
+                      key: resetFormKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Enter your email address and we\'ll send you a link to reset your password.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.textSec(context),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: resetEmailController,
+                            decoration: const InputDecoration(
+                              labelText: 'Email Address',
+                              prefixIcon: Icon(Icons.email_outlined),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            validator: validateEmail,
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: isSending
+                                      ? null
+                                      : () => Navigator.pop(sheetCtx),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    side: BorderSide(
+                                      color: AppTheme.dividerC(context),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: isSending
+                                      ? null
+                                      : () async {
+                                          if (!resetFormKey.currentState!
+                                              .validate()) {
+                                            return;
+                                          }
+                                          setSheetState(
+                                            () => isSending = true,
+                                          );
+                                          final authProvider =
+                                              context.read<AuthProvider>();
+                                          final success =
+                                              await authProvider
+                                                  .resetPassword(
+                                            resetEmailController.text
+                                                .trim(),
+                                          );
+                                          if (sheetCtx.mounted) {
+                                            Navigator.pop(sheetCtx);
+                                          }
+                                          if (mounted) {
+                                            if (success) {
+                                              showSuccessSnackBar(context, 'Password reset email sent! Check your inbox.');
+                                            } else {
+                                              showErrorSnackBar(context, authProvider.errorMessage ?? 'Failed to send reset email');
+                                            }
+                                            authProvider.clearError();
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: isSending
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child:
+                                              CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Send Reset Link',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            const Text('Reset Password'),
-          ],
-        ),
-        content: Form(
-          key: resetFormKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter your email address and we\'ll send you a link to reset your password.',
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: resetEmailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
-                  }
-                  return null;
-                },
-              ),
-            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (!resetFormKey.currentState!.validate()) return;
-              Navigator.pop(dialogContext);
-
-              final authProvider = context.read<AuthProvider>();
-              final success = await authProvider.resetPassword(
-                resetEmailController.text.trim(),
-              );
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Password reset email sent! Check your inbox.'
-                          : authProvider.errorMessage ??
-                                'Failed to send reset email',
-                    ),
-                    backgroundColor: success
-                        ? AppTheme.successColor
-                        : AppTheme.dangerColor,
-                    duration: const Duration(seconds: 5),
-                  ),
-                );
-                authProvider.clearError();
-              }
-            },
-            child: const Text('Send Reset Link'),
-          ),
-        ],
       ),
     );
   }
@@ -144,9 +261,9 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -157,7 +274,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
-                  child: Form(
+                  child: AutofillGroup(
+                    child: Form(
                     key: _formKey,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -183,26 +301,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 28),
 
-                        Hero(
-                          tag: 'app-logo',
-                          child: GlassPanel(
-                            borderRadius: 24,
-                            padding: const EdgeInsets.all(16),
-                            useContentVariant: true,
-                            child: Image.asset(
-                              'logo.png',
-                              width: 64,
-                              height: 64,
-                            ),
+                        GlassPanel(
+                          borderRadius: 24,
+                          padding: const EdgeInsets.all(16),
+                          useContentVariant: true,
+                          child: Image.asset(
+                            'logo.png',
+                            width: 64,
+                            height: 64,
                           ),
                         ),
                         const SizedBox(height: 24),
-                        const Text(
+                        Text(
                           'Welcome back',
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            color: AppTheme.textPrimary,
+                            color: AppTheme.textPri(context),
                             letterSpacing: -0.5,
                           ),
                           textAlign: TextAlign.center,
@@ -212,7 +327,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Sign in to manage your inventory',
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -274,15 +389,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 hint: 'Enter your email',
                                 prefixIcon: Icons.email_rounded,
                                 keyboardType: TextInputType.emailAddress,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
+                                autofillHints: const [AutofillHints.email],
+                                validator: validateEmail,
                               ),
 
                               CustomTextField(
@@ -291,13 +399,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 hint: 'Enter your password',
                                 prefixIcon: Icons.lock_rounded,
                                 obscureText: !_showPassword,
+                                autofillHints: const [AutofillHints.password],
                                 suffix: IconButton(
                                   icon: Icon(
                                     _showPassword
                                         ? Icons.visibility_off_rounded
                                         : Icons.visibility_rounded,
                                     size: 20,
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.textSec(context),
                                   ),
                                   onPressed: () {
                                     setState(() {
@@ -378,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: Divider(color: AppTheme.dividerStrong),
+                              child: Divider(color: AppTheme.dividerStrongC(context)),
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -388,13 +497,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'or',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: AppTheme.textTertiary,
+                                  color: AppTheme.textTer(context),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
                             Expanded(
-                              child: Divider(color: AppTheme.dividerStrong),
+                              child: Divider(color: AppTheme.dividerStrongC(context)),
                             ),
                           ],
                         ),
@@ -407,7 +516,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Text(
                               "Don't have an account? ",
                               style: TextStyle(
-                                color: AppTheme.textTertiary,
+                                color: AppTheme.textTer(context),
                                 fontSize: 14,
                               ),
                             ),
@@ -435,6 +544,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

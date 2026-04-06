@@ -18,7 +18,7 @@ Future<void> openUrl(BuildContext context, String url) async {
             behavior: SnackBarBehavior.floating,
             action: SnackBarAction(
               label: 'RETRY',
-              textColor: AppTheme.surfaceColor,
+              textColor: Colors.white,
               onPressed: () => openUrl(context, url),
             ),
           ),

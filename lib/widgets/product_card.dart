@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/product_model.dart';
 import '../providers/settings_provider.dart';
+import '../providers/favorites_provider.dart';
+import '../config/routes.dart';
 import '../config/theme.dart';
 import 'glass_panel.dart';
 import 'stock_badge.dart';
@@ -28,10 +31,92 @@ class ProductCard extends StatefulWidget {
 
 class _ProductCardState extends State<ProductCard> {
   double _scale = 1.0;
+  Offset? _longPressPosition;
 
   void _onTapDown(_) => setState(() => _scale = 0.97);
   void _onTapUp(_) => setState(() => _scale = 1.0);
   void _onTapCancel() => setState(() => _scale = 1.0);
+
+  Future<void> _onLongPress() async {
+    if (_longPressPosition == null) return;
+    final overlay =
+        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final product = widget.product;
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(_longPressPosition!.dx, _longPressPosition!.dy, 1, 1),
+      Offset.zero & overlay.size,
+    );
+    final chosen = await showMenu<int>(
+      context: context,
+      position: position,
+      items: [
+        PopupMenuItem<int>(
+          value: 0,
+          child: Row(
+            children: [
+              const Icon(Icons.edit_rounded),
+              const SizedBox(width: 12),
+              const Text('Edit'),
+            ],
+          ),
+        ),
+        PopupMenuItem<int>(
+          value: 1,
+          child: Row(
+            children: [
+              const Icon(Icons.add_circle_rounded),
+              const SizedBox(width: 12),
+              const Text('Stock In'),
+            ],
+          ),
+        ),
+        PopupMenuItem<int>(
+          value: 2,
+          child: Row(
+            children: [
+              const Icon(Icons.remove_circle_rounded),
+              const SizedBox(width: 12),
+              const Text('Stock Out'),
+            ],
+          ),
+        ),
+        PopupMenuItem<int>(
+          value: 3,
+          child: Row(
+            children: [
+              Icon(
+                context.read<FavoritesProvider>().isFavorite(product.id)
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                context.read<FavoritesProvider>().isFavorite(product.id)
+                    ? 'Remove from Favorites'
+                    : 'Add to Favorites',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (!mounted) return;
+    switch (chosen) {
+      case 0:
+        Navigator.pushNamed(context, AppRoutes.editProduct, arguments: product);
+        break;
+      case 1:
+        Navigator.pushNamed(context, AppRoutes.stockIn, arguments: product);
+        break;
+      case 2:
+        Navigator.pushNamed(context, AppRoutes.stockOut, arguments: product);
+        break;
+      case 3:
+        context.read<FavoritesProvider>().toggle(product.id);
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,22 +131,82 @@ class _ProductCardState extends State<ProductCard> {
       threshold: product.lowStockThreshold,
     );
 
-    return Padding(
-      padding: isGrid
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: GestureDetector(
-        onTapDown: widget.onTap != null ? _onTapDown : null,
-        onTapUp: widget.onTap != null ? _onTapUp : null,
-        onTapCancel: widget.onTap != null ? _onTapCancel : null,
-        child: AnimatedScale(
-          scale: _scale,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          child: GlassCard(
-            onTap: widget.onTap,
-            borderRadius: 16,
-            child: Row(
+    return Dismissible(
+      key: ValueKey(product.id),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.successColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(Icons.add_circle_rounded, color: Colors.white, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Stock In',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'Stock Out',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(width: 8),
+            Icon(Icons.remove_circle_rounded, color: Colors.white, size: 24),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        HapticFeedback.mediumImpact();
+        if (direction == DismissDirection.startToEnd) {
+          Navigator.pushNamed(context, AppRoutes.stockIn, arguments: product);
+        } else {
+          Navigator.pushNamed(context, AppRoutes.stockOut, arguments: product);
+        }
+        return false;
+      },
+      child: Padding(
+        padding: isGrid
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: GestureDetector(
+          onTapDown: widget.onTap != null ? _onTapDown : null,
+          onTapUp: widget.onTap != null ? _onTapUp : null,
+          onTapCancel: widget.onTap != null ? _onTapCancel : null,
+          onLongPressDown: (details) => _longPressPosition = details.globalPosition,
+          onLongPress: _onLongPress,
+          child: AnimatedScale(
+            scale: _scale,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            child: GlassCard(
+              onTap: widget.onTap,
+              borderRadius: 16,
+              child: Row(
               children: [
                 Expanded(
                   child: Padding(
@@ -79,15 +224,16 @@ class _ProductCardState extends State<ProductCard> {
                     padding: EdgeInsets.only(right: isGrid ? 6 : 8),
                     child: Icon(
                       Icons.arrow_forward_ios_rounded,
-                      color: AppTheme.iconMuted,
+                      color: AppTheme.iconMute(context),
                       size: isGrid ? 12 : 16,
-                    ),
                   ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -110,31 +256,43 @@ class _ProductCardState extends State<ProductCard> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                product.name,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                  height: 1.2,
+              child: Hero(
+                tag: 'product_name_${product.id}',
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Text(
+                    product.name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPri(context),
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: stockColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '${product.quantity} ${product.unit}',
-                style: TextStyle(
-                  color: stockColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
+            Hero(
+              tag: 'product_qty_${product.id}',
+              child: Material(
+                type: MaterialType.transparency,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: stockColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${product.quantity} ${product.unit}',
+                    style: TextStyle(
+                      color: stockColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -158,7 +316,7 @@ class _ProductCardState extends State<ProductCard> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: AppTheme.textTertiary,
+                  color: AppTheme.textTer(context),
                   height: 1.2,
                 ),
                 maxLines: 1,
@@ -182,15 +340,21 @@ class _ProductCardState extends State<ProductCard> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                product.name,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+              child: Hero(
+                tag: 'product_name_${product.id}',
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Text(
+                    product.name,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPri(context),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 6),
@@ -203,7 +367,13 @@ class _ProductCardState extends State<ProductCard> {
                 shape: BoxShape.circle,
               ),
             ),
-            StockBadge(product: product),
+            Hero(
+              tag: 'product_qty_${product.id}',
+              child: Material(
+                type: MaterialType.transparency,
+                child: StockBadge(product: product),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -214,7 +384,7 @@ class _ProductCardState extends State<ProductCard> {
               Icon(
                 Icons.category_outlined,
                 size: 11,
-                color: AppTheme.textTertiary,
+                color: AppTheme.textTer(context),
               ),
               const SizedBox(width: 2),
               Flexible(
@@ -222,7 +392,7 @@ class _ProductCardState extends State<ProductCard> {
                   product.categoryName,
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppTheme.textTertiary,
+                    color: AppTheme.textTer(context),
                     fontWeight: FontWeight.w500,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -239,7 +409,7 @@ class _ProductCardState extends State<ProductCard> {
                   ].join(' | '),
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppTheme.textTertiary,
+                    color: AppTheme.textTer(context),
                     fontWeight: FontWeight.w500,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -250,71 +420,45 @@ class _ProductCardState extends State<ProductCard> {
         ),
         Consumer<SettingsProvider>(
           builder: (context, settings, _) {
-            if (!settings.pricingEnabled || product.sellingPrice <= 0) {
-              return const SizedBox.shrink();
+            final parts = <InlineSpan>[];
+            if (settings.pricingEnabled && product.sellingPrice > 0) {
+              parts.add(TextSpan(
+                text: '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.successColor,
+                ),
+              ));
             }
-            return Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.sell_outlined,
-                    size: 11,
-                    color: AppTheme.successColor,
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.successColor,
-                    ),
-                  ),
-                  if (product.costPrice > 0) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      'Cost: ${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textTertiary,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
-        Consumer<SettingsProvider>(
-          builder: (context, settings, _) {
-            if (!settings.vendorsEnabled) return const SizedBox.shrink();
-            final vendorName = product.preferredVendorName.isNotEmpty
-                ? product.preferredVendorName
-                : product.lastVendorName;
-            if (vendorName.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.local_shipping_outlined,
-                    size: 11,
+            if (settings.vendorsEnabled) {
+              final vendorName = product.preferredVendorName.isNotEmpty
+                  ? product.preferredVendorName
+                  : product.lastVendorName;
+              if (vendorName.isNotEmpty) {
+                if (parts.isNotEmpty) {
+                  parts.add(TextSpan(
+                    text: '  \u00B7  ',
+                    style: TextStyle(fontSize: 11, color: AppTheme.textTer(context)),
+                  ));
+                }
+                parts.add(TextSpan(
+                  text: vendorName,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                     color: AppTheme.indigoColor,
                   ),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      vendorName,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.indigoColor,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+                ));
+              }
+            }
+            if (parts.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text.rich(
+                TextSpan(children: parts),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             );
           },
@@ -324,7 +468,7 @@ class _ProductCardState extends State<ProductCard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
-              color: AppTheme.inputFillColor,
+              color: AppTheme.inputFill(context),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
@@ -333,7 +477,7 @@ class _ProductCardState extends State<ProductCard> {
                 Icon(
                   Icons.location_on_outlined,
                   size: 11,
-                  color: AppTheme.textTertiary,
+                  color: AppTheme.textTer(context),
                 ),
                 const SizedBox(width: 3),
                 Flexible(
@@ -346,7 +490,7 @@ class _ProductCardState extends State<ProductCard> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textTertiary,
+                      color: AppTheme.textTer(context),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -387,7 +531,7 @@ class _ProductCardState extends State<ProductCard> {
       padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Text(
         '\u2022',
-        style: TextStyle(fontSize: 8, color: AppTheme.iconMuted),
+        style: TextStyle(fontSize: 8, color: AppTheme.iconMute(context)),
       ),
     );
   }
@@ -415,7 +559,7 @@ class _MiniActionButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

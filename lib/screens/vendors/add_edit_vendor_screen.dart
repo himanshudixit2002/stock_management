@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../models/vendor_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/success_overlay.dart';
 
@@ -30,10 +32,12 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
   late double _rating;
   late bool _isActive;
   bool _saving = false;
+  bool _saved = false;
 
   bool get _isEditing => widget.vendor != null;
 
   bool get _hasUnsavedChanges {
+    if (_saved) return false;
     if (_isEditing) {
       final v = widget.vendor!;
       final origLeadTime = v.leadTimeDays > 0 ? v.leadTimeDays.toString() : '';
@@ -59,29 +63,12 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
 
   Future<bool> _confirmDiscard() async {
     if (!_hasUnsavedChanges) return true;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved changes. Are you sure you want to go back?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.dangerColor,
-            ),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: 'Discard changes?',
+      message: 'You have unsaved changes. Are you sure you want to go back?',
+      confirmLabel: 'Discard',
     );
-    return result ?? false;
   }
 
   @override
@@ -144,37 +131,60 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
     );
 
     final vendorProvider = context.read<VendorProvider>();
+    String? newId;
     bool success = false;
     if (_isEditing) {
-      success = await vendorProvider.updateVendor(vendor);
+      success = await vendorProvider.updateVendorAndPropagate(
+        vendor,
+        oldName: widget.vendor?.name,
+      );
     } else {
       final result = await vendorProvider.addVendor(vendor);
       success = result != null;
+      newId = result?.id;
     }
 
     if (!mounted) return;
     setState(() => _saving = false);
 
     if (success) {
+      _saved = true;
       HapticFeedback.mediumImpact();
       if (mounted) {
         showSuccessOverlay(
           context,
           message: _isEditing ? 'Vendor updated!' : 'Vendor added!',
+          popResult: newId,
         );
       }
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(vendorProvider.errorMessage ?? 'Failed to save vendor'),
-          backgroundColor: AppTheme.dangerColor,
-        ),
-      );
+      showErrorSnackBar(context,
+          vendorProvider.errorMessage ?? 'Failed to save vendor');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    final hasAdd = user?.hasPermission(AppPermissions.addVendors) ?? false;
+    final hasEdit = user?.hasPermission(AppPermissions.editVendors) ?? false;
+    if (_isEditing && !hasEdit) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Edit Vendor')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
+      );
+    }
+    if (!_isEditing && !hasAdd) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Add Vendor')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -194,13 +204,13 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
           }
         },
         child: Scaffold(
-          backgroundColor: AppTheme.backgroundColor,
+          backgroundColor: AppTheme.bg(context),
           appBar: AppBar(
             title: Text(_isEditing ? 'Edit Vendor' : 'Add Vendor'),
           ),
           body: Container(
-            decoration: const BoxDecoration(
-              gradient: AppTheme.scaffoldGradient,
+            decoration: BoxDecoration(
+              gradient: AppTheme.scaffoldGrad(context),
             ),
             child: Center(
               child: ConstrainedBox(
@@ -223,66 +233,72 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
                         Responsive.horizontalPadding(context),
                       ),
                       children: [
-                        TextFormField(
-                          controller: _nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Vendor Name *',
-                            prefixIcon: Icon(Icons.business_rounded),
-                          ),
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Name is required'
-                              : null,
+                        ResponsiveFormRow(
+                          children: [
+                            TextFormField(
+                              controller: _nameCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Vendor Name *',
+                                prefixIcon: Icon(Icons.business_rounded),
+                              ),
+                              textCapitalization: TextCapitalization.words,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Name is required'
+                                  : null,
+                            ),
+                            TextFormField(
+                              controller: _contactNameCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Contact Person',
+                                prefixIcon: Icon(Icons.person_rounded),
+                              ),
+                              textCapitalization: TextCapitalization.words,
+                              textInputAction: TextInputAction.next,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _contactNameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Contact Person',
-                            prefixIcon: Icon(Icons.person_rounded),
-                          ),
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _emailCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.email_rounded),
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          validator: (v) {
-                            if (v != null && v.trim().isNotEmpty) {
-                              final email = v.trim();
-                              if (!RegExp(
-                                r'^[\w\-.+]+@[\w\-]+\.[\w\-.]+$',
-                              ).hasMatch(email)) {
-                                return 'Enter a valid email address';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _phoneCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Phone',
-                            prefixIcon: Icon(Icons.phone_rounded),
-                          ),
-                          keyboardType: TextInputType.phone,
-                          textInputAction: TextInputAction.next,
-                          validator: (v) {
-                            if (v != null && v.trim().isNotEmpty) {
-                              if (v.trim().length < 7) {
-                                return 'Phone number is too short';
-                              }
-                            }
-                            return null;
-                          },
+                        ResponsiveFormRow(
+                          children: [
+                            TextFormField(
+                              controller: _emailCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.email_rounded),
+                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) {
+                                if (v != null && v.trim().isNotEmpty) {
+                                  final email = v.trim();
+                                  if (!RegExp(
+                                    r'^[\w\-.+]+@[\w\-]+\.[\w\-.]+$',
+                                  ).hasMatch(email)) {
+                                    return 'Enter a valid email address';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                            TextFormField(
+                              controller: _phoneCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone',
+                                prefixIcon: Icon(Icons.phone_rounded),
+                              ),
+                              keyboardType: TextInputType.phone,
+                              textInputAction: TextInputAction.next,
+                              validator: (v) {
+                                if (v != null && v.trim().isNotEmpty) {
+                                  if (v.trim().length < 7) {
+                                    return 'Phone number is too short';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -337,7 +353,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
                                     size: 32,
                                     color: i < _rating.round()
                                         ? AppTheme.warningColor
-                                        : AppTheme.emptyStateIcon,
+                                        : AppTheme.emptyIcon(context),
                                   ),
                                 ),
                               );
@@ -370,7 +386,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
                                 : 'Vendor is hidden from selection',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textTertiary,
+                              color: AppTheme.textTer(context),
                             ),
                           ),
                           value: _isActive,

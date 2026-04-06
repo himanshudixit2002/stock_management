@@ -9,11 +9,14 @@ import '../../providers/vendor_provider.dart';
 import '../../widgets/product_card.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/permission_gate.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -76,6 +79,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      constraints: Responsive.sheetConstraints(context),
       backgroundColor: Colors.transparent,
       builder: (_) => _FilterBottomSheet(
         onReset: () {
@@ -97,7 +101,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
         children: [
           Icon(
             Icons.tune_rounded,
-            color: isActive ? AppTheme.surfaceColor : AppTheme.textSecondary,
+            color: isActive
+                ? AppTheme.surface(context)
+                : AppTheme.textSec(context),
             size: 22,
           ),
           if (productProvider.activeFilterCount > 0)
@@ -114,8 +120,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: Center(
                   child: Text(
                     '${productProvider.activeFilterCount}',
-                    style: const TextStyle(
-                      color: AppTheme.surfaceColor,
+                    style: TextStyle(
+                      color: AppTheme.surface(context),
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -143,11 +149,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final productProvider = context.watch<ProductProvider>();
     _productProvider = productProvider;
     final user = context.watch<AuthProvider>().currentUser;
-    final canManageProducts = user?.hasPermission('canManageProducts') ?? false;
+    final canManageProducts = user?.hasPermission(AppPermissions.addProducts) ?? false;
     final isMobile = Responsive.isMobile(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+    return PermissionGate(
+      permission: AppPermissions.viewProducts,
+      featureName: 'Products',
+      child: Scaffold(
+      backgroundColor: AppTheme.bg(context),
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -161,13 +170,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   floating: true,
                   snap: true,
                   elevation: 0,
-                  backgroundColor: AppTheme.surfaceColor,
+                  backgroundColor: AppTheme.surface(context),
                   surfaceTintColor: Colors.transparent,
                   automaticallyImplyLeading: true,
                   title: Text(
                     'Products (${productProvider.products.length})',
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
+                    style: TextStyle(
+                      color: AppTheme.textPri(context),
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
@@ -180,7 +189,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         productProvider.sortProducts(value);
                       },
                       itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'name', child: Text('Name (A-Z)')),
+                        const PopupMenuItem(
+                          value: 'name',
+                          child: Text('Name (A-Z)'),
+                        ),
                         const PopupMenuItem(
                           value: 'quantity',
                           child: Text('Stock (Low-High)'),
@@ -195,7 +207,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   bottom: PreferredSize(
                     preferredSize: const Size(double.infinity, 72),
                     child: Container(
-                      color: AppTheme.surfaceColor,
+                      color: AppTheme.surface(context),
                       padding: EdgeInsets.fromLTRB(
                         Responsive.horizontalPadding(context),
                         8,
@@ -212,6 +224,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     ),
                   ),
                 ),
+                if (productProvider.errorMessage != null &&
+                    productProvider.products.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        Responsive.horizontalPadding(context),
+                        0,
+                        Responsive.horizontalPadding(context),
+                        8,
+                      ),
+                      child: ProviderErrorBanner(
+                        message: productProvider.errorMessage!,
+                        onDismiss: () => productProvider.clearError(),
+                        onRetry: () => productProvider.refreshProducts(),
+                      ),
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: _PrimaryFilterChips(productProvider: productProvider),
                 ),
@@ -225,9 +254,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 ),
                 if (!isMobile && _showFilters)
-                  SliverToBoxAdapter(
-                    child: const _FilterSection(),
-                  ),
+                  SliverToBoxAdapter(child: const _FilterSection()),
               ];
             },
             body: RefreshIndicator(
@@ -239,179 +266,177 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 }
               },
               child: Builder(
-                    builder: (context) {
-                      if (productProvider.isLoading) {
-                        _startLoadingTimer();
-                        if (_loadingTooLong) {
-                          return SingleChildScrollView(
-                            physics: Responsive.scrollPhysics(context),
-                            child: SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.5,
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      'Loading is taking longer than usual...',
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextButton.icon(
-                                      onPressed: () {
-                                        _cancelLoadingTimer();
-                                        productProvider.refreshProducts();
-                                      },
-                                      icon: const Icon(
-                                        Icons.refresh_rounded,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Retry'),
-                                    ),
-                                  ],
+                builder: (context) {
+                  if (productProvider.isLoading) {
+                    _startLoadingTimer();
+                    if (_loadingTooLong) {
+                      return SingleChildScrollView(
+                        physics: Responsive.scrollPhysics(context),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }
-                        return const ShimmerLoading(
-                          itemCount: 6,
-                          layout: ShimmerLayout.card,
-                        );
-                      }
-
-                      _cancelLoadingTimer();
-
-                      if (productProvider.errorMessage != null) {
-                        return SingleChildScrollView(
-                          physics: Responsive.scrollPhysics(context),
-                          child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
-                            child: EmptyStateWidget(
-                              icon: Icons.cloud_off_rounded,
-                              title: 'Could Not Load Products',
-                              subtitle: productProvider.errorMessage!,
-                              buttonText: 'Retry',
-                              onButtonPressed: () {
-                                productProvider.refreshProducts();
-                              },
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Loading is taking longer than usual...',
+                                  style: TextStyle(
+                                    color: AppTheme.textSec(context),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    _cancelLoadingTimer();
+                                    productProvider.refreshProducts();
+                                  },
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Retry'),
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }
+                        ),
+                      );
+                    }
+                    return const ShimmerLoading(
+                      itemCount: 6,
+                      layout: ShimmerLayout.card,
+                    );
+                  }
 
-                      final isSearchOrDebounce =
-                          productProvider.isSearching || _isDebouncing;
+                  _cancelLoadingTimer();
 
-                      if (productProvider.products.isEmpty) {
-                        if (isSearchOrDebounce) {
-                          return SingleChildScrollView(
-                            physics: Responsive.scrollPhysics(context),
-                            child: SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.5,
-                              child: const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                      ),
-                                    ),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      'Searching...',
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
+                  if (productProvider.errorMessage != null) {
+                    return SingleChildScrollView(
+                      physics: Responsive.scrollPhysics(context),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: EmptyStateWidget(
+                          icon: Icons.cloud_off_rounded,
+                          title: 'Could Not Load Products',
+                          subtitle: productProvider.errorMessage!,
+                          buttonText: 'Retry',
+                          onButtonPressed: () {
+                            productProvider.refreshProducts();
+                          },
+                        ),
+                      ),
+                    );
+                  }
+
+                  final isSearchOrDebounce =
+                      productProvider.isSearching || _isDebouncing;
+
+                  if (productProvider.products.isEmpty) {
+                    if (isSearchOrDebounce) {
+                      return SingleChildScrollView(
+                        physics: Responsive.scrollPhysics(context),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        // Analytics still loading — filter may find more once
-                        // the full set arrives.
-                        if (productProvider.hasActiveFilters &&
-                            productProvider.isLoadingAnalytics) {
-                          return SingleChildScrollView(
-                            physics: Responsive.scrollPhysics(context),
-                            child: SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.5,
-                              child: const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                      ),
-                                    ),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      'Loading products...',
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Searching...',
+                                  style: TextStyle(
+                                    color: AppTheme.textSec(context),
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }
-
-                        return SingleChildScrollView(
-                          physics: Responsive.scrollPhysics(context),
-                          child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.6,
-                            child: EmptyStateWidget(
-                              icon: Icons.inventory_2_outlined,
-                              title: 'No Products Found',
-                              subtitle:
-                                  _searchController.text.isNotEmpty ||
-                                      productProvider.hasActiveFilters
-                                  ? 'Try different search or filters'
-                                  : 'Add your first product to get started',
-                              buttonText: canManageProducts
-                                  ? 'Add Product'
-                                  : null,
-                              onButtonPressed: canManageProducts
-                                  ? () => Navigator.pushNamed(
-                                      context,
-                                      AppRoutes.addProduct,
-                                    )
-                                  : null,
+                              ],
                             ),
                           ),
-                        );
-                      }
+                        ),
+                      );
+                    }
 
-                      return _buildProductList(context, productProvider);
-                    },
-                  ),
-                ),
+                    // Analytics still loading — filter may find more once
+                    // the full set arrives.
+                    if (productProvider.hasActiveFilters &&
+                        productProvider.isLoadingAnalytics) {
+                      return SingleChildScrollView(
+                        physics: Responsive.scrollPhysics(context),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Loading products...',
+                                  style: TextStyle(
+                                    color: AppTheme.textSec(context),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SingleChildScrollView(
+                      physics: Responsive.scrollPhysics(context),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: EmptyStateWidget(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'No Products Found',
+                          subtitle:
+                              _searchController.text.isNotEmpty ||
+                                  productProvider.hasActiveFilters
+                              ? 'Try different search or filters'
+                              : 'Add your first product to get started',
+                          buttonText: canManageProducts ? 'Add Product' : null,
+                          onButtonPressed: canManageProducts
+                              ? () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.addProduct,
+                                )
+                              : null,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return _buildProductList(context, productProvider);
+                },
               ),
+            ),
           ),
         ),
+      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -426,7 +451,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
                 ),
-                backgroundColor: AppTheme.surfaceColor,
+                backgroundColor: AppTheme.surface(context),
                 foregroundColor: AppTheme.primaryColor,
                 child: const Icon(Icons.arrow_upward_rounded),
               ),
@@ -441,6 +466,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 
@@ -459,12 +485,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            color: AppTheme.inputFillColor,
+            color: AppTheme.inputFill(context),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isFocused
                   ? AppTheme.primaryColor.withValues(alpha: 0.5)
-                  : AppTheme.inputBorderColor,
+                  : AppTheme.inputBorder(context),
               width: isFocused ? 1.5 : 1,
             ),
             boxShadow: isFocused
@@ -481,9 +507,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
             controller: _searchController,
             focusNode: _searchFocusNode,
             decoration: InputDecoration(
-              hintText: 'Search by name, category, company...',
-              hintStyle: const TextStyle(
-                color: AppTheme.textTertiary,
+              hintText:
+                  'Search name, barcode, vendor, location… (typos OK). '
+                  'Try stock:low  cat:snacks',
+              hintStyle: TextStyle(
+                color: AppTheme.textTer(context),
                 fontSize: 14,
               ),
               filled: false,
@@ -511,7 +539,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         key: ValueKey(isFocused),
                         color: isFocused
                             ? AppTheme.primaryColor
-                            : AppTheme.textTertiary,
+                            : AppTheme.textTer(context),
                       ),
               ),
               suffixIcon: Row(
@@ -557,13 +585,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
             onChanged: (value) {
               _debounce?.cancel();
               setState(() => _isDebouncing = value.isNotEmpty);
-              _debounce = Timer(
-                const Duration(milliseconds: 300),
-                () {
-                  if (mounted) setState(() => _isDebouncing = false);
-                  productProvider.search(value);
-                },
-              );
+              _debounce = Timer(const Duration(milliseconds: 300), () {
+                if (mounted) setState(() => _isDebouncing = false);
+                productProvider.search(value);
+              });
             },
           ),
         ),
@@ -625,10 +650,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     BuildContext context,
     ProductProvider productProvider,
   ) {
-    final screenType = Responsive.screenType(context);
-    final gridColumns = screenType == ScreenType.desktop
-        ? 4
-        : (screenType == ScreenType.tablet ? 2 : 1);
+    final gridColumns = Responsive.gridColumns(context);
     final hPad = Responsive.horizontalPadding(context);
     final productCount = productProvider.products.length;
     final showLoadMore =
@@ -696,7 +718,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
           crossAxisCount: gridColumns,
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
-          childAspectRatio: 3.2,
+          childAspectRatio: gridColumns >= 4 ? 3.5 : 3.2,
         ),
         itemCount: itemCount,
         itemBuilder: (context, index) {
@@ -745,7 +767,9 @@ class _PrimaryFilterChips extends StatelessWidget {
           label: category.name,
           isSelected: productProvider.selectedCategoryId == category.id,
           onTap: () => productProvider.filterByCategory(
-            productProvider.selectedCategoryId == category.id ? null : category.id,
+            productProvider.selectedCategoryId == category.id
+                ? null
+                : category.id,
           ),
         );
       }),
@@ -766,7 +790,9 @@ class _PrimaryFilterChips extends StatelessWidget {
         label: 'Low Stock',
         isSelected: productProvider.selectedStockStatus == 'low_stock',
         onTap: () => productProvider.filterByStockStatus(
-          productProvider.selectedStockStatus == 'low_stock' ? null : 'low_stock',
+          productProvider.selectedStockStatus == 'low_stock'
+              ? null
+              : 'low_stock',
         ),
         dotColor: AppTheme.stockLow,
       ),
@@ -815,39 +841,49 @@ class _ActiveFilterChips extends StatelessWidget {
 
     final chips = <_ActiveChipData>[];
     if (productProvider.selectedCompany != null) {
-      chips.add(_ActiveChipData(
-        label: productProvider.selectedCompany!,
-        icon: Icons.business_rounded,
-        onRemove: () => productProvider.filterByCompany(null),
-      ));
+      chips.add(
+        _ActiveChipData(
+          label: productProvider.selectedCompany!,
+          icon: Icons.business_rounded,
+          onRemove: () => productProvider.filterByCompany(null),
+        ),
+      );
     }
     if (productProvider.selectedSize != null) {
-      chips.add(_ActiveChipData(
-        label: productProvider.selectedSize!,
-        icon: Icons.straighten_rounded,
-        onRemove: () => productProvider.filterBySize(null),
-      ));
+      chips.add(
+        _ActiveChipData(
+          label: productProvider.selectedSize!,
+          icon: Icons.straighten_rounded,
+          onRemove: () => productProvider.filterBySize(null),
+        ),
+      );
     }
     if (productProvider.selectedLocation != null) {
-      chips.add(_ActiveChipData(
-        label: productProvider.selectedLocation!,
-        icon: Icons.location_on_outlined,
-        onRemove: () => productProvider.filterByLocation(null),
-      ));
+      chips.add(
+        _ActiveChipData(
+          label: productProvider.selectedLocation!,
+          icon: Icons.location_on_outlined,
+          onRemove: () => productProvider.filterByLocation(null),
+        ),
+      );
     }
     if (productProvider.selectedVendorId != null) {
-      chips.add(_ActiveChipData(
-        label: 'Vendor',
-        icon: Icons.storefront_rounded,
-        onRemove: () => productProvider.filterByVendor(null),
-      ));
+      chips.add(
+        _ActiveChipData(
+          label: 'Vendor',
+          icon: Icons.storefront_rounded,
+          onRemove: () => productProvider.filterByVendor(null),
+        ),
+      );
     }
     if (productProvider.filterStartDate != null) {
-      chips.add(_ActiveChipData(
-        label: 'Date range',
-        icon: Icons.date_range_rounded,
-        onRemove: () => productProvider.filterByDateRange(null, null),
-      ));
+      chips.add(
+        _ActiveChipData(
+          label: 'Date range',
+          icon: Icons.date_range_rounded,
+          onRemove: () => productProvider.filterByDateRange(null, null),
+        ),
+      );
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -867,30 +903,29 @@ class _ActiveFilterChips extends StatelessWidget {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  ...chips.map((chip) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: _ActiveFilterTag(data: chip),
-                  )),
+                  ...chips.map(
+                    (chip) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: _ActiveFilterTag(data: chip),
+                    ),
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             Text(
               '${productProvider.products.length}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary,
+                color: AppTheme.textSec(context),
               ),
             ),
             const SizedBox(width: 6),
             GestureDetector(
               onTap: onClearAll,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppTheme.dangerColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
@@ -934,9 +969,7 @@ class _ActiveFilterTag extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.primaryColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppTheme.primaryColor.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -976,9 +1009,9 @@ class _FilterBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppTheme.surface(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: DraggableScrollableSheet(
         initialChildSize: 0.65,
@@ -993,7 +1026,7 @@ class _FilterBottomSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.emptyStateIcon,
+                  color: AppTheme.emptyIcon(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1007,12 +1040,12 @@ class _FilterBottomSheet extends StatelessWidget {
                       size: 22,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'More Filters',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.textPri(context),
                       ),
                     ),
                     const Spacer(),
@@ -1103,9 +1136,7 @@ class _FilterSection extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
-          child: const SingleChildScrollView(
-            child: _FilterContent(),
-          ),
+          child: const SingleChildScrollView(child: _FilterContent()),
         ),
       ),
     );
@@ -1140,7 +1171,8 @@ class _FilterContent extends StatelessWidget {
             ),
             _FilterChipItem(
               label: 'Last 7 days',
-              isSelected: productProvider.filterStartDate != null &&
+              isSelected:
+                  productProvider.filterStartDate != null &&
                   _isLastNDays(productProvider, 7),
               onTap: () {
                 final end = DateTime.now();
@@ -1152,7 +1184,8 @@ class _FilterContent extends StatelessWidget {
             ),
             _FilterChipItem(
               label: 'Last 30 days',
-              isSelected: productProvider.filterStartDate != null &&
+              isSelected:
+                  productProvider.filterStartDate != null &&
                   _isLastNDays(productProvider, 30),
               onTap: () {
                 final end = DateTime.now();
@@ -1216,7 +1249,7 @@ class _FilterContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                const _FilterLabel(label: 'Size'),
+                const _FilterLabel(label: 'Sub-Category'),
                 const SizedBox(height: 6),
                 _FilterChipGroup(
                   isWide: isWide,
@@ -1336,11 +1369,7 @@ class _FilterChipGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isWide) {
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: children,
-      );
+      return Wrap(spacing: 10, runSpacing: 10, children: children);
     }
 
     return SizedBox(
@@ -1379,10 +1408,10 @@ class _FilterLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: AppTheme.textSecondary,
+        color: AppTheme.textSec(context),
         letterSpacing: 0.5,
       ),
     );
@@ -1436,11 +1465,11 @@ class _FilterChipItemState extends State<_FilterChipItem> {
             decoration: BoxDecoration(
               color: widget.isSelected
                   ? AppTheme.primaryColor
-                  : AppTheme.inputFillColor,
+                  : AppTheme.inputFill(context),
               borderRadius: BorderRadius.circular(10),
               border: widget.isSelected
                   ? null
-                  : Border.all(color: AppTheme.inputBorderColor),
+                  : Border.all(color: AppTheme.inputBorder(context)),
               boxShadow: widget.isSelected
                   ? [
                       BoxShadow(
@@ -1466,21 +1495,18 @@ class _FilterChipItemState extends State<_FilterChipItem> {
                   const SizedBox(width: 6),
                 ],
                 if (widget.icon != null && !widget.isSelected) ...[
-                  Icon(
-                    widget.icon,
-                    size: 14,
-                    color: AppTheme.textSecondary,
-                  ),
+                  Icon(widget.icon, size: 14, color: AppTheme.textSec(context)),
                   const SizedBox(width: 4),
                 ],
                 Text(
                   widget.label,
                   style: TextStyle(
                     color: widget.isSelected
-                        ? AppTheme.surfaceColor
-                        : AppTheme.textPrimary,
-                    fontWeight:
-                        widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                        ? AppTheme.surface(context)
+                        : AppTheme.textPri(context),
+                    fontWeight: widget.isSelected
+                        ? FontWeight.w600
+                        : FontWeight.w500,
                     fontSize: 13,
                   ),
                 ),
@@ -1489,7 +1515,7 @@ class _FilterChipItemState extends State<_FilterChipItem> {
                   Icon(
                     Icons.check_rounded,
                     size: 14,
-                    color: AppTheme.surfaceColor.withValues(alpha: 0.8),
+                    color: AppTheme.surface(context).withValues(alpha: 0.8),
                   ),
                 ],
               ],

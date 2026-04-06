@@ -1,4 +1,4 @@
-package com.gbp.android
+package com.stockmanager.stock_management
 
 import io.flutter.embedding.android.FlutterActivity
 

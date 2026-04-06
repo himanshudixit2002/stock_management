@@ -11,6 +11,8 @@ import '../../utils/responsive.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/glass_panel.dart';
+import '../../utils/dialogs.dart';
+import '../../utils/validators.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -28,6 +30,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _showPassword = false;
+  bool _showConfirmPassword = false;
+  bool _didAttemptSubmit = false;
 
   @override
   void dispose() {
@@ -41,6 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    setState(() => _didAttemptSubmit = true);
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
@@ -53,6 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
+      showSuccessSnackBar(context, 'Account created successfully!');
       final user = authProvider.currentUser!;
       final companyId = user.companyId;
       context.read<ProductProvider>().initialize(companyId: companyId);
@@ -70,9 +76,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
+        backgroundColor: AppTheme.bg(context),
         body: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
           child: SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -83,8 +89,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
-                  child: Form(
+                  child: AutofillGroup(
+                    child: Form(
                     key: _formKey,
+                    autovalidateMode: _didAttemptSubmit
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -108,80 +118,95 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        Hero(
-                          tag: 'app-logo',
-                          child: GlassPanel(
-                            borderRadius: 22,
-                            padding: const EdgeInsets.all(14),
-                            useContentVariant: true,
-                            child: Image.asset(
-                              'logo.png',
-                              width: 56,
-                              height: 56,
-                            ),
+                        GlassPanel(
+                          borderRadius: 22,
+                          padding: const EdgeInsets.all(14),
+                          useContentVariant: true,
+                          child: Image.asset(
+                            'logo.png',
+                            width: 56,
+                            height: 56,
                           ),
                         ),
                         const SizedBox(height: 20),
-                        const Text(
+                        Text(
                           'Create Account',
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            color: AppTheme.textPrimary,
+                            color: AppTheme.textPri(context),
                             letterSpacing: -0.5,
                           ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Set up your account to manage stock',
+                          'Enter your details below. You can update them later in settings.',
                           style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
+                            height: 1.35,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 8),
+                        Text(
+                          'All fields are required.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSec(context),
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
 
                         Consumer<AuthProvider>(
                           builder: (context, auth, _) {
-                            if (auth.errorMessage != null) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.dangerColor.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppTheme.dangerColor.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                  ),
+                            if (auth.errorMessage == null ||
+                                auth.errorMessage!.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.dangerColor.withValues(
+                                  alpha: 0.08,
                                 ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline_rounded,
-                                      color: AppTheme.dangerColor,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        auth.errorMessage!,
-                                        style: const TextStyle(
-                                          color: AppTheme.dangerColor,
-                                          fontSize: 13,
-                                        ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTheme.dangerColor.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline_rounded,
+                                    color: AppTheme.dangerColor,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      auth.errorMessage!,
+                                      style: TextStyle(
+                                        color: AppTheme.dangerColor,
+                                        fontSize: 13,
+                                        height: 1.35,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                         ),
 
@@ -210,12 +235,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    'Business Details',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppTheme.textPrimary,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Business Details',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textPri(context),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Your company or store name and contact',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppTheme.textSec(context),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
@@ -224,11 +264,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               CustomTextField(
                                 controller: _companyNameController,
                                 label: 'Company / Business Name',
-                                hint: 'Enter your company name',
+                                hint: 'e.g. My Store, Acme Ltd',
                                 prefixIcon: Icons.storefront_rounded,
+                                autofillHints: const [
+                                  AutofillHints.organizationName,
+                                ],
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter your company name';
+                                    return 'Company name is required';
                                   }
                                   return null;
                                 },
@@ -236,15 +279,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               CustomTextField(
                                 controller: _phoneController,
                                 label: 'Phone Number',
-                                hint: 'Enter your phone number',
+                                hint: 'e.g. +1 234 567 8900',
                                 prefixIcon: Icons.phone_rounded,
                                 keyboardType: TextInputType.phone,
+                                autofillHints: const [
+                                  AutofillHints.telephoneNumber,
+                                ],
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter your phone number';
+                                    return 'Phone number is required';
                                   }
-                                  if (value.trim().length < 10) {
-                                    return 'Please enter a valid phone number';
+                                  final digits = value.replaceAll(RegExp(r'[^\d+]'), '');
+                                  if (digits.length < 10) {
+                                    return 'Enter at least 10 digits';
                                   }
                                   return null;
                                 },
@@ -280,12 +327,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    'Account Details',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppTheme.textPrimary,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Account Details',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.textPri(context),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Login credentials for this app',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppTheme.textSec(context),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
@@ -293,12 +355,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               const SizedBox(height: 16),
                               CustomTextField(
                                 controller: _nameController,
-                                label: 'Your Full Name',
-                                hint: 'Enter your full name',
+                                label: 'Full Name',
+                                hint: 'e.g. John Smith',
                                 prefixIcon: Icons.badge_rounded,
+                                autofillHints: const [AutofillHints.name],
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter your name';
+                                    return 'Full name is required';
                                   }
                                   return null;
                                 },
@@ -306,25 +369,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               CustomTextField(
                                 controller: _emailController,
                                 label: 'Email Address',
-                                hint: 'Enter your email',
+                                hint: 'e.g. you@company.com',
                                 prefixIcon: Icons.email_rounded,
                                 keyboardType: TextInputType.emailAddress,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
+                                autofillHints: const [AutofillHints.email],
+                                validator: validateEmail,
                               ),
                               CustomTextField(
                                 controller: _passwordController,
                                 label: 'Password',
-                                hint: 'Create a password (min 6 characters)',
+                                hint: 'At least 6 characters',
                                 prefixIcon: Icons.lock_rounded,
                                 obscureText: !_showPassword,
+                                autofillHints: const [
+                                  AutofillHints.newPassword,
+                                ],
                                 onChanged: (_) => setState(() {}),
                                 suffix: IconButton(
                                   icon: Icon(
@@ -332,7 +391,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ? Icons.visibility_off_rounded
                                         : Icons.visibility_rounded,
                                     size: 20,
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.textSec(context),
                                   ),
                                   onPressed: () {
                                     setState(() {
@@ -342,10 +401,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
-                                    return 'Please enter a password';
+                                    return 'Password is required';
                                   }
                                   if (value.length < 6) {
-                                    return 'Password must be at least 6 characters';
+                                    return 'Use at least 6 characters';
                                   }
                                   return null;
                                 },
@@ -360,9 +419,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               CustomTextField(
                                 controller: _confirmPasswordController,
                                 label: 'Confirm Password',
-                                hint: 'Re-enter your password',
+                                hint: 'Type your password again',
                                 prefixIcon: Icons.lock_rounded,
-                                obscureText: !_showPassword,
+                                obscureText: !_showConfirmPassword,
+                                onChanged: (_) => setState(() {}),
+                                suffix: IconButton(
+                                  icon: Icon(
+                                    _showConfirmPassword
+                                        ? Icons.visibility_off_rounded
+                                        : Icons.visibility_rounded,
+                                    size: 20,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showConfirmPassword =
+                                          !_showConfirmPassword;
+                                    });
+                                  },
+                                ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Please confirm your password';
@@ -373,6 +448,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   return null;
                                 },
                               ),
+                              if (_confirmPasswordController
+                                  .text.isNotEmpty) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _confirmPasswordController.text ==
+                                                _passwordController.text
+                                            ? Icons.check_circle_rounded
+                                            : Icons.cancel_rounded,
+                                        size: 16,
+                                        color: _confirmPasswordController
+                                                    .text ==
+                                                _passwordController.text
+                                            ? AppTheme.successColor
+                                            : AppTheme.dangerColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _confirmPasswordController.text ==
+                                                _passwordController.text
+                                            ? 'Passwords match'
+                                            : 'Passwords do not match',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: _confirmPasswordController
+                                                      .text ==
+                                                  _passwordController.text
+                                              ? AppTheme.successColor
+                                              : AppTheme.dangerColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -380,50 +493,66 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 24),
 
                         // Register button with gradient
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: AppTheme.coloredShadow(
-                              AppTheme.primaryColor,
+                        Semantics(
+                          button: true,
+                          label: 'Create account',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: AppTheme.coloredShadow(
+                                AppTheme.primaryColor,
+                              ),
                             ),
-                          ),
-                          child: Consumer<AuthProvider>(
-                            builder: (context, auth, _) {
-                              return ElevatedButton(
-                                onPressed: auth.isLoading ? null : _register,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  disabledBackgroundColor: Colors.transparent,
-                                ),
-                                child: auth.isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text('Create Account'),
-                                          SizedBox(width: 8),
-                                          Icon(
-                                            Icons.arrow_forward_rounded,
-                                            size: 20,
+                            child: Consumer<AuthProvider>(
+                              builder: (context, auth, _) {
+                                return ElevatedButton(
+                                  onPressed: auth.isLoading ? null : _register,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    disabledBackgroundColor: Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: auth.isLoading
+                                      ? const SizedBox(
+                                          height: 22,
+                                          width: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
                                           ),
-                                        ],
-                                      ),
-                              );
-                            },
+                                        )
+                                      : const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Create Account',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Icon(
+                                              Icons.arrow_forward_rounded,
+                                              size: 20,
+                                            ),
+                                          ],
+                                        ),
+                                );
+                              },
+                            ),
                           ),
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
 
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -431,7 +560,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             Text(
                               'Already have an account? ',
                               style: TextStyle(
-                                color: AppTheme.textTertiary,
+                                color: AppTheme.textTer(context),
                                 fontSize: 14,
                               ),
                             ),
@@ -445,10 +574,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 36),
+                                minimumSize: const Size(0, 40),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: const Text(
-                                'Sign In',
+                                'Sign in',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
@@ -459,6 +589,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),
@@ -506,7 +637,7 @@ class _PasswordStrengthIndicator extends StatelessWidget {
                   duration: const Duration(milliseconds: 300),
                   builder: (context, value, _) => LinearProgressIndicator(
                     value: value,
-                    backgroundColor: AppTheme.inputFillColor,
+                    backgroundColor: AppTheme.inputFill(context),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                     minHeight: 4,
                   ),

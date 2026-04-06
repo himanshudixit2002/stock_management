@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../config/permissions.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -9,6 +10,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../services/excel_service.dart';
 import '../../widgets/charts/transaction_line_chart.dart';
 import '../../widgets/charts/category_pie_chart.dart';
@@ -76,6 +78,7 @@ class _ReportsScreenState extends State<ReportsScreen>
   void _showDateRangeSheet(StockProvider stockProvider) {
     showModalBottomSheet(
       context: context,
+      constraints: Responsive.sheetConstraints(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -153,6 +156,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
     showModalBottomSheet(
       context: context,
+      constraints: Responsive.sheetConstraints(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -170,78 +174,114 @@ class _ReportsScreenState extends State<ReportsScreen>
                 children: [
                   Center(
                     child: Container(
-                      width: 40, height: 4,
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: AppTheme.dividerColor,
+                        color: AppTheme.dividerC(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('Advanced Filters',
-                      style: Theme.of(ctx).textTheme.titleLarge),
+                  Text(
+                    'Advanced Filters',
+                    style: Theme.of(ctx).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 20),
                   if (users.isNotEmpty) ...[
-                    const Text('User', style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                    )),
+                    Text(
+                      'User',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSec(context),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: AppTheme.dividerColor),
+                        border: Border.all(color: AppTheme.dividerC(context)),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: tempUserId.isEmpty ? null : tempUserId,
-                          hint: const Text('All users', style: TextStyle(fontSize: 13)),
+                          hint: const Text(
+                            'All users',
+                            style: TextStyle(fontSize: 13),
+                          ),
                           isExpanded: true,
                           items: [
                             const DropdownMenuItem(
                               value: '',
-                              child: Text('All users', style: TextStyle(fontSize: 13)),
+                              child: Text(
+                                'All users',
+                                style: TextStyle(fontSize: 13),
+                              ),
                             ),
-                            ...users.map((u) => DropdownMenuItem(
-                              value: u.key,
-                              child: Text(u.value, style: const TextStyle(fontSize: 13)),
-                            )),
+                            ...users.map(
+                              (u) => DropdownMenuItem(
+                                value: u.key,
+                                child: Text(
+                                  u.value,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ),
                           ],
-                          onChanged: (v) => setSheetState(() => tempUserId = v ?? ''),
+                          onChanged: (v) =>
+                              setSheetState(() => tempUserId = v ?? ''),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                   ],
-                  if (settingsProvider.vendorsEnabled && vendors.isNotEmpty) ...[
-                    const Text('Vendor', style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary,
-                    )),
+                  if (settingsProvider.vendorsEnabled &&
+                      vendors.isNotEmpty) ...[
+                    Text(
+                      'Vendor',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSec(context),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: AppTheme.dividerColor),
+                        border: Border.all(color: AppTheme.dividerC(context)),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: tempVendorId.isEmpty ? null : tempVendorId,
-                          hint: const Text('All vendors', style: TextStyle(fontSize: 13)),
+                          hint: const Text(
+                            'All vendors',
+                            style: TextStyle(fontSize: 13),
+                          ),
                           isExpanded: true,
                           items: [
                             const DropdownMenuItem(
                               value: '',
-                              child: Text('All vendors', style: TextStyle(fontSize: 13)),
+                              child: Text(
+                                'All vendors',
+                                style: TextStyle(fontSize: 13),
+                              ),
                             ),
-                            ...vendors.map((v) => DropdownMenuItem(
-                              value: v.id,
-                              child: Text(v.name, style: const TextStyle(fontSize: 13)),
-                            )),
+                            ...vendors.map(
+                              (v) => DropdownMenuItem(
+                                value: v.id,
+                                child: Text(
+                                  v.name,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ),
                           ],
-                          onChanged: (v) => setSheetState(() => tempVendorId = v ?? ''),
+                          onChanged: (v) =>
+                              setSheetState(() => tempVendorId = v ?? ''),
                         ),
                       ),
                     ),
@@ -304,12 +344,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       await excelService.saveAndShare(result);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Export failed: $e'),
-            backgroundColor: AppTheme.dangerColor,
-          ),
-        );
+        showErrorSnackBar(context, 'Export failed: $e');
       }
     } finally {
       if (mounted) setState(() => _isExporting = false);
@@ -318,19 +353,35 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission(AppPermissions.viewReports)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Reports')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Reports'),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryColor,
-          unselectedLabelColor: AppTheme.textSecondary,
+          unselectedLabelColor: AppTheme.textSec(context),
           indicatorSize: TabBarIndicatorSize.label,
-          indicator: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: AppTheme.primaryColor, width: 3),
+          indicatorColor: AppTheme.primaryColor,
+          indicatorWeight: 3,
+          dividerColor: Colors.transparent,
+          splashBorderRadius: BorderRadius.circular(8),
+          indicator: UnderlineTabIndicator(
+            borderSide: const BorderSide(
+              color: AppTheme.primaryColor,
+              width: 3,
             ),
+            borderRadius: BorderRadius.circular(4),
           ),
           isScrollable: true,
           tabAlignment: TabAlignment.start,
@@ -393,15 +444,18 @@ class _ReportsScreenState extends State<ReportsScreen>
                       child: TextField(
                         decoration: InputDecoration(
                           hintText: 'Search product...',
-                          hintStyle: const TextStyle(fontSize: 13),
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textTer(context),
+                          ),
                           prefixIcon: const Icon(Icons.search, size: 18),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                              color: AppTheme.dividerColor,
+                            borderSide: BorderSide(
+                              color: AppTheme.dividerC(context),
                             ),
                           ),
                           isDense: true,
@@ -425,7 +479,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                         size: 20,
                         color: stockProvider.filterStartDate != null
                             ? AppTheme.primaryColor
-                            : AppTheme.textSecondary,
+                            : AppTheme.textSec(context),
                       ),
                     ),
                   ),
@@ -472,7 +526,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                           ),
                   ),
                   _AdvancedFilterButton(
-                    hasActive: stockProvider.filterUserId.isNotEmpty ||
+                    hasActive:
+                        stockProvider.filterUserId.isNotEmpty ||
                         stockProvider.filterVendorId.isNotEmpty,
                     onTap: () => _showAdvancedFiltersSheet(stockProvider),
                   ),
@@ -531,8 +586,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                     _FilterChip(
                       label: 'Transfer',
                       isSelected: _selectedFilter == 'transfer',
-                      onTap: () =>
-                          setState(() => _selectedFilter = 'transfer'),
+                      onTap: () => setState(() => _selectedFilter = 'transfer'),
                       color: AppTheme.indigoColor,
                     ),
                     const SizedBox(width: 8),
@@ -553,14 +607,14 @@ class _ReportsScreenState extends State<ReportsScreen>
                             Icon(
                               Icons.open_in_new,
                               size: 14,
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSec(context),
                             ),
                             const SizedBox(width: 4),
                             Text(
                               'Full History',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.textSec(context),
                               ),
                             ),
                           ],
@@ -587,23 +641,27 @@ class _ReportsScreenState extends State<ReportsScreen>
                   value: '${stockProvider.stockInTotal}',
                   icon: Icons.add_circle_rounded,
                   color: AppTheme.successColor,
-                  changePercent: stockProvider.periodChangePercentages['stockIn'],
+                  changePercent:
+                      stockProvider.periodChangePercentages['stockIn'],
                 ),
                 _KpiCard(
                   label: 'Stock Out',
                   value: '${stockProvider.stockOutTotal}',
                   icon: Icons.remove_circle_rounded,
                   color: AppTheme.primaryColor,
-                  changePercent: stockProvider.periodChangePercentages['stockOut'],
+                  changePercent:
+                      stockProvider.periodChangePercentages['stockOut'],
                 ),
                 _KpiCard(
                   label: 'Net Flow',
-                  value: '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange}',
+                  value:
+                      '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange}',
                   icon: Icons.swap_vert_rounded,
                   color: stockProvider.netStockChange >= 0
                       ? AppTheme.successColor
                       : AppTheme.dangerColor,
-                  changePercent: stockProvider.periodChangePercentages['netFlow'],
+                  changePercent:
+                      stockProvider.periodChangePercentages['netFlow'],
                 ),
               ],
             ),
@@ -621,18 +679,39 @@ class _ReportsScreenState extends State<ReportsScreen>
                           Icon(
                             Icons.history_rounded,
                             size: 56,
-                            color: AppTheme.iconMuted,
+                            color: AppTheme.iconMute(context),
                           ),
                           const SizedBox(height: 12),
                           Text(
                             'No transactions found',
                             style: TextStyle(
                               fontSize: 16,
-                              color: AppTheme.textTertiary,
+                              color: AppTheme.textTer(context),
                             ),
                           ),
                         ],
                       ),
+                    );
+                  }
+
+                  if (Responsive.isDesktop(context)) {
+                    return GridView.builder(
+                      padding: EdgeInsets.symmetric(horizontal: hPad),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisExtent: 100,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                      itemCount: transactions.length,
+                      itemBuilder: (context, index) {
+                        final t = transactions[index];
+                        return _TransactionTile(
+                          transaction: t,
+                          dateFormat: dateFormat,
+                        );
+                      },
                     );
                   }
 
@@ -710,21 +789,22 @@ class _ReportsScreenState extends State<ReportsScreen>
     final productProvider = context.watch<ProductProvider>();
 
     final hasNoData = productProvider.analyticsProducts.isEmpty;
-    final isStillLoading = productProvider.isLoading ||
+    final isStillLoading =
+        productProvider.isLoading ||
         (productProvider.isLoadingAnalytics && hasNoData);
 
     if (isStillLoading && hasNoData) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(strokeWidth: 2),
-              SizedBox(height: 16),
+              const CircularProgressIndicator(strokeWidth: 2),
+              const SizedBox(height: 16),
               Text(
                 'Loading analytics...',
-                style: TextStyle(color: AppTheme.textTertiary),
+                style: TextStyle(color: AppTheme.textTer(context)),
               ),
             ],
           ),
@@ -782,135 +862,105 @@ class _ReportsScreenState extends State<ReportsScreen>
                       color: productProvider.inventoryHealthScore >= 80
                           ? AppTheme.successColor
                           : productProvider.inventoryHealthScore >= 50
-                              ? AppTheme.warningColor
-                              : AppTheme.dangerColor,
+                          ? AppTheme.warningColor
+                          : AppTheme.dangerColor,
                     ),
                   ],
                 ),
-                _SectionCard(
-                  title: 'Products by Category',
-                  child: CategoryPieChart(
-                    data: countByCategory.map(
-                      (k, v) => MapEntry(k, v.toDouble()),
-                    ),
-                    valueLabel: 'products',
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                Text(
-                  'Category Details',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-
-                ...countByCategory.entries.map((entry) {
-                  final name = entry.key;
-                  final count = entry.value;
-                  final low = lowByCategory[name] ?? 0;
-                  final out = outByCategory[name] ?? 0;
-
-                  final categoryProducts =
-                      productProvider.productsByCategory[name];
-                  final categoryId =
-                      categoryProducts != null && categoryProducts.isNotEmpty
-                      ? categoryProducts.first.categoryId
-                      : null;
-
-                  return Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: categoryId != null
-                          ? () {
-                              productProvider.filterByCategory(categoryId);
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.productList,
-                              );
-                            }
-                          : null,
-                      child: GlassCard(
-                        borderRadius: 14,
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryColor.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(9),
-                                    ),
-                                    child: const Icon(
-                                      Icons.category,
-                                      color: AppTheme.primaryColor,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '$count products',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    size: 18,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  _MiniStat(
-                                    icon: Icons.inventory_2,
-                                    label: 'Products',
-                                    value: '$count',
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                  const SizedBox(width: 16),
-                                  _MiniStat(
-                                    icon: Icons.warning_amber,
-                                    label: 'Low Stock',
-                                    value: '$low',
-                                    color: AppTheme.warningColor,
-                                  ),
-                                  const SizedBox(width: 16),
-                                  _MiniStat(
-                                    icon: Icons.error_outline,
-                                    label: 'Out',
-                                    value: '$out',
-                                    color: AppTheme.dangerColor,
-                                  ),
-                                ],
-                              ),
-                            ],
+                if (Responsive.isDesktop(context)) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _SectionCard(
+                          title: 'Products by Category',
+                          child: CategoryPieChart(
+                            data: countByCategory.map(
+                              (k, v) => MapEntry(k, v.toDouble()),
+                            ),
+                            valueLabel: 'products',
                           ),
                         ),
                       ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Category Details',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            ...countByCategory.entries.map((entry) {
+                              final name = entry.key;
+                              final count = entry.value;
+                              final low = lowByCategory[name] ?? 0;
+                              final out = outByCategory[name] ?? 0;
+
+                              final categoryProducts =
+                                  productProvider.productsByCategory[name];
+                              final categoryId =
+                                  categoryProducts != null &&
+                                      categoryProducts.isNotEmpty
+                                  ? categoryProducts.first.categoryId
+                                  : null;
+
+                              return _CategoryDetailCard(
+                                name: name,
+                                count: count,
+                                low: low,
+                                out: out,
+                                categoryId: categoryId,
+                                productProvider: productProvider,
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  _SectionCard(
+                    title: 'Products by Category',
+                    child: CategoryPieChart(
+                      data: countByCategory.map(
+                        (k, v) => MapEntry(k, v.toDouble()),
+                      ),
+                      valueLabel: 'products',
                     ),
-                  );
-                }),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Category Details',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+
+                  ...countByCategory.entries.map((entry) {
+                    final name = entry.key;
+                    final count = entry.value;
+                    final low = lowByCategory[name] ?? 0;
+                    final out = outByCategory[name] ?? 0;
+
+                    final categoryProducts =
+                        productProvider.productsByCategory[name];
+                    final categoryId =
+                        categoryProducts != null && categoryProducts.isNotEmpty
+                        ? categoryProducts.first.categoryId
+                        : null;
+
+                    return _CategoryDetailCard(
+                      name: name,
+                      count: count,
+                      low: low,
+                      out: out,
+                      categoryId: categoryId,
+                      productProvider: productProvider,
+                    );
+                  }),
+                ],
               ],
             ),
           ),
@@ -975,7 +1025,8 @@ class _ReportsScreenState extends State<ReportsScreen>
       default:
         trendData = stockProvider.transactionsByDay;
         granularityLabel = 'daily';
-        daysParam = stockProvider.filterStartDate != null &&
+        daysParam =
+            stockProvider.filterStartDate != null &&
                 stockProvider.filterEndDate != null
             ? stockProvider.filterEndDate!
                   .difference(stockProvider.filterStartDate!)
@@ -1184,21 +1235,22 @@ class _ReportsScreenState extends State<ReportsScreen>
     final stockProvider = context.watch<StockProvider>();
 
     final hasNoData = productProvider.analyticsProducts.isEmpty;
-    final isStillLoading = productProvider.isLoading ||
+    final isStillLoading =
+        productProvider.isLoading ||
         (productProvider.isLoadingAnalytics && hasNoData);
 
     if (isStillLoading && hasNoData) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(strokeWidth: 2),
-              SizedBox(height: 16),
+              const CircularProgressIndicator(strokeWidth: 2),
+              const SizedBox(height: 16),
               Text(
                 'Loading analytics...',
-                style: TextStyle(color: AppTheme.textTertiary),
+                style: TextStyle(color: AppTheme.textTer(context)),
               ),
             ],
           ),
@@ -1305,224 +1357,11 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
                 const SizedBox(height: 16),
 
-                _SectionCard(
-                  title: 'Inventory Overview',
-                  child: Column(
-                    children: [
-                      _SummaryRow(
-                        label: 'Total Products',
-                        value: '${productProvider.totalProducts}',
-                        icon: Icons.inventory_2_rounded,
-                        color: AppTheme.primaryColor,
-                      ),
-                      const _DividerRow(),
-                      GestureDetector(
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.lowStock),
-                        child: _SummaryRow(
-                          label: 'Low Stock Items',
-                          value: '${productProvider.lowStockCount}',
-                          icon: Icons.warning_amber_rounded,
-                          color: AppTheme.warningColor,
-                        ),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Out of Stock',
-                        value: '${productProvider.outOfStockCount}',
-                        icon: Icons.error_rounded,
-                        color: AppTheme.dangerColor,
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Locations',
-                        value:
-                            '${context.watch<SettingsProvider>().locations.length}',
-                        icon: Icons.location_on_rounded,
-                        color: AppTheme.infoColor,
-                      ),
-                    ],
-                  ),
+                ..._buildSummaryCards(
+                  context,
+                  productProvider: productProvider,
+                  stockProvider: stockProvider,
                 ),
-                const SizedBox(height: 16),
-
-                Consumer<SettingsProvider>(
-                  builder: (context, settings, _) {
-                    if (!settings.pricingEnabled) {
-                      return const SizedBox.shrink();
-                    }
-                    final allProducts = productProvider.analyticsProducts;
-                    double totalCostValue = 0;
-                    double totalSellingValue = 0;
-                    for (final p in allProducts) {
-                      totalCostValue += p.totalCostValue;
-                      totalSellingValue += p.totalStockValue;
-                    }
-                    final totalProfit = totalSellingValue - totalCostValue;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _SectionCard(
-                        title: 'Inventory Valuation',
-                        child: Column(
-                          children: [
-                            _SummaryRow(
-                              label: 'Total Cost Value',
-                              value:
-                                  '${AppTheme.currencySymbol}${totalCostValue.toStringAsFixed(2)}',
-                              icon: Icons.money_rounded,
-                              color: AppTheme.primaryColor,
-                            ),
-                            const _DividerRow(),
-                            _SummaryRow(
-                              label: 'Total Selling Value',
-                              value:
-                                  '${AppTheme.currencySymbol}${totalSellingValue.toStringAsFixed(2)}',
-                              icon: Icons.sell_rounded,
-                              color: AppTheme.infoColor,
-                            ),
-                            const _DividerRow(),
-                            _SummaryRow(
-                              label: 'Total Profit',
-                              value:
-                                  '${AppTheme.currencySymbol}${totalProfit.toStringAsFixed(2)}',
-                              icon: Icons.trending_up_rounded,
-                              color: totalProfit >= 0
-                                  ? AppTheme.successColor
-                                  : AppTheme.dangerColor,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                _SectionCard(
-                  title: 'Transaction Summary',
-                  child: Column(
-                    children: [
-                      _SummaryRow(
-                        label: 'Stock In',
-                        value:
-                            '${stockProvider.transactionsByType[TransactionType.stockIn] ?? 0} entries (+${stockProvider.stockInTotal} units)',
-                        icon: Icons.add_circle_rounded,
-                        color: AppTheme.successColor,
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Stock Out',
-                        value:
-                            '${stockProvider.transactionsByType[TransactionType.stockOut] ?? 0} entries (-${stockProvider.stockOutTotal} units)',
-                        icon: Icons.remove_circle_rounded,
-                        color: AppTheme.primaryColor,
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Damage',
-                        value:
-                            '${stockProvider.transactionsByType[TransactionType.damage] ?? 0} entries (-${stockProvider.damageTotal} units)',
-                        icon: Icons.report_problem_rounded,
-                        color: AppTheme.dangerColor,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.damageHistory,
-                        ),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Transfer',
-                        value:
-                            '${stockProvider.transactionsByType[TransactionType.transfer] ?? 0} entries (${stockProvider.transferTotal} units)',
-                        icon: Icons.swap_horiz_rounded,
-                        color: AppTheme.indigoColor,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Stock Turnover & Net Flow
-                _SectionCard(
-                  title: 'Stock Turnover & Flow',
-                  child: Column(
-                    children: [
-                      _SummaryRow(
-                        label: 'Net Stock Flow',
-                        value:
-                            '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange} units',
-                        icon: Icons.swap_vert_rounded,
-                        color: stockProvider.netStockChange >= 0
-                            ? AppTheme.successColor
-                            : AppTheme.dangerColor,
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Avg Transaction Size',
-                        value:
-                            '${stockProvider.averageTransactionSize.toStringAsFixed(1)} units',
-                        icon: Icons.analytics_rounded,
-                        color: AppTheme.primaryColor,
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Peak Activity Day',
-                        value: stockProvider.peakActivityDay,
-                        icon: Icons.calendar_today_rounded,
-                        color: AppTheme.infoColor,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Location breakdown
-                _SectionCard(
-                  title: 'Location Breakdown',
-                  child: Column(
-                    children: productProvider.locationBreakdown.entries.map((
-                      entry,
-                    ) {
-                      final locQty =
-                          productProvider.quantityByLocation[entry.key] ?? 0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 16,
-                              color: AppTheme.infoColor,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                entry.key,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            Text(
-                              '${entry.value} products',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              '$locQty units',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 16),
 
                 // Low stock items (expandable)
                 if (lowStockItems.isNotEmpty)
@@ -1623,16 +1462,16 @@ class _ReportsScreenState extends State<ReportsScreen>
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(16),
-                          decoration: AppTheme.cardDecoration,
+                          decoration: AppTheme.cardDeco(context),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Top Vendors by Transaction Volume',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: AppTheme.textSecondary,
+                                  color: AppTheme.textSec(context),
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -1694,6 +1533,63 @@ class _ReportsScreenState extends State<ReportsScreen>
                   },
                 ),
 
+                _SectionCard(
+                  title: 'Detailed Reports',
+                  child: Column(
+                    children: [
+                      _SummaryRow(
+                        label: 'Profit & Loss',
+                        value: '',
+                        icon: Icons.account_balance_wallet,
+                        color: AppTheme.successColor,
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.profitLoss),
+                      ),
+                      const _DividerRow(),
+                      _SummaryRow(
+                        label: 'ABC Analysis',
+                        value: '',
+                        icon: Icons.stacked_bar_chart,
+                        color: AppTheme.indigoColor,
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.abcAnalysis),
+                      ),
+                      const _DividerRow(),
+                      _SummaryRow(
+                        label: 'Inventory Valuation',
+                        value: '',
+                        icon: Icons.trending_up,
+                        color: AppTheme.warningColor,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.valuationTrends,
+                        ),
+                      ),
+                      const _DividerRow(),
+                      _SummaryRow(
+                        label: 'Audit Log',
+                        value: '',
+                        icon: Icons.history,
+                        color: AppTheme.infoColor,
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.auditLog),
+                      ),
+                      const _DividerRow(),
+                      _SummaryRow(
+                        label: 'Price History',
+                        value: '',
+                        icon: Icons.price_change,
+                        color: AppTheme.primaryColor,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.priceHistory,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -1714,6 +1610,245 @@ class _ReportsScreenState extends State<ReportsScreen>
         ),
       ),
     );
+  }
+
+  List<Widget> _buildSummaryCards(
+    BuildContext context, {
+    required ProductProvider productProvider,
+    required StockProvider stockProvider,
+  }) {
+    final inventoryOverview = _SectionCard(
+      title: 'Inventory Overview',
+      child: Column(
+        children: [
+          _SummaryRow(
+            label: 'Total Products',
+            value: '${productProvider.totalProducts}',
+            icon: Icons.inventory_2_rounded,
+            color: AppTheme.primaryColor,
+          ),
+          const _DividerRow(),
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, AppRoutes.lowStock),
+            child: _SummaryRow(
+              label: 'Low Stock Items',
+              value: '${productProvider.lowStockCount}',
+              icon: Icons.warning_amber_rounded,
+              color: AppTheme.warningColor,
+            ),
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Out of Stock',
+            value: '${productProvider.outOfStockCount}',
+            icon: Icons.error_rounded,
+            color: AppTheme.dangerColor,
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Locations',
+            value: '${context.watch<SettingsProvider>().locations.length}',
+            icon: Icons.location_on_rounded,
+            color: AppTheme.infoColor,
+          ),
+        ],
+      ),
+    );
+
+    final transactionSummary = _SectionCard(
+      title: 'Transaction Summary',
+      child: Column(
+        children: [
+          _SummaryRow(
+            label: 'Stock In',
+            value:
+                '${stockProvider.transactionsByType[TransactionType.stockIn] ?? 0} entries (+${stockProvider.stockInTotal} units)',
+            icon: Icons.add_circle_rounded,
+            color: AppTheme.successColor,
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Stock Out',
+            value:
+                '${stockProvider.transactionsByType[TransactionType.stockOut] ?? 0} entries (-${stockProvider.stockOutTotal} units)',
+            icon: Icons.remove_circle_rounded,
+            color: AppTheme.primaryColor,
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Damage',
+            value:
+                '${stockProvider.transactionsByType[TransactionType.damage] ?? 0} entries (-${stockProvider.damageTotal} units)',
+            icon: Icons.report_problem_rounded,
+            color: AppTheme.dangerColor,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.damageHistory),
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Transfer',
+            value:
+                '${stockProvider.transactionsByType[TransactionType.transfer] ?? 0} entries (${stockProvider.transferTotal} units)',
+            icon: Icons.swap_horiz_rounded,
+            color: AppTheme.indigoColor,
+          ),
+        ],
+      ),
+    );
+
+    final turnoverFlow = _SectionCard(
+      title: 'Stock Turnover & Flow',
+      child: Column(
+        children: [
+          _SummaryRow(
+            label: 'Net Stock Flow',
+            value:
+                '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange} units',
+            icon: Icons.swap_vert_rounded,
+            color: stockProvider.netStockChange >= 0
+                ? AppTheme.successColor
+                : AppTheme.dangerColor,
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Avg Transaction Size',
+            value:
+                '${stockProvider.averageTransactionSize.toStringAsFixed(1)} units',
+            icon: Icons.analytics_rounded,
+            color: AppTheme.primaryColor,
+          ),
+          const _DividerRow(),
+          _SummaryRow(
+            label: 'Peak Activity Day',
+            value: stockProvider.peakActivityDay,
+            icon: Icons.calendar_today_rounded,
+            color: AppTheme.infoColor,
+          ),
+        ],
+      ),
+    );
+
+    final locationBreakdown = _SectionCard(
+      title: 'Location Breakdown',
+      child: Column(
+        children: productProvider.locationBreakdown.entries.map((entry) {
+          final locQty = productProvider.quantityByLocation[entry.key] ?? 0;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, size: 16, color: AppTheme.infoColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(entry.key, style: const TextStyle(fontSize: 13)),
+                ),
+                Text(
+                  '${entry.value} products',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSec(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '$locQty units',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+
+    final valuationCard = Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        if (!settings.pricingEnabled) {
+          return const SizedBox.shrink();
+        }
+        final allProducts = productProvider.analyticsProducts;
+        double totalCostValue = 0;
+        double totalSellingValue = 0;
+        for (final p in allProducts) {
+          totalCostValue += p.totalCostValue;
+          totalSellingValue += p.totalStockValue;
+        }
+        final totalProfit = totalSellingValue - totalCostValue;
+        return _SectionCard(
+          title: 'Inventory Valuation',
+          child: Column(
+            children: [
+              _SummaryRow(
+                label: 'Total Cost Value',
+                value:
+                    '${AppTheme.currencySymbol}${totalCostValue.toStringAsFixed(2)}',
+                icon: Icons.money_rounded,
+                color: AppTheme.primaryColor,
+              ),
+              const _DividerRow(),
+              _SummaryRow(
+                label: 'Total Selling Value',
+                value:
+                    '${AppTheme.currencySymbol}${totalSellingValue.toStringAsFixed(2)}',
+                icon: Icons.sell_rounded,
+                color: AppTheme.infoColor,
+              ),
+              const _DividerRow(),
+              _SummaryRow(
+                label: 'Total Profit',
+                value:
+                    '${AppTheme.currencySymbol}${totalProfit.toStringAsFixed(2)}',
+                icon: Icons.trending_up_rounded,
+                color: totalProfit >= 0
+                    ? AppTheme.successColor
+                    : AppTheme.dangerColor,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (Responsive.isDesktop(context)) {
+      return [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: inventoryOverview),
+            const SizedBox(width: 16),
+            Expanded(child: transactionSummary),
+          ],
+        ),
+        const SizedBox(height: 16),
+        valuationCard,
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: turnoverFlow),
+            const SizedBox(width: 16),
+            Expanded(child: locationBreakdown),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ];
+    }
+
+    return [
+      inventoryOverview,
+      const SizedBox(height: 16),
+      valuationCard,
+      const SizedBox(height: 16),
+      transactionSummary,
+      const SizedBox(height: 16),
+      turnoverFlow,
+      const SizedBox(height: 16),
+      locationBreakdown,
+      const SizedBox(height: 16),
+    ];
   }
 }
 
@@ -1793,9 +1928,9 @@ class _TransactionTile extends StatelessWidget {
                         if (t.userName.isNotEmpty) t.userName,
                         dateFormat.format(t.date),
                       ].join(' \u2022 '),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.textSec(context),
                       ),
                     ),
                     if (t.vendorName.isNotEmpty)
@@ -1813,7 +1948,7 @@ class _TransactionTile extends StatelessWidget {
                         t.reason,
                         style: TextStyle(
                           fontSize: 10,
-                          color: AppTheme.textTertiary,
+                          color: AppTheme.textTer(context),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1876,7 +2011,7 @@ class _FilterChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : chipColor,
+              color: isSelected ? Colors.white : AppTheme.textPri(context),
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
@@ -1917,7 +2052,7 @@ class _ToggleChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : AppTheme.primaryColor,
+              color: isSelected ? Colors.white : AppTheme.textPri(context),
               fontWeight: FontWeight.w600,
               fontSize: 11,
             ),
@@ -1960,7 +2095,7 @@ class _SummaryRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
           ),
         ),
         Flexible(
@@ -2023,6 +2158,116 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+class _CategoryDetailCard extends StatelessWidget {
+  final String name;
+  final int count;
+  final int low;
+  final int out;
+  final String? categoryId;
+  final ProductProvider productProvider;
+
+  const _CategoryDetailCard({
+    required this.name,
+    required this.count,
+    required this.low,
+    required this.out,
+    required this.categoryId,
+    required this.productProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: categoryId != null
+            ? () {
+                productProvider.filterByCategory(categoryId!);
+                Navigator.pushNamed(context, AppRoutes.productList);
+              }
+            : null,
+        child: GlassCard(
+          borderRadius: 14,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: const Icon(
+                        Icons.category,
+                        color: AppTheme.primaryColor,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$count products',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSec(context),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppTheme.textSec(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _MiniStat(
+                      icon: Icons.inventory_2,
+                      label: 'Products',
+                      value: '$count',
+                      color: AppTheme.primaryColor,
+                    ),
+                    const SizedBox(width: 16),
+                    _MiniStat(
+                      icon: Icons.warning_amber,
+                      label: 'Low Stock',
+                      value: '$low',
+                      color: AppTheme.warningColor,
+                    ),
+                    const SizedBox(width: 16),
+                    _MiniStat(
+                      icon: Icons.error_outline,
+                      label: 'Out',
+                      value: '$out',
+                      color: AppTheme.dangerColor,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MiniStat extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2049,9 +2294,9 @@ class _MiniStat extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.textSec(context),
                   ),
                 ),
                 Text(
@@ -2192,7 +2437,6 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 140,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -2277,6 +2521,19 @@ class _KpiRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Responsive.isDesktop(context)) {
+      return Padding(
+        padding: padding ?? EdgeInsets.zero,
+        child: Row(
+          children: [
+            for (int i = 0; i < cards.length; i++) ...[
+              Expanded(child: cards[i]),
+              if (i < cards.length - 1) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: padding ?? EdgeInsets.zero,
       child: SizedBox(

@@ -12,8 +12,10 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/permissions.dart';
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -49,7 +51,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
     final productProvider = context.watch<ProductProvider>();
     final user = context.watch<AuthProvider>().currentUser;
     final canManageCategories =
-        user?.hasPermission('canManageCategories') ?? false;
+        user?.hasPermission(AppPermissions.manageCategories) ?? false;
     final productCounts = productProvider.productCountByCategory;
     final categories = categoryProvider.categories;
 
@@ -60,7 +62,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
               .toList();
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: AppBarTitleRow(
           icon: Icons.category_rounded,
@@ -69,7 +71,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: categoryProvider.isLoading
             ? const ShimmerLoading(itemCount: 5, layout: ShimmerLayout.listTile)
             : categories.isEmpty
@@ -112,17 +114,17 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                   )
                                 : null,
                             filled: true,
-                            fillColor: AppTheme.inputFillColor,
+                            fillColor: AppTheme.inputFill(context),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: AppTheme.inputBorderColor,
+                                color: AppTheme.inputBorder(context),
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(
-                                color: AppTheme.inputBorderColor,
+                                color: AppTheme.inputBorder(context),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -147,14 +149,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                     Icon(
                                       Icons.search_off_rounded,
                                       size: 48,
-                                      color: AppTheme.iconMuted,
+                                      color: AppTheme.iconMute(context),
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
                                       'No categories match "$_searchQuery"',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: AppTheme.textTertiary,
+                                        color: AppTheme.textTer(context),
                                       ),
                                     ),
                                   ],
@@ -221,16 +223,18 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                                       Icons
                                                           .inventory_2_outlined,
                                                       size: 13,
-                                                      color: AppTheme
-                                                          .textSecondary,
+                                                      color: AppTheme.textSec(
+                                                        context,
+                                                      ),
                                                     ),
                                                     const SizedBox(width: 4),
                                                     Text(
                                                       '$count product${count == 1 ? '' : 's'}',
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         fontSize: 12,
-                                                        color: AppTheme
-                                                            .textSecondary,
+                                                        color: AppTheme.textSec(
+                                                          context,
+                                                        ),
                                                         fontWeight:
                                                             FontWeight.w500,
                                                       ),
@@ -417,6 +421,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         setDialogState(() => isSaving = false);
 
                         if (success) {
+                          if (isEditing) {
+                            dialogContext
+                                .read<ProductProvider>()
+                                .refreshProducts();
+                          }
                           Navigator.pop(dialogContext);
                           showSuccessOverlay(
                             context,
@@ -424,14 +433,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
                             popAfter: false,
                           );
                         } else {
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                catProvider.errorMessage ??
-                                    'Something went wrong',
-                              ),
-                              backgroundColor: AppTheme.dangerColor,
-                            ),
+                          showErrorSnackBar(
+                            dialogContext,
+                            catProvider.errorMessage ?? 'Something went wrong',
                           );
                         }
                       },
@@ -543,14 +547,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
                           );
                         } else {
                           final provider = context.read<CategoryProvider>();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                provider.errorMessage ?? 'Cannot delete',
-                              ),
-                              backgroundColor: AppTheme.dangerColor,
-                              duration: const Duration(seconds: 4),
-                            ),
+                          showErrorSnackBar(
+                            context,
+                            provider.errorMessage ?? 'Cannot delete',
                           );
                         }
                       }
@@ -559,12 +558,12 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 backgroundColor: AppTheme.dangerColor,
               ),
               child: isDeleting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppTheme.surfaceColor,
+                        color: AppTheme.surface(context),
                       ),
                     )
                   : const Text('Delete'),

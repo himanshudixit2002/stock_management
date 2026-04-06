@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../config/permissions.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/category_provider.dart';
@@ -11,20 +12,43 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../widgets/animated_list_item.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/glass_panel.dart';
+import '../../widgets/charts/transaction_line_chart.dart';
+import '../../widgets/charts/category_pie_chart.dart';
+import '../../widgets/charts/top_products_chart.dart';
+import '../../widgets/charts/stock_bar_chart.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/empty_state_widget.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _chartDays = 7;
+
+  @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user != null && !user.hasPermission(AppPermissions.viewDashboard)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Dashboard')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
+      );
+    }
+
     final today = DateFormat('EEEE, d MMM').format(DateTime.now());
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Dashboard'),
-        automaticallyImplyLeading: false,
         actions: [
           Selector<ProductProvider, int>(
             selector: (_, p) => p.lowStockCount,
@@ -53,8 +77,8 @@ class DashboardScreen extends StatelessWidget {
                       ),
                       child: Text(
                         '$lowStockCount',
-                        style: const TextStyle(
-                          color: AppTheme.surfaceColor,
+                        style: TextStyle(
+                          color: AppTheme.surface(context),
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -68,7 +92,7 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: RefreshIndicator(
           onRefresh: () async {
             final companyId = context.read<ProductProvider>().companyId;
@@ -76,8 +100,17 @@ class DashboardScreen extends StatelessWidget {
             context.read<CategoryProvider>().initialize(companyId: companyId);
             context.read<StockProvider>().initialize(companyId: companyId);
           },
-          child: SingleChildScrollView(
-            physics: Responsive.scrollPhysics(context),
+          child: Selector<ProductProvider, bool>(
+            selector: (_, p) => p.isLoading,
+            builder: (context, isLoading, child) {
+              if (isLoading &&
+                  context.read<ProductProvider>().totalProducts == 0) {
+                return const ShimmerLoading(layout: ShimmerLayout.stat);
+              }
+              return child!;
+            },
+            child: SingleChildScrollView(
+              physics: Responsive.scrollPhysics(context),
             padding: EdgeInsets.fromLTRB(
               Responsive.horizontalPadding(context),
               8,
@@ -113,6 +146,30 @@ class DashboardScreen extends StatelessWidget {
                         final stockProvider = context.watch<StockProvider>();
                         final productProvider = context
                             .watch<ProductProvider>();
+                        if (vendorProvider.isLoading) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: SizedBox(
+                              height: 36,
+                              child: Row(
+                                children: List.generate(
+                                  3,
+                                  (i) => Padding(
+                                    padding: EdgeInsets.only(right: 8),
+                                    child: Container(
+                                      width: 80,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.inputFill(context),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
                         final activeVendors = vendorProvider.activeVendors;
                         if (activeVendors.isEmpty) {
                           return const SizedBox.shrink();
@@ -181,87 +238,54 @@ class DashboardScreen extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final actions = [
-                          _QuickActionCard(
-                            icon: Icons.add_box_rounded,
-                            label: 'Stock In',
-                            subtitle: 'Add items',
-                            color: AppTheme.successColor,
-                            onTap: () =>
-                                Navigator.pushNamed(context, AppRoutes.stockIn),
-                          ),
-                          _QuickActionCard(
-                            icon: Icons.outbox_rounded,
-                            label: 'Stock Out',
-                            subtitle: 'Remove',
-                            color: AppTheme.primaryColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockOut,
-                            ),
-                          ),
-                          _QuickActionCard(
-                            icon: Icons.swap_horiz_rounded,
-                            label: 'Transfer',
-                            subtitle: 'Move',
-                            color: AppTheme.indigoColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockTransfer,
-                            ),
-                          ),
-                          _QuickActionCard(
-                            icon: Icons.report_problem_rounded,
-                            label: 'Damage',
-                            subtitle: 'Report',
-                            color: AppTheme.dangerColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.damageReport,
-                            ),
-                          ),
-                        ];
-
-                        if (Responsive.isMobile(context)) {
-                          final itemWidth = (constraints.maxWidth - 10) / 2;
-                          return Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: actions
-                                .map(
-                                  (a) => SizedBox(width: itemWidth, child: a),
-                                )
-                                .toList(),
-                          );
-                        }
-
-                        return Row(
-                          children:
-                              actions
-                                  .expand(
-                                    (a) => [
-                                      Expanded(child: a),
-                                      const SizedBox(width: 10),
-                                    ],
-                                  )
-                                  .toList()
-                                ..removeLast(),
-                        );
-                      },
-                    ),
-
                     Selector<AuthProvider, bool>(
                       selector: (_, auth) => auth.isAdmin,
                       builder: (context, isAdmin, _) {
-                        if (!isAdmin) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _QuickActionCard(
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final actions = <Widget>[
+                              _QuickActionCard(
+                                icon: Icons.add_box_rounded,
+                                label: 'Stock In',
+                                subtitle: 'Add items',
+                                color: AppTheme.successColor,
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.stockIn,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                icon: Icons.outbox_rounded,
+                                label: 'Stock Out',
+                                subtitle: 'Remove',
+                                color: AppTheme.primaryColor,
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.stockOut,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                icon: Icons.swap_horiz_rounded,
+                                label: 'Transfer',
+                                subtitle: 'Move',
+                                color: AppTheme.indigoColor,
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.stockTransfer,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                icon: Icons.report_problem_rounded,
+                                label: 'Damage',
+                                subtitle: 'Report',
+                                color: AppTheme.dangerColor,
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.damageReport,
+                                ),
+                              ),
+                              if (isAdmin) ...[
+                                _QuickActionCard(
                                   icon: Icons.add_circle_rounded,
                                   label: 'Add Item',
                                   subtitle: 'New product',
@@ -271,10 +295,7 @@ class DashboardScreen extends StatelessWidget {
                                     AppRoutes.addProduct,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _QuickActionCard(
+                                _QuickActionCard(
                                   icon: Icons.upload_file_rounded,
                                   label: 'Import',
                                   subtitle: 'From Excel',
@@ -284,10 +305,7 @@ class DashboardScreen extends StatelessWidget {
                                     AppRoutes.excelImport,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _QuickActionCard(
+                                _QuickActionCard(
                                   icon: Icons.download_rounded,
                                   label: 'Export',
                                   subtitle: 'To Excel',
@@ -297,11 +315,39 @@ class DashboardScreen extends StatelessWidget {
                                     AppRoutes.excelExport,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ];
+
+                            final crossAxisCount =
+                                Responsive.isDesktop(context)
+                                    ? 6
+                                    : (Responsive.isMobile(context) ? 2 : 4);
+                            const spacing = 10.0;
+                            final itemWidth = (constraints.maxWidth -
+                                    spacing * (crossAxisCount - 1)) /
+                                crossAxisCount;
+
+                            return Wrap(
+                              spacing: spacing,
+                              runSpacing: spacing,
+                              children: actions
+                                  .map(
+                                    (a) =>
+                                        SizedBox(width: itemWidth, child: a),
+                                  )
+                                  .toList(),
+                            );
+                          },
                         );
                       },
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Charts & Insights
+                    _ChartsSection(
+                      chartDays: _chartDays,
+                      onDaysChanged: (d) => setState(() => _chartDays = d),
                     ),
 
                     const SizedBox(height: 28),
@@ -332,6 +378,7 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -385,14 +432,15 @@ class _StatsRow extends StatelessWidget {
     final provider = context.read<ProductProvider>();
     showModalBottomSheet(
       context: context,
+      constraints: Responsive.sheetConstraints(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final lowStock = provider.lowStockProducts;
         return Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.surfaceColor,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: DraggableScrollableSheet(
             initialChildSize: 0.6,
@@ -407,7 +455,7 @@ class _StatsRow extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppTheme.emptyStateIcon,
+                      color: AppTheme.emptyIcon(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -440,18 +488,26 @@ class _StatsRow extends StatelessWidget {
                   const Divider(height: 1),
                   Expanded(
                     child: lowStock.isEmpty
-                        ? const Center(
-                            child: Text('All products are well stocked!'),
+                        ? const EmptyStateWidget(
+                            icon: Icons.check_circle_outline_rounded,
+                            title: 'All Stocked Up',
+                            subtitle: 'All products are well stocked!',
                           )
-                        : ListView.separated(
+                        : GridView.builder(
                             controller: scrollController,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
                             ),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                                  Responsive.isDesktop(context) ? 3 : 1,
+                              mainAxisExtent: 80,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
                             itemCount: lowStock.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 4),
                             itemBuilder: (ctx3, index) {
                               final product = lowStock[index];
                               final stockColor = AppTheme.getStockColor(
@@ -551,20 +607,24 @@ class _TodaySummary extends StatelessWidget {
                 'Today',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
-              const Spacer(),
-              if (inQty > 0)
-                _TodayChip(label: '+$inQty in', color: AppTheme.successColor),
-              if (inQty > 0 && (outQty > 0 || dmgQty > 0))
-                const SizedBox(width: 8),
-              if (outQty > 0)
-                _TodayChip(label: '-$outQty out', color: AppTheme.primaryColor),
-              if (outQty > 0 && (dmgQty > 0 || xfrQty > 0))
-                const SizedBox(width: 8),
-              if (xfrQty > 0)
-                _TodayChip(label: '$xfrQty xfr', color: AppTheme.indigoColor),
-              if (xfrQty > 0 && dmgQty > 0) const SizedBox(width: 8),
-              if (dmgQty > 0)
-                _TodayChip(label: '$dmgQty dmg', color: AppTheme.dangerColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (inQty > 0)
+                      _TodayChip(label: '+$inQty in', color: AppTheme.successColor),
+                    if (outQty > 0)
+                      _TodayChip(label: '-$outQty out', color: AppTheme.primaryColor),
+                    if (xfrQty > 0)
+                      _TodayChip(label: '$xfrQty xfr', color: AppTheme.indigoColor),
+                    if (dmgQty > 0)
+                      _TodayChip(label: '$dmgQty dmg', color: AppTheme.dangerColor),
+                  ],
+                ),
+              ),
             ],
           ),
         );
@@ -587,21 +647,21 @@ class _RecentActivitySection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 40),
             width: double.infinity,
             decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
+              color: AppTheme.surface(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.dividerColor),
+              border: Border.all(color: AppTheme.dividerC(context)),
             ),
             child: Column(
               children: [
                 Icon(
                   Icons.history_rounded,
                   size: 48,
-                  color: AppTheme.iconMuted,
+                  color: AppTheme.iconMute(context),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'No recent activity',
-                  style: TextStyle(color: AppTheme.textTertiary, fontSize: 15),
+                  style: TextStyle(color: AppTheme.textTer(context), fontSize: 15),
                 ),
               ],
             ),
@@ -740,7 +800,7 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTheme.surfaceColor,
+      color: AppTheme.surface(context),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -749,7 +809,7 @@ class _QuickActionCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.dividerColor),
+            border: Border.all(color: AppTheme.dividerC(context)),
           ),
           child: Column(
             children: [
@@ -764,8 +824,8 @@ class _QuickActionCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
+                style: TextStyle(
+                  color: AppTheme.textPri(context),
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
@@ -773,8 +833,8 @@ class _QuickActionCard extends StatelessWidget {
               ),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
+                style: TextStyle(
+                  color: AppTheme.textSec(context),
                   fontSize: 11,
                 ),
                 textAlign: TextAlign.center,
@@ -825,9 +885,9 @@ class _ActivityTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
+        color: AppTheme.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.dividerColor),
+        border: Border.all(color: AppTheme.dividerC(context)),
       ),
       child: Row(
         children: [
@@ -863,9 +923,9 @@ class _ActivityTile extends StatelessWidget {
                       'By ${transaction.userName}',
                     dateFormat.format(transaction.date),
                   ].join(' \u2022 '),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.textSec(context),
                   ),
                 ),
               ],
@@ -915,6 +975,183 @@ class _TodayChip extends StatelessWidget {
   }
 }
 
+class _ChartsSection extends StatelessWidget {
+  final int chartDays;
+  final ValueChanged<int> onDaysChanged;
+
+  const _ChartsSection({
+    required this.chartDays,
+    required this.onDaysChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final stockProvider = context.watch<StockProvider>();
+    final productProvider = context.watch<ProductProvider>();
+
+    final countByCategory = productProvider.productCountByCategory;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.insights_rounded,
+                size: 20, color: AppTheme.primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Charts & Insights',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          children: [7, 30, 90].map((d) {
+            final selected = chartDays == d;
+            return ChoiceChip(
+              label: Text('${d}d'),
+              selected: selected,
+              onSelected: (_) => onDaysChanged(d),
+              selectedColor: AppTheme.primaryColor,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : AppTheme.textSec(context),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+              visualDensity: VisualDensity.compact,
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+
+        if (Responsive.isDesktop(context)) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: RepaintBoundary(
+                  child: GlassSectionCard(
+                    title: 'Stock Trend',
+                    icon: Icons.show_chart_rounded,
+                    child: TransactionLineChart(
+                      dataByDay: stockProvider.transactionsByDay,
+                      days: chartDays,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: RepaintBoundary(
+                  child: GlassSectionCard(
+                    title: 'Category Distribution',
+                    icon: Icons.pie_chart_rounded,
+                    child: CategoryPieChart(
+                      data: countByCategory.map(
+                        (k, v) => MapEntry(k, v.toDouble()),
+                      ),
+                      valueLabel: 'products',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: RepaintBoundary(
+                  child: GlassSectionCard(
+                    title: 'Top Movers',
+                    icon: Icons.trending_up_rounded,
+                    child: TopProductsChart(
+                      data: stockProvider.topProductsByQuantityMoved,
+                      barColor: AppTheme.successColor,
+                      valueLabel: 'units',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: RepaintBoundary(
+                  child: GlassSectionCard(
+                    title: 'Stock by Location',
+                    icon: Icons.bar_chart_rounded,
+                    child: StockBarChart(
+                      data: productProvider.quantityByLocation.map(
+                        (k, v) => MapEntry(k, v.toDouble()),
+                      ),
+                      barColor: AppTheme.primaryColor,
+                      emptyMessage: 'No location data available',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          RepaintBoundary(
+            child: GlassSectionCard(
+              title: 'Stock Trend',
+              icon: Icons.show_chart_rounded,
+              child: TransactionLineChart(
+                dataByDay: stockProvider.transactionsByDay,
+                days: chartDays,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          RepaintBoundary(
+            child: GlassSectionCard(
+              title: 'Category Distribution',
+              icon: Icons.pie_chart_rounded,
+              child: CategoryPieChart(
+                data: countByCategory.map(
+                  (k, v) => MapEntry(k, v.toDouble()),
+                ),
+                valueLabel: 'products',
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          RepaintBoundary(
+            child: GlassSectionCard(
+              title: 'Top Movers',
+              icon: Icons.trending_up_rounded,
+              child: TopProductsChart(
+                data: stockProvider.topProductsByQuantityMoved,
+                barColor: AppTheme.successColor,
+                valueLabel: 'units',
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          RepaintBoundary(
+            child: GlassSectionCard(
+              title: 'Stock by Location',
+              icon: Icons.bar_chart_rounded,
+              child: StockBarChart(
+                data: productProvider.quantityByLocation.map(
+                  (k, v) => MapEntry(k, v.toDouble()),
+                ),
+                barColor: AppTheme.primaryColor,
+                emptyMessage: 'No location data available',
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _VendorToggleChip extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -953,7 +1190,7 @@ class _VendorToggleChip extends StatelessWidget {
                 Icons.local_shipping_rounded,
                 size: 14,
                 color: isSelected
-                    ? AppTheme.surfaceColor
+                    ? AppTheme.surface(context)
                     : AppTheme.indigoColor,
               ),
               const SizedBox(width: 6),
@@ -963,7 +1200,7 @@ class _VendorToggleChip extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: isSelected
-                      ? AppTheme.surfaceColor
+                      ? AppTheme.surface(context)
                       : AppTheme.indigoColor,
                 ),
               ),

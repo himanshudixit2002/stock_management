@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/role_provider.dart';
 import '../../models/user_model.dart';
+import '../../models/role_model.dart';
 import '../../config/theme.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -11,6 +13,10 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/responsive.dart';
+import '../../utils/dialogs.dart';
+import '../../utils/validators.dart';
+import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -23,6 +29,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _debounce;
+  int _usersStreamEpoch = 0;
 
   @override
   void dispose() {
@@ -51,31 +58,119 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+    final auth = context.watch<AuthProvider>();
+    final companyId = auth.currentUser?.companyId ?? '';
+    final companyName = auth.currentUser?.companyName ?? '';
+
+    return PermissionGate(
+      permission: AppPermissions.manageUsers,
+      featureName: 'User Management',
+      child: Scaffold(
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
-        title: AppBarTitleRow(
-          icon: Icons.people_rounded,
-          color: AppTheme.primaryColor,
-          title: 'User Management',
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppBarTitleRow(
+              icon: Icons.people_rounded,
+              color: AppTheme.primaryColor,
+              title: 'User Management',
+            ),
+            if (companyName.isNotEmpty)
+              Text(
+                companyName,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textSec(context),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: StreamBuilder<List<UserModel>>(
-          stream: context.read<AuthProvider>().getAllUsers(),
+          key: ValueKey<String>('$companyId-$_usersStreamEpoch'),
+          stream: companyId.isEmpty
+              ? Stream.value(<UserModel>[])
+              : auth.getAllUsers(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return const ShimmerLoading(
                 itemCount: 4,
                 layout: ShimmerLayout.listTile,
               );
             }
 
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cloud_off_rounded,
+                        size: 48,
+                        color: AppTheme.dangerColor,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Could not load users',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () => setState(() => _usersStreamEpoch++),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             final allUsers = snapshot.data ?? [];
 
             if (allUsers.isEmpty) {
-              return const Center(child: Text('No users found'));
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_outline_rounded,
+                      size: 56,
+                      color: AppTheme.emptyIcon(context).withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No users yet',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSec(context),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap the button below to add staff',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSec(context).withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }
 
             final filteredUsers = _filterUsers(allUsers);
@@ -113,17 +208,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 )
                               : null,
                           filled: true,
-                          fillColor: AppTheme.inputFillColor,
+                          fillColor: AppTheme.inputFill(context),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: AppTheme.inputBorderColor,
+                              color: AppTheme.inputBorder(context),
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(
-                              color: AppTheme.inputBorderColor,
+                              color: AppTheme.inputBorder(context),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -150,9 +245,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             '${filteredUsers.length} of ${allUsers.length} users',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSec(context),
                             ),
                           ),
                         ),
@@ -167,14 +262,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   Icon(
                                     Icons.search_off_rounded,
                                     size: 48,
-                                    color: AppTheme.iconMuted,
+                                    color: AppTheme.iconMute(context),
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
                                     'No users match "$_searchQuery"',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      color: AppTheme.textTertiary,
+                                      color: AppTheme.textTer(context),
                                     ),
                                   ),
                                 ],
@@ -247,11 +342,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                           10,
                                                         ),
                                                   ),
-                                                  child: const Text(
+                                                  child: Text(
                                                     'You',
                                                     style: TextStyle(
                                                       color:
-                                                          AppTheme.surfaceColor,
+                                                          AppTheme.surface(context),
                                                       fontSize: 10,
                                                       fontWeight:
                                                           FontWeight.bold,
@@ -266,38 +361,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(user.email),
-                                              Container(
-                                                margin: const EdgeInsets.only(
-                                                  top: 4,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
+                                              Builder(
+                                                builder: (_) {
+                                                  final roleProvider = context.watch<RoleProvider>();
+                                                  final role = roleProvider.getRoleById(user.roleId);
+                                                  final roleName = role?.name ?? user.role.toUpperCase();
+                                                  final isPrivileged = user.isAdmin || user.roleId == RoleModel.managerRoleId;
+                                                  return Container(
+                                                    margin: const EdgeInsets.only(top: 4),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: isPrivileged
+                                                          ? AppTheme.primaryColor.withValues(alpha: 0.1)
+                                                          : AppTheme.accentColor.withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(10),
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  color: user.isAdmin
-                                                      ? AppTheme.primaryColor
-                                                            .withValues(
-                                                              alpha: 0.1,
-                                                            )
-                                                      : AppTheme.accentColor
-                                                            .withValues(
-                                                              alpha: 0.1,
-                                                            ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Text(
-                                                  user.role.toUpperCase(),
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: user.isAdmin
-                                                        ? AppTheme.primaryColor
-                                                        : AppTheme.accentColor,
-                                                  ),
-                                                ),
+                                                    child: Text(
+                                                      roleName.toUpperCase(),
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: isPrivileged
+                                                            ? AppTheme.primaryColor
+                                                            : AppTheme.accentColor,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
                                               ),
                                             ],
                                           ),
@@ -306,56 +396,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               ? PopupMenuButton<String>(
                                                   onSelected: (value) {
                                                     if (value == 'delete') {
-                                                      _confirmDeleteUser(
-                                                        context,
-                                                        user,
-                                                      );
-                                                    } else {
-                                                      _changeRole(
-                                                        context,
-                                                        user,
-                                                        value,
-                                                      );
+                                                      _confirmDeleteUser(context, user);
+                                                    } else if (value == 'assign_role') {
+                                                      _showRoleAssignSheet(context, user);
                                                     }
                                                   },
                                                   itemBuilder: (context) => [
-                                                    if (!user.isAdmin)
-                                                      const PopupMenuItem(
-                                                        value: 'admin',
-                                                        child: Text(
-                                                          'Make Admin',
-                                                        ),
+                                                    const PopupMenuItem(
+                                                      value: 'assign_role',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.badge_rounded, size: 20),
+                                                          SizedBox(width: 8),
+                                                          Text('Assign Role'),
+                                                        ],
                                                       ),
-                                                    if (!user.isStaff)
-                                                      const PopupMenuItem(
-                                                        value: 'staff',
-                                                        child: Text(
-                                                          'Make Staff',
-                                                        ),
-                                                      ),
-                                                    if (user.isStaff) ...[
+                                                    ),
+                                                    if (!user.isOwner) ...[
                                                       const PopupMenuDivider(),
                                                       PopupMenuItem(
                                                         value: 'delete',
                                                         child: Row(
                                                           children: [
-                                                            Icon(
-                                                              Icons
-                                                                  .delete_rounded,
-                                                              color: AppTheme
-                                                                  .dangerColor,
-                                                              size: 20,
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            Text(
-                                                              'Remove User',
-                                                              style: TextStyle(
-                                                                color: AppTheme
-                                                                    .dangerColor,
-                                                              ),
-                                                            ),
+                                                            Icon(Icons.delete_rounded, color: AppTheme.dangerColor, size: 20),
+                                                            const SizedBox(width: 8),
+                                                            Text('Remove User', style: TextStyle(color: AppTheme.dangerColor)),
                                                           ],
                                                         ),
                                                       ),
@@ -384,134 +449,305 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         icon: const Icon(Icons.person_add),
         label: const Text('Add Staff'),
       ),
+    ),
     );
   }
 
-  void _changeRole(BuildContext context, UserModel user, String newRole) {
+  void _showRoleAssignSheet(BuildContext context, UserModel user) {
+    String? selectedRoleId = user.roleId.isNotEmpty ? user.roleId : null;
     bool isChanging = false;
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Change Role'),
-          content: Text(
-            'Change ${user.name}\'s role to ${newRole.toUpperCase()}?',
+      constraints: Responsive.sheetConstraints(context),
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final roles = context.read<RoleProvider>().roles;
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) => Container(
+            decoration: BoxDecoration(
+              color: AppTheme.surface(context),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 4),
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.dividerC(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.badge_rounded, color: AppTheme.accentColor, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Text('Assign Role', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPri(context))),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetCtx),
+                        icon: Icon(Icons.close_rounded, size: 18, color: AppTheme.textSec(context)),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Text(
+                    'Select a role for ${user.name}',
+                    style: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...roles.map((role) => RadioListTile<String>(
+                  value: role.id,
+                  groupValue: selectedRoleId,
+                  title: Text(role.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(role.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppTheme.textTer(context))),
+                  secondary: Text('${role.enabledCount}/${role.totalCount}', style: TextStyle(fontSize: 11, color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+                  onChanged: (v) => setSheetState(() => selectedRoleId = v),
+                )),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetCtx),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: AppTheme.dividerC(context)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text('Cancel', style: TextStyle(color: AppTheme.textSec(context), fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: (isChanging || selectedRoleId == null)
+                              ? null
+                              : () async {
+                                  setSheetState(() => isChanging = true);
+                                  await context.read<AuthProvider>().updateUserRoleId(user.uid, selectedRoleId!);
+                                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                                  if (context.mounted) {
+                                    setState(() => _usersStreamEpoch++);
+                                    final roleName = roles.firstWhere((r) => r.id == selectedRoleId, orElse: () => roles.first).name;
+                                    showSuccessOverlay(context, message: '${user.name} is now $roleName', popAfter: false);
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: isChanging
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('Assign', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: isChanging
-                  ? null
-                  : () async {
-                      setDialogState(() => isChanging = true);
-                      await context.read<AuthProvider>().updateUserRole(
-                        user.uid,
-                        newRole,
-                      );
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      if (context.mounted) {
-                        showSuccessOverlay(
-                          context,
-                          message:
-                              '${user.name} is now ${newRole.toUpperCase()}',
-                          popAfter: false,
-                        );
-                      }
-                    },
-              child: isChanging
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Confirm'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
   void _confirmDeleteUser(BuildContext context, UserModel user) {
     bool isDeleting = false;
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Row(
+      constraints: Responsive.sheetConstraints(context),
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) => Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.dangerColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.person_remove_rounded,
-                  color: AppTheme.dangerColor,
-                  size: 20,
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 4),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.dividerC(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              const Text('Remove User'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.dangerColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.person_remove_rounded,
+                        color: AppTheme.dangerColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Text(
+                      'Remove User',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.dangerColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      icon: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface(context),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: AppTheme.textSec(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppTheme.dangerColor.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppTheme.dangerColor.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: Text(
+                        'Remove ${user.name} (${user.email}) from your company?\n\n'
+                        'They will immediately lose access to all company data. '
+                        'This action cannot be undone.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textPri(context),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(sheetCtx),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: AppTheme.dividerC(context)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: AppTheme.textSec(context),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: isDeleting
+                                ? null
+                                : () async {
+                                    setSheetState(() => isDeleting = true);
+                                    final auth = context.read<AuthProvider>();
+                                    final ok = await auth.deleteStaffUser(
+                                      user.uid,
+                                    );
+                                    if (sheetCtx.mounted) {
+                                      Navigator.pop(sheetCtx);
+                                    }
+                                    if (context.mounted) {
+                                      if (ok) {
+                                        setState(() => _usersStreamEpoch++);
+                                        showSuccessOverlay(
+                                          context,
+                                          message:
+                                              '${user.name} has been removed',
+                                          popAfter: false,
+                                        );
+                                      } else {
+                                        showErrorSnackBar(context, auth.errorMessage ?? 'Failed to remove user');
+                                        auth.clearError();
+                                      }
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.dangerColor,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: isDeleting
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.surface(context),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Remove',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          content: Text(
-            'Remove ${user.name} (${user.email}) from your company?\n\n'
-            'They will immediately lose access to all company data. '
-            'This action cannot be undone.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: isDeleting
-                  ? null
-                  : () async {
-                      setDialogState(() => isDeleting = true);
-                      final auth = context.read<AuthProvider>();
-                      final ok = await auth.deleteStaffUser(user.uid);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      if (context.mounted) {
-                        if (ok) {
-                          showSuccessOverlay(
-                            context,
-                            message: '${user.name} has been removed',
-                            popAfter: false,
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                auth.errorMessage ?? 'Failed to remove user',
-                              ),
-                              backgroundColor: AppTheme.dangerColor,
-                            ),
-                          );
-                          auth.clearError();
-                        }
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.dangerColor,
-              ),
-              child: isDeleting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.surfaceColor,
-                      ),
-                    )
-                  : const Text('Remove'),
-            ),
-          ],
         ),
       ),
     );
@@ -523,117 +759,281 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final passwordController = TextEditingController();
     final adminPasswordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    String selectedRoleId = RoleModel.staffRoleId;
 
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Staff User'),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
+      isScrollControlled: true,
+      constraints: Responsive.sheetConstraints(context),
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
+          ),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CustomTextField(
-                  controller: nameController,
-                  label: 'Full Name',
-                  prefixIcon: Icons.person,
-                  validator: (v) => v?.isEmpty ?? true ? 'Enter name' : null,
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 4),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.dividerC(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-                CustomTextField(
-                  controller: emailController,
-                  label: 'Email',
-                  prefixIcon: Icons.email,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) {
-                    if (v?.isEmpty ?? true) return 'Enter email';
-                    if (!v!.contains('@')) return 'Invalid email';
-                    return null;
-                  },
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.person_add_rounded,
+                          color: AppTheme.primaryColor,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        'Add Staff',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetCtx),
+                        icon: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface(context),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppTheme.textSec(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                CustomTextField(
-                  controller: passwordController,
-                  label: 'Staff Password',
-                  prefixIcon: Icons.lock,
-                  obscureText: true,
-                  validator: (v) {
-                    if (v?.isEmpty ?? true) return 'Enter password';
-                    if (v!.length < 6) return 'Min 6 characters';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Divider(),
-                const SizedBox(height: 4),
-                const Text(
-                  'Enter your admin password to confirm',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                ),
-                const SizedBox(height: 8),
-                CustomTextField(
-                  controller: adminPasswordController,
-                  label: 'Your Admin Password',
-                  prefixIcon: Icons.shield,
-                  obscureText: true,
-                  validator: (v) {
-                    if (v?.isEmpty ?? true) return 'Enter your password';
-                    return null;
-                  },
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CustomTextField(
+                          controller: nameController,
+                          label: 'Full Name',
+                          prefixIcon: Icons.person,
+                          validator: (v) =>
+                              v?.isEmpty ?? true ? 'Enter name' : null,
+                        ),
+                        CustomTextField(
+                          controller: emailController,
+                          label: 'Email',
+                          prefixIcon: Icons.email,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: validateEmail,
+                        ),
+                        CustomTextField(
+                          controller: passwordController,
+                          label: 'Staff Password',
+                          prefixIcon: Icons.lock,
+                          obscureText: true,
+                          validator: (v) {
+                            if (v?.isEmpty ?? true) return 'Enter password';
+                            if (v!.length < 6) return 'Min 6 characters';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        StatefulBuilder(
+                          builder: (ctx, setLocalState) {
+                            final roles = ctx.watch<RoleProvider>().roles;
+                            return DropdownButtonFormField<String>(
+                              value: selectedRoleId,
+                              decoration: const InputDecoration(
+                                labelText: 'Role',
+                                prefixIcon: Icon(Icons.badge_rounded),
+                              ),
+                              items: roles.map((r) => DropdownMenuItem(
+                                value: r.id,
+                                child: Text(r.name),
+                              )).toList(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setLocalState(() => selectedRoleId = v);
+                                }
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(
+                              alpha: 0.04,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.12,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Enter your admin password to verify this action',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          controller: adminPasswordController,
+                          label: 'Your Admin Password',
+                          prefixIcon: Icons.shield,
+                          obscureText: true,
+                          validator: (v) {
+                            if (v?.isEmpty ?? true) {
+                              return 'Enter your password';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(sheetCtx),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(color: AppTheme.dividerC(context)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    color: AppTheme.textSec(context),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Consumer<AuthProvider>(
+                                builder: (context, auth, _) => ElevatedButton(
+                                  onPressed: auth.isLoading
+                                      ? null
+                                      : () async {
+                                          if (!formKey.currentState!
+                                              .validate()) {
+                                            return;
+                                          }
+                                          final success = await auth
+                                              .addStaffUser(
+                                                name: nameController.text.trim(),
+                                                email: emailController.text.trim(),
+                                                password: passwordController.text,
+                                                adminPassword: adminPasswordController.text,
+                                                roleId: selectedRoleId,
+                                              );
+
+                                          if (sheetCtx.mounted) {
+                                            Navigator.pop(sheetCtx);
+                                            if (success) {
+                                              setState(() => _usersStreamEpoch++);
+                                              showSuccessOverlay(
+                                                context,
+                                                message: 'Staff user created!',
+                                                popAfter: false,
+                                              );
+                                            } else {
+                                              showErrorSnackBar(context, auth.errorMessage ?? 'Failed to create user');
+                                            }
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: auth.isLoading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Create Staff',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          Consumer<AuthProvider>(
-            builder: (context, auth, _) {
-              return ElevatedButton(
-                onPressed: auth.isLoading
-                    ? null
-                    : () async {
-                        if (!formKey.currentState!.validate()) return;
-                        final success = await auth.addStaffUser(
-                          name: nameController.text.trim(),
-                          email: emailController.text.trim(),
-                          password: passwordController.text,
-                          adminPassword: adminPasswordController.text,
-                        );
-
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                          if (success) {
-                            showSuccessOverlay(
-                              context,
-                              message: 'Staff user created!',
-                              popAfter: false,
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  auth.errorMessage ?? 'Failed to create user',
-                                ),
-                                backgroundColor: AppTheme.dangerColor,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                child: auth.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Create'),
-              );
-            },
-          ),
-        ],
       ),
     );
   }

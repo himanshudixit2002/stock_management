@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../services/file_helper.dart' as file_helper;
+import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/file_helper.dart' as file_helper;
 import '../../models/vendor_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../models/stock_transaction_model.dart';
@@ -12,6 +14,9 @@ import '../../models/product_model.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
+import '../../providers/billing_provider.dart';
+import '../../providers/billing_settings_provider.dart';
+import '../../models/invoice_model.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
 // Vendor routes registered in app.dart onGenerateRoute
@@ -28,14 +33,24 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
   bool _isProcessing = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProductProvider>().loadAnalytics();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
     final vendorProvider = context.watch<VendorProvider>();
     final productProvider = context.watch<ProductProvider>();
     final stockProvider = context.watch<StockProvider>();
 
     final vendor =
         vendorProvider.getVendorById(widget.vendor.id) ?? widget.vendor;
-    final allProducts = productProvider.allProducts;
+    final allProducts = productProvider.analyticsProducts;
+    final isLoadingProducts = productProvider.isLoadingAnalytics;
     final allTransactions = stockProvider.allTransactions;
 
     final scorecard = vendorProvider.vendorScorecard(
@@ -47,49 +62,100 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: Text(vendor.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_rounded),
-            onPressed: () => Navigator.pushNamed(
-              context,
-              AppRoutes.editVendor,
-              arguments: vendor,
+          if (user?.hasPermission(AppPermissions.editVendors) ?? false)
+            IconButton(
+              icon: const Icon(Icons.edit_rounded),
+              onPressed: () => Navigator.pushNamed(
+                context,
+                AppRoutes.editVendor,
+                arguments: vendor,
+              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_rounded),
-            onPressed: () => _confirmDelete(context, vendor),
-          ),
+          if (user?.hasPermission(AppPermissions.deleteVendors) ?? false)
+            IconButton(
+              icon: const Icon(Icons.delete_rounded),
+              onPressed: () => _confirmDelete(context, vendor),
+            ),
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: Responsive.contentMaxWidth(context),
             ),
-            child: ListView(
-              padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-              children: [
-                _buildInfoCard(vendor),
-                const SizedBox(height: 16),
-                _buildScorecardSection(scorecard),
-                const SizedBox(height: 16),
-                _buildLinkedProductsSection(
-                  linkedProducts,
-                  allProducts,
-                  vendor,
-                ),
-                const SizedBox(height: 16),
-                _buildPurchaseOrderSection(vendor, allProducts),
-                const SizedBox(height: 16),
-                _buildRecentTransactionsSection(vendor.id),
-              ],
-            ),
+            child: isLoadingProducts && allProducts.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(strokeWidth: 2.5),
+                        SizedBox(height: 16),
+                        Text('Loading product data...'),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    padding: EdgeInsets.all(
+                      Responsive.horizontalPadding(context),
+                    ),
+                    children: [
+                      Builder(builder: (context) {
+                        final section1 = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildInfoCard(vendor),
+                            const SizedBox(height: 16),
+                            _buildScorecardSection(scorecard),
+                          ],
+                        );
+                        final section2 = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildLinkedProductsSection(
+                              linkedProducts,
+                              allProducts,
+                              vendor,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildPurchaseOrderSection(vendor, allProducts),
+                          ],
+                        );
+                        if (Responsive.isDesktop(context)) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: section1),
+                              const SizedBox(width: 16),
+                              Expanded(child: section2),
+                            ],
+                          );
+                        }
+                        return Column(
+                          children: [
+                            section1,
+                            const SizedBox(height: 16),
+                            section2,
+                          ],
+                        );
+                      }),
+                      if (context
+                          .watch<BillingSettingsProvider>()
+                          .billingEnabled) ...[
+                        const SizedBox(height: 16),
+                        _buildBillingSection(vendor),
+                      ],
+                      const SizedBox(height: 16),
+                      _buildRecentTransactionsSection(vendor.id),
+                    ],
+                  ),
           ),
         ),
       ),
@@ -142,7 +208,9 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           decoration: BoxDecoration(
                             color: vendor.isActive
                                 ? AppTheme.successColor.withValues(alpha: 0.1)
-                                : AppTheme.textMuted.withValues(alpha: 0.15),
+                                : AppTheme.textMute(
+                                    context,
+                                  ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -152,7 +220,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               fontWeight: FontWeight.w600,
                               color: vendor.isActive
                                   ? AppTheme.successColor
-                                  : AppTheme.textMuted,
+                                  : AppTheme.textMute(context),
                             ),
                           ),
                         ),
@@ -166,7 +234,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               size: 16,
                               color: i < vendor.rating.round()
                                   ? AppTheme.warningColor
-                                  : AppTheme.emptyStateIcon,
+                                  : AppTheme.emptyIcon(context),
                             );
                           }),
                         ],
@@ -209,13 +277,13 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppTheme.textTertiary),
+          Icon(icon, size: 18, color: AppTheme.textTer(context)),
           const SizedBox(width: 10),
           SizedBox(
             width: 70,
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+              style: TextStyle(fontSize: 13, color: AppTheme.textTer(context)),
             ),
           ),
           Expanded(
@@ -338,7 +406,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
+            style: TextStyle(fontSize: 11, color: AppTheme.textTer(context)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -395,7 +463,10 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'No products linked to this vendor',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textTer(context),
+                  ),
                 ),
               ),
             )
@@ -430,7 +501,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           '${p.quantity} ${p.unit}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                       ],
@@ -441,7 +512,10 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
             Center(
               child: Text(
                 '+${linkedProducts.length - 10} more',
-                style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textTer(context),
+                ),
               ),
             ),
         ],
@@ -504,7 +578,10 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'No low stock items for this vendor',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textTertiary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textTer(context),
+                  ),
                 ),
               ),
             )
@@ -535,7 +612,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           '${item['currentQty']}/${item['threshold']} ${item['unit']}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -602,6 +679,191 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     }
   }
 
+  Widget _buildBillingSection(VendorModel vendor) {
+    final billing = context.watch<BillingProvider>();
+    final bs = context.watch<BillingSettingsProvider>().settings;
+    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final numFmt = NumberFormat('#,##0.00');
+    final dateFmt = DateFormat('dd MMM yyyy');
+    final outstanding = billing.vendorOutstanding(vendor.id);
+    final vendorInvoices = billing.invoicesForVendor(vendor.id);
+    final recent = vendorInvoices.take(5).toList();
+
+    return GlassPanel(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      useContentVariant: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.receipt_long_rounded,
+                size: 18,
+                color: AppTheme.warningColor,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Bills',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: outstanding > 0
+                      ? AppTheme.dangerColor.withValues(alpha: 0.1)
+                      : AppTheme.successColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Due: $sym${numFmt.format(outstanding)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: outstanding > 0
+                        ? AppTheme.dangerColor
+                        : AppTheme.successColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (recent.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No bills yet',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textTer(context),
+                ),
+              ),
+            )
+          else
+            ...recent.map(
+              (inv) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.invoiceDetail,
+                      arguments: inv.id,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  inv.invoiceNumber,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  '${dateFmt.format(inv.invoiceDate)} · ${inv.statusLabel}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textTer(context),
+                                  ),
+                                ),
+                                if (inv.amountDue > 0 &&
+                                    !inv.isPaid &&
+                                    !inv.isCancelled)
+                                  Text(
+                                    'Due: $sym${numFmt.format(inv.amountDue)}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.dangerColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '$sym${numFmt.format(inv.grandTotal)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: AppTheme.textTer(context),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.vendorStatement),
+                  icon: const Icon(Icons.description_rounded, size: 16),
+                  label: const Text(
+                    'Statement',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.createInvoice,
+                    arguments: <String, dynamic>{
+                      'type': InvoiceType.purchase,
+                      'vendorId': vendor.id,
+                      'vendorName': vendor.name,
+                    },
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text(
+                    'Create Bill',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRecentTransactionsSection(String vendorId) {
     return GlassPanel(
       borderRadius: 16,
@@ -647,7 +909,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                       'No transactions yet',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textTertiary,
+                        color: AppTheme.textTer(context),
                       ),
                     ),
                   ),
@@ -691,7 +953,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           DateFormat('MMM d').format(t.date),
                           style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                       ],
@@ -711,15 +973,19 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
     List<ProductModel> allProducts,
     VendorModel vendor,
   ) {
+    final originalIds = <String>{};
     final selectedIds = <String>{};
     for (final p in allProducts) {
       if (p.preferredVendorId == vendor.id) {
+        originalIds.add(p.id);
         selectedIds.add(p.id);
       }
     }
+    String search = '';
 
     showModalBottomSheet(
       context: parentCtx,
+      constraints: Responsive.sheetConstraints(parentCtx),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -727,6 +993,20 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
+            final filtered = search.isEmpty
+                ? allProducts
+                : allProducts
+                      .where(
+                        (p) =>
+                            p.name.toLowerCase().contains(
+                              search.toLowerCase(),
+                            ) ||
+                            p.categoryName.toLowerCase().contains(
+                              search.toLowerCase(),
+                            ),
+                      )
+                      .toList();
+
             return DraggableScrollableSheet(
               initialChildSize: 0.7,
               minChildSize: 0.4,
@@ -755,30 +1035,58 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           ),
                           TextButton(
                             onPressed: () async {
-                              final toAssign = selectedIds.toList();
                               Navigator.pop(ctx);
+
+                              final toAssign = selectedIds
+                                  .difference(originalIds)
+                                  .toList();
+                              final toUnassign = originalIds
+                                  .difference(selectedIds)
+                                  .toList();
+                              final unchanged =
+                                  toAssign.isEmpty && toUnassign.isEmpty;
+
+                              if (unchanged) return;
+
+                              bool ok = true;
                               if (toAssign.isNotEmpty) {
-                                final ok = await parentCtx
+                                ok = await parentCtx
                                     .read<VendorProvider>()
                                     .bulkAssignVendor(
                                       productIds: toAssign,
                                       vendorId: vendor.id,
                                       vendorName: vendor.name,
                                     );
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        ok
-                                            ? '${toAssign.length} products assigned'
-                                            : 'Failed to assign products',
-                                      ),
-                                      backgroundColor: ok
-                                          ? AppTheme.successColor
-                                          : AppTheme.dangerColor,
+                              }
+                              if (toUnassign.isNotEmpty && ok) {
+                                ok = await parentCtx
+                                    .read<VendorProvider>()
+                                    .bulkAssignVendor(
+                                      productIds: toUnassign,
+                                      vendorId: '',
+                                      vendorName: '',
+                                    );
+                              }
+
+                              if (mounted) {
+                                parentCtx.read<ProductProvider>()
+                                  ..invalidateAnalytics()
+                                  ..loadAnalytics();
+
+                                final total =
+                                    toAssign.length + toUnassign.length;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      ok
+                                          ? '$total product${total == 1 ? '' : 's'} updated'
+                                          : 'Failed to update products',
                                     ),
-                                  );
-                                }
+                                    backgroundColor: ok
+                                        ? AppTheme.successColor
+                                        : AppTheme.dangerColor,
+                                  ),
+                                );
                               }
                             },
                             child: Text('Save (${selectedIds.length})'),
@@ -786,13 +1094,25 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search products...',
+                          prefixIcon: Icon(Icons.search_rounded),
+                          isDense: true,
+                        ),
+                        onChanged: (v) => setSheetState(() => search = v),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     const Divider(height: 1),
                     Expanded(
                       child: ListView.builder(
                         controller: controller,
-                        itemCount: allProducts.length,
+                        itemCount: filtered.length,
                         itemBuilder: (_, i) {
-                          final p = allProducts[i];
+                          final p = filtered[i];
                           final isSelected = selectedIds.contains(p.id);
                           return CheckboxListTile(
                             title: Text(
@@ -803,10 +1123,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               [
                                 p.categoryName,
                                 if (p.company.isNotEmpty) p.company,
+                                '${p.quantity} ${p.unit}',
                               ].join(' | '),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.textTertiary,
+                                color: AppTheme.textTer(context),
                               ),
                             ),
                             value: isSelected,

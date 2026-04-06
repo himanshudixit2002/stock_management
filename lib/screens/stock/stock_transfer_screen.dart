@@ -7,12 +7,17 @@ import '../../providers/stock_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/quantity_stepper.dart';
+import '../../config/routes.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
-import '../products/add_edit_product_screen.dart';
+import '../../widgets/searchable_picker.dart';
+import '../../widgets/product_picker.dart';
+import '../../config/permissions.dart';
 
 class StockTransferScreen extends StatefulWidget {
   final ProductModel? product;
@@ -33,8 +38,6 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
   String _fromLocation = '';
   String? _toLocation;
   bool _isLoading = false;
-  String _productSearch = '';
-
   bool get _hasUnsavedChanges =>
       _quantityController.text.trim().isNotEmpty ||
       _toLocation != null ||
@@ -43,29 +46,12 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
 
   Future<bool> _confirmDiscard() async {
     if (!_hasUnsavedChanges) return true;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved changes. Are you sure you want to go back?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.dangerColor,
-            ),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    return showConfirmDialog(
+      context,
+      title: 'Discard changes?',
+      message: 'You have unsaved changes. Are you sure you want to go back?',
+      confirmLabel: 'Discard',
     );
-    return result ?? false;
   }
 
   int get _availableAtFrom {
@@ -86,55 +72,17 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     super.dispose();
   }
 
-  String _locationBreakdown(ProductModel p) {
-    final lq = p.locationQuantities;
-    if (lq.isEmpty) return 'No stock';
-    if (lq.length <= 2) {
-      return lq.entries.map((e) => '${e.key}: ${e.value}').join(', ');
-    }
-    return '${lq.length} locations \u2022 ${p.quantity} total';
-  }
-
   Future<bool> _confirmTransfer(int qty) async {
     final toLocation = _toLocation!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.swap_horiz_rounded,
-                color: AppTheme.primaryColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text('Confirm Transfer'),
-          ],
-        ),
-        content: Text(
-          'Transfer $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}"\n\n'
+    return showConfirmDialog(
+      context,
+      title: 'Confirm Transfer',
+      message: 'Transfer $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}"\n\n'
           'From: $_fromLocation\nTo: $toLocation',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Transfer'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Transfer',
+      icon: Icons.swap_horiz_rounded,
+      iconColor: AppTheme.primaryColor,
     );
-    return confirmed ?? false;
   }
 
   Future<void> _transfer() async {
@@ -142,46 +90,22 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a product'),
-          backgroundColor: AppTheme.dangerColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      showErrorSnackBar(context, 'Please select a product');
       return;
     }
     if (_fromLocation.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select source location'),
-          backgroundColor: AppTheme.dangerColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      showErrorSnackBar(context, 'Please select source location');
       return;
     }
 
     if (_toLocation == null || _toLocation!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select destination location'),
-          backgroundColor: AppTheme.dangerColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      showErrorSnackBar(context, 'Please select destination location');
       return;
     }
 
     final toLocation = _toLocation!;
     if (toLocation == _fromLocation) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Source and destination must be different'),
-          backgroundColor: AppTheme.dangerColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      showErrorSnackBar(context, 'Source and destination must be different');
       return;
     }
 
@@ -196,13 +120,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     if (user == null) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session expired. Please log in again.'),
-            backgroundColor: AppTheme.dangerColor,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        showErrorSnackBar(context, 'Session expired. Please log in again.');
       }
       return;
     }
@@ -235,179 +153,33 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       });
       showSuccessOverlay(context, message: 'Stock transferred successfully');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.read<StockProvider>().errorMessage ??
-                'Failed to transfer stock',
-          ),
-          backgroundColor: AppTheme.dangerColor,
-          duration: const Duration(seconds: 4),
-        ),
+      showErrorSnackBar(
+        context,
+        context.read<StockProvider>().errorMessage ??
+            'Failed to transfer stock',
       );
     }
   }
 
-  void _showProductPicker(List<ProductModel> products) {
-    _productSearch = '';
-    final multiLocationProducts = products
-        .where((p) => p.locationQuantities.entries.any((e) => e.value > 0))
-        .toList();
-
-    showModalBottomSheet(
+  Future<void> _pickProduct(List<ProductModel> products) async {
+    final p = await showProductPicker(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filtered = _productSearch.isEmpty
-                ? multiLocationProducts
-                : multiLocationProducts
-                      .where(
-                        (p) =>
-                            p.name.toLowerCase().contains(
-                              _productSearch.toLowerCase(),
-                            ) ||
-                            p.categoryName.toLowerCase().contains(
-                              _productSearch.toLowerCase(),
-                            ),
-                      )
-                      .toList();
-
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.7,
-              decoration: const BoxDecoration(
-                color: AppTheme.surfaceColor,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppTheme.emptyStateIcon,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: TextField(
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        hintText: 'Search products...',
-                        prefixIcon: Icon(Icons.search_rounded),
-                      ),
-                      onChanged: (v) {
-                        setModalState(() => _productSearch = v);
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.search_off_rounded,
-                                  size: 48,
-                                  color: AppTheme.iconMuted,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'No products with stock found',
-                                  style: TextStyle(
-                                    color: AppTheme.textTertiary,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final p = filtered[index];
-                              final isSelected = _selectedProduct?.id == p.id;
-                              final stockColor = AppTheme.getStockColor(
-                                p.quantity,
-                                threshold: p.lowStockThreshold,
-                              );
-                              return ListTile(
-                                selected: isSelected,
-                                selectedTileColor: AppTheme.primaryColor
-                                    .withValues(alpha: 0.08),
-                                shape: isSelected
-                                    ? RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        side: BorderSide(
-                                          color: AppTheme.primaryColor
-                                              .withValues(alpha: 0.3),
-                                        ),
-                                      )
-                                    : null,
-                                onTap: () {
-                                  setState(() {
-                                    _selectedProduct = p;
-                                    _fromLocation = '';
-                                    _toLocation = null;
-                                    _productSearch = '';
-                                  });
-                                  Navigator.pop(context);
-                                },
-                                leading: Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: stockColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    Icons.inventory_2_rounded,
-                                    color: stockColor,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(
-                                  p.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '${p.categoryName} \u2022 ${_locationBreakdown(p)}',
-                                  style: const TextStyle(fontSize: 12),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: Text(
-                                  '${p.quantity} ${p.unit}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: stockColor,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      products: products,
+      selectedProductId: _selectedProduct?.id,
     );
+    if (p == null || !mounted) return;
+    final locs = p.locationQuantities.entries.where((e) => e.value > 0).toList();
+    setState(() {
+      _selectedProduct = p;
+      _fromLocation = locs.length == 1 ? locs.first.key : '';
+      _toLocation = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission('canTransfer')) {
+    if (user != null && !user.hasPermission(AppPermissions.transfer)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Stock Transfer')),
         body: const Center(
@@ -440,10 +212,29 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
           subtitle: 'Add your first product to start transferring stock.',
           buttonText: 'Add Product',
           onButtonPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddEditProductScreen()),
-            );
+            Navigator.pushNamed(context, AppRoutes.addProduct);
+          },
+        ),
+      );
+    }
+
+    if (settingsLocations.length < 2) {
+      return Scaffold(
+        appBar: AppBar(
+          title: AppBarTitleRow(
+            icon: Icons.swap_horiz_rounded,
+            color: AppTheme.indigoColor,
+            title: 'Transfer Stock',
+          ),
+        ),
+        body: EmptyStateWidget(
+          icon: Icons.location_off_rounded,
+          title: 'Not Enough Locations',
+          subtitle:
+              'You need at least two locations to transfer stock. Add locations in Settings.',
+          buttonText: 'Go to Settings',
+          onButtonPressed: () {
+            Navigator.pushNamed(context, AppRoutes.settings, arguments: 'locations');
           },
         ),
       );
@@ -468,7 +259,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
           }
         },
         child: Scaffold(
-          backgroundColor: AppTheme.backgroundColor,
+          backgroundColor: AppTheme.bg(context),
           appBar: AppBar(
             title: AppBarTitleRow(
               icon: Icons.swap_horiz_rounded,
@@ -477,8 +268,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
             ),
           ),
           body: Container(
-            decoration: const BoxDecoration(
-              gradient: AppTheme.scaffoldGradient,
+            decoration: BoxDecoration(
+              gradient: AppTheme.scaffoldGrad(context),
             ),
             child: Center(
               child: ConstrainedBox(
@@ -503,20 +294,20 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
+                          Text(
                             'Select Product *',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.textPri(context),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Material(
-                            color: AppTheme.inputFillColor,
+                            color: AppTheme.inputFill(context),
                             borderRadius: BorderRadius.circular(16),
                             child: InkWell(
-                              onTap: () => _showProductPicker(products),
+                              onTap: () => _pickProduct(products),
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -526,7 +317,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: AppTheme.inputBorderColor,
+                                    color: AppTheme.inputBorder(context),
                                   ),
                                 ),
                                 child: Row(
@@ -535,7 +326,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       Icons.inventory_2_rounded,
                                       color: _selectedProduct != null
                                           ? AppTheme.primaryColor
-                                          : AppTheme.textSecondary,
+                                          : AppTheme.textSec(context),
                                       size: 22,
                                     ),
                                     const SizedBox(width: 12),
@@ -548,17 +339,17 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                                 fontSize: 15,
                                               ),
                                             )
-                                          : const Text(
+                                          : Text(
                                               'Tap to select a product...',
                                               style: TextStyle(
-                                                color: AppTheme.textSecondary,
+                                                color: AppTheme.textSec(context),
                                                 fontSize: 15,
                                               ),
                                             ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       Icons.arrow_drop_down_rounded,
-                                      color: AppTheme.textSecondary,
+                                      color: AppTheme.textSec(context),
                                     ),
                                   ],
                                 ),
@@ -573,34 +364,82 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                               productLocations.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 16),
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _fromLocation.isEmpty
-                                    ? null
-                                    : _fromLocation,
-                                decoration: const InputDecoration(
-                                  labelText: 'From Location *',
-                                  prefixIcon: Icon(Icons.location_on_rounded),
-                                ),
-                                hint: const Text('Select source'),
-                                items: productLocations.map((e) {
-                                  return DropdownMenuItem(
-                                    value: e.key,
-                                    child: Text(
-                                      '${e.key} (${e.value} ${_selectedProduct!.unit})',
-                                    ),
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final result = await showSearchablePicker(
+                                    context: context,
+                                    title: 'From Location',
+                                    selectedValue:
+                                        _fromLocation.isEmpty
+                                            ? null
+                                            : _fromLocation,
+                                    addNewLabel: 'Add new location',
+                                    addNewValue: '__create_new__',
+                                    items: productLocations.map((e) {
+                                      final loc = e.key;
+                                      final qty = e.value;
+                                      return PickerItem(
+                                        value: loc,
+                                        label: loc,
+                                        subtitle: '$qty ${_selectedProduct!.unit}',
+                                        icon: Icons.location_on_rounded,
+                                        iconColor: AppTheme.primaryColor,
+                                      );
+                                    }).toList(),
                                   );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _fromLocation = value ?? '';
-                                  });
-                                },
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please select source location';
+                                  if (result == null || !mounted) return;
+                                  if (result == '__create_new__') {
+                                    final settingsProvider =
+                                        context.read<SettingsProvider>();
+                                    final newName = await showAddNameDialog(
+                                      context,
+                                      title: 'Add new location',
+                                      labelText: 'Location name',
+                                      hint: 'e.g. Main Warehouse',
+                                      onAdd: (name) =>
+                                          settingsProvider.addLocation(name),
+                                    );
+                                    if (newName != null && mounted) {
+                                      setState(() {
+                                        _fromLocation = newName;
+                                        if (_toLocation == newName) _toLocation = null;
+                                      });
+                                    }
+                                  } else {
+                                    setState(() {
+                                      _fromLocation = result;
+                                      if (_toLocation == result) _toLocation = null;
+                                    });
                                   }
-                                  return null;
                                 },
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'From Location *',
+                                    prefixIcon: const Icon(
+                                        Icons.location_on_rounded),
+                                    suffixIcon: _fromLocation.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(
+                                                Icons.close_rounded, size: 18),
+                                            onPressed: () => setState(
+                                                () => _fromLocation = ''),
+                                          )
+                                        : const Icon(Icons.arrow_drop_down),
+                                    errorText: _submitted && _fromLocation.isEmpty
+                                        ? 'Select from location'
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    _fromLocation.isEmpty
+                                        ? 'Select from location'
+                                        : _fromLocation,
+                                    style: TextStyle(
+                                      color: _fromLocation.isNotEmpty
+                                          ? AppTheme.textPri(context)
+                                          : AppTheme.textSec(context),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
 
@@ -621,46 +460,70 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                           if (_fromLocation.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 16),
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _toLocation,
-                                decoration: InputDecoration(
-                                  labelText: 'To Location *',
-                                  prefixIcon: const Icon(
-                                    Icons.location_on_outlined,
-                                  ),
-                                  suffixIcon: _toLocation != null
-                                      ? IconButton(
-                                          icon: const Icon(
-                                            Icons.close_rounded,
-                                            size: 18,
-                                          ),
-                                          onPressed: () => setState(
-                                            () => _toLocation = null,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                hint: const Text('Select destination'),
-                                items: settingsLocations
-                                    .where((l) => l != _fromLocation)
-                                    .map((loc) {
-                                      return DropdownMenuItem(
-                                        value: loc,
-                                        child: Text(loc),
-                                      );
-                                    })
-                                    .toList(),
-                                onChanged: (value) =>
-                                    setState(() => _toLocation = value),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please select destination location';
+                              child: GestureDetector(
+                                onTap: () async {
+                                  final toItems = settingsLocations
+                                      .where((l) => l != _fromLocation)
+                                      .map((loc) => PickerItem(
+                                            value: loc,
+                                            label: loc,
+                                            icon: Icons.location_on_rounded,
+                                            iconColor: AppTheme.warningColor,
+                                          ))
+                                      .toList();
+                                  final result = await showSearchablePicker(
+                                    context: context,
+                                    title: 'To Location',
+                                    selectedValue: _toLocation,
+                                    addNewLabel: 'Add new location',
+                                    addNewValue: '__create_new__',
+                                    items: toItems,
+                                  );
+                                  if (result == null || !mounted) return;
+                                  if (result == '__create_new__') {
+                                    final settingsProvider =
+                                        context.read<SettingsProvider>();
+                                    final newName = await showAddNameDialog(
+                                      context,
+                                      title: 'Add new location',
+                                      labelText: 'Location name',
+                                      hint: 'e.g. Main Warehouse',
+                                      onAdd: (name) =>
+                                          settingsProvider.addLocation(name),
+                                    );
+                                    if (newName != null && mounted) {
+                                      setState(() => _toLocation = newName);
+                                    }
+                                  } else {
+                                    setState(() => _toLocation = result);
                                   }
-                                  if (value == _fromLocation) {
-                                    return 'Must be different from source';
-                                  }
-                                  return null;
                                 },
+                                child: InputDecorator(
+                                  decoration: InputDecoration(
+                                    labelText: 'To Location *',
+                                    prefixIcon: const Icon(
+                                        Icons.location_on_rounded),
+                                    suffixIcon: _toLocation != null
+                                        ? IconButton(
+                                            icon: const Icon(
+                                                Icons.close_rounded, size: 18),
+                                            onPressed: () => setState(
+                                                () => _toLocation = null),
+                                          )
+                                        : const Icon(Icons.arrow_drop_down),
+                                    errorText: _submitted && _toLocation == null
+                                        ? 'Select to location'
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    _toLocation ?? 'Select to location',
+                                    style: TextStyle(
+                                      color: _toLocation != null
+                                          ? AppTheme.textPri(context)
+                                          : AppTheme.textSec(context),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
 
@@ -671,30 +534,16 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 'Available at $_fromLocation: $_availableAtFrom ${_selectedProduct?.unit ?? "pcs"}',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: AppTheme.textSecondary,
+                                  color: AppTheme.textSec(context),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
 
                           if (_fromLocation.isNotEmpty)
-                            TextFormField(
+                            QuantityStepper(
                               controller: _quantityController,
-                              decoration: InputDecoration(
-                                labelText: 'Quantity to Transfer *',
-                                prefixIcon: const Icon(
-                                  Icons.swap_horiz_rounded,
-                                ),
-                                suffixText: _selectedProduct?.unit ?? 'pcs',
-                              ),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              label: 'Quantity to Transfer *',
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Enter quantity';

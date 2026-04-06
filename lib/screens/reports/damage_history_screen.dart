@@ -6,6 +6,7 @@ import '../../providers/product_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
@@ -88,7 +89,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
     final hasDateFilter = _startDate != null;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Damage Report'),
         actions: [
@@ -112,7 +113,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -158,10 +159,10 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
                                   const SizedBox(width: 8),
                                   Text(
                                     'All Damage Entries ($totalEvents)',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
-                                      color: AppTheme.textPrimary,
+                                      color: AppTheme.textPri(context),
                                     ),
                                   ),
                                 ],
@@ -265,12 +266,12 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
             color: AppTheme.successColor.withValues(alpha: 0.6),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No Damage Reported',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+              color: AppTheme.textPri(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -278,9 +279,9 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
             _startDate != null
                 ? 'No damage entries in the selected date range'
                 : 'No damage entries found',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: AppTheme.textSecondary,
+              color: AppTheme.textSec(context),
             ),
           ),
         ],
@@ -340,12 +341,12 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Top Damaged Products',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: AppTheme.textPri(context),
               ),
             ),
           ],
@@ -373,7 +374,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
                           fontWeight: FontWeight.w700,
                           color: idx < 3
                               ? AppTheme.dangerColor
-                              : AppTheme.textTertiary,
+                              : AppTheme.textTer(context),
                         ),
                       ),
                     ),
@@ -418,7 +419,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
                           fontWeight: FontWeight.w700,
                           color: idx < 3
                               ? AppTheme.dangerColor
-                              : AppTheme.textSecondary,
+                              : AppTheme.textSec(context),
                         ),
                       ),
                     ),
@@ -491,9 +492,9 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: AppTheme.textSecondary,
+                color: AppTheme.textSec(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -531,12 +532,13 @@ class _DamageTile extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
+      constraints: Responsive.sheetConstraints(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: AppTheme.surface(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: DraggableScrollableSheet(
           initialChildSize: 0.45,
@@ -550,7 +552,7 @@ class _DamageTile extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.emptyStateIcon,
+                  color: AppTheme.emptyIcon(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -568,19 +570,19 @@ class _DamageTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Change Damage Location',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.textPri(context),
                             ),
                           ),
                           Text(
                             txn.productName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSec(context),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -596,11 +598,11 @@ class _DamageTile extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
-                      const Text(
+                      Text(
                         'Current: ',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textTertiary,
+                          color: AppTheme.textTer(context),
                         ),
                       ),
                       Container(
@@ -641,7 +643,7 @@ class _DamageTile extends StatelessWidget {
                               : Icons.location_on_outlined,
                           color: isCurrent
                               ? AppTheme.primaryColor
-                              : AppTheme.textTertiary,
+                              : AppTheme.textTer(context),
                           size: 22,
                         ),
                         title: Text(
@@ -653,7 +655,7 @@ class _DamageTile extends StatelessWidget {
                                 : FontWeight.w500,
                             color: isCurrent
                                 ? AppTheme.primaryColor
-                                : AppTheme.textPrimary,
+                                : AppTheme.textPri(context),
                           ),
                         ),
                         trailing: isCurrent
@@ -670,14 +672,7 @@ class _DamageTile extends StatelessWidget {
                                 final ok = await stockProvider
                                     .updateTransactionLocation(txn.id, loc);
                                 if (context.mounted && !ok) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        stockProvider.errorMessage ??
-                                            'Failed to update location',
-                                      ),
-                                    ),
-                                  );
+                                  showInfoSnackBar(context, stockProvider.errorMessage ?? 'Failed to update location');
                                 }
                               },
                       );
@@ -690,7 +685,7 @@ class _DamageTile extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary,
+                          color: AppTheme.textSec(context),
                         ),
                       ),
                     ),
@@ -701,7 +696,7 @@ class _DamageTile extends StatelessWidget {
                             controller: customController,
                             decoration: InputDecoration(
                               hintText: 'New location name',
-                              hintStyle: const TextStyle(fontSize: 14),
+                              hintStyle: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -723,14 +718,7 @@ class _DamageTile extends StatelessWidget {
                             final ok = await stockProvider
                                 .updateTransactionLocation(txn.id, loc);
                             if (context.mounted && !ok) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    stockProvider.errorMessage ??
-                                        'Failed to update location',
-                                  ),
-                                ),
-                              );
+                              showInfoSnackBar(context, stockProvider.errorMessage ?? 'Failed to update location');
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -803,10 +791,10 @@ class _DamageTile extends StatelessWidget {
                         txn.productName.isNotEmpty
                             ? txn.productName
                             : txn.productId,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: AppTheme.textPri(context),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -814,9 +802,9 @@ class _DamageTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         dateFormat.format(txn.date),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textTertiary,
+                          color: AppTheme.textTer(context),
                         ),
                       ),
                     ],
@@ -850,27 +838,27 @@ class _DamageTile extends StatelessWidget {
             // Location row with change button
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.location_on_outlined,
                   size: 16,
-                  color: AppTheme.textTertiary,
+                  color: AppTheme.textTer(context),
                 ),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'Location: ',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.textSec(context),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     txn.location.isNotEmpty ? txn.location : 'N/A',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.textPri(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -954,23 +942,23 @@ class _DetailRow extends StatelessWidget {
       crossAxisAlignment:
           isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: AppTheme.textTertiary),
+        Icon(icon, size: 16, color: AppTheme.textTer(context)),
         const SizedBox(width: 6),
         Text(
           '$label: ',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary,
+            color: AppTheme.textSec(context),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+              color: AppTheme.textPri(context),
             ),
             maxLines: isMultiline ? 3 : 1,
             overflow: TextOverflow.ellipsis,

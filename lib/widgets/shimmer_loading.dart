@@ -20,14 +20,16 @@ class ShimmerLoading extends StatefulWidget {
 class _ShimmerLoadingState extends State<ShimmerLoading>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final Animation<double> _curved;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     )..repeat();
+    _curved = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
   }
 
   @override
@@ -118,7 +120,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     required double height,
     required double borderRadius,
   }) {
-    final value = _controller.value;
+    final value = _curved.value;
     return Container(
       width: width,
       height: height,
@@ -128,9 +130,9 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
           begin: Alignment(-1.0 + 2.0 * value, 0),
           end: Alignment(1.0 + 2.0 * value, 0),
           colors: [
-            AppTheme.dividerColor,
-            AppTheme.inputFillColor,
-            AppTheme.dividerColor,
+            AppTheme.dividerC(context),
+            AppTheme.inputFill(context),
+            AppTheme.dividerC(context),
           ],
         ),
       ),

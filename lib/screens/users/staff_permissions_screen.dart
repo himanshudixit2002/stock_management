@@ -1,36 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
+import '../../models/role_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/role_provider.dart';
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../utils/dialogs.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/permission_gate.dart';
 
 class StaffPermissionsScreen extends StatelessWidget {
   const StaffPermissionsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+    return PermissionGate(
+      permission: AppPermissions.manageUsers,
+      featureName: 'Permission Overrides',
+      child: Scaffold(
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: AppBarTitleRow(
           icon: Icons.shield_rounded,
           color: AppTheme.warningColor,
-          title: 'Staff Permissions',
+          title: 'User Permission Overrides',
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: StreamBuilder<List<UserModel>>(
           stream: context.read<AuthProvider>().getAllUsers(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            final currentUid = context.read<AuthProvider>().currentUser?.uid;
             final users = (snapshot.data ?? [])
-                .where((u) => u.isStaff)
+                .where((u) => u.uid != currentUid)
                 .toList();
 
             if (users.isEmpty) {
@@ -38,19 +47,10 @@ class StaffPermissionsScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.people_outline,
-                      size: 64,
-                      color: AppTheme.emptyStateIcon,
-                    ),
+                    Icon(Icons.people_outline, size: 64, color: AppTheme.emptyIcon(context)),
                     const SizedBox(height: 16),
-                    Text(
-                      'No staff users yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppTheme.textTertiary,
-                      ),
-                    ),
+                    Text('No other users yet',
+                        style: TextStyle(fontSize: 16, color: AppTheme.textTer(context))),
                   ],
                 ),
               );
@@ -58,49 +58,61 @@ class StaffPermissionsScreen extends StatelessWidget {
 
             return Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.formMaxWidth(context),
-                ),
-                child: ListView.separated(
-                  padding: EdgeInsets.all(
-                    Responsive.horizontalPadding(context),
-                  ),
-                  itemCount: users.length,
-                  separatorBuilder: (_, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) => _StaffCard(user: users[i]),
+                constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context), 16, Responsive.horizontalPadding(context), 8),
+                      child: Text(
+                        'Override permissions for individual users on top of their role.',
+                        style: TextStyle(fontSize: 13, color: AppTheme.textTer(context)),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+                        itemCount: users.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, i) => _UserOverrideCard(user: users[i]),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
           },
         ),
       ),
+    ),
     );
   }
 }
 
-class _StaffCard extends StatelessWidget {
+class _UserOverrideCard extends StatelessWidget {
   final UserModel user;
-  const _StaffCard({required this.user});
+  const _UserOverrideCard({required this.user});
 
   @override
   Widget build(BuildContext context) {
-    final initials = user.name.trim().isNotEmpty
-        ? user.name
-              .trim()
-              .split(' ')
-              .where((w) => w.isNotEmpty)
-              .map((w) => w[0])
-              .take(2)
-              .join()
-              .toUpperCase()
-        : '?';
+    final roleProvider = context.watch<RoleProvider>();
+    final role = roleProvider.getRoleById(user.roleId);
+    final roleName = role?.name ?? 'Unknown';
 
-    final enabledCount = user.permissions.values.where((v) => v).length;
-    final totalCount = UserModel.allPermissionKeys.length;
+    final overrideCount = user.permissions.entries
+        .where((e) {
+          final roleVal = role?.permissions[e.key] ?? false;
+          return e.value != roleVal;
+        })
+        .length;
+
+    final initials = user.name.trim().isNotEmpty
+        ? user.name.trim().split(' ').where((w) => w.isNotEmpty).map((w) => w[0]).take(2).join().toUpperCase()
+        : '?';
 
     return GlassCard(
       borderRadius: 14,
-      onTap: () => _showPermissionSheet(context, user),
+      onTap: () => _showOverrideSheet(context, user, role),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -108,104 +120,79 @@ class _StaffCard extends StatelessWidget {
             CircleAvatar(
               radius: 22,
               backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
+              child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.primaryColor)),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    user.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
+                  Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                   const SizedBox(height: 2),
-                  Text(
-                    user.email,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textTertiary,
-                    ),
+                  Row(
+                    children: [
+                      Text(roleName, style: TextStyle(fontSize: 12, color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+                      if (overrideCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppTheme.warningColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '$overrideCount override${overrideCount > 1 ? 's' : ''}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.warningColor),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: enabledCount == totalCount
-                    ? AppTheme.successColor.withValues(alpha: 0.1)
-                    : AppTheme.warningColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$enabledCount/$totalCount',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: enabledCount == totalCount
-                      ? AppTheme.successColor
-                      : AppTheme.warningColor,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppTheme.textSecondary,
-            ),
+            Icon(Icons.chevron_right_rounded, color: AppTheme.textSec(context)),
           ],
         ),
       ),
     );
   }
 
-  void _showPermissionSheet(BuildContext context, UserModel user) {
+  void _showOverrideSheet(BuildContext context, UserModel user, RoleModel? role) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      constraints: Responsive.sheetConstraints(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => _PermissionEditor(user: user),
+      builder: (_) => _OverrideEditor(user: user, role: role),
     );
   }
 }
 
-class _PermissionEditor extends StatefulWidget {
+class _OverrideEditor extends StatefulWidget {
   final UserModel user;
-  const _PermissionEditor({required this.user});
+  final RoleModel? role;
+  const _OverrideEditor({required this.user, this.role});
 
   @override
-  State<_PermissionEditor> createState() => _PermissionEditorState();
+  State<_OverrideEditor> createState() => _OverrideEditorState();
 }
 
-class _PermissionEditorState extends State<_PermissionEditor> {
-  late Map<String, bool> _perms;
+class _OverrideEditorState extends State<_OverrideEditor> {
+  late Map<String, bool> _overrides;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _perms = {...UserModel.defaultPermissions, ...widget.user.permissions};
+    _overrides = Map<String, bool>.from(widget.user.permissions);
   }
 
-  bool get _allEnabled => _perms.values.every((v) => v);
-
-  void _toggleAll(bool value) {
+  void _clearOverrides() {
     setState(() {
-      for (final k in _perms.keys.toList()) {
-        _perms[k] = value;
-      }
+      _overrides = {};
     });
   }
 
@@ -213,67 +200,57 @@ class _PermissionEditorState extends State<_PermissionEditor> {
     setState(() => _saving = true);
     final ok = await context.read<AuthProvider>().updateStaffPermissions(
       widget.user.uid,
-      _perms,
+      _overrides,
     );
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok ? 'Permissions updated' : 'Failed to update'),
-          backgroundColor: ok ? AppTheme.successColor : AppTheme.dangerColor,
-        ),
-      );
+      if (ok) {
+        showSuccessSnackBar(context, 'Permission overrides saved');
+      } else {
+        showErrorSnackBar(context, 'Failed to save');
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final rolePerms = widget.role?.permissions ?? AppPermissions.allFalse();
+
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      maxChildSize: 0.9,
+      initialChildSize: 0.75,
+      maxChildSize: 0.95,
       minChildSize: 0.4,
       expand: false,
       builder: (context, scrollCtrl) {
         return Column(
           children: [
-            // Handle
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
+              width: 40, height: 4,
               decoration: BoxDecoration(
-                color: AppTheme.emptyStateIcon,
+                color: AppTheme.emptyIcon(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                         Text(
-                          widget.user.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          'Manage permissions',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.textTertiary,
-                          ),
+                          'Role: ${widget.role?.name ?? "Unknown"} — Override individual permissions',
+                          style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
                         ),
                       ],
                     ),
                   ),
                   TextButton(
-                    onPressed: () => _toggleAll(!_allEnabled),
-                    child: Text(_allEnabled ? 'Deselect All' : 'Select All'),
+                    onPressed: _clearOverrides,
+                    child: const Text('Reset All', style: TextStyle(fontSize: 12)),
                   ),
                 ],
               ),
@@ -283,16 +260,58 @@ class _PermissionEditorState extends State<_PermissionEditor> {
               child: ListView(
                 controller: scrollCtrl,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: UserModel.allPermissionKeys.map((key) {
-                  return SwitchListTile(
-                    value: _perms[key] ?? true,
-                    onChanged: (v) => setState(() => _perms[key] = v),
-                    title: Text(
-                      UserModel.permissionLabels[key] ?? key,
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    activeTrackColor: AppTheme.primaryColor,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                children: AppPermissions.groups.map((group) {
+                  final perms = AppPermissions.byGroup(group.id);
+                  return ExpansionTile(
+                    leading: Icon(group.icon, size: 20, color: AppTheme.primaryColor),
+                    title: Text(group.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    children: perms.map((perm) {
+                      final roleVal = rolePerms[perm.key] ?? false;
+                      final overrideVal = _overrides[perm.key];
+                      final effectiveVal = overrideVal ?? roleVal;
+                      final isOverridden = overrideVal != null && overrideVal != roleVal;
+
+                      return SwitchListTile(
+                        value: effectiveVal,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v == roleVal) {
+                              _overrides.remove(perm.key);
+                            } else {
+                              _overrides[perm.key] = v;
+                            }
+                          });
+                        },
+                        title: Row(
+                          children: [
+                            Text(perm.label, style: const TextStyle(fontSize: 14)),
+                            if (isOverridden) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.warningColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text('OVERRIDE', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppTheme.warningColor)),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          isOverridden
+                              ? 'Role default: ${roleVal ? "ON" : "OFF"}'
+                              : 'From role',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isOverridden ? AppTheme.warningColor : AppTheme.textTer(context),
+                          ),
+                        ),
+                        secondary: Icon(perm.icon, size: 18, color: effectiveVal ? AppTheme.primaryColor : AppTheme.iconMute(context)),
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      );
+                    }).toList(),
                   );
                 }).toList(),
               ),
@@ -302,15 +321,8 @@ class _PermissionEditorState extends State<_PermissionEditor> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.surfaceColor,
-                        ),
-                      )
-                    : const Text('Save Permissions'),
+                    ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.surface(context)))
+                    : const Text('Save Overrides'),
               ),
             ),
           ],

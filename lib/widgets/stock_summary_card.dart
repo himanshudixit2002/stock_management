@@ -24,7 +24,7 @@ class StockSummaryCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: 20,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -43,7 +43,7 @@ class StockSummaryCard extends StatelessWidget {
                   Icon(
                     Icons.arrow_forward_ios,
                     size: 16,
-                    color: AppTheme.iconMuted,
+                    color: AppTheme.iconMute(context),
                   ),
               ],
             ),

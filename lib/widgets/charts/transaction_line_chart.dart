@@ -88,7 +88,7 @@ class TransactionLineChart extends StatelessWidget {
                     drawVerticalLine: false,
                     horizontalInterval: (maxY / 4).ceilToDouble().clamp(1, 9999),
                     getDrawingHorizontalLine: (value) =>
-                        FlLine(color: AppTheme.dividerColor, strokeWidth: 1),
+                        FlLine(color: AppTheme.dividerC(context), strokeWidth: 1),
                   ),
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
@@ -97,9 +97,9 @@ class TransactionLineChart extends StatelessWidget {
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) => Text(
                           value.toInt().toString(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.textSec(context),
                           ),
                         ),
                       ),
@@ -121,9 +121,9 @@ class TransactionLineChart extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               _formatLabel(keys[idx]),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 9,
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.textSec(context),
                               ),
                             ),
                           );
@@ -176,11 +176,11 @@ class TransactionLineChart extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _legend(AppTheme.successColor, 'Stock In'),
+                _legend(context, AppTheme.successColor, 'Stock In'),
                 const SizedBox(width: 16),
-                _legend(AppTheme.primaryColor, 'Stock Out'),
+                _legend(context, AppTheme.primaryColor, 'Stock Out'),
                 const SizedBox(width: 16),
-                _legend(AppTheme.dangerColor, 'Damage'),
+                _legend(context, AppTheme.dangerColor, 'Damage'),
               ],
             ),
           ],
@@ -212,7 +212,7 @@ class TransactionLineChart extends StatelessWidget {
     );
   }
 
-  Widget _legend(Color color, String text) {
+  Widget _legend(BuildContext context, Color color, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -227,7 +227,7 @@ class TransactionLineChart extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           text,
-          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
         ),
       ],
     );

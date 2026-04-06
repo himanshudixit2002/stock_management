@@ -165,6 +165,24 @@ class VendorProvider extends ChangeNotifier {
     }
   }
 
+  /// Update vendor and propagate name change to products, transactions,
+  /// purchase orders, and returns when the name has changed.
+  Future<bool> updateVendorAndPropagate(VendorModel vendor, {String? oldName}) async {
+    final success = await updateVendor(vendor);
+    if (!success) return false;
+    if (oldName != null && oldName != vendor.name) {
+      try {
+        await _databaseService.propagateVendorRename(
+          vendorId: vendor.id,
+          newName: vendor.name,
+        );
+      } catch (_) {
+        // Vendor doc was updated; propagation failure is non-fatal.
+      }
+    }
+    return true;
+  }
+
   Stream<List<StockTransactionModel>> getVendorTransactions(String vendorId) {
     return _databaseService.getVendorTransactions(vendorId);
   }

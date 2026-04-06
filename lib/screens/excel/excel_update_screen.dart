@@ -12,8 +12,10 @@ import '../../providers/settings_provider.dart';
 import '../../models/vendor_model.dart';
 import '../../models/product_model.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/permissions.dart';
 
 class ExcelUpdateScreen extends StatefulWidget {
   const ExcelUpdateScreen({super.key});
@@ -67,19 +69,14 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       await _excelService.saveAndShare(result);
       if (mounted) {
         HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Exported ${products.length} products for editing',
-            ),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
+        showSuccessSnackBar(context, 'Exported ${products.length} products for editing');
       }
     } catch (e) {
-      setState(() {
-        _error = 'Export failed: ${e.toString().replaceAll('Exception: ', '')}';
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Export failed: ${e.toString().replaceAll('Exception: ', '')}';
+        });
+      }
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -149,16 +146,20 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           _isParsing = false;
         });
       } catch (e) {
-        setState(() {
-          _error =
-              'Could not read the file: ${e.toString().replaceAll('Exception: ', '')}';
-          _isParsing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _error =
+                'Could not read the file: ${e.toString().replaceAll('Exception: ', '')}';
+            _isParsing = false;
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        _error = 'Could not open file picker: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Could not open file picker: ${e.toString()}';
+        });
+      }
     }
   }
 
@@ -169,12 +170,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     final newProducts = _diffs!.where((d) => d.status == UpdateStatus.newProduct).toList();
 
     if (modified.isEmpty && newProducts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No changes to apply.'),
-          backgroundColor: AppTheme.textSecondary,
-        ),
-      );
+      showInfoSnackBar(context, 'No changes to apply.');
       return;
     }
 
@@ -188,12 +184,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       if (user == null) {
         setState(() => _isApplying = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session expired. Please log in again.'),
-              backgroundColor: AppTheme.dangerColor,
-            ),
-          );
+          showErrorSnackBar(context, 'Session expired. Please log in again.');
         }
         return;
       }
@@ -356,12 +347,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         final parts = <String>[];
         if (updatedCount > 0) parts.add('$updatedCount updated');
         if (addedCount > 0) parts.add('$addedCount added');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Done! ${parts.join(', ')}'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
+        showSuccessSnackBar(context, 'Done! ${parts.join(', ')}');
         setState(() {
           _diffs = null;
           _parsedData = null;
@@ -369,10 +355,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         });
       }
     } catch (e) {
-      setState(() {
-        _error =
-            'Update failed: ${e.toString().replaceAll('Exception: ', '')}';
-      });
+      if (mounted) {
+        setState(() {
+          _error =
+              'Update failed: ${e.toString().replaceAll('Exception: ', '')}';
+        });
+      }
     } finally {
       if (mounted) setState(() => _isApplying = false);
     }
@@ -387,10 +375,21 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     });
   }
 
+  Future<void> _onPullRefreshCatalog() async {
+    final product = context.read<ProductProvider>();
+    final cid = product.companyId;
+    if (cid.isNotEmpty) {
+      await product.refreshProducts();
+      if (!mounted) return;
+      context.read<CategoryProvider>().initialize(companyId: cid);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission('canImport')) {
+    if (user == null || !user.hasPermission(AppPermissions.importData)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Update from Excel')),
         body: const Center(
@@ -402,38 +401,45 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     final hPad = Responsive.horizontalPadding(context);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Update from Excel'),
         actions: [
           if (_currentStep > 1)
-            TextButton.icon(
-              onPressed: _reset,
-              icon: const Icon(Icons.restart_alt_rounded, size: 18),
-              label: const Text('Start Over'),
+            Tooltip(
+              message: 'Start over',
+              child: TextButton.icon(
+                onPressed: _reset,
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: const Text('Start Over'),
+              ),
             ),
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: Responsive.contentMaxWidth(context),
               ),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildStepIndicator(),
-                    const SizedBox(height: 16),
-                    if (_error != null) _buildError(),
-                    if (_currentStep == 1) _buildStep1(),
-                    if (_currentStep == 2) _buildStep2(),
-                    if (_currentStep == 3) _buildStep3(),
-                  ],
+              child: RefreshIndicator(
+                onRefresh: _onPullRefreshCatalog,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildStepIndicator(),
+                      const SizedBox(height: 16),
+                      if (_error != null) _buildError(),
+                      if (_currentStep == 1) _buildStep1(),
+                      if (_currentStep == 2) _buildStep2(),
+                      if (_currentStep == 3) _buildStep3(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -466,11 +472,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           height: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isActive ? AppTheme.primaryColor : AppTheme.surfaceColor,
+            color: isActive ? AppTheme.primaryColor : AppTheme.surface(context),
             border: Border.all(
               color: isActive
                   ? AppTheme.primaryColor
-                  : AppTheme.glassBorderContent,
+                  : AppTheme.glassBorderCont(context),
               width: isCurrent ? 2 : 1,
             ),
           ),
@@ -482,7 +488,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: isActive ? Colors.white : AppTheme.textTertiary,
+                      color: isActive ? Colors.white : AppTheme.textTer(context),
                     ),
                   ),
           ),
@@ -493,7 +499,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           style: TextStyle(
             fontSize: 10,
             fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-            color: isCurrent ? AppTheme.primaryColor : AppTheme.textTertiary,
+            color: isCurrent ? AppTheme.primaryColor : AppTheme.textTer(context),
           ),
           textAlign: TextAlign.center,
         ),
@@ -508,7 +514,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 18),
-        color: isActive ? AppTheme.primaryColor : AppTheme.glassBorderContent,
+        color: isActive ? AppTheme.primaryColor : AppTheme.glassBorderCont(context),
       ),
     );
   }
@@ -536,7 +542,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               ),
               GestureDetector(
                 onTap: () => setState(() => _error = null),
-                child: const Icon(Icons.close, size: 16, color: AppTheme.textTertiary),
+                child: Icon(Icons.close, size: 16, color: AppTheme.textTer(context)),
               ),
             ],
           ),
@@ -572,7 +578,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -581,15 +587,15 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
+                              color: AppTheme.textPri(context),
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Export products as Excel for editing.',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSec(context),
                             ),
                           ),
                         ],
@@ -702,9 +708,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.textSecondary,
+                color: AppTheme.textSec(context),
                 height: 1.3,
               ),
             ),
@@ -722,21 +728,21 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         child: Column(
           children: [
             if (_isParsing)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28),
                 child: Column(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 28,
                       height: 28,
                       child: CircularProgressIndicator(strokeWidth: 2.5),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Text(
                       'Analyzing changes...',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.textSec(context),
                       ),
                     ),
                   ],
@@ -751,19 +757,19 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               const SizedBox(height: 10),
               Text(
                 'File: $_fileName',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.textPri(context),
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Processing...',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
               ),
             ],
           ],
@@ -802,7 +808,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               'Unchanged',
               _unchangedCount,
               Icons.check_circle_outline,
-              AppTheme.textTertiary,
+              AppTheme.textTer(context),
             ),
             const SizedBox(width: 8),
             _summaryCard(
@@ -907,18 +913,18 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                     color: AppTheme.successColor,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'No changes detected',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.textPri(context),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'All products in the file match your current data.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -953,9 +959,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                   ),
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppTheme.textSecondary,
+                      color: AppTheme.textSec(context),
                     ),
                   ),
                 ],
@@ -972,10 +978,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
+            color: AppTheme.textPri(context),
           ),
         ),
         const SizedBox(width: 6),
@@ -1043,19 +1049,19 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                       children: [
                         Text(
                           widget.diff.productName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: AppTheme.textPri(context),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           '${widget.diff.fieldChanges.length} field(s) changed',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                       ],
@@ -1065,7 +1071,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                     _expanded
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
-                    color: AppTheme.textTertiary,
+                    color: AppTheme.textTer(context),
                     size: 18,
                   ),
                 ],
@@ -1089,10 +1095,10 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                             padding: const EdgeInsets.only(right: 6),
                             child: Text(
                               c.field,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.textSec(context),
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -1173,10 +1179,10 @@ class _NewProductCard extends StatelessWidget {
                   children: [
                     Text(
                       data['name']?.toString() ?? 'Unnamed',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.textPri(context),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1187,9 +1193,9 @@ class _NewProductCard extends StatelessWidget {
                         data['company'],
                         data['size'],
                       ].where((v) => v != null && v.toString().isNotEmpty).join(' · '),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textTertiary,
+                        color: AppTheme.textTer(context),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1248,10 +1254,10 @@ class _ErrorCard extends StatelessWidget {
                       diff.productName.isNotEmpty
                           ? diff.productName
                           : 'Unknown product',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.textPri(context),
                       ),
                     ),
                     if (diff.errorMessage != null)

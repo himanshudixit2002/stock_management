@@ -72,9 +72,9 @@ class StockBarChart extends StatelessWidget {
                           label.length > 8
                               ? '${label.substring(0, 7)}...'
                               : label,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.textSec(context),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -102,9 +102,9 @@ class StockBarChart extends StatelessWidget {
                       }
                       return Text(
                         label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.textSecondary,
+                          color: AppTheme.textSec(context),
                         ),
                       );
                     },
@@ -121,7 +121,7 @@ class StockBarChart extends StatelessWidget {
                 show: true,
                 drawVerticalLine: false,
                 getDrawingHorizontalLine: (value) =>
-                    FlLine(color: AppTheme.dividerColor, strokeWidth: 1),
+                    FlLine(color: AppTheme.dividerC(context), strokeWidth: 1),
               ),
               borderData: FlBorderData(show: false),
               barGroups: List.generate(entries.length, (i) {

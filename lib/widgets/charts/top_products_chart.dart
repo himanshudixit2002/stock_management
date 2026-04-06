@@ -43,7 +43,7 @@ class TopProductsChart extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: idx < 3
                         ? AppTheme.primaryColor
-                        : AppTheme.textSecondary,
+                        : AppTheme.textSec(context),
                   ),
                 ),
               ),
@@ -63,7 +63,7 @@ class TopProductsChart extends StatelessWidget {
                     Container(
                       height: 18,
                       decoration: BoxDecoration(
-                        color: AppTheme.dividerColor,
+                        color: AppTheme.dividerC(context),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),

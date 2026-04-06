@@ -26,6 +26,7 @@ class ProductModel {
   final String lastVendorId;
   final String lastVendorName;
   final Map<String, double> vendorPrices;
+  final String barcode;
 
   ProductModel({
     required this.id,
@@ -52,6 +53,7 @@ class ProductModel {
     this.lastVendorId = '',
     this.lastVendorName = '',
     this.vendorPrices = const {},
+    this.barcode = '',
   });
 
   bool get isOutOfStock => quantity <= 0;
@@ -118,6 +120,7 @@ class ProductModel {
       lastVendorId: safeString(map['lastVendorId']),
       lastVendorName: safeString(map['lastVendorName']),
       vendorPrices: vPrices,
+      barcode: safeString(map['barcode']),
     );
   }
 
@@ -146,6 +149,7 @@ class ProductModel {
       'lastVendorId': lastVendorId,
       'lastVendorName': lastVendorName,
       'vendorPrices': vendorPrices,
+      'barcode': barcode,
     };
   }
 
@@ -174,6 +178,7 @@ class ProductModel {
     String? lastVendorId,
     String? lastVendorName,
     Map<String, double>? vendorPrices,
+    String? barcode,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -200,6 +205,7 @@ class ProductModel {
       lastVendorId: lastVendorId ?? this.lastVendorId,
       lastVendorName: lastVendorName ?? this.lastVendorName,
       vendorPrices: vendorPrices ?? this.vendorPrices,
+      barcode: barcode ?? this.barcode,
     );
   }
 }

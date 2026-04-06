@@ -1,7 +1,13 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/product_model.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../providers/product_provider.dart';
@@ -10,8 +16,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/permissions.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
@@ -26,7 +34,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final canManageProducts = user?.hasPermission('canManageProducts') ?? false;
+    final canEditProduct = user?.hasPermission(AppPermissions.editProducts) ?? false;
+    final canDeleteProduct = user?.hasPermission(AppPermissions.deleteProducts) ?? false;
+    final canManageProducts = canEditProduct || canDeleteProduct;
     final perms = user?.effectivePermissions ?? {};
     final productProvider = context.watch<ProductProvider>();
     final product =
@@ -57,13 +67,43 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               },
               tooltip: 'Edit Product',
             ),
-            IconButton(
-              icon: Icon(
-                Icons.delete_rounded,
-                color: AppTheme.dangerColor.withValues(alpha: 0.8),
-              ),
-              onPressed: () => _confirmDelete(context, product),
-              tooltip: 'Delete Product',
+            PopupMenuButton<String>(
+              tooltip: 'More options',
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (value) {
+                switch (value) {
+                  case 'duplicate':
+                    _duplicateProduct(context, product);
+                  case 'delete':
+                    _confirmDelete(context, product);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'duplicate',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.content_copy_rounded),
+                    title: Text('Duplicate Product'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.delete_rounded,
+                      color: AppTheme.dangerColor,
+                    ),
+                    title: Text(
+                      'Delete Product',
+                      style: TextStyle(color: AppTheme.dangerColor),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -99,9 +139,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           children: [
                             Expanded(
                               child: Hero(
-                                tag: 'product-name-${widget.product.id}',
+                                tag: 'product_name_${product.id}',
                                 child: Material(
-                                  color: Colors.transparent,
+                                  type: MaterialType.transparency,
                                   child: Text(
                                     product.name,
                                     style: Theme.of(
@@ -112,36 +152,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: stockColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    AppTheme.getStockIcon(
-                                      product.quantity,
-                                      threshold: product.lowStockThreshold,
+                            Flexible(
+                              child: Hero(
+                                tag: 'product_qty_${product.id}',
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 6,
                                     ),
-                                    size: 16,
-                                    color: stockColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    product.stockStatus,
-                                    style: TextStyle(
-                                      color: stockColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                                    decoration: BoxDecoration(
+                                      color: stockColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          AppTheme.getStockIcon(
+                                            product.quantity,
+                                            threshold:
+                                                product.lowStockThreshold,
+                                          ),
+                                          size: 16,
+                                          color: stockColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Flexible(
+                                          child: Text(
+                                            product.stockStatus,
+                                            style: TextStyle(
+                                              color: stockColor,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ],
@@ -226,102 +278,192 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                   ),
 
+                  if (product.barcode.isNotEmpty &&
+                      context.watch<SettingsProvider>().barcodeEnabled) ...[
+                    const SizedBox(height: 16),
+                    _BarcodeCard(
+                      barcode: product.barcode,
+                      productName: product.name,
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
 
-                  // Info Grid
-                  GlassSectionCard(
-                    child: Column(
-                      children: [
-                        _InfoRow(
-                          icon: Icons.inventory_2_rounded,
-                          label: 'Total Stock',
-                          value: '${product.quantity} ${product.unit}',
-                          valueColor: stockColor,
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Divider(height: 1),
-                        ),
-                        _InfoRow(
-                          icon: Icons.warning_amber_rounded,
-                          label: 'Low Stock Alert',
-                          value: '${product.lowStockThreshold} ${product.unit}',
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Divider(height: 1),
-                        ),
-                        _InfoRow(
-                          icon: Icons.straighten_rounded,
-                          label: 'Unit',
-                          value: product.unit,
-                        ),
-                        Consumer<SettingsProvider>(
-                          builder: (context, settings, _) {
-                            if (!settings.pricingEnabled) {
-                              return const SizedBox.shrink();
-                            }
-                            return Column(
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 10),
-                                  child: Divider(height: 1),
+                  Builder(builder: (context) {
+                    final infoGrid = GlassSectionCard(
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.inventory_2_rounded,
+                                size: 20,
+                                color: AppTheme.textSec(context),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Total Stock',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppTheme.textSec(context),
+                                  ),
                                 ),
-                                _InfoRow(
-                                  icon: Icons.money_rounded,
-                                  label: 'Cost Price',
-                                  value:
-                                      '${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 10),
-                                  child: Divider(height: 1),
-                                ),
-                                _InfoRow(
-                                  icon: Icons.sell_rounded,
-                                  label: 'Selling Price',
-                                  value:
-                                      '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
-                                  valueColor: AppTheme.successColor,
-                                ),
-                                if (product.profit != 0) ...[
+                              ),
+                              TweenAnimationBuilder<int>(
+                                tween: IntTween(begin: 0, end: product.quantity),
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, value, child) {
+                                  return Text(
+                                    '$value ${product.unit}',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: stockColor,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Divider(height: 1),
+                          ),
+                          _InfoRow(
+                            icon: Icons.warning_amber_rounded,
+                            label: 'Low Stock Alert',
+                            value: '${product.lowStockThreshold} ${product.unit}',
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Divider(height: 1),
+                          ),
+                          _InfoRow(
+                            icon: Icons.straighten_rounded,
+                            label: 'Unit',
+                            value: product.unit,
+                          ),
+                          Consumer<SettingsProvider>(
+                            builder: (context, settings, _) {
+                              if (!settings.pricingEnabled) {
+                                return const SizedBox.shrink();
+                              }
+                              return Column(
+                                children: [
                                   const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 10),
                                     child: Divider(height: 1),
                                   ),
                                   _InfoRow(
-                                    icon: Icons.trending_up_rounded,
-                                    label: 'Profit / Unit',
+                                    icon: Icons.money_rounded,
+                                    label: 'Cost Price',
                                     value:
-                                        '${AppTheme.currencySymbol}${product.profit.toStringAsFixed(2)}',
-                                    valueColor: product.profit >= 0
-                                        ? AppTheme.successColor
-                                        : AppTheme.dangerColor,
+                                        '${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
                                   ),
-                                ],
-                                if (product.quantity > 0 &&
-                                    product.sellingPrice > 0) ...[
                                   const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 10),
                                     child: Divider(height: 1),
                                   ),
                                   _InfoRow(
-                                    icon: Icons.account_balance_wallet_rounded,
-                                    label: 'Total Value',
+                                    icon: Icons.sell_rounded,
+                                    label: 'Selling Price',
                                     value:
-                                        '${AppTheme.currencySymbol}${product.totalStockValue.toStringAsFixed(2)}',
+                                        '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                                    valueColor: AppTheme.successColor,
                                   ),
+                                  if (product.profit != 0) ...[
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      child: Divider(height: 1),
+                                    ),
+                                    _InfoRow(
+                                      icon: Icons.trending_up_rounded,
+                                      label: 'Profit / Unit',
+                                      value:
+                                          '${AppTheme.currencySymbol}${product.profit.toStringAsFixed(2)}',
+                                      valueColor: product.profit >= 0
+                                          ? AppTheme.successColor
+                                          : AppTheme.dangerColor,
+                                    ),
+                                  ],
+                                  if (product.quantity > 0 &&
+                                      product.sellingPrice > 0) ...[
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      child: Divider(height: 1),
+                                    ),
+                                    _InfoRow(
+                                      icon: Icons.account_balance_wallet_rounded,
+                                      label: 'Total Value',
+                                      value:
+                                          '${AppTheme.currencySymbol}${product.totalStockValue.toStringAsFixed(2)}',
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
 
-                  // Location Breakdown
-                  if (product.locationQuantities.isNotEmpty) ...[
+                    final hasLocations = product.locationQuantities.isNotEmpty;
+                    if (Responsive.isDesktop(context) && hasLocations) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: infoGrid),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: GlassSectionCard(
+                              title: 'Stock by Location',
+                              icon: Icons.location_on_rounded,
+                              iconColor: AppTheme.primaryColor,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  ...product.locationQuantities.entries.map((entry) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.location_on_outlined, size: 16, color: AppTheme.textTer(context)),
+                                          const SizedBox(width: 8),
+                                          Expanded(child: Text(entry.key, style: TextStyle(fontSize: 14, color: AppTheme.textPri(context)))),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.getStockColor(entry.value, threshold: product.lowStockThreshold).withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '${entry.value} ${product.unit}',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppTheme.getStockColor(entry.value, threshold: product.lowStockThreshold),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return infoGrid;
+                  }),
+
+                  // Location Breakdown (mobile/tablet)
+                  if (product.locationQuantities.isNotEmpty && !Responsive.isDesktop(context)) ...[
                     const SizedBox(height: 16),
                     GlassSectionCard(
                       title: 'Stock by Location',
@@ -339,7 +481,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   Icon(
                                     Icons.place_rounded,
                                     size: 16,
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.textSec(context),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -513,13 +655,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 Icon(
                                   Icons.history_rounded,
                                   size: 44,
-                                  color: AppTheme.iconMuted,
+                                  color: AppTheme.iconMute(context),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   'No transactions yet',
                                   style: TextStyle(
-                                    color: AppTheme.textTertiary,
+                                    color: AppTheme.textTer(context),
                                   ),
                                 ),
                               ],
@@ -604,9 +746,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                                 t.location,
                                               dateFormat.format(t.date),
                                             ].join(' \u2022 '),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 12,
-                                              color: AppTheme.textSecondary,
+                                              color: AppTheme.textSec(context),
                                             ),
                                           ),
                                           if (t.vendorName.isNotEmpty)
@@ -622,7 +764,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                               t.reason,
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: AppTheme.textTertiary,
+                                                color: AppTheme.textTer(
+                                                  context,
+                                                ),
                                               ),
                                             ),
                                         ],
@@ -663,7 +807,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               : 'Created: ${dateFormat.format(product.createdAt)}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -673,7 +817,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               : 'Updated: ${dateFormat.format(product.updatedAt)}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textTertiary,
+                            color: AppTheme.textTer(context),
                           ),
                         ),
                       ],
@@ -686,6 +830,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _duplicateProduct(BuildContext context, ProductModel product) {
+    final template = product.copyWith(
+      id: '',
+      name: '${product.name} (Copy)',
+      quantity: 0,
+      locationQuantities: {},
+    );
+    Navigator.pushNamed(context, AppRoutes.addProduct, arguments: template);
   }
 
   void _confirmDelete(BuildContext context, ProductModel product) {
@@ -714,13 +868,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           .deleteProduct(product.id);
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Product deleted'),
-                            backgroundColor: AppTheme.successColor,
-                            duration: Duration(seconds: 4),
-                          ),
-                        );
+                        showSuccessSnackBar(context, 'Product deleted');
                         Navigator.pop(context);
                       }
                     },
@@ -728,12 +876,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 backgroundColor: AppTheme.dangerColor,
               ),
               child: isDeleting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppTheme.surfaceColor,
+                        color: AppTheme.surface(context),
                       ),
                     )
                   : const Text('Delete'),
@@ -754,7 +902,7 @@ class _DetailTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppTheme.textSecondary;
+    final c = color ?? AppTheme.textSec(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -797,12 +945,12 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppTheme.textSecondary),
+        Icon(icon, size: 20, color: AppTheme.textSec(context)),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
           ),
         ),
         Text(
@@ -810,10 +958,176 @@ class _InfoRow extends StatelessWidget {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: valueColor ?? AppTheme.textPrimary,
+            color: valueColor ?? AppTheme.textPri(context),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BarcodeCard extends StatefulWidget {
+  final String barcode;
+  final String productName;
+  const _BarcodeCard({required this.barcode, required this.productName});
+
+  @override
+  State<_BarcodeCard> createState() => _BarcodeCardState();
+}
+
+class _BarcodeCardState extends State<_BarcodeCard> {
+  final _repaintKey = GlobalKey();
+  bool _saving = false;
+
+  Future<void> _saveAndShare() async {
+    setState(() => _saving = true);
+    try {
+      final boundary =
+          _repaintKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/barcode_${widget.barcode}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      if (!mounted) return;
+      final box = context.findRenderObject() as RenderBox?;
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: '${widget.productName} — Barcode: ${widget.barcode}',
+        sharePositionOrigin: box != null
+            ? box.localToGlobal(Offset.zero) & box.size
+            : null,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save barcode: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.qr_code_rounded,
+                size: 18,
+                color: AppTheme.textSec(context),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Barcode',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          RepaintBoundary(
+            key: _repaintKey,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 50,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(widget.barcode.length * 3, (i) {
+                        final isThick = i % 3 == 0;
+                        return Container(
+                          width: isThick ? 2.5 : 1.0,
+                          margin: const EdgeInsets.symmetric(horizontal: 0.8),
+                          color: Colors.black.withValues(
+                            alpha: i % 5 == 0 ? 0.9 : 0.6,
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.barcode,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 3,
+                      fontFamily: 'monospace',
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: widget.barcode));
+                    HapticFeedback.selectionClick();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Barcode copied to clipboard'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copy'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : _saveAndShare,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.download_rounded, size: 16),
+                  label: Text(_saving ? 'Saving...' : 'Save'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -843,12 +1157,12 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(icon, color: AppTheme.surfaceColor, size: 22),
+            Icon(icon, color: AppTheme.surface(context), size: 22),
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
-                color: AppTheme.surfaceColor,
+              style: TextStyle(
+                color: AppTheme.surface(context),
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),

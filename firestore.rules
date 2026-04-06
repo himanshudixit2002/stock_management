@@ -17,11 +17,104 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && userDocExists() &&
-        getUserData().role == 'admin';
+        (getUserData().role == 'admin' || getUserData().role == 'owner');
     }
 
     function belongsToCompany(companyId) {
       return isAuthenticated() && userDocExists() && getUserData().companyId == companyId;
+    }
+
+    // Multi-company: read company docs for any workspace the user is a member of (up to 50).
+    function hasMembershipForCompany(companyId) {
+      let m = getUserData().companyMemberships;
+      return m is list && (
+        (m.size() > 0 && m[0].companyId == companyId) ||
+        (m.size() > 1 && m[1].companyId == companyId) ||
+        (m.size() > 2 && m[2].companyId == companyId) ||
+        (m.size() > 3 && m[3].companyId == companyId) ||
+        (m.size() > 4 && m[4].companyId == companyId) ||
+        (m.size() > 5 && m[5].companyId == companyId) ||
+        (m.size() > 6 && m[6].companyId == companyId) ||
+        (m.size() > 7 && m[7].companyId == companyId) ||
+        (m.size() > 8 && m[8].companyId == companyId) ||
+        (m.size() > 9 && m[9].companyId == companyId) ||
+        (m.size() > 10 && m[10].companyId == companyId) ||
+        (m.size() > 11 && m[11].companyId == companyId) ||
+        (m.size() > 12 && m[12].companyId == companyId) ||
+        (m.size() > 13 && m[13].companyId == companyId) ||
+        (m.size() > 14 && m[14].companyId == companyId) ||
+        (m.size() > 15 && m[15].companyId == companyId) ||
+        (m.size() > 16 && m[16].companyId == companyId) ||
+        (m.size() > 17 && m[17].companyId == companyId) ||
+        (m.size() > 18 && m[18].companyId == companyId) ||
+        (m.size() > 19 && m[19].companyId == companyId) ||
+        (m.size() > 20 && m[20].companyId == companyId) ||
+        (m.size() > 21 && m[21].companyId == companyId) ||
+        (m.size() > 22 && m[22].companyId == companyId) ||
+        (m.size() > 23 && m[23].companyId == companyId) ||
+        (m.size() > 24 && m[24].companyId == companyId) ||
+        (m.size() > 25 && m[25].companyId == companyId) ||
+        (m.size() > 26 && m[26].companyId == companyId) ||
+        (m.size() > 27 && m[27].companyId == companyId) ||
+        (m.size() > 28 && m[28].companyId == companyId) ||
+        (m.size() > 29 && m[29].companyId == companyId) ||
+        (m.size() > 30 && m[30].companyId == companyId) ||
+        (m.size() > 31 && m[31].companyId == companyId) ||
+        (m.size() > 32 && m[32].companyId == companyId) ||
+        (m.size() > 33 && m[33].companyId == companyId) ||
+        (m.size() > 34 && m[34].companyId == companyId) ||
+        (m.size() > 35 && m[35].companyId == companyId) ||
+        (m.size() > 36 && m[36].companyId == companyId) ||
+        (m.size() > 37 && m[37].companyId == companyId) ||
+        (m.size() > 38 && m[38].companyId == companyId) ||
+        (m.size() > 39 && m[39].companyId == companyId) ||
+        (m.size() > 40 && m[40].companyId == companyId) ||
+        (m.size() > 41 && m[41].companyId == companyId) ||
+        (m.size() > 42 && m[42].companyId == companyId) ||
+        (m.size() > 43 && m[43].companyId == companyId) ||
+        (m.size() > 44 && m[44].companyId == companyId) ||
+        (m.size() > 45 && m[45].companyId == companyId) ||
+        (m.size() > 46 && m[46].companyId == companyId) ||
+        (m.size() > 47 && m[47].companyId == companyId) ||
+        (m.size() > 48 && m[48].companyId == companyId) ||
+        (m.size() > 49 && m[49].companyId == companyId)
+      );
+    }
+
+    // Self-serve profile/workspace updates must not rewrite identity or permission overrides.
+    function selfUserUpdateDoesNotEscalate() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['email', 'uid', 'createdAt', 'permissions']);
+    }
+
+    function canReadCompanyDoc(companyId) {
+      return isAuthenticated() && userDocExists() &&
+        (belongsToCompany(companyId) || hasMembershipForCompany(companyId));
+    }
+
+    // Check if the user has a specific permission via their role document
+    function hasPermission(companyId, permission) {
+      let userData = getUserData();
+      let roleId = userData.roleId;
+      // Admin/owner bypass: mirror isAdmin() for consistency
+      return userData.role == 'admin' || userData.role == 'owner' ||
+        (roleId != null && roleId != '' &&
+         exists(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)) &&
+         get(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)).data.permissions[permission] == true) ||
+        // Per-user override
+        (userData.permissions != null && userData.permissions[permission] == true);
+    }
+
+    // Allow the original creator of a company to bootstrap it (seed roles, etc.)
+    function isCompanyCreator(companyId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.adminUid == request.auth.uid;
+    }
+
+    // Creator may set/clear permanentJoinCode when their active companyId is another workspace.
+    function companyPermanentJoinCodeUpdateOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['permanentJoinCode']);
     }
 
     // Users collection (root level)
@@ -32,18 +125,21 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() && request.auth.uid == userId;
 
-      allow update: if (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
-        (isAuthenticated() && request.auth.uid == userId &&
-          request.resource.data.role == resource.data.role);
+      allow update: if (isAuthenticated() && request.auth.uid == userId &&
+          selfUserUpdateDoesNotEscalate()) ||
+        (belongsToCompany(resource.data.companyId) &&
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')));
 
-      allow delete: if (isAdmin() && userDocExists() && getUserData().companyId == resource.data.companyId) ||
-        (isAuthenticated() && request.auth.uid == userId);
+      allow delete: if (isAuthenticated() && request.auth.uid == userId) ||
+        (belongsToCompany(resource.data.companyId) &&
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')));
     }
 
     // App metadata (e.g. first-user flag)
     match /metadata/{docId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
     }
 
     // Notifications (created by Cloud Functions, read by recipients)
@@ -54,43 +150,233 @@ service cloud.firestore {
         resource.data.recipientUid == request.auth.uid;
       allow delete: if isAuthenticated() &&
         resource.data.recipientUid == request.auth.uid;
-      allow create: if false; // Only Cloud Functions can create
+      allow create: if false;
+    }
+
+    // Permanent join code lookup (6-char doc id). Anyone signed in can read for join flow.
+    match /joinCodeIndex/{code} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll(['companyId', 'companyName']) &&
+        request.resource.data.companyId is string &&
+        request.resource.data.companyName is string &&
+        exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)) &&
+        get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.adminUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAuthenticated() &&
+        resource.data.companyId is string &&
+        exists(/databases/$(database)/documents/companies/$(resource.data.companyId)) &&
+        (get(/databases/$(database)/documents/companies/$(resource.data.companyId)).data.adminUid == request.auth.uid ||
+         (belongsToCompany(resource.data.companyId) && isAdmin()));
     }
 
     // Companies collection
     match /companies/{companyId} {
-      allow read: if belongsToCompany(companyId);
+      allow read: if canReadCompanyDoc(companyId);
       allow create: if isAuthenticated();
-      allow update: if belongsToCompany(companyId) && isAdmin();
+      allow update: if (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageCompanySettings'))) ||
+        (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly());
       allow delete: if belongsToCompany(companyId) && isAdmin();
+
+      // Roles subcollection
+      match /roles/{roleId} {
+        allow read: if belongsToCompany(companyId) || isCompanyCreator(companyId);
+        allow create: if isCompanyCreator(companyId) ||
+          (belongsToCompany(companyId) &&
+           (isAdmin() || hasPermission(companyId, 'canManageRoles')));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageRoles'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageRoles')) &&
+          resource.data.isSystem != true;
+      }
 
       // Products subcollection
       match /products/{productId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId);
-        allow update: if belongsToCompany(companyId);
-        allow delete: if belongsToCompany(companyId) && isAdmin();
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddProducts'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditProducts') ||
+           hasPermission(companyId, 'canStockIn') ||
+           hasPermission(companyId, 'canStockOut') ||
+           hasPermission(companyId, 'canDamage') ||
+           hasPermission(companyId, 'canTransfer') ||
+           hasPermission(companyId, 'canAdjustStock') ||
+           hasPermission(companyId, 'canBulkStockIn') ||
+           hasPermission(companyId, 'canBulkEdit') ||
+           hasPermission(companyId, 'canImport') ||
+           hasPermission(companyId, 'canReceivePurchaseOrders') ||
+           hasPermission(companyId, 'canProcessReturns'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteProducts'));
       }
 
       // Categories subcollection
       match /categories/{categoryId} {
         allow read: if belongsToCompany(companyId);
-        allow create, update, delete: if belongsToCompany(companyId);
+        allow create, update, delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageCategories'));
       }
 
       // Transactions subcollection
       match /transactions/{transactionId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId);
-        allow update: if belongsToCompany(companyId) && isAdmin();
-        allow delete: if belongsToCompany(companyId) && isAdmin();
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canStockIn') ||
+           hasPermission(companyId, 'canStockOut') ||
+           hasPermission(companyId, 'canDamage') ||
+           hasPermission(companyId, 'canTransfer') ||
+           hasPermission(companyId, 'canAdjustStock') ||
+           hasPermission(companyId, 'canBulkStockIn'));
+        allow update, delete: if belongsToCompany(companyId) && isAdmin();
       }
 
       // Vendors subcollection
       match /vendors/{vendorId} {
         allow read: if belongsToCompany(companyId);
-        allow create, update: if belongsToCompany(companyId) && isAdmin();
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddVendors'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditVendors'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteVendors'));
+      }
+
+      // Purchase Orders subcollection
+      match /purchaseOrders/{orderId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreatePurchaseOrders'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditPurchaseOrders') ||
+           hasPermission(companyId, 'canApprovePurchaseOrders') ||
+           hasPermission(companyId, 'canReceivePurchaseOrders') ||
+           hasPermission(companyId, 'canCancelPurchaseOrders'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeletePurchaseOrders'));
+      }
+
+      // Sales Orders subcollection
+      match /salesOrders/{orderId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateSalesOrders'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditSalesOrders') ||
+           hasPermission(companyId, 'canConfirmSalesOrders') ||
+           hasPermission(companyId, 'canDispatchSalesOrders') ||
+           hasPermission(companyId, 'canDeliverSalesOrders') ||
+           hasPermission(companyId, 'canCancelSalesOrders'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteSalesOrders'));
+      }
+
+      // Returns subcollection
+      match /returns/{returnId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateReturns'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canApproveReturns') ||
+           hasPermission(companyId, 'canRejectReturns') ||
+           hasPermission(companyId, 'canProcessReturns'));
         allow delete: if belongsToCompany(companyId) && isAdmin();
+      }
+
+      // Customers subcollection
+      match /customers/{customerId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddCustomers'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditCustomers'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteCustomers'));
+      }
+
+      // Batches subcollection
+      match /batches/{batchId} {
+        allow read: if belongsToCompany(companyId);
+        allow create, update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBatches'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBatches'));
+      }
+
+      // Stock Takes subcollection
+      match /stockTakes/{stockTakeId} {
+        allow read: if belongsToCompany(companyId);
+        allow create, update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageStockTakes'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageStockTakes'));
+      }
+
+      // Billing sequence counters (invoice # generation; writable by invoice creators)
+      match /billingSequences/{seqId} {
+        allow read: if belongsToCompany(companyId);
+        allow create, update: if belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canCreateInvoices') ||
+           hasPermission(companyId, 'canManageCompanySettings'));
+        allow delete: if false;
+      }
+
+      // Invoices subcollection
+      match /invoices/{invoiceId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewInvoices'));
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateInvoices'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditInvoices') ||
+           hasPermission(companyId, 'canRecordPayments'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteInvoices'));
+      }
+
+      // Audit Logs subcollection (append-only, no edits/deletes)
+      match /auditLogs/{logId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId);
+        allow update, delete: if false;
+      }
+
+      // In-app Notifications subcollection
+      match /notifications/{notifId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId);
+        allow update: if belongsToCompany(companyId);
+        allow delete: if belongsToCompany(companyId);
+      }
+
+      // Price History subcollection (append-only)
+      match /priceHistory/{historyId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId);
+        allow update, delete: if false;
+      }
+
+      // Warehouse Zones subcollection
+      match /warehouseZones/{zoneId} {
+        allow read: if belongsToCompany(companyId);
+        allow create, update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageWarehouseZones'));
+        allow delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageWarehouseZones'));
+      }
+
+      // Invite codes subcollection
+      match /invites/{inviteId} {
+        allow read: if isAuthenticated();
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageUsers'));
+        allow update, delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageUsers'));
       }
     }
   }

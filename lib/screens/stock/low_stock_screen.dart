@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/product_model.dart';
@@ -36,7 +37,7 @@ class LowStockScreen extends StatelessWidget {
     final critical = lowStock.where((p) => !p.isOutOfStock).length;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: AppBarTitleRow(
           icon: Icons.warning_amber_rounded,
@@ -45,56 +46,64 @@ class LowStockScreen extends StatelessWidget {
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.scaffoldGradient),
-        child: productProvider.isLoadingAnalytics
-            ? const Center(child: CircularProgressIndicator())
-            : lowStock.isEmpty
-            ? const EmptyStateWidget(
-                icon: Icons.check_circle_outline_rounded,
-                title: 'All Stocked Up!',
-                subtitle: 'All products are above their low stock threshold.',
-              )
-            : Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.horizontalPadding(context),
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        _SummaryChip(
-                          label: '$outOfStock Out of Stock',
-                          color: AppTheme.dangerColor,
-                        ),
-                        const SizedBox(width: 8),
-                        _SummaryChip(
-                          label: '$critical Low Stock',
-                          color: AppTheme.warningColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: () => productProvider.loadAnalytics(),
-                      child: ListView.builder(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: productProvider.isLoadingAnalytics
+                ? const Center(child: CircularProgressIndicator())
+                : lowStock.isEmpty
+                ? const EmptyStateWidget(
+                    icon: Icons.check_circle_outline_rounded,
+                    title: 'All Stocked Up!',
+                    subtitle:
+                        'All products are above their low stock threshold.',
+                  )
+                : Column(
+                    children: [
+                      Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: Responsive.horizontalPadding(context),
+                          vertical: 12,
                         ),
-                        itemCount: lowStock.length,
-                        itemBuilder: (context, index) {
-                          final product = lowStock[index];
-                          return AnimatedListItem(
-                            index: index,
-                            child: _LowStockTile(product: product),
-                          );
-                        },
+                        child: Row(
+                          children: [
+                            _SummaryChip(
+                              label: '$outOfStock Out of Stock',
+                              color: AppTheme.dangerColor,
+                            ),
+                            const SizedBox(width: 8),
+                            _SummaryChip(
+                              label: '$critical Low Stock',
+                              color: AppTheme.warningColor,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: () => productProvider.loadAnalytics(),
+                          child: ListView.builder(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: Responsive.horizontalPadding(context),
+                            ),
+                            itemCount: lowStock.length,
+                            itemBuilder: (context, index) {
+                              final product = lowStock[index];
+                              return AnimatedListItem(
+                                index: index,
+                                child: _LowStockTile(product: product),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+          ),
+        ),
       ),
     );
   }
@@ -195,7 +204,7 @@ class _LowStockTile extends StatelessWidget {
                     ),
                   ),
                   if (context.watch<AuthProvider>().currentUser?.hasPermission(
-                        'canStockIn',
+                        AppPermissions.stockIn,
                       ) ??
                       false) ...[
                     const SizedBox(width: 8),

@@ -109,4 +109,34 @@ class StockTransactionModel {
       'vendorName': vendorName,
     };
   }
+
+  StockTransactionModel copyWith({
+    String? id,
+    String? productId,
+    String? productName,
+    TransactionType? type,
+    int? quantity,
+    String? location,
+    String? reason,
+    String? userId,
+    String? userName,
+    DateTime? date,
+    String? vendorId,
+    String? vendorName,
+  }) {
+    return StockTransactionModel(
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      productName: productName ?? this.productName,
+      type: type ?? this.type,
+      quantity: quantity ?? this.quantity,
+      location: location ?? this.location,
+      reason: reason ?? this.reason,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      date: date ?? this.date,
+      vendorId: vendorId ?? this.vendorId,
+      vendorName: vendorName ?? this.vendorName,
+    );
+  }
 }
