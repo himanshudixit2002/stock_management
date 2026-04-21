@@ -9,6 +9,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../config/app_navigation.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -61,10 +62,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         onUnfavorite: () {
                           context.read<FavoritesProvider>().toggle(product.id);
                         },
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.productDetail,
-                          arguments: product,
+                        onTap: () => context.pushAppRoute(AppRoutes.productDetail,
+                          extra: product,
                         ),
                       );
                     },

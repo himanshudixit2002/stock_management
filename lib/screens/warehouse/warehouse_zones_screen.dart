@@ -13,6 +13,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/searchable_picker.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class WarehouseZonesScreen extends StatelessWidget {
   const WarehouseZonesScreen({super.key});
@@ -61,7 +62,7 @@ class WarehouseZonesScreen extends StatelessWidget {
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const ShimmerLoading(layout: ShimmerLayout.card)
             : zones.isEmpty
                 ? EmptyStateWidget(
                     icon: Icons.warehouse_rounded,

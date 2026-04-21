@@ -11,6 +11,7 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class LowStockScreen extends StatelessWidget {
   const LowStockScreen({super.key});
@@ -53,7 +54,7 @@ class LowStockScreen extends StatelessWidget {
               maxWidth: Responsive.contentMaxWidth(context),
             ),
             child: productProvider.isLoadingAnalytics
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerLoading(layout: ShimmerLayout.card)
                 : lowStock.isEmpty
                 ? const EmptyStateWidget(
                     icon: Icons.check_circle_outline_rounded,

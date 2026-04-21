@@ -11,6 +11,7 @@ import '../../providers/settings_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class HomeCustomizationScreen extends StatefulWidget {
   const HomeCustomizationScreen({super.key});
@@ -56,23 +57,12 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
 
   Future<void> _save() async {
     if (_selected.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one action')),
-      );
+      showInfoSnackBar(context, 'Please select at least one action');
       return;
     }
     await context.read<HomeCustomizationProvider>().saveActions(_selected);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Home actions updated'),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      showSuccessSnackBar(context, 'Home actions updated');
       Navigator.pop(context);
     }
   }
@@ -145,6 +135,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final homeCustomization = context.watch<HomeCustomizationProvider>();
     final perms =
         context.watch<AuthProvider>().currentUser?.effectivePermissions ??
         UserModel.defaultPermissions;
@@ -168,38 +159,45 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxContentWidth),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      Responsive.horizontalPadding(context),
-                      12,
-                      Responsive.horizontalPadding(context),
-                      24,
-                    ),
+        child: !homeCustomization.isLoaded
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
+                  child: const ShimmerLoading(layout: ShimmerLayout.listTile),
+                ),
+              )
+            : Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
+                  child: Column(
                     children: [
-                      _buildSelectedSection(),
-                      const SizedBox(height: 20),
-                      _buildAvailableSection(
-                        perms,
-                        billingEnabled: billingOn,
-                        barcodeEnabled: settings.barcodeEnabled,
-                        vendorsEnabled: settings.vendorsEnabled,
-                        pricingEnabled: settings.pricingEnabled,
-                        isAdmin: isAdmin,
+                      Expanded(
+                        child: ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            Responsive.horizontalPadding(context),
+                            12,
+                            Responsive.horizontalPadding(context),
+                            24,
+                          ),
+                          children: [
+                            _buildSelectedSection(),
+                            const SizedBox(height: 20),
+                            _buildAvailableSection(
+                              perms,
+                              billingEnabled: billingOn,
+                              barcodeEnabled: settings.barcodeEnabled,
+                              vendorsEnabled: settings.vendorsEnabled,
+                              pricingEnabled: settings.pricingEnabled,
+                              isAdmin: isAdmin,
+                            ),
+                          ],
+                        ),
                       ),
+                      _buildBottomBar(),
                     ],
                   ),
                 ),
-                _buildBottomBar(),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }

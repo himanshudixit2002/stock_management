@@ -5,8 +5,10 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/role_model.dart';
 import '../../providers/role_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/permission_gate.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class RoleListScreen extends StatelessWidget {
   const RoleListScreen({super.key});
@@ -47,7 +49,16 @@ class _RoleListBody extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Role'),
       ),
-      body: roles.isEmpty
+      body: roleProvider.isLoading && roles.isEmpty
+          ? Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.contentMaxWidth(context),
+                ),
+                child: const ShimmerLoading(layout: ShimmerLayout.listTile),
+              ),
+            )
+          : roles.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -290,9 +301,7 @@ class _RoleCard extends StatelessWidget {
     if (result != null && result.isNotEmpty && context.mounted) {
       await context.read<RoleProvider>().duplicateRole(role, result);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Role "$result" created')),
-        );
+        showSuccessSnackBar(context, 'Role "$result" created');
       }
     }
   }
@@ -324,9 +333,7 @@ class _RoleCard extends StatelessWidget {
     if (confirmed == true && context.mounted) {
       final success = await context.read<RoleProvider>().deleteRole(role.id);
       if (context.mounted && success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Role "${role.name}" deleted')),
-        );
+        showSuccessSnackBar(context, 'Role "${role.name}" deleted');
       }
     }
   }

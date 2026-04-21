@@ -7,6 +7,7 @@ import '../config/routes.dart';
 import '../config/theme.dart';
 import '../widgets/animated_list_item.dart';
 import '../utils/responsive.dart';
+import '../config/app_navigation.dart';
 
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
@@ -125,7 +126,7 @@ class LandingScreen extends StatelessWidget {
                   ),
                   child: ElevatedButton(
                     onPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.register),
+                        context.pushAppRoute(AppRoutes.register),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -159,7 +160,7 @@ class LandingScreen extends StatelessWidget {
               child: SizedBox(
                 width: isWide ? 320 : double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
+                  onPressed: () => context.pushAppRoute(AppRoutes.login),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 15),
@@ -378,7 +379,7 @@ class LandingScreen extends StatelessWidget {
             child: SizedBox(
               width: Responsive.isWide(context) ? 320 : double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
+                onPressed: () => context.pushAppRoute(AppRoutes.register),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.surface(context),
                   foregroundColor: AppTheme.primaryColor,
@@ -426,7 +427,7 @@ class LandingScreen extends StatelessWidget {
                     _openUrl(context,
                         'https://smartshelfkart.com/privacy-policy.html');
                   } else {
-                    Navigator.pushNamed(context, AppRoutes.privacyPolicy);
+                    context.pushAppRoute(AppRoutes.privacyPolicy);
                   }
                 },
               ),
@@ -436,7 +437,7 @@ class LandingScreen extends StatelessWidget {
                   if (kIsWeb) {
                     _openUrl(context, 'https://smartshelfkart.com/terms.html');
                   } else {
-                    Navigator.pushNamed(context, AppRoutes.terms);
+                    context.pushAppRoute(AppRoutes.terms);
                   }
                 },
               ),
@@ -447,7 +448,7 @@ class LandingScreen extends StatelessWidget {
                     _openUrl(
                         context, 'https://smartshelfkart.com/support.html');
                   } else {
-                    Navigator.pushNamed(context, AppRoutes.support);
+                    context.pushAppRoute(AppRoutes.support);
                   }
                 },
               ),
@@ -458,7 +459,7 @@ class LandingScreen extends StatelessWidget {
                     _openUrl(context,
                         'https://smartshelfkart.com/data-deletion.html');
                   } else {
-                    Navigator.pushNamed(context, AppRoutes.dataDeletion);
+                    context.pushAppRoute(AppRoutes.dataDeletion);
                   }
                 },
               ),

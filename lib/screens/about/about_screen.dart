@@ -4,6 +4,7 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/app_navigation.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -173,7 +174,7 @@ class _AboutScreenState extends State<AboutScreen> {
             iconColor: AppTheme.accentColor,
             title: 'Support & Feedback',
             onTap: () =>
-                Navigator.pushNamed(context, AppRoutes.support),
+                context.pushAppRoute(AppRoutes.support),
           ),
         ],
       ),

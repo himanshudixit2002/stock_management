@@ -12,6 +12,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _barcodeEnabled = true;
   bool _initialized = false;
   String? _errorMessage;
+  String? _warningMessage;
   List<String> _companies = [];
   List<String> _sizes = [];
   List<String> _locations = [];
@@ -21,6 +22,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get barcodeEnabled => _barcodeEnabled;
   bool get isInitialized => _initialized;
   String? get errorMessage => _errorMessage;
+  String? get warningMessage => _warningMessage;
   List<String> get companies => List.unmodifiable(_companies);
   List<String> get sizes => List.unmodifiable(_sizes);
   List<String> get locations => List.unmodifiable(_locations);
@@ -43,9 +45,20 @@ class SettingsProvider extends ChangeNotifier {
     _barcodeEnabled = true;
     _initialized = false;
     _errorMessage = null;
+    _warningMessage = null;
     _companies = [];
     _sizes = [];
     _locations = [];
+    notifyListeners();
+  }
+
+  void setWarning(String message) {
+    _warningMessage = message;
+    notifyListeners();
+  }
+
+  void clearWarning() {
+    _warningMessage = null;
     notifyListeners();
   }
 

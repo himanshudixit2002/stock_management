@@ -14,6 +14,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../config/app_navigation.dart';
 
 enum _CustomerSort { nameAsc, nameDesc, ordersHigh, ordersLow, spentHigh, spentLow }
 
@@ -348,7 +349,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                   : null,
                               onButtonPressed: _searchQuery.isEmpty && !_hasActiveFilters
                                       && (user?.hasPermission(AppPermissions.addCustomers) ?? false)
-                                  ? () => Navigator.pushNamed(context, AppRoutes.addCustomer)
+                                  ? () => context.pushAppRoute(AppRoutes.addCustomer)
                                   : null,
                             )
                           : RefreshIndicator(
@@ -426,7 +427,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           const SizedBox(height: 8),
           if (user?.hasPermission(AppPermissions.addCustomers) ?? false)
             FloatingActionButton.extended(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.addCustomer),
+              onPressed: () => context.pushAppRoute(AppRoutes.addCustomer),
               icon: const Icon(Icons.person_add_rounded),
               label: const Text('Add Customer'),
             ),
@@ -439,10 +440,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     return GlassCard(
       onTap: () {
         HapticFeedback.lightImpact();
-        Navigator.pushNamed(
-          context,
-          AppRoutes.customerDetail,
-          arguments: customer.id,
+        context.pushAppRoute(AppRoutes.customerDetail,
+          extra: customer.id,
         );
       },
       child: Padding(

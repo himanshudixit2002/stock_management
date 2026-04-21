@@ -16,6 +16,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/product_picker.dart';
+import '../../config/app_navigation.dart';
 
 class _BulkRow {
   ProductModel? product;
@@ -130,13 +131,9 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
       );
     } else if (successCount > 0) {
       context.read<ProductProvider>().refreshProducts();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '$successCount of ${_rows.length} succeeded. ${lastError ?? ""}',
-          ),
-          backgroundColor: AppTheme.warningColor,
-        ),
+      showInfoSnackBar(
+        context,
+        '$successCount of ${_rows.length} succeeded. ${lastError ?? ""}',
       );
     } else {
       showErrorSnackBar(context, lastError ?? 'Failed to add stock');
@@ -189,7 +186,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
           title: 'No Products Yet',
           subtitle: 'Add products before using bulk stock in.',
           buttonText: 'Add Product',
-          onButtonPressed: () => Navigator.pushNamed(context, AppRoutes.addProduct),
+          onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
         ),
       );
     }

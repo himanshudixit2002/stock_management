@@ -20,6 +20,7 @@ import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/permissions.dart';
+import '../../config/app_navigation.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
@@ -59,10 +60,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             IconButton(
               icon: const Icon(Icons.edit_rounded),
               onPressed: () {
-                Navigator.pushNamed(
-                  context,
-                  AppRoutes.editProduct,
-                  arguments: product,
+                context.pushAppRoute(AppRoutes.editProduct,
+                  extra: product,
                 );
               },
               tooltip: 'Edit Product',
@@ -155,6 +154,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             Flexible(
                               child: Hero(
                                 tag: 'product_qty_${product.id}',
+                                flightShuttleBuilder: (
+                                  flightContext,
+                                  animation,
+                                  flightDirection,
+                                  fromHeroContext,
+                                  toHeroContext,
+                                ) {
+                                  return AnimatedBuilder(
+                                    animation: animation,
+                                    builder: (context, _) {
+                                      return flightDirection ==
+                                              HeroFlightDirection.push
+                                          ? toHeroContext.widget
+                                          : fromHeroContext.widget;
+                                    },
+                                  );
+                                },
                                 child: Material(
                                   type: MaterialType.transparency,
                                   child: Container(
@@ -521,10 +537,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.add_box_rounded,
                             label: 'Stock In',
                             color: AppTheme.successColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockIn,
-                              arguments: product,
+                            onTap: () => context.pushAppRoute(AppRoutes.stockIn,
+                              extra: product,
                             ),
                           ),
                         if (perms['canStockOut'] == true)
@@ -532,10 +546,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.outbox_rounded,
                             label: 'Stock Out',
                             color: AppTheme.primaryColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockOut,
-                              arguments: product,
+                            onTap: () => context.pushAppRoute(AppRoutes.stockOut,
+                              extra: product,
                             ),
                           ),
                         if (perms['canTransfer'] == true)
@@ -543,10 +555,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.swap_horiz_rounded,
                             label: 'Transfer',
                             color: AppTheme.indigoColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockTransfer,
-                              arguments: product,
+                            onTap: () => context.pushAppRoute(AppRoutes.stockTransfer,
+                              extra: product,
                             ),
                           ),
                         if (perms['canDamage'] == true)
@@ -554,10 +564,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.report_problem_rounded,
                             label: 'Damage',
                             color: AppTheme.dangerColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.damageReport,
-                              arguments: product,
+                            onTap: () => context.pushAppRoute(AppRoutes.damageReport,
+                              extra: product,
                             ),
                           ),
                         if (perms['canAdjustStock'] == true)
@@ -565,10 +573,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.tune_rounded,
                             label: 'Adjust',
                             color: AppTheme.warningColor,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.stockAdjustment,
-                              arguments: product,
+                            onTap: () => context.pushAppRoute(AppRoutes.stockAdjustment,
+                              extra: product,
                             ),
                           ),
                       ];
@@ -612,9 +618,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const Spacer(),
                       GestureDetector(
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.transactionHistory,
+                        onTap: () => context.pushAppRoute(AppRoutes.transactionHistory,
                         ),
                         child: Text(
                           'View All',
@@ -839,7 +843,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       quantity: 0,
       locationQuantities: {},
     );
-    Navigator.pushNamed(context, AppRoutes.addProduct, arguments: template);
+    context.pushAppRoute(AppRoutes.addProduct, extra: template);
   }
 
   void _confirmDelete(BuildContext context, ProductModel product) {
@@ -1006,9 +1010,7 @@ class _BarcodeCardState extends State<_BarcodeCard> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save barcode: $e')));
+        showErrorSnackBar(context, 'Failed to save barcode: $e');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1090,11 +1092,9 @@ class _BarcodeCardState extends State<_BarcodeCard> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: widget.barcode));
                     HapticFeedback.selectionClick();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Barcode copied to clipboard'),
-                        duration: Duration(seconds: 2),
-                      ),
+                    showInfoSnackBar(
+                      context,
+                      'Barcode copied to clipboard',
                     );
                   },
                   icon: const Icon(Icons.copy_rounded, size: 16),

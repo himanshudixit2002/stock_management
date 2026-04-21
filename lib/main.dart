@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +21,21 @@ void main() async {
     };
   }
 
+  FlutterError.onError ??= FlutterError.presentError;
+  final previousOnError = FlutterError.onError!;
+  FlutterError.onError = (details) {
+    if (kReleaseMode) {
+      FlutterError.dumpErrorToConsole(details, forceReport: true);
+      return;
+    }
+    previousOnError(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Uncaught platform error: $error\n$stack');
+    return true;
+  };
+
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
@@ -27,8 +44,6 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
-  // Web: initialize Firebase in [AuthWrapper] so the engine can paint the first
-  // Flutter frame (splash) while Firebase loads in parallel with the bundle.
   if (!kIsWeb) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }

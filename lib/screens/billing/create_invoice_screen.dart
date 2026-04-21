@@ -15,6 +15,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/sales_order_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/purchase_order_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart'
@@ -242,24 +243,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_invoiceType == InvoiceType.sales && _selectedCustomerId == null) {
       _scrollSectionIntoView(_partySectionKey);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a customer')));
+      showInfoSnackBar(context, 'Please select a customer');
       return;
     }
     if (_invoiceType == InvoiceType.purchase && _selectedVendorId == null) {
       _scrollSectionIntoView(_partySectionKey);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please select a vendor')));
+      showInfoSnackBar(context, 'Please select a vendor');
       return;
     }
     final validItems = _items.where((i) => i.productId != null).toList();
     if (validItems.isEmpty) {
       _scrollSectionIntoView(_itemsSectionKey);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Add at least one item')));
+      showInfoSnackBar(context, 'Add at least one item');
       return;
     }
     setState(() => _isSaving = true);
@@ -279,9 +274,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (invoiceNumber == null) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not generate invoice number')),
-      );
+      showErrorSnackBar(context, 'Could not generate invoice number');
       return;
     }
 
@@ -361,27 +354,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     if (id != null) {
       final label = _invoiceType == InvoiceType.purchase ? 'Bill' : 'Invoice';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$label $invoiceNumber created'),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      showSuccessSnackBar(context, '$label $invoiceNumber created');
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(billing.errorMessage ?? 'Failed to create invoice'),
-          backgroundColor: AppTheme.dangerColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+      showErrorSnackBar(
+        context,
+        billing.errorMessage ?? 'Failed to create invoice',
       );
     }
   }

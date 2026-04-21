@@ -10,6 +10,7 @@ import '../../utils/dialogs.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/app_navigation.dart';
 
 class DamageHistoryScreen extends StatefulWidget {
   const DamageHistoryScreen({super.key});
@@ -755,10 +756,8 @@ class _DamageTile extends StatelessWidget {
             .where((p) => p.id == txn.productId)
             .firstOrNull;
         if (product != null) {
-          Navigator.pushNamed(
-            context,
-            AppRoutes.productDetail,
-            arguments: product,
+          context.pushAppRoute(AppRoutes.productDetail,
+            extra: product,
           );
         }
       },

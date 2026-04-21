@@ -25,6 +25,7 @@ import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import '../widgets/animated_list_item.dart';
 import '../widgets/glass_panel.dart';
+import '../widgets/offline_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -80,9 +81,9 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final isWide = Responsive.isWide(context);
 
-    final auth = context.watch<AuthProvider>();
-    final perms =
-        auth.currentUser?.effectivePermissions ?? UserModel.defaultPermissions;
+    final perms = context.select<AuthProvider, Map<String, bool>>(
+      (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
+    );
 
     final tabs = <_TabItem>[
       _TabItem(
@@ -232,7 +233,10 @@ class HomeScreenState extends State<HomeScreen> {
             ? Brightness.light
             : Brightness.dark,
       ),
-      child: PopScope(
+      child: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
@@ -256,6 +260,8 @@ class HomeScreenState extends State<HomeScreen> {
               FeatureTour(onComplete: () => setState(() => _showTour = false)),
           ],
         ),
+      )),
+        ],
       ),
     );
   }
@@ -1190,25 +1196,32 @@ class _ActionCardState extends State<_ActionCard> {
 class _QuickStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final productProvider = context.watch<ProductProvider>();
-    final stockProvider = context.watch<StockProvider>();
-    final auth = context.watch<AuthProvider>();
-    final perms =
-        auth.currentUser?.effectivePermissions ?? UserModel.defaultPermissions;
+    final perms = context.select<AuthProvider, Map<String, bool>>(
+      (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
+    );
 
-    final isInitialLoading = productProvider.isLoading;
-    final isRefiningData =
-        productProvider.isLoadingAnalytics &&
-        !productProvider.isAnalyticsLoaded;
-    final totalProducts = productProvider.totalProducts;
-    final lowStock = productProvider.lowStockCount;
-    final outOfStock = productProvider.outOfStockCount;
-    final todayTxns = stockProvider.allTransactions.where((t) {
+    final isInitialLoading = context.select<ProductProvider, bool>(
+      (p) => p.isLoading,
+    );
+    final isRefiningData = context.select<ProductProvider, bool>(
+      (p) => p.isLoadingAnalytics && !p.isAnalyticsLoaded,
+    );
+    final totalProducts = context.select<ProductProvider, int>(
+      (p) => p.totalProducts,
+    );
+    final lowStock = context.select<ProductProvider, int>(
+      (p) => p.lowStockCount,
+    );
+    final outOfStock = context.select<ProductProvider, int>(
+      (p) => p.outOfStockCount,
+    );
+    final todayTxns = context.select<StockProvider, int>((s) {
       final now = DateTime.now();
-      return t.date.year == now.year &&
+      return s.allTransactions.where((t) =>
+          t.date.year == now.year &&
           t.date.month == now.month &&
-          t.date.day == now.day;
-    }).length;
+          t.date.day == now.day).length;
+    });
 
     int tabIndexFor(String tabLabel) {
       int idx = 1;
@@ -1297,7 +1310,7 @@ class _QuickStats extends StatelessWidget {
                       onTap: () {
                         final idx = tabIndexFor('Products');
                         if (idx > 0) {
-                          productProvider.filterByStockStatus('out_of_stock');
+                          context.read<ProductProvider>().filterByStockStatus('out_of_stock');
                           context
                               .findAncestorStateOfType<HomeScreenState>()
                               ?.switchToTab(idx);
@@ -1544,23 +1557,20 @@ class _InsightsCardState extends State<_InsightsCard> {
 
   @override
   Widget build(BuildContext context) {
-    final pp = context.watch<ProductProvider>();
-    final sp = context.watch<StockProvider>();
-
-    final now = DateTime.now();
-    final todayTxns = sp.allTransactions
-        .where(
-          (t) =>
-              t.date.year == now.year &&
-              t.date.month == now.month &&
-              t.date.day == now.day,
-        )
-        .length;
+    final lowStockCount = context.select<ProductProvider, int>((p) => p.lowStockCount);
+    final outOfStockCount = context.select<ProductProvider, int>((p) => p.outOfStockCount);
+    final todayTxns = context.select<StockProvider, int>((s) {
+      final now = DateTime.now();
+      return s.allTransactions.where((t) =>
+          t.date.year == now.year &&
+          t.date.month == now.month &&
+          t.date.day == now.day).length;
+    });
 
     final insights = <_InsightItem>[
       _InsightItem(
         Icons.warning_amber_rounded,
-        'You have ${pp.lowStockCount} products below reorder level',
+        'You have $lowStockCount products below reorder level',
         AppRoutes.lowStock,
       ),
       _InsightItem(
@@ -1570,7 +1580,7 @@ class _InsightsCardState extends State<_InsightsCard> {
       ),
       _InsightItem(
         Icons.remove_shopping_cart_rounded,
-        '${pp.outOfStockCount} products out of stock',
+        '$outOfStockCount products out of stock',
         AppRoutes.lowStock,
       ),
     ];
@@ -1939,8 +1949,9 @@ class _RecentActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final transactions = context.watch<StockProvider>().allTransactions;
-    final recent = transactions.take(5).toList();
+    final recent = context.select<StockProvider, List<StockTransactionModel>>(
+      (s) => s.allTransactions.take(5).toList(),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

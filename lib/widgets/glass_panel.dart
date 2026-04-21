@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 import '../utils/responsive.dart';
 
@@ -157,8 +158,8 @@ class _GlassCardState extends State<GlassCard> {
           onTapCancel: _handleTapCancel,
           child: AnimatedScale(
             scale: _isPressed ? 0.97 : 1.0,
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeInOut,
+            duration: kPressDuration,
+            curve: kPressCurve,
             child: Material(
               color: Colors.transparent,
               child: InkWell(

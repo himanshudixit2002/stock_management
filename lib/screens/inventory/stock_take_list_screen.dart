@@ -12,6 +12,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../config/routes.dart';
+import '../../config/app_navigation.dart';
 
 class StockTakeListScreen extends StatelessWidget {
   const StockTakeListScreen({super.key});
@@ -77,7 +78,7 @@ class StockTakeListScreen extends StatelessWidget {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.createStockTake),
+              context.pushAppRoute(AppRoutes.createStockTake),
           child: const Icon(Icons.add_rounded),
         ),
         body: Center(
@@ -94,7 +95,7 @@ class StockTakeListScreen extends StatelessWidget {
                     subtitle: 'Create a stock take to verify inventory counts.',
                     buttonText: 'New Stock Take',
                     onButtonPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.createStockTake),
+                        context.pushAppRoute(AppRoutes.createStockTake),
                   )
                 : RefreshIndicator(
                     onRefresh: () async {
@@ -122,10 +123,8 @@ class StockTakeListScreen extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: GlassCard(
                             onTap: st.status != StockTakeStatus.completed
-                                ? () => Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.stockTakeCount,
-                                    arguments: st,
+                                ? () => context.pushAppRoute(AppRoutes.stockTakeCount,
+                                    extra: st,
                                   )
                                 : null,
                             child: Padding(

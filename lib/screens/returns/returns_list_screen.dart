@@ -13,6 +13,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../config/app_navigation.dart';
 
 class ReturnsListScreen extends StatefulWidget {
   const ReturnsListScreen({super.key});
@@ -187,7 +188,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
           (user?.hasPermission(AppPermissions.createReturns) ?? false)
           ? FloatingActionButton.extended(
               onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.createReturn),
+                  context.pushAppRoute(AppRoutes.createReturn),
               icon: const Icon(Icons.add_rounded),
               label: const Text('New Return'),
             )
@@ -228,7 +229,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                     AppPermissions.createReturns,
                   ) ??
                   false)
-            ? () => Navigator.pushNamed(context, AppRoutes.createReturn)
+            ? () => context.pushAppRoute(AppRoutes.createReturn)
             : null,
       );
     }
@@ -265,10 +266,8 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: GlassCard(
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.returnDetail,
-                        arguments: ret.id,
+                      onTap: () => context.pushAppRoute(AppRoutes.returnDetail,
+                        extra: ret.id,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -389,10 +388,8 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: GlassCard(
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.returnDetail,
-                        arguments: ret.id,
+                      onTap: () => context.pushAppRoute(AppRoutes.returnDetail,
+                        extra: ret.id,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),

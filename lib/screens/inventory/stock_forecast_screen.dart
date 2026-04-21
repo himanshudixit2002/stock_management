@@ -14,6 +14,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../config/permissions.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class StockForecastScreen extends StatefulWidget {
   const StockForecastScreen({super.key});
@@ -202,7 +203,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(strokeWidth: 2.5),
+                        ShimmerLoading(layout: ShimmerLayout.stat),
                         SizedBox(height: 16),
                         Text('Loading product data...'),
                       ],

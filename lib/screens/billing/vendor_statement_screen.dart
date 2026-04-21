@@ -9,6 +9,7 @@ import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../services/billing_pdf_service.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart'
@@ -68,12 +69,7 @@ class _VendorStatementScreenState extends State<VendorStatementScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to generate PDF: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showErrorSnackBar(context, 'Failed to generate PDF: $e');
       }
     } finally {
       if (mounted) setState(() => _isGenerating = false);

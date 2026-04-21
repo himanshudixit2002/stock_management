@@ -3,6 +3,7 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/app_navigation.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -174,14 +175,14 @@ class HelpScreen extends StatelessWidget {
             icon: Icons.headset_mic_outlined,
             title: 'Contact Support',
             subtitle: 'Get help from our support team',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.support),
+            onTap: () => context.pushAppRoute(AppRoutes.support),
           ),
           const SizedBox(height: 8),
           _ContactOption(
             icon: Icons.feedback_outlined,
             title: 'Send Feedback',
             subtitle: 'Help us improve the app',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.support),
+            onTap: () => context.pushAppRoute(AppRoutes.support),
           ),
         ],
       ),

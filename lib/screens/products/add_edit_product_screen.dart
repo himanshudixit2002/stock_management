@@ -21,6 +21,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../config/app_navigation.dart';
 
 class AddEditProductScreen extends StatefulWidget {
   final ProductModel? product;
@@ -90,10 +91,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   }
 
   Future<void> _openBarcodeCapture() async {
-    final code = await Navigator.pushNamed<String?>(
-      context,
+    final code = await context.pushAppRoute<String?>(
       AppRoutes.barcodeScanner,
-      arguments: const BarcodeScannerArgs(captureOnly: true),
+      extra: const BarcodeScannerArgs(captureOnly: true),
     );
     if (!mounted) return;
     if (code != null && code.isNotEmpty) {
@@ -611,17 +611,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                                   ),
                                                 );
                                                 HapticFeedback.selectionClick();
-                                                ScaffoldMessenger.of(
+                                                showInfoSnackBar(
                                                   context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Barcode copied',
-                                                    ),
-                                                    duration: Duration(
-                                                      seconds: 1,
-                                                    ),
-                                                  ),
+                                                  'Barcode copied',
                                                 );
                                               },
                                             ),

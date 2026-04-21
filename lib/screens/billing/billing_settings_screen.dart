@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
 import '../../providers/billing_settings_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 
@@ -138,16 +139,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
     );
     setState(() => _isSaving = false);
     if (ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Billing settings saved'),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      showSuccessSnackBar(context, 'Billing settings saved');
       Navigator.pop(context);
     }
   }

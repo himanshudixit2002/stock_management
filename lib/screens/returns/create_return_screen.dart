@@ -22,6 +22,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../config/app_navigation.dart';
 
 class CreateReturnScreen extends StatefulWidget {
   const CreateReturnScreen({super.key});
@@ -475,7 +476,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 )).toList(),
                               );
                               if (result == '__create_new__') {
-                                final navResult = await Navigator.pushNamed(context, AppRoutes.addCustomer);
+                                final navResult = await context.pushAppRoute(AppRoutes.addCustomer);
                                 if (navResult is String && navResult.isNotEmpty && mounted) {
                                   final c = context.read<CustomerProvider>().getCustomerById(navResult);
                                   setState(() {
@@ -523,7 +524,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 )).toList(),
                               );
                               if (result == '__create_new__') {
-                                final navResult = await Navigator.pushNamed(context, AppRoutes.addVendor);
+                                final navResult = await context.pushAppRoute(AppRoutes.addVendor);
                                 if (navResult is String && navResult.isNotEmpty && mounted) {
                                   final v = context.read<VendorProvider>().getVendorById(navResult);
                                   setState(() {

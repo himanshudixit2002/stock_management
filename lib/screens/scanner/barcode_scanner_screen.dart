@@ -16,6 +16,7 @@ import '../../utils/product_search.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../config/app_navigation.dart';
 
 const _kRecentScansKey = 'barcode_recent_scans';
 const _kMaxRecentScans = 10;
@@ -181,10 +182,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
     if (!mounted) return;
     if (matches.length == 1) {
-      Navigator.pushNamed(
-        context,
-        AppRoutes.productDetail,
-        arguments: matches.first,
+      context.pushAppRoute(AppRoutes.productDetail,
+        extra: matches.first,
       );
     }
   }
@@ -600,10 +599,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 (product) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: GlassCard(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.productDetail,
-                      arguments: product,
+                    onTap: () => context.pushAppRoute(AppRoutes.productDetail,
+                      extra: product,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),

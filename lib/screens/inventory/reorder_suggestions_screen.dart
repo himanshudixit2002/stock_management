@@ -19,6 +19,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../config/app_navigation.dart';
 
 class _ReorderItem {
   final ProductModel product;
@@ -235,10 +236,8 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
       );
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) {
-        Navigator.pushNamed(
-          context,
-          AppRoutes.purchaseOrderDetail,
-          arguments: poId,
+        context.pushAppRoute(AppRoutes.purchaseOrderDetail,
+          extra: poId,
         );
       }
     } else {

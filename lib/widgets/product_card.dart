@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../models/product_model.dart';
 import '../providers/settings_provider.dart';
 import '../providers/favorites_provider.dart';
+import '../config/motion.dart';
 import '../config/routes.dart';
 import '../config/theme.dart';
 import 'glass_panel.dart';
 import 'stock_badge.dart';
+import '../config/app_navigation.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductModel product;
@@ -104,13 +106,13 @@ class _ProductCardState extends State<ProductCard> {
     if (!mounted) return;
     switch (chosen) {
       case 0:
-        Navigator.pushNamed(context, AppRoutes.editProduct, arguments: product);
+        context.pushAppRoute(AppRoutes.editProduct, extra: product);
         break;
       case 1:
-        Navigator.pushNamed(context, AppRoutes.stockIn, arguments: product);
+        context.pushAppRoute(AppRoutes.stockIn, extra: product);
         break;
       case 2:
-        Navigator.pushNamed(context, AppRoutes.stockOut, arguments: product);
+        context.pushAppRoute(AppRoutes.stockOut, extra: product);
         break;
       case 3:
         context.read<FavoritesProvider>().toggle(product.id);
@@ -183,9 +185,9 @@ class _ProductCardState extends State<ProductCard> {
       confirmDismiss: (direction) async {
         HapticFeedback.mediumImpact();
         if (direction == DismissDirection.startToEnd) {
-          Navigator.pushNamed(context, AppRoutes.stockIn, arguments: product);
+          context.pushAppRoute(AppRoutes.stockIn, extra: product);
         } else {
-          Navigator.pushNamed(context, AppRoutes.stockOut, arguments: product);
+          context.pushAppRoute(AppRoutes.stockOut, extra: product);
         }
         return false;
       },
@@ -201,8 +203,8 @@ class _ProductCardState extends State<ProductCard> {
           onLongPress: _onLongPress,
           child: AnimatedScale(
             scale: _scale,
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
+            duration: kPressDuration,
+            curve: kPressCurve,
             child: GlassCard(
               onTap: widget.onTap,
               borderRadius: 16,

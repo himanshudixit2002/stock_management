@@ -17,6 +17,7 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/routes.dart';
+import '../../config/app_navigation.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
   final String customerId;
@@ -66,10 +67,8 @@ class CustomerDetailScreen extends StatelessWidget {
           if (context.watch<AuthProvider>().currentUser?.hasPermission(AppPermissions.editCustomers) ?? false)
             IconButton(
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => Navigator.pushNamed(
-                context,
-                AppRoutes.editCustomer,
-                arguments: customer,
+              onPressed: () => context.pushAppRoute(AppRoutes.editCustomer,
+                extra: customer,
               ),
             ),
           if (context.watch<AuthProvider>().currentUser?.hasPermission(AppPermissions.deleteCustomers) ?? false)
@@ -273,10 +272,8 @@ class CustomerDetailScreen extends StatelessWidget {
                                   child: Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: GlassCard(
-                                      onTap: () => Navigator.pushNamed(
-                                        context,
-                                        AppRoutes.salesOrderDetail,
-                                        arguments: order.id,
+                                      onTap: () => context.pushAppRoute(AppRoutes.salesOrderDetail,
+                                        extra: order.id,
                                       ),
                                       child: Padding(
                                         padding: const EdgeInsets.all(14),
@@ -482,10 +479,8 @@ class CustomerDetailScreen extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.invoiceDetail,
-                      arguments: inv.id,
+                    onTap: () => context.pushAppRoute(AppRoutes.invoiceDetail,
+                      extra: inv.id,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -553,7 +548,7 @@ class CustomerDetailScreen extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.customerStatement),
+                      context.pushAppRoute(AppRoutes.customerStatement),
                   icon: const Icon(Icons.description_rounded, size: 16),
                   label: const Text(
                     'Statement',
@@ -567,10 +562,8 @@ class CustomerDetailScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.createInvoice,
-                    arguments: <String, dynamic>{
+                  onPressed: () => context.pushAppRoute(AppRoutes.createInvoice,
+                    extra: <String, dynamic>{
                       'type': InvoiceType.sales,
                       'customerId': customerId,
                       'customerName': customerName,

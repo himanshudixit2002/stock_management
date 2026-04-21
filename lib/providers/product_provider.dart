@@ -20,6 +20,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel> _lowStockProducts = [];
   bool _isLoading = false;
   String? _errorMessage;
+  String? _warningMessage;
   String _searchQuery = '';
   String? _selectedCategoryId;
   String? _selectedLocation;
@@ -96,6 +97,17 @@ class ProductProvider extends ChangeNotifier {
   bool get hasMoreProducts => _hasMoreProducts;
   bool get isLoadingMore => _isLoadingMore;
   String? get errorMessage => _errorMessage;
+  String? get warningMessage => _warningMessage;
+
+  void setWarning(String message) {
+    _warningMessage = message;
+    notifyListeners();
+  }
+
+  void clearWarning() {
+    _warningMessage = null;
+    notifyListeners();
+  }
 
   void clearError() {
     _errorMessage = null;

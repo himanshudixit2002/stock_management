@@ -327,12 +327,7 @@ class _ReportsScreenState extends State<ReportsScreen>
   ) async {
     if (_isExporting) return;
     if (transactions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No transactions to export'),
-          backgroundColor: AppTheme.warningColor,
-        ),
-      );
+      showInfoSnackBar(context, 'No transactions to export');
       return;
     }
 

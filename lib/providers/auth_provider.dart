@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -10,14 +13,17 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _sessionExpired = false;
 
   RoleProvider? _roleProvider;
+  StreamSubscription<User?>? _authStateSub;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isLoggedIn => _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool get sessionExpired => _sessionExpired;
 
   /// Re-resolve when the roles stream emits (roles load after first frame).
   void _onRoleProviderChanged() {
@@ -41,6 +47,7 @@ class AuthProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _authStateSub?.cancel();
     detachRoleProvider();
     super.dispose();
   }
@@ -61,6 +68,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> initialize() async {
     _errorMessage = null;
+    _sessionExpired = false;
     final firebaseUser = _authService.currentUser;
     if (firebaseUser != null) {
       try {
@@ -75,6 +83,25 @@ class AuthProvider extends ChangeNotifier {
       }
       notifyListeners();
     }
+    _listenAuthState();
+  }
+
+  void _listenAuthState() {
+    _authStateSub?.cancel();
+    _authStateSub = _authService.authStateChanges.listen((firebaseUser) async {
+      if (firebaseUser == null && _currentUser != null) {
+        _sessionExpired = true;
+        detachRoleProvider();
+        _currentUser = null;
+        notifyListeners();
+      } else if (firebaseUser != null && _currentUser == null && !_isLoading) {
+        try {
+          _currentUser = await _authService.getUserData(firebaseUser.uid);
+          _resolveUserPermissions();
+          notifyListeners();
+        } catch (_) {}
+      }
+    });
   }
 
   Future<void> refreshCurrentUser() async {
@@ -196,6 +223,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _errorMessage = null;
+    _sessionExpired = false;
     try {
       await _authService.logout();
     } catch (e) {
@@ -209,6 +237,10 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  void clearSessionExpired() {
+    _sessionExpired = false;
   }
 
   Stream<List<UserModel>> getAllUsers() {

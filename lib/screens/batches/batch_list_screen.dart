@@ -6,12 +6,14 @@ import '../../config/theme.dart';
 import '../../models/batch_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/batch_provider.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
+import '../../config/app_navigation.dart';
 
 enum _BatchFilter { all, active, expiringSoon, expired, recalled }
 
@@ -114,7 +116,7 @@ class _BatchListScreenState extends State<BatchListScreen> {
           ),
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: () => Navigator.pushNamed(context, AppRoutes.addBatch),
+          onPressed: () => context.pushAppRoute(AppRoutes.addBatch),
           child: const Icon(Icons.add_rounded),
         ),
         body: Column(
@@ -160,7 +162,7 @@ class _BatchListScreenState extends State<BatchListScreen> {
                       subtitle: 'Add a batch to start tracking.',
                       buttonText: 'Add Batch',
                       onButtonPressed: () =>
-                          Navigator.pushNamed(context, AppRoutes.addBatch),
+                          context.pushAppRoute(AppRoutes.addBatch),
                     )
                   : Center(
                       child: ConstrainedBox(
@@ -188,9 +190,11 @@ class _BatchListScreenState extends State<BatchListScreen> {
                             itemBuilder: (context, index) {
                               final batch = batches[index];
                               final color = _expiryColor(batch.expiryDate);
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: GlassCard(
+                              return AnimatedListItem(
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: GlassCard(
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
                                     child: Column(
@@ -305,6 +309,7 @@ class _BatchListScreenState extends State<BatchListScreen> {
                                       ],
                                     ),
                                   ),
+                                ),
                                 ),
                               );
                             },

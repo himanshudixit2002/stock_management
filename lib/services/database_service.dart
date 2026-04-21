@@ -17,6 +17,12 @@ import '../models/warehouse_zone_model.dart';
 import '../models/invoice_model.dart';
 
 class DatabaseService {
+  static final DatabaseService _instance = DatabaseService._internal();
+  factory DatabaseService() => _instance;
+  DatabaseService._internal() {
+    _firestore.settings = const Settings(persistenceEnabled: true);
+  }
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _companyId = '';
 

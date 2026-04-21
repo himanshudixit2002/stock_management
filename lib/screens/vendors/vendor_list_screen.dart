@@ -12,6 +12,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../config/app_navigation.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
 enum _VendorSort { nameAsc, nameDesc, ratingHigh, ratingLow, leadShort, leadLong }
@@ -296,7 +297,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
           if (user?.hasPermission(AppPermissions.addVendors) ?? false)
             IconButton(
               icon: const Icon(Icons.add_rounded),
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.addVendor),
+              onPressed: () => context.pushAppRoute(AppRoutes.addVendor),
             ),
         ],
       ),
@@ -365,9 +366,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
                           onButtonPressed: _searchQuery.isEmpty &&
                                   !_hasActiveFilters &&
                                   (user?.hasPermission(AppPermissions.addVendors) ?? false)
-                              ? () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.addVendor,
+                              ? () => context.pushAppRoute(AppRoutes.addVendor,
                                 )
                               : null,
                         )
@@ -448,7 +447,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
             const SizedBox(height: 8),
             FloatingActionButton.extended(
               onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.addVendor),
+                  context.pushAppRoute(AppRoutes.addVendor),
               tooltip: 'Add Vendor',
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Vendor'),
@@ -637,7 +636,7 @@ class _VendorCard extends StatelessWidget {
       borderRadius: 14,
       onTap: () {
         HapticFeedback.lightImpact();
-        Navigator.pushNamed(context, AppRoutes.vendorDetail, arguments: vendor);
+        context.pushAppRoute(AppRoutes.vendorDetail, extra: vendor);
       },
       child: Padding(
         padding: const EdgeInsets.all(14),

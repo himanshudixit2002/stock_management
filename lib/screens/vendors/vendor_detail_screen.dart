@@ -19,6 +19,7 @@ import '../../providers/billing_settings_provider.dart';
 import '../../models/invoice_model.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
+import '../../config/app_navigation.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
 class VendorDetailScreen extends StatefulWidget {
@@ -69,10 +70,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           if (user?.hasPermission(AppPermissions.editVendors) ?? false)
             IconButton(
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => Navigator.pushNamed(
-                context,
-                AppRoutes.editVendor,
-                arguments: vendor,
+              onPressed: () => context.pushAppRoute(AppRoutes.editVendor,
+                extra: vendor,
               ),
             ),
           if (user?.hasPermission(AppPermissions.deleteVendors) ?? false)
@@ -669,12 +668,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
       await file_helper.saveAndShareFile(fileName, bytes);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to export: $e'),
-            backgroundColor: AppTheme.dangerColor,
-          ),
-        );
+        showErrorSnackBar(context, 'Failed to export: $e');
       }
     }
   }
@@ -751,10 +745,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.invoiceDetail,
-                      arguments: inv.id,
+                    onTap: () => context.pushAppRoute(AppRoutes.invoiceDetail,
+                      extra: inv.id,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -822,7 +814,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.vendorStatement),
+                      context.pushAppRoute(AppRoutes.vendorStatement),
                   icon: const Icon(Icons.description_rounded, size: 16),
                   label: const Text(
                     'Statement',
@@ -836,10 +828,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.createInvoice,
-                    arguments: <String, dynamic>{
+                  onPressed: () => context.pushAppRoute(AppRoutes.createInvoice,
+                    extra: <String, dynamic>{
                       'type': InvoiceType.purchase,
                       'vendorId': vendor.id,
                       'vendorName': vendor.name,
@@ -1075,18 +1065,17 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
 
                                 final total =
                                     toAssign.length + toUnassign.length;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      ok
-                                          ? '$total product${total == 1 ? '' : 's'} updated'
-                                          : 'Failed to update products',
-                                    ),
-                                    backgroundColor: ok
-                                        ? AppTheme.successColor
-                                        : AppTheme.dangerColor,
-                                  ),
-                                );
+                                if (ok) {
+                                  showSuccessSnackBar(
+                                    context,
+                                    '$total product${total == 1 ? '' : 's'} updated',
+                                  );
+                                } else {
+                                  showErrorSnackBar(
+                                    context,
+                                    'Failed to update products',
+                                  );
+                                }
                               }
                             },
                             child: Text('Save (${selectedIds.length})'),

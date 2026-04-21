@@ -1,7 +1,7 @@
 name: stock_management
 description: "Stock Management App - Simple inventory management for everyone"
 publish_to: 'none'
-version: 1.0.10+12
+version: 1.0.13+15
 
 environment:
   sdk: ^3.10.7
@@ -46,6 +46,8 @@ dependencies:
   # PDF generation & printing
   pdf: ^3.11.1
   printing: ^5.13.3
+  lottie: ^3.3.0
+  connectivity_plus: ^7.1.1
 
 dev_dependencies:
   flutter_test:
@@ -65,3 +67,4 @@ flutter:
   assets:
     - logo.png
     - assets/fonts/NotoSans-Regular.ttf
+    - assets/lottie/

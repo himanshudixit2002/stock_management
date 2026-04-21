@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../config/theme.dart';
 import '../../models/invoice_model.dart';
 import '../../providers/billing_provider.dart';
+import '../../utils/dialogs.dart';
 
 class RecordPaymentSheet extends StatefulWidget {
   final String invoiceId;
@@ -63,9 +64,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
     final amount = double.tryParse(_amountCtrl.text) ?? 0;
     if (amount <= 0) return;
     if (amount > widget.amountDue + 0.01) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Amount cannot exceed amount due')),
-      );
+      showInfoSnackBar(context, 'Amount cannot exceed amount due');
       return;
     }
 
@@ -86,29 +85,15 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
     setState(() => _isSaving = false);
 
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Payment of ${widget.currencySymbol}${_amountCtrl.text} recorded',
-          ),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+      showSuccessSnackBar(
+        context,
+        'Payment of ${widget.currencySymbol}${_amountCtrl.text} recorded',
       );
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(billing.errorMessage ?? 'Payment failed'),
-          backgroundColor: AppTheme.dangerColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+      showErrorSnackBar(
+        context,
+        billing.errorMessage ?? 'Payment failed',
       );
     }
   }

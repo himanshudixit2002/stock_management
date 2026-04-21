@@ -11,8 +11,10 @@ import '../../providers/billing_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../services/billing_pdf_service.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/shimmer_loading.dart';
 import 'record_payment_sheet.dart';
 
 class InvoiceDetailScreen extends StatelessWidget {
@@ -34,7 +36,17 @@ class InvoiceDetailScreen extends StatelessWidget {
       if (billing.isLoading) {
         return Scaffold(
           appBar: AppBar(title: const Text('Invoice')),
-          body: const Center(child: CircularProgressIndicator()),
+          body: ListView(
+            padding: EdgeInsets.fromLTRB(
+              Responsive.horizontalPadding(context),
+              12,
+              Responsive.horizontalPadding(context),
+              24,
+            ),
+            children: const [
+              ShimmerLoading(layout: ShimmerLayout.detail),
+            ],
+          ),
         );
       }
       return Scaffold(
@@ -405,9 +417,7 @@ class InvoiceDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: () {
           Clipboard.setData(ClipboardData(text: invoice.id));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Document ID copied')),
-          );
+          showInfoSnackBar(context, 'Document ID copied');
         },
         child: GlassPanel(
           borderRadius: 14,
@@ -863,12 +873,7 @@ class InvoiceDetailScreen extends StatelessWidget {
           await pdfService.printInvoice(invoice, bs);
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Print failed: $e'),
-                backgroundColor: AppTheme.dangerColor,
-              ),
-            );
+            showErrorSnackBar(context, 'Print failed: $e');
           }
         }
         break;
@@ -877,12 +882,7 @@ class InvoiceDetailScreen extends StatelessWidget {
           await pdfService.printReceipt(invoice, bs);
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Print failed: $e'),
-                backgroundColor: AppTheme.dangerColor,
-              ),
-            );
+            showErrorSnackBar(context, 'Print failed: $e');
           }
         }
         break;
@@ -890,21 +890,11 @@ class InvoiceDetailScreen extends StatelessWidget {
         try {
           await pdfService.shareInvoice(invoice, bs);
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('PDF shared successfully'),
-                backgroundColor: AppTheme.successColor,
-              ),
-            );
+            showSuccessSnackBar(context, 'PDF shared successfully');
           }
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Share failed: $e'),
-                backgroundColor: AppTheme.dangerColor,
-              ),
-            );
+            showErrorSnackBar(context, 'Share failed: $e');
           }
         }
         break;
@@ -929,12 +919,7 @@ class InvoiceDetailScreen extends StatelessWidget {
             autoCreateStandalonePurchaseOrder: false,
           );
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Invoice $num created'),
-                backgroundColor: AppTheme.successColor,
-              ),
-            );
+            showSuccessSnackBar(context, 'Invoice $num created');
           }
         }
         break;

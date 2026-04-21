@@ -8,6 +8,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/app_navigation.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -117,11 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       await prefs.setBool('onboarding_completed_${user.companyId}', true);
     }
     if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (route) => false,
-      );
+      context.goAppRoute(AppRoutes.home);
     }
   }
 

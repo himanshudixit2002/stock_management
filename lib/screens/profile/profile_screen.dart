@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/glass_panel.dart';
+import '../../config/app_navigation.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -903,7 +904,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmed && context.mounted) {
       await context.read<AuthProvider>().logout();
       if (context.mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        context.goAppRoute('/');
       }
     }
   }

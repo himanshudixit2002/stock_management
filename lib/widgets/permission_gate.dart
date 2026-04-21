@@ -22,7 +22,7 @@ class PermissionGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || user.hasPermission(permission)) {
+    if (user != null && user.hasPermission(permission)) {
       return child;
     }
     return fallback ?? _NoPermissionScaffold(featureName: featureName);
@@ -47,7 +47,7 @@ class AnyPermissionGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || user.hasAnyPermission(permissions)) {
+    if (user != null && user.hasAnyPermission(permissions)) {
       return child;
     }
     return fallback ?? _NoPermissionScaffold(featureName: featureName);

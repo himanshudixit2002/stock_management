@@ -15,6 +15,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../config/app_navigation.dart';
 
 class BulkEditScreen extends StatefulWidget {
   const BulkEditScreen({super.key});
@@ -159,7 +160,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           subtitle: 'Add products first to use bulk edit.',
           buttonText: 'Add Product',
           onButtonPressed: () =>
-              Navigator.pushNamed(context, AppRoutes.addProduct),
+              context.pushAppRoute(AppRoutes.addProduct),
         ),
       );
     }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 
-enum ShimmerLayout { card, stat, listTile }
+enum ShimmerLayout { card, stat, listTile, detail }
 
 class ShimmerLoading extends StatefulWidget {
   final int itemCount;
@@ -47,6 +47,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
           ShimmerLayout.stat => _buildStatLayout(),
           ShimmerLayout.listTile => _buildListTileLayout(),
           ShimmerLayout.card => _buildCardLayout(),
+          ShimmerLayout.detail => _buildDetailLayout(),
         };
       },
     );
@@ -111,6 +112,28 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDetailLayout() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _shimmerBox(height: 120, borderRadius: 20),
+          const SizedBox(height: 16),
+          _shimmerBox(height: 180, borderRadius: 20),
+          const SizedBox(height: 16),
+          ...List.generate(
+            widget.itemCount.clamp(1, 4),
+            (i) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _shimmerBox(height: 64, borderRadius: 14),
+            ),
+          ),
+        ],
       ),
     );
   }

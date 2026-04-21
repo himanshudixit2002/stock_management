@@ -11,6 +11,7 @@ import '../../utils/dialogs.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/permission_gate.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class StaffPermissionsScreen extends StatelessWidget {
   const StaffPermissionsScreen({super.key});
@@ -35,7 +36,7 @@ class StaffPermissionsScreen extends StatelessWidget {
           stream: context.read<AuthProvider>().getAllUsers(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const ShimmerLoading(layout: ShimmerLayout.listTile);
             }
             final currentUid = context.read<AuthProvider>().currentUser?.uid;
             final users = (snapshot.data ?? [])

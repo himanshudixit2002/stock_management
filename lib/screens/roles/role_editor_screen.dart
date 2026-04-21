@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../models/role_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/role_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 
 class RoleEditorScreen extends StatefulWidget {
@@ -260,10 +261,9 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
 
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isEditing ? 'Role updated' : 'Role created'),
-        ),
+      showSuccessSnackBar(
+        context,
+        _isEditing ? 'Role updated' : 'Role created',
       );
     }
   }
