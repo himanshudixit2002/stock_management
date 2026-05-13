@@ -32,8 +32,8 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
     super.dispose();
   }
 
-  Color _statusColor(SOStatus status) => switch (status) {
-    SOStatus.draft => Colors.grey.shade400,
+  Color _statusColor(BuildContext context, SOStatus status) => switch (status) {
+    SOStatus.draft => Theme.of(context).colorScheme.outline,
     SOStatus.confirmed => AppTheme.primaryColor,
     SOStatus.dispatched => AppTheme.indigoColor,
     SOStatus.delivered => AppTheme.successColor,
@@ -203,6 +203,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                   itemBuilder: (context, index) {
                                     final order = filtered[index];
                                     final statusColor = _statusColor(
+                                      context,
                                       order.status,
                                     );
                                     return AnimatedListItem(
@@ -365,6 +366,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                   itemBuilder: (context, index) {
                                     final order = filtered[index];
                                     final statusColor = _statusColor(
+                                      context,
                                       order.status,
                                     );
                                     return AnimatedListItem(

@@ -33,8 +33,8 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
     super.dispose();
   }
 
-  Color _statusColor(POStatus status) => switch (status) {
-    POStatus.draft => Colors.grey.shade400,
+  Color _statusColor(BuildContext context, POStatus status) => switch (status) {
+    POStatus.draft => Theme.of(context).colorScheme.outline,
     POStatus.sent => AppTheme.infoColor,
     POStatus.partial => AppTheme.warningColor,
     POStatus.received => AppTheme.successColor,
@@ -205,6 +205,7 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
                                   itemBuilder: (context, index) {
                                     final order = filtered[index];
                                     final statusColor = _statusColor(
+                                      context,
                                       order.status,
                                     );
                                     return AnimatedListItem(
@@ -367,6 +368,7 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
                                   itemBuilder: (context, index) {
                                     final order = filtered[index];
                                     final statusColor = _statusColor(
+                                      context,
                                       order.status,
                                     );
                                     return AnimatedListItem(

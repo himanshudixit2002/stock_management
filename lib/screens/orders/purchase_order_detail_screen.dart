@@ -26,8 +26,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
 
   const PurchaseOrderDetailScreen({super.key, required this.orderId});
 
-  Color _statusColor(POStatus status) => switch (status) {
-    POStatus.draft => Colors.grey.shade400,
+  Color _statusColor(BuildContext context, POStatus status) => switch (status) {
+    POStatus.draft => Theme.of(context).colorScheme.outline,
     POStatus.sent => AppTheme.infoColor,
     POStatus.partial => AppTheme.warningColor,
     POStatus.received => AppTheme.successColor,
@@ -50,7 +50,7 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       symbol: AppTheme.currencySymbol,
       decimalDigits: 2,
     );
-    final statusColor = _statusColor(order.status);
+    final statusColor = _statusColor(context, order.status);
     final linkedInvoice = order.invoiceId.isNotEmpty
         ? context.watch<BillingProvider>().getInvoiceById(order.invoiceId)
         : null;

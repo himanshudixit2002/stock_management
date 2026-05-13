@@ -287,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontSize: _settingsWebLux(context) ? 20 : 16,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.surface(context),
+                  color: AppTheme.onGradient,
                 ),
               ),
             ),
@@ -302,7 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(
                     fontSize: _settingsWebLux(context) ? 20 : 16,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.surface(context),
+                    color: AppTheme.onGradient,
                     letterSpacing: _settingsWebLux(context) ? -0.3 : 0,
                   ),
                 ),
@@ -311,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   user.email,
                   style: TextStyle(
                     fontSize: _settingsWebLux(context) ? 13 : 12,
-                    color: Colors.white.withValues(alpha: 0.88),
+                    color: AppTheme.onGradientMuted,
                   ),
                 ),
                 if (user.companyName.isNotEmpty) ...[
@@ -321,7 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: TextStyle(
                       fontSize: _settingsWebLux(context) ? 14 : 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.96),
+                      color: AppTheme.onGradient,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -344,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: _settingsWebLux(context) ? 12 : 11,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.surface(context),
+                color: AppTheme.onGradient,
                 letterSpacing: 0.9,
               ),
             ),

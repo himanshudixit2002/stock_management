@@ -32,6 +32,14 @@ class AppTheme {
   static const Color infoColor = Color(0xFF42A5F5);
   static const Color indigoColor = Color(0xFF6366F1);
 
+  /// Foreground color for text/icons drawn on top of the brand gradient
+  /// (heroGradient / primaryGradient). Stays white across both themes so
+  /// contrast on the dark teal gradient is preserved.
+  static const Color onGradient = Color(0xFFFFFFFF);
+
+  /// Muted variant of [onGradient] for secondary text on the gradient.
+  static const Color onGradientMuted = Color(0xE6FFFFFF);
+
   // Spacing constants
   static const double spacingXS = 4;
   static const double spacingSM = 8;
@@ -319,13 +327,6 @@ class AppTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.08),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-          systemNavigationBarColor: surfaceColor,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,
@@ -565,13 +566,6 @@ class AppTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.3),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-          systemNavigationBarColor: darkSurface,
-          systemNavigationBarIconBrightness: Brightness.light,
-        ),
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,

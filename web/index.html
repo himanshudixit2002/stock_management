@@ -27,7 +27,12 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://www.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://apis.google.com">
+
+  <!-- Start fetching the Flutter bootstrap and splash icon immediately, before HTML parsing completes -->
+  <link rel="preload" as="script" href="flutter_bootstrap.js" crossorigin>
+  <link rel="preload" as="image" href="icons/Icon-192.png" fetchpriority="high">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -96,7 +101,7 @@
 </head>
 <body>
   <div id="flutter-loading" aria-live="polite" aria-busy="true">
-    <img src="icons/Icon-192.png" alt="">
+    <img src="icons/Icon-192.png" alt="" fetchpriority="high" decoding="async">
     <h1>SmartShelfKart</h1>
     <p>Simple inventory management</p>
     <div class="flutter-loading__spinner" role="status"></div>

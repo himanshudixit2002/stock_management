@@ -33,15 +33,18 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   final _dateFormat = DateFormat('dd MMM yyyy');
   final _numFormat = NumberFormat('#,##0.00');
 
-  Color _statusColor(InvoiceStatus status) => switch (status) {
-    InvoiceStatus.draft => Colors.grey.shade400,
-    InvoiceStatus.sent => AppTheme.infoColor,
-    InvoiceStatus.partiallyPaid => AppTheme.warningColor,
-    InvoiceStatus.paid => AppTheme.successColor,
-    InvoiceStatus.overdue => AppTheme.dangerColor,
-    InvoiceStatus.cancelled => Colors.grey.shade600,
-    InvoiceStatus.refunded => AppTheme.indigoColor,
-  };
+  Color _statusColor(BuildContext context, InvoiceStatus status) {
+    final outline = Theme.of(context).colorScheme.outline;
+    return switch (status) {
+      InvoiceStatus.draft => outline,
+      InvoiceStatus.sent => AppTheme.infoColor,
+      InvoiceStatus.partiallyPaid => AppTheme.warningColor,
+      InvoiceStatus.paid => AppTheme.successColor,
+      InvoiceStatus.overdue => AppTheme.dangerColor,
+      InvoiceStatus.cancelled => outline,
+      InvoiceStatus.refunded => AppTheme.indigoColor,
+    };
+  }
 
   List<InvoiceModel> _filteredInvoices(List<InvoiceModel> invoices) {
     var result = invoices;
@@ -234,7 +237,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               symbol: sym,
               dateFormat: _dateFormat,
               numFormat: _numFormat,
-              statusColor: _statusColor(invoices[index].status),
+              statusColor: _statusColor(context, invoices[index].status),
             ),
           );
         },
@@ -253,7 +256,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
             symbol: sym,
             dateFormat: _dateFormat,
             numFormat: _numFormat,
-            statusColor: _statusColor(invoices[index].status),
+            statusColor: _statusColor(context, invoices[index].status),
           ),
         );
       },

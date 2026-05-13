@@ -9,6 +9,13 @@ import '../widgets/animated_list_item.dart';
 import '../utils/responsive.dart';
 import '../config/app_navigation.dart';
 
+const _kGooglePlayListingUrl =
+    'https://play.google.com/store/apps/details?id=com.stockmanager.stock_management';
+
+/// Official "Get it on Google Play" badge (English PNG).
+const _kPlayBadgeAssetUrl =
+    'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png';
+
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
 
@@ -114,7 +121,17 @@ class LandingScreen extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 28),
+            if (kIsWeb) ...[
+              const SizedBox(height: 16),
+              Center(
+                child: SizedBox(
+                  width: isWide ? 320 : double.infinity,
+                  child: const _WebPlayStoreToggle(),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ] else
+              const SizedBox(height: 28),
             Center(
               child: SizedBox(
                 width: isWide ? 320 : double.infinity,
@@ -480,6 +497,190 @@ class LandingScreen extends StatelessWidget {
 
   Future<void> _openUrl(BuildContext context, String url) =>
       openUrl(context, url);
+}
+
+class _WebPlayStoreToggle extends StatefulWidget {
+  const _WebPlayStoreToggle();
+
+  @override
+  State<_WebPlayStoreToggle> createState() => _WebPlayStoreToggleState();
+}
+
+class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = false;
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openPlayListing() =>
+      openUrl(context, _kGooglePlayListingUrl);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kIsWeb) return const SizedBox.shrink();
+
+    return Semantics(
+      container: true,
+      label: 'Google Play download for Android',
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final pulseT =
+              Curves.easeInOut.transform(_pulseController.value);
+          final borderA =
+              _expanded ? 0.14 : (lerpDouble(0.08, 0.18, pulseT) ?? 0.12);
+          final shadowA =
+              _expanded ? 0.06 : (lerpDouble(0.035, 0.09, pulseT) ?? 0.06);
+
+          return Container(
+            decoration: BoxDecoration(
+              color: AppTheme.surface(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: borderA),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withValues(alpha: shadowA),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: child,
+          );
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              button: true,
+              hint: _expanded
+                  ? 'Collapses the Play Store panel'
+                  : 'Expands to show Google Play download',
+              label: '${_expanded ? 'Collapse' : 'Expand'} Android app section',
+              child: Material(
+                color: Colors.transparent,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.android_rounded,
+                          color: Color(0xFF3DDC84),
+                          size: 26,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Get the Android app',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPri(context),
+                            ),
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Icons.expand_more_rounded,
+                            color: AppTheme.textSec(context),
+                            size: 26,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              clipBehavior: Clip.hardEdge,
+              child: _expanded
+                  ? Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: Tooltip(
+                        message: 'Opens Google Play in a new tab',
+                        child: Semantics(
+                          button: true,
+                          label: 'Open SmartShelfKart on Google Play',
+                          child: InkWell(
+                            onTap: _openPlayListing,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              _kPlayBadgeAssetUrl,
+                              height: 58,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                              semanticLabel:
+                                  'Get SmartShelfKart on Google Play',
+                              loadingBuilder:
+                                  (context, child, progress) {
+                                if (progress == null) return child;
+                                return SizedBox(
+                                  height: 58,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) =>
+                                  OutlinedButton.icon(
+                                onPressed: _openPlayListing,
+                                icon: const Icon(Icons.open_in_new_rounded),
+                                label: const Text('Google Play'),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ======================================================================

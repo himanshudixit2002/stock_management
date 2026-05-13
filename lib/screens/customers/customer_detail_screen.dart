@@ -24,8 +24,8 @@ class CustomerDetailScreen extends StatelessWidget {
 
   const CustomerDetailScreen({super.key, required this.customerId});
 
-  Color _statusColor(SOStatus status) => switch (status) {
-    SOStatus.draft => Colors.grey.shade400,
+  Color _statusColor(BuildContext context, SOStatus status) => switch (status) {
+    SOStatus.draft => Theme.of(context).colorScheme.outline,
     SOStatus.confirmed => AppTheme.primaryColor,
     SOStatus.dispatched => AppTheme.indigoColor,
     SOStatus.delivered => AppTheme.successColor,
@@ -266,7 +266,7 @@ class CustomerDetailScreen extends StatelessWidget {
                                   : customerOrders.length,
                               (index) {
                                 final order = customerOrders[index];
-                                final statusColor = _statusColor(order.status);
+                                final statusColor = _statusColor(context, order.status);
                                 return AnimatedListItem(
                                   index: index,
                                   child: Padding(

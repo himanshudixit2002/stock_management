@@ -26,8 +26,8 @@ class SalesOrderDetailScreen extends StatelessWidget {
 
   const SalesOrderDetailScreen({super.key, required this.orderId});
 
-  Color _statusColor(SOStatus status) => switch (status) {
-    SOStatus.draft => Colors.grey.shade400,
+  Color _statusColor(BuildContext context, SOStatus status) => switch (status) {
+    SOStatus.draft => Theme.of(context).colorScheme.outline,
     SOStatus.confirmed => AppTheme.primaryColor,
     SOStatus.dispatched => AppTheme.indigoColor,
     SOStatus.delivered => AppTheme.successColor,
@@ -47,7 +47,7 @@ class SalesOrderDetailScreen extends StatelessWidget {
 
     final dateFormat = DateFormat('dd MMM yyyy');
     final currencyFormat = NumberFormat.currency(symbol: AppTheme.currencySymbol, decimalDigits: 2);
-    final statusColor = _statusColor(order.status);
+    final statusColor = _statusColor(context, order.status);
     final linkedInvoice = order.invoiceId.isNotEmpty
         ? context.watch<BillingProvider>().getInvoiceById(order.invoiceId)
         : null;

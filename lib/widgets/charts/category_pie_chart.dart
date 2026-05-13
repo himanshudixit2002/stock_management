@@ -87,15 +87,22 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                     final isTouched = i == _touchedIndex;
                     final entry = entries[i];
                     final pct = (entry.value / total * 100).toStringAsFixed(1);
+                    final sliceColor = _colors[i % _colors.length];
+                    final labelColor = ThemeData.estimateBrightnessForColor(
+                              sliceColor,
+                            ) ==
+                            Brightness.dark
+                        ? Colors.white
+                        : Colors.black87;
                     return PieChartSectionData(
-                      color: _colors[i % _colors.length],
+                      color: sliceColor,
                       value: entry.value,
                       title: isTouched ? '$pct%' : '',
                       radius: isTouched ? 55 : 45,
-                      titleStyle: const TextStyle(
+                      titleStyle: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: labelColor,
                       ),
                     );
                   }),

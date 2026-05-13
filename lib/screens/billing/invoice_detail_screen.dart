@@ -248,7 +248,7 @@ class InvoiceDetailScreen extends StatelessWidget {
   }
 
   Widget _buildStatusBanner(BuildContext context, InvoiceModel invoice) {
-    final color = _statusColor(invoice.status);
+    final color = _statusColor(context, invoice.status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -831,15 +831,18 @@ class InvoiceDetailScreen extends StatelessWidget {
     );
   }
 
-  Color _statusColor(InvoiceStatus s) => switch (s) {
-    InvoiceStatus.draft => Colors.grey,
-    InvoiceStatus.sent => AppTheme.infoColor,
-    InvoiceStatus.partiallyPaid => AppTheme.warningColor,
-    InvoiceStatus.paid => AppTheme.successColor,
-    InvoiceStatus.overdue => AppTheme.dangerColor,
-    InvoiceStatus.cancelled => Colors.grey.shade600,
-    InvoiceStatus.refunded => AppTheme.indigoColor,
-  };
+  Color _statusColor(BuildContext context, InvoiceStatus s) {
+    final outline = Theme.of(context).colorScheme.outline;
+    return switch (s) {
+      InvoiceStatus.draft => outline,
+      InvoiceStatus.sent => AppTheme.infoColor,
+      InvoiceStatus.partiallyPaid => AppTheme.warningColor,
+      InvoiceStatus.paid => AppTheme.successColor,
+      InvoiceStatus.overdue => AppTheme.dangerColor,
+      InvoiceStatus.cancelled => outline,
+      InvoiceStatus.refunded => AppTheme.indigoColor,
+    };
+  }
 
   IconData _statusIcon(InvoiceStatus s) => switch (s) {
     InvoiceStatus.draft => Icons.edit_note_rounded,
