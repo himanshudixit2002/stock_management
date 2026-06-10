@@ -79,6 +79,17 @@ class SalesOrderProvider extends ChangeNotifier {
             defaultLocation: defaultLocation,
           );
         } catch (holdSyncErr) {
+          // Release any holds the partial reservation may have created so they
+          // don't outlive the order, then remove the order itself.
+          try {
+            await _databaseService.releaseHoldsForSource(
+              sourceType: 'sales_order',
+              sourceId: id,
+              userId: createdOrder.createdBy,
+              userName: createdOrder.createdByName,
+              reason: 'SO reservation failed',
+            );
+          } catch (_) {}
           try {
             await _databaseService.deleteSalesOrder(id);
           } catch (_) {}
@@ -110,13 +121,40 @@ class SalesOrderProvider extends ChangeNotifier {
     try {
       final previousOrder = getOrderById(order.id);
       await _databaseService.updateSalesOrder(order);
-      await _databaseService.syncSalesOrderHoldsOnConfirmOrEdit(
-        order: order,
-        previousOrder: previousOrder,
-        userId: order.createdBy,
-        userName: order.createdByName,
-        defaultLocation: defaultLocation,
-      );
+      try {
+        await _databaseService.syncSalesOrderHoldsOnConfirmOrEdit(
+          order: order,
+          previousOrder: previousOrder,
+          userId: order.createdBy,
+          userName: order.createdByName,
+          defaultLocation: defaultLocation,
+        );
+      } catch (holdSyncErr) {
+        // The status/items change was already persisted; roll it back so the
+        // order doesn't end up confirmed-but-unreserved.
+        if (previousOrder != null) {
+          try {
+            await _databaseService.updateSalesOrder(previousOrder);
+          } catch (_) {}
+        }
+        // Only release holds when the previous state held none (e.g. a
+        // draft/cancelled order being confirmed): any holds present were
+        // created by this failed run. If the previous order was already
+        // confirmed its holds are valid and must be left intact.
+        final previousHeldStock = previousOrder?.status == SOStatus.confirmed;
+        if (!previousHeldStock) {
+          try {
+            await _databaseService.releaseHoldsForSource(
+              sourceType: 'sales_order',
+              sourceId: order.id,
+              userId: order.createdBy,
+              userName: order.createdByName,
+              reason: 'SO reservation failed',
+            );
+          } catch (_) {}
+        }
+        throw Exception('Could not reserve stock: $holdSyncErr');
+      }
       _isMutating = false;
       notifyListeners();
       return true;

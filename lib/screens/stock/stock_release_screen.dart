@@ -192,6 +192,14 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                               : null;
                           final needsDispatch =
                               _needsDispatchAction(hold, order);
+                          // A sales-order hold whose order was deleted or
+                          // cancelled is orphaned: allow releasing it directly
+                          // so its reservation can be cleaned up.
+                          final orderOrphaned =
+                              hold.sourceType ==
+                                      StockHoldSourceType.salesOrder &&
+                                  (order == null ||
+                                      order.status == SOStatus.cancelled);
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: GlassCard(
@@ -342,7 +350,25 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                         ),
                                       ),
                                     ]
-                                    else if (hold.isManual) ...[
+                                    else if (hold.isManual ||
+                                        orderOrphaned) ...[
+                                      if (orderOrphaned)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 8),
+                                          child: Text(
+                                            order == null
+                                                ? 'Linked order no longer exists. '
+                                                      'Release this leftover hold.'
+                                                : 'Linked order is cancelled. '
+                                                      'Release this leftover hold.',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppTheme.warningColor,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
                                       Row(
                                         children: [
                                           SizedBox(

@@ -246,10 +246,8 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.landing => MaterialPageRoute(
       builder: (_) => const LandingScreen(),
     ),
-    AppRoutes.login => MaterialPageRoute(builder: (_) => const LoginScreen()),
-    AppRoutes.register => MaterialPageRoute(
-      builder: (_) => const RegisterScreen(),
-    ),
+    AppRoutes.login => _slideRoute(const LoginScreen()),
+    AppRoutes.register => _slideRoute(const RegisterScreen()),
     AppRoutes.home => MaterialPageRoute(builder: (_) => const HomeScreen()),
 
     // -- Products --
@@ -572,6 +570,11 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     ),
     AppRoutes.fastPos => _slideRoute(const FastPosScreen()),
 
-    _ => MaterialPageRoute(builder: (_) => const LandingScreen()),
+    // Unknown route: keep a signed-in user inside the app (Home) rather than
+    // bouncing them out to the public Landing page. Only signed-out sessions
+    // fall back to Landing.
+    _ => context.read<AuthProvider>().isLoggedIn
+        ? MaterialPageRoute(builder: (_) => const HomeScreen())
+        : MaterialPageRoute(builder: (_) => const LandingScreen()),
   };
 }

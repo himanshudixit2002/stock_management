@@ -1141,8 +1141,12 @@ class DatabaseService {
     // Reserve only the undispatched remainder of each line so a partially
     // dispatched order keeps holds for what is still to ship (and never
     // re-reserves units that were already dispatched).
+    // Only count the previous order's quantities as already-reserved when it
+    // actually held stock (i.e. it was confirmed). For a draft/cancelled
+    // previous state there are no holds, so treating its line quantities as
+    // held would make delta = 0 and skip reserving on confirm.
     final prevQtyByProduct = <String, int>{};
-    if (previousOrder != null) {
+    if (previousOrder != null && previousShouldHold) {
       for (final item in previousOrder.items) {
         prevQtyByProduct[item.productId] =
             (prevQtyByProduct[item.productId] ?? 0) + item.remainingToDispatch;
@@ -1167,6 +1171,38 @@ class DatabaseService {
       ...prevQtyByProduct.keys,
       ...nextQtyByProduct.keys,
     };
+
+    // Pre-validate availability for every product that needs additional
+    // reservation BEFORE creating any hold. Holds are created one product at a
+    // time (each in its own transaction), so without this pass a later product
+    // running short would throw after earlier products' holds were already
+    // committed, leaving orphaned reservations behind.
+    for (final productId in allProductIds) {
+      final delta = (nextQtyByProduct[productId] ?? 0) -
+          (prevQtyByProduct[productId] ?? 0);
+      if (delta <= 0) continue;
+      final productSnap = await _products.doc(productId).get();
+      if (!productSnap.exists) {
+        throw Exception('Product not found for sales order reservation.');
+      }
+      final productData = productSnap.data()!;
+      final locationQuantities = _toIntMap(
+        (productData['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final heldLocationQuantities = _toIntMap(
+        (productData['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final available = _sumMapValues(locationQuantities) -
+          _sumMapValues(heldLocationQuantities);
+      if (available < delta) {
+        throw Exception(
+          'Not enough available stock to reserve for '
+          '${productNames[productId] ?? 'product'}. '
+          'Required: $delta, available: ${available < 0 ? 0 : available}.',
+        );
+      }
+    }
+
     for (final productId in allProductIds) {
       final prevQty = prevQtyByProduct[productId] ?? 0;
       final nextQty = nextQtyByProduct[productId] ?? 0;
@@ -1329,6 +1365,32 @@ class DatabaseService {
     return snap.docs
         .map((doc) => StockHoldModel.fromMap(doc.data(), doc.id))
         .toList();
+  }
+
+  /// Releases every active/partially-consumed hold tied to a given source
+  /// (e.g. a sales order). Used to clean up reservations when a reservation
+  /// attempt fails or an order is rolled back, so no orphaned holds remain.
+  Future<void> releaseHoldsForSource({
+    required String sourceType,
+    required String sourceId,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    if (sourceId.isEmpty) return;
+    final snap = await _stockHolds
+        .where('sourceType', isEqualTo: sourceType)
+        .where('sourceId', isEqualTo: sourceId)
+        .where('status', whereIn: ['active', 'partially_consumed'])
+        .get();
+    for (final doc in snap.docs) {
+      await releaseStockHold(
+        holdId: doc.id,
+        userId: userId,
+        userName: userName,
+        reason: reason.isNotEmpty ? reason : 'Reservation rolled back',
+      );
+    }
   }
 
   Stream<List<StockHoldModel>> getStockHolds({

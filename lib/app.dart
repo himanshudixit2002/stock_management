@@ -106,6 +106,17 @@ class StockManagementApp extends StatelessWidget {
           scrollBehavior: const SoftScrollBehavior(),
           debugShowCheckedModeBanner: false,
           home: const AuthWrapper(),
+          // Always boot into the AuthWrapper, ignoring any deep path the
+          // browser supplies (refresh, back/forward, bookmarks). Without this,
+          // Flutter web decomposes a deep URL like /orders/sales/detail into
+          // segments and asks onGenerateRoute to rebuild each one — but the
+          // intermediate segments aren't real routes and the page arguments
+          // can't be restored, so the user was dumped onto the Landing page.
+          // Booting at the AuthWrapper lets the normal auth flow decide where
+          // to land (home when signed in, landing otherwise).
+          onGenerateInitialRoutes: (_) => [
+            MaterialPageRoute(builder: (_) => const AuthWrapper()),
+          ],
           onGenerateRoute: (settings) =>
               app_router.onGenerateRoute(settings, context),
         ),
