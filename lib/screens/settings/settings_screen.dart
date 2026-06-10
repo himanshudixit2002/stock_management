@@ -14,6 +14,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -165,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final out = <Widget>[];
     for (var i = 0; i < sections.length; i++) {
       if (i > 0) out.add(SizedBox(height: gap));
-      out.add(sections[i]);
+      out.add(FadeSlideIn(index: i, child: sections[i]));
     }
     return out;
   }

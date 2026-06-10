@@ -83,6 +83,8 @@ class TransactionLineChart extends StatelessWidget {
             SizedBox(
               height: chartH,
               child: LineChart(
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeOutCubic,
                 LineChartData(
                   gridData: FlGridData(
                     show: true,

@@ -530,6 +530,9 @@ class SalesOrderDetailScreen extends StatelessWidget {
       defaultLocation: defaultLoc,
     );
     if (context.mounted && success) {
+      context
+          .read<ProductProvider>()
+          .refreshProductsByIds(order.items.map((e) => e.productId));
       HapticFeedback.mediumImpact();
       showSuccessOverlay(context, message: 'Order confirmed');
     }
@@ -735,6 +738,9 @@ class SalesOrderDetailScreen extends StatelessWidget {
 
     if (context.mounted && success) {
       context.read<ProductProvider>().invalidateAnalytics();
+      context
+          .read<ProductProvider>()
+          .refreshProductsByIds(order.items.map((e) => e.productId));
       HapticFeedback.mediumImpact();
       final updated =
           context.read<SalesOrderProvider>().getOrderById(order.id);
@@ -804,6 +810,9 @@ class SalesOrderDetailScreen extends StatelessWidget {
 
     if (context.mounted && success) {
       context.read<ProductProvider>().invalidateAnalytics();
+      context
+          .read<ProductProvider>()
+          .refreshProductsByIds(order.items.map((e) => e.productId));
       HapticFeedback.mediumImpact();
       showSuccessOverlay(context, message: 'Order cancelled');
     } else if (context.mounted) {

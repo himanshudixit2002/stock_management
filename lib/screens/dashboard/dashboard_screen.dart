@@ -12,6 +12,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../widgets/animated_list_item.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/charts/transaction_line_chart.dart';
@@ -524,7 +525,9 @@ class _StatsRow extends StatelessWidget {
                                 product.quantity,
                                 threshold: product.lowStockThreshold,
                               );
-                              return ListTile(
+                              return FadeSlideIn(
+                                index: index,
+                                child: ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 4,
@@ -562,6 +565,7 @@ class _StatsRow extends StatelessWidget {
                                     color: stockColor,
                                   ),
                                 ),
+                              ),
                               );
                             },
                           ),

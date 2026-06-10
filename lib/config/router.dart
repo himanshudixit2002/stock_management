@@ -104,58 +104,71 @@ import '../screens/billing/vendor_statement_screen.dart'
 import '../screens/bulk/bulk_stock_in_screen.dart' deferred as bulk_in;
 import '../screens/bulk/bulk_edit_screen.dart' deferred as bulk_edit;
 
-/// A soft, "cloudy" page transition shared by every pushed route:
-/// the incoming page gently glides in from the side while fading and easing up
-/// from a hair below full scale, and the page it covers eases back with a
-/// subtle parallax + fade so the stack feels layered and calm rather than
-/// snapping. Tuned to feel identical across mobile, web and desktop.
+/// A single, simple page transition shared by every pushed route: the incoming
+/// page just fades in (with a barely-there settle from 0.99 scale). It is kept
+/// deliberately minimal because each screen's own content already animates in
+/// (FadeSlideIn / AnimatedListItem). A heavier slide here on top of that read
+/// as two competing movements — a "double"/"fumbling" feel — so the transition
+/// stays out of the way and lets the content provide the motion.
 PageRouteBuilder _slideRoute(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => page,
-    transitionDuration: const Duration(milliseconds: 360),
-    reverseTransitionDuration: const Duration(milliseconds: 280),
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      // Incoming page: slide a short distance, fade in, settle from 0.985 scale.
-      final entering = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
+      final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      final scale = Tween<double>(
+        begin: 0.99,
+        end: 1,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      return FadeTransition(
+        opacity: fade,
+        child: ScaleTransition(scale: scale, child: child),
       );
-      final slideIn = Tween<Offset>(
-        begin: const Offset(0.07, 0),
-        end: Offset.zero,
-      ).animate(entering);
-      final fadeIn = CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
-      );
-      final scaleIn = Tween<double>(begin: 0.985, end: 1).animate(entering);
+    },
+  );
+}
 
-      // Outgoing page (covered by a newly pushed route): recede gently.
-      final leaving = CurvedAnimation(
-        parent: secondaryAnimation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      final slideOut = Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(-0.035, 0),
-      ).animate(leaving);
-      final fadeOut = Tween<double>(begin: 1, end: 0.94).animate(leaving);
+// --- Duplicate-navigation guard --------------------------------------------
+// Rapid double taps — and widgets that accidentally fire a push twice — used to
+// stack identical pages on top of each other, so going back "fumbled" through
+// duplicate copies of the same screen. We debounce by route name + arguments:
+// an identical destination requested again within this short window is ignored.
+// Genuinely different destinations (or the same one a moment later) are never
+// affected. Tab switches don't go through here, so they're unaffected.
+String? _lastNavSignature;
+DateTime? _lastNavAt;
+const Duration _kDuplicateNavWindow = Duration(milliseconds: 600);
 
-      return SlideTransition(
-        position: slideOut,
-        child: FadeTransition(
-          opacity: fadeOut,
-          child: SlideTransition(
-            position: slideIn,
-            child: FadeTransition(
-              opacity: fadeIn,
-              child: ScaleTransition(scale: scaleIn, child: child),
-            ),
-          ),
-        ),
-      );
+bool _isDuplicateNavigation(RouteSettings settings) {
+  final signature = '${settings.name}#${settings.arguments?.hashCode ?? 0}';
+  final now = DateTime.now();
+  final isDuplicate =
+      signature == _lastNavSignature &&
+      _lastNavAt != null &&
+      now.difference(_lastNavAt!) < _kDuplicateNavWindow;
+  _lastNavSignature = signature;
+  _lastNavAt = now;
+  return isDuplicate;
+}
+
+/// An invisible, instantly self-removing route used to swallow a duplicate
+/// navigation. Returning `null` from [onGenerateRoute] is unsafe (it crashes
+/// `pushNamed`), so instead we push a transparent route that removes itself on
+/// the next frame — the user never sees it and the current page stays put.
+Route<dynamic> _noopRoute(RouteSettings settings) {
+  return PageRouteBuilder(
+    settings: settings,
+    opaque: false,
+    barrierColor: Colors.transparent,
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (ctx, _, _) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final route = ModalRoute.of(ctx);
+        if (route != null) Navigator.of(ctx).removeRoute(route);
+      });
+      return const SizedBox.shrink();
     },
   );
 }
@@ -235,6 +248,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
   // it re-fetches user data (token refresh / cold start), and any page pushed
   // during that window would get replaced by a static Landing page that never
   // recovers -- i.e. the user gets "thrown out" mid-session.
+
+  // Swallow accidental duplicate pushes (double taps / double-fired handlers)
+  // so identical screens don't stack up and back navigation stays predictable.
+  if (_isDuplicateNavigation(settings)) {
+    return _noopRoute(settings);
+  }
+
   return switch (settings.name) {
     AppRoutes.landing => MaterialPageRoute(
       builder: (_) => const LandingScreen(),

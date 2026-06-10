@@ -325,6 +325,47 @@ class ProductProvider extends ChangeNotifier {
     await initialize(companyId: _databaseService.companyId);
   }
 
+  /// Re-fetches only the given products and patches them in place so stock/hold
+  /// changes reflect immediately — without resetting the whole list (which
+  /// flickers, loses pagination/scroll, and can briefly drop a held product
+  /// that lives beyond the first page). Call this after hold / unhold /
+  /// dispatch operations so the products page updates instantly.
+  Future<void> refreshProductsByIds(Iterable<String> ids) async {
+    final unique = ids.where((id) => id.isNotEmpty).toSet();
+    if (unique.isEmpty) return;
+
+    final fetched = <ProductModel>[];
+    for (final id in unique) {
+      try {
+        final product = await _databaseService.getProduct(id);
+        if (product != null) fetched.add(product);
+      } catch (_) {
+        // Ignore individual fetch failures; patch whatever we could refresh.
+      }
+    }
+    if (fetched.isEmpty) return;
+
+    final byId = {for (final p in fetched) p.id: p};
+    List<ProductModel> patch(List<ProductModel> list) =>
+        list.map((p) => byId[p.id] ?? p).toList();
+
+    _products = patch(_products);
+    if (_analyticsProducts != null) {
+      _analyticsProducts = patch(_analyticsProducts!);
+    }
+    if (_searchResultsRaw != null) {
+      _searchResultsRaw = patch(_searchResultsRaw!);
+    }
+    if (_searchResults != null) {
+      _searchResults = patch(_searchResults!);
+    }
+    _lowStockProducts =
+        _products.where((p) => p.quantity <= p.lowStockThreshold).toList();
+    _invalidateAnalytics();
+    _applyFilters();
+    notifyListeners();
+  }
+
   /// Clears analytics cache so next loadAnalytics fetches fresh data.
   /// Call after stock operations (in/out/transfer/damage) to keep counts accurate.
   void invalidateAnalytics() {

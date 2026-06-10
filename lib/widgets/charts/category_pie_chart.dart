@@ -32,7 +32,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     AppTheme.dangerColor,
     AppTheme.infoColor,
     Color(0xFF7E57C2),
-    Color(0xFF26A69A),
+    Color(0xFF06B6D4),
     Color(0xFFEC407A),
     Color(0xFF8D6E63),
     Color(0xFF78909C),
@@ -57,6 +57,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
             SizedBox(
               height: chartH,
               child: PieChart(
+                duration: const Duration(milliseconds: 650),
+                curve: Curves.easeOutCubic,
                 PieChartData(
                   pieTouchData: PieTouchData(
                     touchCallback: (event, pieTouchResponse) {

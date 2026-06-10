@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/app_navigation.dart';
 
@@ -69,13 +70,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListView(
               padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 40),
               children: [
-                _buildAvatarHeader(context, user),
+                FadeSlideIn(index: 0, child: _buildAvatarHeader(context, user)),
                 const SizedBox(height: 24),
-                _buildAccountInfoSection(context, user),
+                FadeSlideIn(
+                  index: 1,
+                  child: _buildAccountInfoSection(context, user),
+                ),
                 const SizedBox(height: 16),
-                _buildSecuritySection(context),
+                FadeSlideIn(index: 2, child: _buildSecuritySection(context)),
                 const SizedBox(height: 16),
-                _buildDangerZone(context),
+                FadeSlideIn(index: 3, child: _buildDangerZone(context)),
               ],
             ),
           ),

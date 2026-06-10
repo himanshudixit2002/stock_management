@@ -6,9 +6,11 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_hold_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
@@ -113,53 +115,52 @@ class _HoldListScreenState extends State<HoldListScreen> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: hPad),
                 child: isMobile
-                    ? SizedBox(
-                        height: 110,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            SizedBox(
-                              width: 170,
-                              child: StockSummaryCard(
-                                title: 'Total Held',
-                                value: '$totalHeld',
-                                icon: Icons.lock_clock_rounded,
-                                color: AppTheme.warningColor,
+                    ? Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _miniStat(
+                                  title: 'Total Held',
+                                  value: '$totalHeld',
+                                  icon: Icons.lock_clock_rounded,
+                                  color: AppTheme.warningColor,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 170,
-                              child: StockSummaryCard(
-                                title: 'Active',
-                                value: '$activeCount',
-                                icon: Icons.pause_circle_rounded,
-                                color: AppTheme.primaryColor,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _miniStat(
+                                  title: 'Active',
+                                  value: '$activeCount',
+                                  icon: Icons.pause_circle_rounded,
+                                  color: AppTheme.primaryColor,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 170,
-                              child: StockSummaryCard(
-                                title: 'Consumed',
-                                value: '$consumedCount',
-                                icon: Icons.check_circle_rounded,
-                                color: AppTheme.successColor,
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _miniStat(
+                                  title: 'Consumed',
+                                  value: '$consumedCount',
+                                  icon: Icons.check_circle_rounded,
+                                  color: AppTheme.successColor,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 170,
-                              child: StockSummaryCard(
-                                title: 'Released',
-                                value: '$releasedCount',
-                                icon: Icons.lock_open_rounded,
-                                color: AppTheme.infoColor,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _miniStat(
+                                  title: 'Released',
+                                  value: '$releasedCount',
+                                  icon: Icons.lock_open_rounded,
+                                  color: AppTheme.infoColor,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
@@ -283,18 +284,76 @@ class _HoldListScreenState extends State<HoldListScreen> {
                         itemBuilder: (context, index) {
                           final challan = challanKeys[index];
                           final holds = grouped[challan]!;
-                          return _ChallanGroupCard(
-                            challan: challan,
-                            holds: holds,
-                            onUnhold: _openUnholdSheet,
-                            onDespatch: _despatchHold,
-                            onManageOrder: _manageOrder,
+                          return FadeSlideIn(
+                            index: index,
+                            child: _ChallanGroupCard(
+                              challan: challan,
+                              holds: holds,
+                              onUnhold: _openUnholdSheet,
+                              onDespatch: _despatchHold,
+                              onManageOrder: _manageOrder,
+                            ),
                           );
                         },
                       ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Compact stat tile used in the phone summary grid. Lays the value and
+  /// label out beside the icon so it stays short and never overflows the way
+  /// the full-height [StockSummaryCard] did inside a fixed-height row.
+  Widget _miniStat({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return GlassCard(
+      borderRadius: 14,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSec(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -434,6 +493,7 @@ class _HoldListScreenState extends State<HoldListScreen> {
         );
     if (!mounted) return;
     if (ok) {
+      context.read<ProductProvider>().refreshProductsByIds([hold.productId]);
       HapticFeedback.mediumImpact();
       showInfoSnackBar(context, 'Unheld $result ${hold.productName}');
     } else {

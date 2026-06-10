@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
@@ -301,35 +302,43 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 28),
 
-                          GlassPanel(
-                            borderRadius: 24,
-                            padding: const EdgeInsets.all(16),
-                            useContentVariant: true,
-                            child: Image.asset(
-                              'logo.png',
-                              width: 64,
-                              height: 64,
+                          ScaleFadeIn(
+                            child: GlassPanel(
+                              borderRadius: 24,
+                              padding: const EdgeInsets.all(16),
+                              useContentVariant: true,
+                              child: Image.asset(
+                                'logo.png',
+                                width: 64,
+                                height: 64,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),
-                          Text(
-                            'Welcome back',
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textPri(context),
-                              letterSpacing: -0.5,
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 120),
+                            child: Text(
+                              'Welcome back',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textPri(context),
+                                letterSpacing: -0.5,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'Sign in to manage your inventory',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppTheme.textTer(context),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 180),
+                            child: Text(
+                              'Sign in to manage your inventory',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.textTer(context),
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 32),
 
@@ -377,7 +386,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
 
                           // Form fields in a card
-                          GlassPanel(
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 240),
+                            child: GlassPanel(
                             borderRadius: 16,
                             padding: const EdgeInsets.all(20),
                             useContentVariant: true,
@@ -446,11 +457,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                           ),
+                          ),
 
                           const SizedBox(height: 20),
 
                           // Login button
-                          Container(
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 320),
+                            child: Container(
                             decoration: BoxDecoration(
                               gradient: AppTheme.primaryGradient,
                               borderRadius: BorderRadius.circular(14),
@@ -480,6 +494,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 );
                               },
                             ),
+                          ),
                           ),
 
                           const SizedBox(height: 24),

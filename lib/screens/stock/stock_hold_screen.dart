@@ -143,7 +143,9 @@ class _StockHoldScreenState extends State<StockHoldScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (ok) {
-      context.read<ProductProvider>().refreshProducts();
+      context
+          .read<ProductProvider>()
+          .refreshProductsByIds(items.map((e) => e.productId));
       HapticFeedback.mediumImpact();
       showSuccessOverlay(
         context,

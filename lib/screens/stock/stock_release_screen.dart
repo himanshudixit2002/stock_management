@@ -526,6 +526,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
     setState(() => _isLoading = false);
     if (ok) {
       _qtyControllers.remove(hold.id)?.dispose();
+      context.read<ProductProvider>().refreshProductsByIds([hold.productId]);
       showSuccessSnackBar(context, 'Unheld $qty ${hold.productName}');
     } else {
       showErrorSnackBar(
@@ -563,6 +564,9 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (failures == 0) {
+      context
+          .read<ProductProvider>()
+          .refreshProductsByIds(holds.map((h) => h.productId));
       showSuccessSnackBar(context, 'Challan $_challanFilter fully unheld');
       setState(() => _challanFilter = null);
     } else {
@@ -724,6 +728,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
     if (ok) {
       _qtyControllers.remove(hold.id)?.dispose();
       context.read<ProductProvider>().invalidateAnalytics();
+      context.read<ProductProvider>().refreshProductsByIds([hold.productId]);
       showSuccessSnackBar(
         context,
         'Dispatched $qty ${hold.productName}. Hold consumed automatically.',

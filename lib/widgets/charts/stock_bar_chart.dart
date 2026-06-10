@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../animations.dart';
 import '../chart_empty_state.dart';
 import '../../config/theme.dart';
 
@@ -29,9 +30,12 @@ class StockBarChart extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final h = (constraints.maxWidth * 0.5).clamp(180.0, 300.0);
-        return SizedBox(
+        return FadeSlideIn(
+          child: SizedBox(
           height: h,
           child: BarChart(
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.easeOutCubic,
             BarChartData(
               alignment: BarChartAlignment.spaceAround,
               maxY: maxVal * 1.2,
@@ -141,6 +145,7 @@ class StockBarChart extends StatelessWidget {
               }),
             ),
           ),
+        ),
         );
       },
     );

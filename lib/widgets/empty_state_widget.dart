@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import 'animations.dart';
 
 /// Renders themed illustration compositions for specific icon contexts.
 class _IllustratedIcon extends StatelessWidget {
@@ -140,47 +141,58 @@ class EmptyStateWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: _IllustratedIcon(
-                icon: icon,
-                size: 56,
-                color: AppTheme.emptyIcon(context),
+            ScaleFadeIn(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: _IllustratedIcon(
+                  icon: icon,
+                  size: 56,
+                  color: AppTheme.emptyIcon(context),
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppTheme.textPri(context),
-                fontWeight: FontWeight.w600,
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 120),
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppTheme.textPri(context),
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 12),
-              Text(
-                subtitle!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSec(context),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 180),
+                child: Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSec(context),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
             if (buttonText != null && onButtonPressed != null) ...[
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: onButtonPressed,
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: Text(buttonText!),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 16,
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 240),
+                child: ElevatedButton.icon(
+                  onPressed: onButtonPressed,
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: Text(buttonText!),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 16,
+                    ),
                   ),
                 ),
               ),

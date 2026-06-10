@@ -145,6 +145,13 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
     setState(() => _isLoading = false);
 
     if (id != null) {
+      // A confirmed order reserves (holds) stock, so refresh those products
+      // immediately; drafts hold nothing.
+      if (!asDraft) {
+        context
+            .read<ProductProvider>()
+            .refreshProductsByIds(soItems.map((e) => e.productId));
+      }
       HapticFeedback.mediumImpact();
       showSuccessOverlay(
         context,

@@ -10,6 +10,7 @@ import '../../providers/vendor_provider.dart';
 import '../../utils/responsive.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/validators.dart';
@@ -118,36 +119,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          GlassPanel(
-                            borderRadius: 22,
-                            padding: const EdgeInsets.all(14),
-                            useContentVariant: true,
-                            child: Image.asset(
-                              'logo.png',
-                              width: 56,
-                              height: 56,
+                          ScaleFadeIn(
+                            child: GlassPanel(
+                              borderRadius: 22,
+                              padding: const EdgeInsets.all(14),
+                              useContentVariant: true,
+                              child: Image.asset(
+                                'logo.png',
+                                width: 56,
+                                height: 56,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
-                          Text(
-                            'Create Account',
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textPri(context),
-                              letterSpacing: -0.5,
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 120),
+                            child: Text(
+                              'Create Account',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textPri(context),
+                                letterSpacing: -0.5,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'Enter your details below. You can update them later in settings.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppTheme.textTer(context),
-                              height: 1.35,
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 180),
+                            child: Text(
+                              'Enter your details below. You can update them later in settings.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.textTer(context),
+                                height: 1.35,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
                           Text(

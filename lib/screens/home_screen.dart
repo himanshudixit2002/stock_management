@@ -25,6 +25,7 @@ import 'products/product_list_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import '../widgets/animated_list_item.dart';
+import '../widgets/animations.dart';
 import '../widgets/glass_panel.dart';
 import '../widgets/offline_banner.dart';
 
@@ -1613,7 +1614,8 @@ class _NavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    return FadeSlideIn(
+      child: GlassCard(
       onTap: onTap,
       borderRadius: 14,
       child: Padding(
@@ -1642,6 +1644,7 @@ class _NavTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

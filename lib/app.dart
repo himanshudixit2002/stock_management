@@ -378,9 +378,9 @@ class _AuthWrapperState extends State<AuthWrapper>
                 begin: Alignment(-0.85, -1),
                 end: Alignment(0.85, 1),
                 colors: [
-                  Color(0xFF00695C),
-                  Color(0xFF00897B),
-                  Color(0xFF26A69A),
+                  Color(0xFF4338CA),
+                  Color(0xFF4F46E5),
+                  Color(0xFF7C3AED),
                 ],
                 stops: [0.0, 0.45, 1.0],
               ),

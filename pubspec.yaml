@@ -48,6 +48,7 @@ dependencies:
   printing: ^5.13.3
   lottie: ^3.3.0
   connectivity_plus: ^7.1.1
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:
