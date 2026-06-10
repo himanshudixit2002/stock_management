@@ -372,21 +372,8 @@ class _AuthWrapperState extends State<AuthWrapper>
         // Matches [web/index.html] body gradient so the handoff is invisible
         // once the HTML overlay is removed (no second branded loading page).
         return const Scaffold(
-          body: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment(-0.85, -1),
-                end: Alignment(0.85, 1),
-                colors: [
-                  Color(0xFF0F766E),
-                  Color(0xFF0D9488),
-                  Color(0xFF0891B2),
-                ],
-                stops: [0.0, 0.45, 1.0],
-              ),
-            ),
-            child: SizedBox.expand(),
-          ),
+          backgroundColor: Color(0xFF1E3A8A),
+          body: SizedBox.expand(),
         );
       }
       return Scaffold(

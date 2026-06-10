@@ -740,11 +740,9 @@ class _HomeTabState extends State<_HomeTab> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        gradient: AppTheme.heroGradient,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: AppTheme.coloredShadow(
-                          AppTheme.primaryColor,
-                        ),
+                        color: AppTheme.primaryDark,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: AppTheme.cardShadow,
                       ),
                       child: Row(
                         children: [
@@ -1270,37 +1268,36 @@ class _ActionCardState extends State<_ActionCard> {
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
             decoration: BoxDecoration(
-              gradient: widget.gradient,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.gradient.colors.first.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: AppTheme.surface(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.dividerC(context)),
+              boxShadow: AppTheme.cardShadow,
             ),
             child: Column(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: widget.gradient.colors.first.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(widget.icon, color: Colors.white, size: 24),
+                  child: Icon(
+                    widget.icon,
+                    color: widget.gradient.colors.first,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   widget.label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.2,
+                  style: TextStyle(
+                    color: AppTheme.textPri(context),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),

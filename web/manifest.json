@@ -4,7 +4,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
-    "theme_color": "#0D9488",
+    "theme_color": "#1D4ED8",
     "description": "Simple, powerful inventory management for your business",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,

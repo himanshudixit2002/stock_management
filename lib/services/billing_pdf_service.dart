@@ -136,7 +136,7 @@ class BillingPdfService {
               style: pw.TextStyle(
                 fontSize: 22,
                 fontWeight: pw.FontWeight.bold,
-                color: PdfColors.teal,
+                color: PdfColors.blue,
               ),
             ),
             pw.SizedBox(height: 4),
@@ -258,7 +258,7 @@ class BillingPdfService {
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
       ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.teal),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blue),
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellHeight: 24,
       cellAlignments: {
@@ -675,7 +675,7 @@ class BillingPdfService {
             style: pw.TextStyle(
               fontSize: 18,
               fontWeight: pw.FontWeight.bold,
-              color: PdfColors.teal,
+              color: PdfColors.blue,
             ),
           ),
           pw.SizedBox(height: 8),
@@ -728,7 +728,7 @@ class BillingPdfService {
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.white,
             ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.teal),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.blue),
             cellStyle: const pw.TextStyle(fontSize: 8),
             cellHeight: 22,
             border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
@@ -816,7 +816,7 @@ class BillingPdfService {
             style: pw.TextStyle(
               fontSize: 18,
               fontWeight: pw.FontWeight.bold,
-              color: PdfColors.teal,
+              color: PdfColors.blue,
             ),
           ),
           pw.SizedBox(height: 8),
@@ -869,7 +869,7 @@ class BillingPdfService {
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.white,
             ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.teal),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.blue),
             cellStyle: const pw.TextStyle(fontSize: 8),
             cellHeight: 22,
             border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),

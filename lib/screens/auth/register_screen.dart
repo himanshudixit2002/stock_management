@@ -512,32 +512,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           Semantics(
                             button: true,
                             label: 'Create account',
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: AppTheme.primaryGradient,
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: AppTheme.coloredShadow(
-                                  AppTheme.primaryColor,
-                                ),
-                              ),
-                              child: Consumer<AuthProvider>(
-                                builder: (context, auth, _) {
-                                  return ElevatedButton(
-                                    onPressed: auth.isLoading
-                                        ? null
-                                        : _register,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      disabledBackgroundColor:
-                                          Colors.transparent,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
+                            child: Consumer<AuthProvider>(
+                              builder: (context, auth, _) {
+                                return ElevatedButton(
+                                  onPressed:
+                                      auth.isLoading ? null : _register,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryColor,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    disabledBackgroundColor:
+                                        AppTheme.primaryColor.withValues(
+                                      alpha: 0.5,
                                     ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
                                     child: auth.isLoading
                                         ? const SizedBox(
                                             height: 22,
@@ -568,7 +562,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   );
                                 },
                               ),
-                            ),
                           ),
 
                           const SizedBox(height: 24),
