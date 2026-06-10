@@ -6,36 +6,36 @@ class AppTheme {
   /// Currency symbol used across the app.
   static const String currencySymbol = '₹';
 
-  // Modern indigo / violet palette
-  static const Color primaryColor = Color(0xFF4F46E5); // indigo 600
-  static const Color primaryLight = Color(0xFF818CF8); // indigo 400
-  static const Color primaryDark = Color(0xFF4338CA); // indigo 700
-  static const Color accentColor = Color(0xFF7C3AED); // violet 600
-  static const Color successColor = Color(0xFF22C55E);
-  static const Color warningColor = Color(0xFFF59E0B);
-  static const Color dangerColor = Color(0xFFEF4444);
-  static const Color backgroundColor = Color(0xFFF8FAFC); // slate 50
+  // Ocean teal — clean, professional, inventory-friendly
+  static const Color primaryColor = Color(0xFF0D9488); // teal 600
+  static const Color primaryLight = Color(0xFF2DD4BF); // teal 400
+  static const Color primaryDark = Color(0xFF0F766E); // teal 700
+  static const Color accentColor = Color(0xFF0284C7); // sky 600
+  static const Color successColor = Color(0xFF16A34A);
+  static const Color warningColor = Color(0xFFD97706);
+  static const Color dangerColor = Color(0xFFDC2626);
+  static const Color backgroundColor = Color(0xFFF8FAFC); // neutral slate 50
   static const Color surfaceColor = Colors.white;
-  static const Color textPrimary = Color(0xFF0F172A); // slate 900
+  static const Color textPrimary = Color(0xFF1E293B); // slate 800
   static const Color textSecondary = Color(0xFF475569); // slate 600
   static const Color textTertiary = Color(0xFF64748B); // slate 500
   static const Color textMuted = Color(0xFF94A3B8); // slate 400
   static const Color iconMuted = Color(0xFF94A3B8);
-  static const Color emptyStateIcon = Color(0xFFB4BECC);
-  static const Color dividerColor = Color(0xFFEDEFF5);
-  static const Color dividerStrong = Color(0xFFD9DEEA);
+  static const Color emptyStateIcon = Color(0xFFCBD5E1);
+  static const Color dividerColor = Color(0xFFE8ECF0);
+  static const Color dividerStrong = Color(0xFFD1D9E0);
 
-  // Vibrant accent extras (use sparingly for per-section color)
-  static const Color violetColor = Color(0xFF7C3AED);
+  // Section accent extras (use sparingly)
+  static const Color violetColor = Color(0xFF6366F1);
   static const Color pinkColor = Color(0xFFEC4899);
   static const Color cyanColor = Color(0xFF06B6D4);
 
   // Stock level colors
-  static const Color stockGood = Color(0xFF22C55E);
-  static const Color stockLow = Color(0xFFF59E0B);
-  static const Color stockOut = Color(0xFFEF4444);
+  static const Color stockGood = Color(0xFF16A34A);
+  static const Color stockLow = Color(0xFFD97706);
+  static const Color stockOut = Color(0xFFDC2626);
 
-  static const Color infoColor = Color(0xFF3B82F6);
+  static const Color infoColor = Color(0xFF0284C7);
   static const Color indigoColor = Color(0xFF6366F1);
 
   /// Foreground color for text/icons drawn on top of the brand gradient
@@ -113,7 +113,7 @@ class AppTheme {
 
   static LinearGradient scaffoldGrad(BuildContext context) => isDark(context)
       ? const LinearGradient(
-          colors: [Color(0xFF121212), Color(0xFF161616), Color(0xFF1A1A1A)],
+          colors: [Color(0xFF121818), Color(0xFF161A1A), Color(0xFF1A1E1E)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         )
@@ -150,72 +150,72 @@ class AppTheme {
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+    colors: [Color(0xFF0D9488), Color(0xFF0891B2)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient successGradient = LinearGradient(
-    colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
+    colors: [Color(0xFF15803D), Color(0xFF16A34A)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient dangerGradient = LinearGradient(
-    colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+    colors: [Color(0xFFB91C1C), Color(0xFFDC2626)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient indigoGradient = LinearGradient(
-    colors: [Color(0xFF4F46E5), Color(0xFF818CF8)],
+    colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient warmGradient = LinearGradient(
-    colors: [Color(0xFFEC4899), Color(0xFFF472B6)],
+    colors: [Color(0xFFEA580C), Color(0xFFF97316)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient warningGradient = LinearGradient(
-    colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+    colors: [Color(0xFFD97706), Color(0xFFFBBF24)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Color(0xFF4338CA), Color(0xFF4F46E5), Color(0xFF7C3AED)],
+    colors: [Color(0xFF0F766E), Color(0xFF0D9488), Color(0xFF0891B2)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient scaffoldGradient = LinearGradient(
-    colors: [Color(0xFFFBFBFE), Color(0xFFF3F4FD), Color(0xFFEEF0FB)],
+    colors: [Color(0xFFFAFBFC), Color(0xFFF4F6F8), Color(0xFFFFFFFF)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
-  // Shadow helpers (subtle, indigo-tinted for depth)
+  // Shadow helpers (neutral, no color tint)
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: const Color(0xFF4F46E5).withValues(alpha: 0.05),
-      blurRadius: 14,
-      offset: const Offset(0, 3),
+      color: Colors.black.withValues(alpha: 0.05),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
     ),
   ];
 
   static List<BoxShadow> get softShadow => [
     BoxShadow(
-      color: const Color(0xFF4F46E5).withValues(alpha: 0.05),
+      color: Colors.black.withValues(alpha: 0.04),
       blurRadius: 12,
       offset: const Offset(0, 2),
     ),
     BoxShadow(
-      color: const Color(0xFF312E81).withValues(alpha: 0.08),
-      blurRadius: 28,
-      offset: const Offset(0, 10),
+      color: Colors.black.withValues(alpha: 0.07),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
     ),
   ];
 

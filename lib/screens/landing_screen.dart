@@ -57,7 +57,7 @@ class LandingScreen extends StatelessWidget {
         gradient: AppTheme.isDark(context)
             ? const LinearGradient(
                 colors: [
-                  Color(0xFF1E1B4B),
+                  Color(0xFF0F2926),
                   Color(0xFF161616),
                   Color(0xFF121212),
                 ],
@@ -66,7 +66,7 @@ class LandingScreen extends StatelessWidget {
               )
             : const LinearGradient(
                 colors: [
-                  Color(0xFFEEF0FB),
+                  Color(0xFFE6F7F5),
                   Color(0xFFF8FAFC),
                   Color(0xFFFFFFFF),
                 ],
@@ -105,9 +105,9 @@ class LandingScreen extends StatelessWidget {
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
                 colors: [
-                  Color(0xFF4338CA),
-                  Color(0xFF4F46E5),
-                  Color(0xFF7C3AED),
+                  Color(0xFF0F766E),
+                  Color(0xFF0D9488),
+                  Color(0xFF0891B2),
                 ],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
