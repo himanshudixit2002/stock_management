@@ -6,39 +6,41 @@ class AppTheme {
   /// Currency symbol used across the app.
   static const String currencySymbol = '₹';
 
-  // Realistic business palette — warm neutrals + one restrained blue accent
-  static const Color primaryColor = Color(0xFF1D4ED8); // blue 700
-  static const Color primaryLight = Color(0xFF3B82F6); // blue 500
-  static const Color primaryDark = Color(0xFF1E3A8A); // blue 800
-  static const Color accentColor = Color(0xFF475569); // slate 600 (secondary)
-  static const Color successColor = Color(0xFF15803D);
-  static const Color warningColor = Color(0xFFB45309);
-  static const Color dangerColor = Color(0xFFB91C1C);
-  static const Color backgroundColor = Color(0xFFFAFAF9); // stone 50
+  // Ocean teal — clean, professional, inventory-friendly
+  static const Color primaryColor = Color(0xFF0D9488); // teal 600
+  static const Color primaryLight = Color(0xFF2DD4BF); // teal 400
+  static const Color primaryDark = Color(0xFF0F766E); // teal 700
+  static const Color accentColor = Color(0xFF0284C7); // sky 600
+  static const Color successColor = Color(0xFF16A34A);
+  static const Color warningColor = Color(0xFFD97706);
+  static const Color dangerColor = Color(0xFFDC2626);
+  static const Color backgroundColor = Color(0xFFF8FAFC); // neutral slate 50
   static const Color surfaceColor = Colors.white;
-  static const Color textPrimary = Color(0xFF1C1917); // stone 900
-  static const Color textSecondary = Color(0xFF57534E); // stone 600
-  static const Color textTertiary = Color(0xFF78716C); // stone 500
-  static const Color textMuted = Color(0xFFA8A29E); // stone 400
-  static const Color iconMuted = Color(0xFFA8A29E);
-  static const Color emptyStateIcon = Color(0xFFD6D3D1);
-  static const Color dividerColor = Color(0xFFE7E5E4); // stone 200
-  static const Color dividerStrong = Color(0xFFD6D3D1); // stone 300
+  static const Color textPrimary = Color(0xFF1E293B); // slate 800
+  static const Color textSecondary = Color(0xFF475569); // slate 600
+  static const Color textTertiary = Color(0xFF64748B); // slate 500
+  static const Color textMuted = Color(0xFF94A3B8); // slate 400
+  static const Color iconMuted = Color(0xFF94A3B8);
+  static const Color emptyStateIcon = Color(0xFFCBD5E1);
+  static const Color dividerColor = Color(0xFFE8ECF0);
+  static const Color dividerStrong = Color(0xFFD1D9E0);
 
   // Section accent extras (use sparingly)
   static const Color violetColor = Color(0xFF6366F1);
   static const Color pinkColor = Color(0xFFEC4899);
   static const Color cyanColor = Color(0xFF06B6D4);
 
-  // Stock level colors (muted, not neon)
-  static const Color stockGood = Color(0xFF15803D);
-  static const Color stockLow = Color(0xFFB45309);
-  static const Color stockOut = Color(0xFFB91C1C);
+  // Stock level colors
+  static const Color stockGood = Color(0xFF16A34A);
+  static const Color stockLow = Color(0xFFD97706);
+  static const Color stockOut = Color(0xFFDC2626);
 
-  static const Color infoColor = Color(0xFF1D4ED8);
-  static const Color indigoColor = Color(0xFF4F46E5);
+  static const Color infoColor = Color(0xFF0284C7);
+  static const Color indigoColor = Color(0xFF6366F1);
 
-  /// Foreground on solid brand bars (profile header, CTA strips).
+  /// Foreground color for text/icons drawn on top of the brand gradient
+  /// (heroGradient / primaryGradient). Stays white across both themes so
+  /// contrast on the dark teal gradient is preserved.
   static const Color onGradient = Color(0xFFFFFFFF);
 
   /// Muted variant of [onGradient] for secondary text on the gradient.
@@ -53,8 +55,8 @@ class AppTheme {
   static const double spacingXXL = 32;
 
   // Input field colors
-  static const Color inputFillColor = Color(0xFFF5F5F4); // stone 100
-  static const Color inputBorderColor = Color(0xFFE7E5E4); // stone 200
+  static const Color inputFillColor = Color(0xFFF1F5F9); // slate 100
+  static const Color inputBorderColor = Color(0xFFE2E8F0); // slate 200
 
   // Dark-mode counterpart constants
   static const Color _darkBg = Color(0xFF121212);
@@ -111,7 +113,7 @@ class AppTheme {
 
   static LinearGradient scaffoldGrad(BuildContext context) => isDark(context)
       ? const LinearGradient(
-          colors: [Color(0xFF121212), Color(0xFF141414), Color(0xFF161616)],
+          colors: [Color(0xFF121818), Color(0xFF161A1A), Color(0xFF1A1E1E)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         )
@@ -146,84 +148,82 @@ class AppTheme {
   static Color get glassInputBackground => Colors.white.withValues(alpha: 0.35);
   static Color get glassOverlaySubtle => Colors.white.withValues(alpha: 0.12);
 
-  // Gradients — kept subtle; prefer solid [primaryColor] / [primaryDark] in UI
+  // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
+    colors: [Color(0xFF0D9488), Color(0xFF0891B2)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient successGradient = LinearGradient(
-    colors: [Color(0xFF166534), Color(0xFF15803D)],
+    colors: [Color(0xFF15803D), Color(0xFF16A34A)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient dangerGradient = LinearGradient(
-    colors: [Color(0xFF991B1B), Color(0xFFB91C1C)],
+    colors: [Color(0xFFB91C1C), Color(0xFFDC2626)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient indigoGradient = LinearGradient(
-    colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+    colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient warmGradient = LinearGradient(
-    colors: [Color(0xFF9A3412), Color(0xFFB45309)],
+    colors: [Color(0xFFEA580C), Color(0xFFF97316)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient warningGradient = LinearGradient(
-    colors: [Color(0xFFB45309), Color(0xFFD97706)],
+    colors: [Color(0xFFD97706), Color(0xFFFBBF24)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  /// Near-solid bar for profile header etc. — not a loud multi-stop rainbow.
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
+    colors: [Color(0xFF0F766E), Color(0xFF0D9488), Color(0xFF0891B2)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 
-  /// Effectively flat; avoids the tinted “AI scaffold wash”.
   static const LinearGradient scaffoldGradient = LinearGradient(
-    colors: [Color(0xFFFAFAF9), Color(0xFFFAFAF9), Color(0xFFFFFFFF)],
+    colors: [Color(0xFFFAFBFC), Color(0xFFF4F6F8), Color(0xFFFFFFFF)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
-  // Shadow helpers — light, neutral (real apps rarely glow buttons)
+  // Shadow helpers (neutral, no color tint)
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.04),
-      blurRadius: 8,
-      offset: const Offset(0, 1),
+      color: Colors.black.withValues(alpha: 0.05),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
     ),
   ];
 
   static List<BoxShadow> get softShadow => [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.03),
-      blurRadius: 8,
-      offset: const Offset(0, 1),
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 12,
+      offset: const Offset(0, 2),
     ),
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.05),
-      blurRadius: 16,
-      offset: const Offset(0, 4),
+      color: Colors.black.withValues(alpha: 0.07),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
     ),
   ];
 
   static List<BoxShadow> coloredShadow(Color color) => [
     BoxShadow(
-      color: color.withValues(alpha: 0.12),
-      blurRadius: 8,
-      offset: const Offset(0, 2),
+      color: color.withValues(alpha: 0.28),
+      blurRadius: 18,
+      offset: const Offset(0, 6),
     ),
   ];
 
@@ -498,7 +498,7 @@ class AppTheme {
       ),
 
       chipTheme: ChipThemeData(
-        backgroundColor: inputFillColor,
+        backgroundColor: const Color(0xFFF0F4F8),
         selectedColor: primaryColor,
         labelStyle: const TextStyle(
           fontSize: 13,

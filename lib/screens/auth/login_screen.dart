@@ -464,18 +464,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Login button
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 320),
+                            child: Container(
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: AppTheme.coloredShadow(
+                                AppTheme.primaryColor,
+                              ),
+                            ),
                             child: Consumer<AuthProvider>(
                               builder: (context, auth, _) {
                                 return ElevatedButton(
                                   onPressed: auth.isLoading ? null : _login,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryColor,
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    disabledBackgroundColor:
-                                        AppTheme.primaryColor.withValues(
-                                      alpha: 0.5,
-                                    ),
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    disabledBackgroundColor: Colors.transparent,
                                   ),
                                   child: auth.isLoading
                                       ? const SizedBox(
@@ -490,6 +494,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 );
                               },
                             ),
+                          ),
                           ),
 
                           const SizedBox(height: 24),

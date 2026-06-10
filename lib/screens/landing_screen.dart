@@ -53,7 +53,27 @@ class LandingScreen extends StatelessWidget {
   Widget _buildHeroSection(BuildContext context, bool isWide) {
     return Container(
       width: double.infinity,
-      color: AppTheme.bg(context),
+      decoration: BoxDecoration(
+        gradient: AppTheme.isDark(context)
+            ? const LinearGradient(
+                colors: [
+                  Color(0xFF0F2926),
+                  Color(0xFF161616),
+                  Color(0xFF121212),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              )
+            : const LinearGradient(
+                colors: [
+                  Color(0xFFE6F7F5),
+                  Color(0xFFF8FAFC),
+                  Color(0xFFFFFFFF),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+      ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           Responsive.horizontalPadding(context) + 8,
@@ -68,20 +88,39 @@ class LandingScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppTheme.surface(context),
                 borderRadius: BorderRadius.circular(22),
-                boxShadow: AppTheme.cardShadow,
-                border: Border.all(color: AppTheme.dividerC(context)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                    blurRadius: 28,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+                border: Border.all(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                ),
               ),
               child: Image.asset('logo.png', width: 44, height: 44),
             ),
             const SizedBox(height: 20),
-            Text(
-              'SmartShelfKart',
-              style: TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.textPri(context),
-                letterSpacing: -1.0,
-                height: 1.1,
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [
+                  Color(0xFF0F766E),
+                  Color(0xFF0D9488),
+                  Color(0xFF0891B2),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ).createShader(bounds),
+              child: const Text(
+                'SmartShelfKart',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -1.2,
+                  height: 1.1,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -108,30 +147,41 @@ class LandingScreen extends StatelessWidget {
             Center(
               child: SizedBox(
                 width: isWide ? 320 : double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => context.pushAppRoute(AppRoutes.register),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Get Started Free',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  child: ElevatedButton(
+                    onPressed: () => context.pushAppRoute(AppRoutes.register),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 20),
-                    ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Get Started Free',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.surface(context),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 20,
+                          color: AppTheme.surface(context),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -143,11 +193,14 @@ class LandingScreen extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: () => context.pushAppRoute(AppRoutes.login),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.textPri(context),
+                    foregroundColor: AppTheme.primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 15),
-                    side: BorderSide(color: AppTheme.dividerStrongC(context)),
+                    side: const BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 1.5,
+                    ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: const Text(
@@ -341,7 +394,7 @@ class LandingScreen extends StatelessWidget {
         horizontal: Responsive.horizontalPadding(context) + 8,
         vertical: 32,
       ),
-      color: AppTheme.primaryDark,
+      decoration: const BoxDecoration(gradient: AppTheme.primaryGradient),
       child: Column(
         children: [
           const Icon(Icons.inventory_2_rounded, size: 36, color: Colors.white),
