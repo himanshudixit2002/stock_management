@@ -104,16 +104,6 @@ import '../screens/billing/vendor_statement_screen.dart'
 import '../screens/bulk/bulk_stock_in_screen.dart' deferred as bulk_in;
 import '../screens/bulk/bulk_edit_screen.dart' deferred as bulk_edit;
 
-const _kPublicRoutes = {
-  AppRoutes.landing,
-  AppRoutes.login,
-  AppRoutes.register,
-  AppRoutes.privacyPolicy,
-  AppRoutes.terms,
-  AppRoutes.support,
-  AppRoutes.dataDeletion,
-};
-
 /// A soft, "cloudy" page transition shared by every pushed route:
 /// the incoming page gently glides in from the side while fading and easing up
 /// from a hair below full scale, and the page it covers eases back with a
@@ -237,11 +227,14 @@ class _DeferredScreenLoader extends StatelessWidget {
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
-  final isProtected = !_kPublicRoutes.contains(settings.name);
-  if (isProtected && !context.read<AuthProvider>().isLoggedIn) {
-    return MaterialPageRoute(builder: (_) => const LandingScreen());
-  }
-
+  // No auth guard here on purpose: [AuthWrapper] is the single global gate for
+  // authentication (the app shell is only shown when signed in, and startup is
+  // always routed through it via onGenerateInitialRoutes). Re-checking
+  // isLoggedIn while generating each route is not only redundant, it actively
+  // breaks navigation: the auth stream briefly flips currentUser to null while
+  // it re-fetches user data (token refresh / cold start), and any page pushed
+  // during that window would get replaced by a static Landing page that never
+  // recovers -- i.e. the user gets "thrown out" mid-session.
   return switch (settings.name) {
     AppRoutes.landing => MaterialPageRoute(
       builder: (_) => const LandingScreen(),
