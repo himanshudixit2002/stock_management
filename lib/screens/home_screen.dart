@@ -32,6 +32,11 @@ import '../widgets/offline_banner.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  /// Key used by [AuthWrapper] so browser/system back can unwind tabs on the
+  /// shell route instead of popping the logged-in route off the stack.
+  static final GlobalKey<HomeScreenState> shellKey =
+      GlobalKey<HomeScreenState>();
+
   @override
   State<HomeScreen> createState() => HomeScreenState();
 }
@@ -97,12 +102,9 @@ class HomeScreenState extends State<HomeScreen>
     _loadAnalyticsIfNeeded(index);
   }
 
-  /// Handles a back gesture/button at the home shell. Returns to the previous
-  /// tab when there is in-app tab history, otherwise falls back to the Home
-  /// tab. Only the native platforms attempt to exit the app — on web we never
-  /// call [SystemNavigator.pop] because it pops the browser out of the SPA and
-  /// navigates away from the whole site.
-  void _handleHomeBack() {
+  /// Handles browser/system back when the app shell is the top route (no pushed
+  /// sub-page). Unwinds tab history (e.g. Products → Home), then stays on web.
+  void handleShellBack() {
     if (_tabHistory.isNotEmpty) {
       final previous = _tabHistory.removeLast();
       setState(() => _currentIndex = previous);
@@ -316,21 +318,14 @@ class HomeScreenState extends State<HomeScreen>
         children: [
           const OfflineBanner(),
           Expanded(
-            child: PopScope(
-              canPop: false,
-              onPopInvokedWithResult: (didPop, _) {
-                if (didPop) return;
-                _handleHomeBack();
-              },
-              child: Stack(
-                children: [
-                  scaffold,
-                  if (_showTour)
-                    FeatureTour(
-                      onComplete: () => setState(() => _showTour = false),
-                    ),
-                ],
-              ),
+            child: Stack(
+              children: [
+                scaffold,
+                if (_showTour)
+                  FeatureTour(
+                    onComplete: () => setState(() => _showTour = false),
+                  ),
+              ],
             ),
           ),
         ],

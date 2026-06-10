@@ -626,7 +626,20 @@ class _AuthWrapperState extends State<AuthWrapper>
         }
       }
 
-      return const HomeScreen();
+      // PopScope must live on the AuthWrapper route (the actual navigator entry).
+      // HomeScreen is only a child widget — its PopScope never ran when the
+      // browser back button popped this route, which threw users off the site.
+      // Pushed sub-pages (product detail, etc.) still pop first because they
+      // sit above this route; only when the stack is [AuthWrapper] do we unwind
+      // tabs (Products → Home) and block leaving the SPA on web.
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          HomeScreen.shellKey.currentState?.handleShellBack();
+        },
+        child: HomeScreen(key: HomeScreen.shellKey),
+      );
     } else {
       if (_providersBoundCompanyId != null || _activeCompanyId != null) {
         _providersBoundCompanyId = null;
