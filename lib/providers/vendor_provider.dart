@@ -4,6 +4,7 @@ import '../models/vendor_model.dart';
 import '../models/product_model.dart';
 import '../models/stock_transaction_model.dart';
 import '../utils/error_helpers.dart';
+import '../utils/validators.dart';
 import '../services/database_service.dart';
 
 class VendorProvider extends ChangeNotifier {
@@ -19,6 +20,16 @@ class VendorProvider extends ChangeNotifier {
       _vendors.where((v) => v.isActive).toList();
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  bool _validateVendorPhone(String phone) {
+    final validationError = validateRequiredPhone(phone);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      notifyListeners();
+      return false;
+    }
+    return true;
+  }
 
   VendorModel? getVendorById(String id) {
     for (final v in _vendors) {
@@ -87,6 +98,7 @@ class VendorProvider extends ChangeNotifier {
 
   Future<VendorModel?> addVendor(VendorModel vendor) async {
     if (_isLoading) return null;
+    if (!_validateVendorPhone(vendor.phone)) return null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -105,6 +117,7 @@ class VendorProvider extends ChangeNotifier {
 
   Future<bool> updateVendor(VendorModel vendor) async {
     if (_isLoading) return false;
+    if (!_validateVendorPhone(vendor.phone)) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -167,7 +180,10 @@ class VendorProvider extends ChangeNotifier {
 
   /// Update vendor and propagate name change to products, transactions,
   /// purchase orders, and returns when the name has changed.
-  Future<bool> updateVendorAndPropagate(VendorModel vendor, {String? oldName}) async {
+  Future<bool> updateVendorAndPropagate(
+    VendorModel vendor, {
+    String? oldName,
+  }) async {
     final success = await updateVendor(vendor);
     if (!success) return false;
     if (oldName != null && oldName != vendor.name) {

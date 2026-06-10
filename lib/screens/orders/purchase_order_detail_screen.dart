@@ -79,7 +79,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
               ),
             ),
           if (order.status == POStatus.draft &&
-              (user?.hasPermission(AppPermissions.deletePurchaseOrders) ?? false))
+              (user?.hasPermission(AppPermissions.deletePurchaseOrders) ??
+                  false))
             IconButton(
               icon: const Icon(
                 Icons.delete_outline_rounded,
@@ -99,229 +100,251 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
-                Builder(builder: (context) {
-                  final section1 = GlassPanel(
-                    borderRadius: 20,
-                    padding: const EdgeInsets.all(20),
-                    useContentVariant: true,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                order.vendorName.isNotEmpty
-                                    ? order.vendorName
-                                    : 'Unknown Vendor',
+                Builder(
+                  builder: (context) {
+                    final section1 = GlassPanel(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(20),
+                      useContentVariant: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  order.vendorName.isNotEmpty
+                                      ? order.vendorName
+                                      : 'Unknown Vendor',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textPri(context),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  order.statusLabel,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _detailRow(
+                            context,
+                            'Expected Date',
+                            dateFormat.format(order.expectedDate),
+                          ),
+                          if (order.receivedDate != null)
+                            _detailRow(
+                              context,
+                              'Received Date',
+                              dateFormat.format(order.receivedDate!),
+                            ),
+                          _detailRow(
+                            context,
+                            'Created',
+                            dateFormat.format(order.createdAt),
+                          ),
+                          _detailRow(
+                            context,
+                            'Created By',
+                            order.createdByName,
+                          ),
+                          if (order.notes.isNotEmpty)
+                            _detailRow(context, 'Notes', order.notes),
+                          if (order.invoiceId.isNotEmpty) ...[
+                            const Divider(height: 20),
+                            InkWell(
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.invoiceDetail,
+                                arguments: order.invoiceId,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.successColor.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.receipt_rounded,
+                                      size: 16,
+                                      color: AppTheme.successColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      linkedInvoice != null &&
+                                              linkedInvoice
+                                                  .invoiceNumber
+                                                  .isNotEmpty
+                                          ? 'Bill: ${linkedInvoice.invoiceNumber}'
+                                          : 'Bill linked',
+                                      style: TextStyle(
+                                        color: AppTheme.successColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.open_in_new_rounded,
+                                      size: 14,
+                                      color: AppTheme.successColor,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                    final section2 = GlassPanel(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(20),
+                      useContentVariant: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Items',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPri(context),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...order.items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.inputFill(context),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.inventory_2_rounded,
+                                        color: AppTheme.primaryColor,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.productName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Qty: ${item.quantity} \u2022 Received: ${item.receivedQuantity}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      currencyFormat.format(
+                                        item.quantity * item.unitPrice,
+                                      ),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 24),
+                          Row(
+                            children: [
+                              Text(
+                                'Total',
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                   color: AppTheme.textPri(context),
                                 ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                order.statusLabel,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                              const Spacer(),
+                              Text(
+                                currencyFormat.format(order.totalAmount),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.primaryColor,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _detailRow(
-                          context,
-                          'Expected Date',
-                          dateFormat.format(order.expectedDate),
-                        ),
-                        if (order.receivedDate != null)
-                          _detailRow(
-                            context,
-                            'Received Date',
-                            dateFormat.format(order.receivedDate!),
-                          ),
-                        _detailRow(
-                          context,
-                          'Created',
-                          dateFormat.format(order.createdAt),
-                        ),
-                        _detailRow(context, 'Created By', order.createdByName),
-                        if (order.notes.isNotEmpty)
-                          _detailRow(context, 'Notes', order.notes),
-                        if (order.invoiceId.isNotEmpty) ...[
-                          const Divider(height: 20),
-                          InkWell(
-                            onTap: () => Navigator.pushNamed(
-                              context, AppRoutes.invoiceDetail,
-                              arguments: order.invoiceId,
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppTheme.successColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.receipt_rounded, size: 16, color: AppTheme.successColor),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    linkedInvoice != null &&
-                                            linkedInvoice.invoiceNumber.isNotEmpty
-                                        ? 'Bill: ${linkedInvoice.invoiceNumber}'
-                                        : 'Bill linked',
-                                    style: TextStyle(
-                                      color: AppTheme.successColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.open_in_new_rounded, size: 14, color: AppTheme.successColor),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
                         ],
-                      ],
-                    ),
-                  );
-                  final section2 = GlassPanel(
-                    borderRadius: 20,
-                    padding: const EdgeInsets.all(20),
-                    useContentVariant: true,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                    );
+                    if (Responsive.isDesktop(context)) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: section1),
+                          const SizedBox(width: 16),
+                          Expanded(child: section2),
+                        ],
+                      );
+                    }
+                    return Column(
                       children: [
-                        Text(
-                          'Items',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPri(context),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ...order.items.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppTheme.inputFill(context),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryColor.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: AppTheme.primaryColor,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.productName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Qty: ${item.quantity} \u2022 Received: ${item.receivedQuantity}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.textSec(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    currencyFormat.format(
-                                      item.quantity * item.unitPrice,
-                                    ),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Divider(height: 24),
-                        Row(
-                          children: [
-                            Text(
-                              'Total',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textPri(context),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              currencyFormat.format(order.totalAmount),
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                  if (Responsive.isDesktop(context)) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: section1),
-                        const SizedBox(width: 16),
-                        Expanded(child: section2),
+                        section1,
+                        const SizedBox(height: 16),
+                        section2,
                       ],
                     );
-                  }
-                  return Column(
-                    children: [
-                      section1,
-                      const SizedBox(height: 16),
-                      section2,
-                    ],
-                  );
-                }),
+                  },
+                ),
                 const SizedBox(height: 24),
                 _buildActions(context, order, user),
                 const SizedBox(height: 32),
@@ -361,28 +384,39 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(BuildContext context, PurchaseOrderModel order, UserModel? user) {
-    final canCancel = user?.hasPermission(AppPermissions.cancelPurchaseOrders) ?? false;
+  Widget _buildActions(
+    BuildContext context,
+    PurchaseOrderModel order,
+    UserModel? user,
+  ) {
+    final canCancel =
+        user?.hasPermission(AppPermissions.cancelPurchaseOrders) ?? false;
 
     Widget? primaryAction;
     switch (order.status) {
       case POStatus.draft:
-        if (user?.hasPermission(AppPermissions.approvePurchaseOrders) ?? false) {
+        if (user?.hasPermission(AppPermissions.approvePurchaseOrders) ??
+            false) {
           primaryAction = ElevatedButton.icon(
             onPressed: () => _sendOrder(context, order),
             icon: const Icon(Icons.send_rounded),
             label: const Text('Send to Vendor'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.infoColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.infoColor,
+            ),
           );
         }
       case POStatus.sent:
       case POStatus.partial:
-        if (user?.hasPermission(AppPermissions.receivePurchaseOrders) ?? false) {
+        if (user?.hasPermission(AppPermissions.receivePurchaseOrders) ??
+            false) {
           primaryAction = ElevatedButton.icon(
             onPressed: () => _showReceiveDialog(context, order),
             icon: const Icon(Icons.check_circle_rounded),
             label: const Text('Receive Items'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.successColor,
+            ),
           );
         }
       case POStatus.received:
@@ -390,7 +424,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
         break;
     }
 
-    final showCancel = canCancel &&
+    final showCancel =
+        canCancel &&
         order.status != POStatus.received &&
         order.status != POStatus.cancelled;
 
@@ -529,8 +564,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
     BuildContext context,
     PurchaseOrderModel order,
   ) async {
-    final wasReceived = order.status == POStatus.received ||
-        order.status == POStatus.partial;
+    final wasReceived =
+        order.status == POStatus.received || order.status == POStatus.partial;
     final message = wasReceived
         ? 'This will reverse the received stock and cancel the order. This cannot be undone.'
         : 'This will cancel the order. This cannot be undone.';
@@ -563,7 +598,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
     } else if (context.mounted) {
       showErrorSnackBar(
         context,
-        context.read<PurchaseOrderProvider>().errorMessage ?? 'Cancellation failed',
+        context.read<PurchaseOrderProvider>().errorMessage ??
+            'Cancellation failed',
       );
     }
   }

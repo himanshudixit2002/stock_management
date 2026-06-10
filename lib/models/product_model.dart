@@ -1,5 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/parse_helpers.dart';
+import '../utils/unit_conversion.dart';
+
+/// Sentinel key used inside [ProductModel.heldLocationQuantities] to track
+/// reservations from location-less (manual, product-level) stock holds. Keeping
+/// the reservation in the same map means `heldQuantity` stays consistent and the
+/// units are blocked from being sold elsewhere until despatched or unheld.
+const String kUnassignedHoldLocation = '__unassigned__';
 
 class ProductModel {
   final String id;
@@ -9,8 +16,13 @@ class ProductModel {
   final String company;
   final String size;
   final int quantity;
+  final int heldQuantity;
   final String unit;
+  final String baseUnit;
+  final String packUnit;
+  final int unitsPerPack;
   final Map<String, int> locationQuantities;
+  final Map<String, int> heldLocationQuantities;
   final String description;
   final int lowStockThreshold;
   final double costPrice;
@@ -36,8 +48,13 @@ class ProductModel {
     this.company = '',
     this.size = '',
     required this.quantity,
+    this.heldQuantity = 0,
     this.unit = 'pcs',
+    this.baseUnit = 'pcs',
+    this.packUnit = 'box',
+    this.unitsPerPack = 1,
     this.locationQuantities = const {},
+    this.heldLocationQuantities = const {},
     this.description = '',
     this.lowStockThreshold = 10,
     this.costPrice = 0,
@@ -59,8 +76,40 @@ class ProductModel {
   bool get isOutOfStock => quantity <= 0;
   bool get isLowStock => quantity > 0 && quantity <= lowStockThreshold;
   bool get isInStock => quantity > lowStockThreshold;
+  int get availableQuantity =>
+      quantity - heldQuantity < 0 ? 0 : quantity - heldQuantity;
+  bool get hasPackUnit => unitsPerPack > 1;
 
   List<String> get locations => locationQuantities.keys.toList();
+  List<String> get holdLocations => heldLocationQuantities.keys
+      .where((loc) => loc != kUnassignedHoldLocation)
+      .toList();
+
+  /// Quantity reserved by location-less (product-level) holds.
+  int get unassignedHeldQuantity =>
+      heldLocationQuantities[kUnassignedHoldLocation] ?? 0;
+
+  int availableAtLocation(String location) {
+    final onHand = locationQuantities[location] ?? 0;
+    final held = heldLocationQuantities[location] ?? 0;
+    final available = onHand - held;
+    return available < 0 ? 0 : available;
+  }
+
+  /// On-hand units that can actually be despatched from [location], capped by
+  /// the product-level available quantity. This prevents despatching more than
+  /// the global available when reservations are not tied to a location.
+  int availableForDispatchAtLocation(String location) {
+    final onHand = locationQuantities[location] ?? 0;
+    final cap = onHand < availableQuantity ? onHand : availableQuantity;
+    return cap < 0 ? 0 : cap;
+  }
+  String formatQuantity(int baseQuantity) => formatQuantityWithUnits(
+    baseQuantity: baseQuantity,
+    baseUnit: baseUnit,
+    packUnit: packUnit,
+    unitsPerPack: unitsPerPack,
+  );
 
   double get profit => sellingPrice - costPrice;
   double get totalStockValue => sellingPrice * quantity;
@@ -90,7 +139,15 @@ class ProductModel {
       vPrices = raw.map((k, v) => MapEntry(safeString(k), safeDouble(v)));
     }
 
+    Map<String, int> heldLocQty = {};
+    if (map['heldLocationQuantities'] != null &&
+        map['heldLocationQuantities'] is Map) {
+      final raw = map['heldLocationQuantities'] as Map;
+      heldLocQty = raw.map((k, v) => MapEntry(safeString(k), safeInt(v)));
+    }
+
     final rawQty = safeInt(map['quantity']);
+    final rawHeldQty = safeInt(map['heldQuantity']);
     final rawThreshold = safeInt(map['lowStockThreshold'], 10);
     final rawCost = safeDouble(map['costPrice']);
     final rawSelling = safeDouble(map['sellingPrice']);
@@ -103,8 +160,16 @@ class ProductModel {
       company: safeString(map['company']),
       size: safeString(map['size']),
       quantity: rawQty < 0 ? 0 : rawQty,
+      heldQuantity: rawHeldQty < 0 ? 0 : rawHeldQty,
       unit: safeString(map['unit'], 'pcs'),
+      baseUnit: safeString(
+        map['baseUnit'],
+        safeString(map['unit'], 'pcs'),
+      ),
+      packUnit: safeString(map['packUnit'], 'box'),
+      unitsPerPack: normalizeUnitsPerPack(safeInt(map['unitsPerPack'], 1)),
       locationQuantities: locQty,
+      heldLocationQuantities: heldLocQty,
       description: safeString(map['description']),
       lowStockThreshold: rawThreshold < 0 ? 0 : rawThreshold,
       costPrice: rawCost < 0 ? 0 : rawCost,
@@ -132,8 +197,13 @@ class ProductModel {
       'company': company,
       'size': size,
       'quantity': quantity,
+      'heldQuantity': heldQuantity,
       'unit': unit,
+      'baseUnit': baseUnit,
+      'packUnit': packUnit,
+      'unitsPerPack': normalizeUnitsPerPack(unitsPerPack),
       'locationQuantities': locationQuantities,
+      'heldLocationQuantities': heldLocationQuantities,
       'description': description,
       'lowStockThreshold': lowStockThreshold,
       'costPrice': costPrice,
@@ -161,8 +231,13 @@ class ProductModel {
     String? company,
     String? size,
     int? quantity,
+    int? heldQuantity,
     String? unit,
+    String? baseUnit,
+    String? packUnit,
+    int? unitsPerPack,
     Map<String, int>? locationQuantities,
+    Map<String, int>? heldLocationQuantities,
     String? description,
     int? lowStockThreshold,
     double? costPrice,
@@ -188,8 +263,14 @@ class ProductModel {
       company: company ?? this.company,
       size: size ?? this.size,
       quantity: quantity ?? this.quantity,
+      heldQuantity: heldQuantity ?? this.heldQuantity,
       unit: unit ?? this.unit,
+      baseUnit: baseUnit ?? this.baseUnit,
+      packUnit: packUnit ?? this.packUnit,
+      unitsPerPack: normalizeUnitsPerPack(unitsPerPack ?? this.unitsPerPack),
       locationQuantities: locationQuantities ?? this.locationQuantities,
+      heldLocationQuantities:
+          heldLocationQuantities ?? this.heldLocationQuantities,
       description: description ?? this.description,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       costPrice: costPrice ?? this.costPrice,

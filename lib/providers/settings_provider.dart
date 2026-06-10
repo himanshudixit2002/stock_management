@@ -7,8 +7,8 @@ import '../utils/error_helpers.dart';
 class SettingsProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _companyId = '';
-  bool _pricingEnabled = false;
-  bool _vendorsEnabled = false;
+  bool _pricingEnabled = true;
+  bool _vendorsEnabled = true;
   bool _barcodeEnabled = true;
   bool _initialized = false;
   String? _errorMessage;
@@ -40,8 +40,8 @@ class SettingsProvider extends ChangeNotifier {
 
   void reset() {
     _companyId = '';
-    _pricingEnabled = false;
-    _vendorsEnabled = false;
+    _pricingEnabled = true;
+    _vendorsEnabled = true;
     _barcodeEnabled = true;
     _initialized = false;
     _errorMessage = null;
@@ -64,8 +64,8 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> initialize(String companyId) async {
     _companyId = companyId;
-    _pricingEnabled = false;
-    _vendorsEnabled = false;
+    _pricingEnabled = true;
+    _vendorsEnabled = true;
     _barcodeEnabled = true;
     _companies = [];
     _sizes = [];
@@ -77,8 +77,8 @@ class SettingsProvider extends ChangeNotifier {
         final data = doc.data() as Map<String, dynamic>?;
         if (data != null && data.containsKey('settings')) {
           final settings = data['settings'] as Map<String, dynamic>? ?? {};
-          _pricingEnabled = settings['pricingEnabled'] == true;
-          _vendorsEnabled = settings['vendorsEnabled'] == true;
+          _pricingEnabled = settings['pricingEnabled'] != false;
+          _vendorsEnabled = settings['vendorsEnabled'] != false;
           _barcodeEnabled = settings['barcodeEnabled'] != false;
           _companies = _toStringList(settings['companies']);
           _sizes = _toStringList(settings['sizes']);
@@ -111,7 +111,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'pricingEnabled': enabled},
+        'settings.pricingEnabled': enabled,
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -134,7 +134,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'vendorsEnabled': enabled},
+        'settings.vendorsEnabled': enabled,
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -157,7 +157,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'barcodeEnabled': enabled},
+        'settings.barcodeEnabled': enabled,
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -181,9 +181,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'companies': FieldValue.arrayUnion([trimmed]),
-        },
+        'settings.companies': FieldValue.arrayUnion([trimmed]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -204,9 +202,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'companies': FieldValue.arrayRemove([actual]),
-        },
+        'settings.companies': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -239,14 +235,10 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'companies': FieldValue.arrayRemove([actual]),
-        },
+        'settings.companies': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       await _companyDoc.set({
-        'settings': {
-          'companies': FieldValue.arrayUnion([newTrimmed]),
-        },
+        'settings.companies': FieldValue.arrayUnion([newTrimmed]),
       }, SetOptions(merge: true));
       var lastDoc = await _products
           .where('company', isEqualTo: actual)
@@ -293,7 +285,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'companies': FieldValue.arrayUnion(toAdd)},
+        'settings.companies': FieldValue.arrayUnion(toAdd),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -320,9 +312,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'sizes': FieldValue.arrayUnion([trimmed]),
-        },
+        'settings.sizes': FieldValue.arrayUnion([trimmed]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -341,9 +331,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'sizes': FieldValue.arrayRemove([actual]),
-        },
+        'settings.sizes': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -376,14 +364,10 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'sizes': FieldValue.arrayRemove([actual]),
-        },
+        'settings.sizes': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       await _companyDoc.set({
-        'settings': {
-          'sizes': FieldValue.arrayUnion([newTrimmed]),
-        },
+        'settings.sizes': FieldValue.arrayUnion([newTrimmed]),
       }, SetOptions(merge: true));
       var lastDoc = await _products
           .where('size', isEqualTo: actual)
@@ -430,7 +414,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'sizes': FieldValue.arrayUnion(toAdd)},
+        'settings.sizes': FieldValue.arrayUnion(toAdd),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -457,9 +441,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'locations': FieldValue.arrayUnion([trimmed]),
-        },
+        'settings.locations': FieldValue.arrayUnion([trimmed]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -480,9 +462,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'locations': FieldValue.arrayRemove([actual]),
-        },
+        'settings.locations': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
@@ -515,14 +495,10 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {
-          'locations': FieldValue.arrayRemove([actual]),
-        },
+        'settings.locations': FieldValue.arrayRemove([actual]),
       }, SetOptions(merge: true));
       await _companyDoc.set({
-        'settings': {
-          'locations': FieldValue.arrayUnion([newTrimmed]),
-        },
+        'settings.locations': FieldValue.arrayUnion([newTrimmed]),
       }, SetOptions(merge: true));
 
       final locPath = FieldPath(['locationQuantities', actual]);
@@ -612,7 +588,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'locations': FieldValue.arrayUnion(toAdd)},
+        'settings.locations': FieldValue.arrayUnion(toAdd),
       }, SetOptions(merge: true));
       return true;
     } catch (e) {

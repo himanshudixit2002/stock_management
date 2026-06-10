@@ -35,8 +35,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final canEditProduct = user?.hasPermission(AppPermissions.editProducts) ?? false;
-    final canDeleteProduct = user?.hasPermission(AppPermissions.deleteProducts) ?? false;
+    final canEditProduct =
+        user?.hasPermission(AppPermissions.editProducts) ?? false;
+    final canDeleteProduct =
+        user?.hasPermission(AppPermissions.deleteProducts) ?? false;
     final canManageProducts = canEditProduct || canDeleteProduct;
     final perms = user?.effectivePermissions ?? {};
     final productProvider = context.watch<ProductProvider>();
@@ -60,9 +62,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             IconButton(
               icon: const Icon(Icons.edit_rounded),
               onPressed: () {
-                context.pushAppRoute(AppRoutes.editProduct,
-                  extra: product,
-                );
+                context.pushAppRoute(AppRoutes.editProduct, extra: product);
               },
               tooltip: 'Edit Product',
             ),
@@ -154,23 +154,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             Flexible(
                               child: Hero(
                                 tag: 'product_qty_${product.id}',
-                                flightShuttleBuilder: (
-                                  flightContext,
-                                  animation,
-                                  flightDirection,
-                                  fromHeroContext,
-                                  toHeroContext,
-                                ) {
-                                  return AnimatedBuilder(
-                                    animation: animation,
-                                    builder: (context, _) {
-                                      return flightDirection ==
-                                              HeroFlightDirection.push
-                                          ? toHeroContext.widget
-                                          : fromHeroContext.widget;
+                                flightShuttleBuilder:
+                                    (
+                                      flightContext,
+                                      animation,
+                                      flightDirection,
+                                      fromHeroContext,
+                                      toHeroContext,
+                                    ) {
+                                      return AnimatedBuilder(
+                                        animation: animation,
+                                        builder: (context, _) {
+                                          return flightDirection ==
+                                                  HeroFlightDirection.push
+                                              ? toHeroContext.widget
+                                              : fromHeroContext.widget;
+                                        },
+                                      );
                                     },
-                                  );
-                                },
                                 child: Material(
                                   type: MaterialType.transparency,
                                   child: Container(
@@ -305,181 +306,255 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  Builder(builder: (context) {
-                    final infoGrid = GlassSectionCard(
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.inventory_2_rounded,
-                                size: 20,
-                                color: AppTheme.textSec(context),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Total Stock',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppTheme.textSec(context),
+                  Builder(
+                    builder: (context) {
+                      final infoGrid = GlassSectionCard(
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_rounded,
+                                  size: 20,
+                                  color: AppTheme.textSec(context),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Total Stock',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppTheme.textSec(context),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              TweenAnimationBuilder<int>(
-                                tween: IntTween(begin: 0, end: product.quantity),
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, value, child) {
-                                  return Text(
-                                    '$value ${product.unit}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: stockColor,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 10),
-                            child: Divider(height: 1),
-                          ),
-                          _InfoRow(
-                            icon: Icons.warning_amber_rounded,
-                            label: 'Low Stock Alert',
-                            value: '${product.lowStockThreshold} ${product.unit}',
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 10),
-                            child: Divider(height: 1),
-                          ),
-                          _InfoRow(
-                            icon: Icons.straighten_rounded,
-                            label: 'Unit',
-                            value: product.unit,
-                          ),
-                          Consumer<SettingsProvider>(
-                            builder: (context, settings, _) {
-                              if (!settings.pricingEnabled) {
-                                return const SizedBox.shrink();
-                              }
-                              return Column(
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 10),
-                                    child: Divider(height: 1),
+                                TweenAnimationBuilder<int>(
+                                  tween: IntTween(
+                                    begin: 0,
+                                    end: product.quantity,
                                   ),
-                                  _InfoRow(
-                                    icon: Icons.money_rounded,
-                                    label: 'Cost Price',
-                                    value:
-                                        '${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
-                                  ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 10),
-                                    child: Divider(height: 1),
-                                  ),
-                                  _InfoRow(
-                                    icon: Icons.sell_rounded,
-                                    label: 'Selling Price',
-                                    value:
-                                        '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
-                                    valueColor: AppTheme.successColor,
-                                  ),
-                                  if (product.profit != 0) ...[
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 10),
-                                      child: Divider(height: 1),
-                                    ),
-                                    _InfoRow(
-                                      icon: Icons.trending_up_rounded,
-                                      label: 'Profit / Unit',
-                                      value:
-                                          '${AppTheme.currencySymbol}${product.profit.toStringAsFixed(2)}',
-                                      valueColor: product.profit >= 0
-                                          ? AppTheme.successColor
-                                          : AppTheme.dangerColor,
-                                    ),
-                                  ],
-                                  if (product.quantity > 0 &&
-                                      product.sellingPrice > 0) ...[
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 10),
-                                      child: Divider(height: 1),
-                                    ),
-                                    _InfoRow(
-                                      icon: Icons.account_balance_wallet_rounded,
-                                      label: 'Total Value',
-                                      value:
-                                          '${AppTheme.currencySymbol}${product.totalStockValue.toStringAsFixed(2)}',
-                                    ),
-                                  ],
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-
-                    final hasLocations = product.locationQuantities.isNotEmpty;
-                    if (Responsive.isDesktop(context) && hasLocations) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: infoGrid),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: GlassSectionCard(
-                              title: 'Stock by Location',
-                              icon: Icons.location_on_rounded,
-                              iconColor: AppTheme.primaryColor,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  ...product.locationQuantities.entries.map((entry) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.location_on_outlined, size: 16, color: AppTheme.textTer(context)),
-                                          const SizedBox(width: 8),
-                                          Expanded(child: Text(entry.key, style: TextStyle(fontSize: 14, color: AppTheme.textPri(context)))),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.getStockColor(entry.value, threshold: product.lowStockThreshold).withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              '${entry.value} ${product.unit}',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppTheme.getStockColor(entry.value, threshold: product.lowStockThreshold),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (context, value, child) {
+                                    return Text(
+                                      product.formatQuantity(value),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: stockColor,
                                       ),
                                     );
-                                  }),
-                                ],
+                                  },
+                                ),
+                              ],
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Divider(height: 1),
+                            ),
+                            _InfoRow(
+                              icon: Icons.warning_amber_rounded,
+                              label: 'Low Stock Alert',
+                              value: product.formatQuantity(
+                                product.lowStockThreshold,
                               ),
                             ),
-                          ),
-                        ],
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Divider(height: 1),
+                            ),
+                            _InfoRow(
+                              icon: Icons.lock_clock_rounded,
+                              label: 'Held Stock',
+                              value: product.formatQuantity(product.heldQuantity),
+                              valueColor: product.heldQuantity > 0
+                                  ? AppTheme.warningColor
+                                  : AppTheme.textPri(context),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Divider(height: 1),
+                            ),
+                            _InfoRow(
+                              icon: Icons.inventory_rounded,
+                              label: 'Available Stock',
+                              value: product.formatQuantity(
+                                product.availableQuantity,
+                              ),
+                              valueColor: AppTheme.primaryColor,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Divider(height: 1),
+                            ),
+                            _InfoRow(
+                              icon: Icons.straighten_rounded,
+                              label: 'Unit',
+                              value: product.unit,
+                            ),
+                            Consumer<SettingsProvider>(
+                              builder: (context, settings, _) {
+                                if (!settings.pricingEnabled) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Column(
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      child: Divider(height: 1),
+                                    ),
+                                    _InfoRow(
+                                      icon: Icons.money_rounded,
+                                      label: 'Cost Price',
+                                      value:
+                                          '${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
+                                    ),
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 10,
+                                      ),
+                                      child: Divider(height: 1),
+                                    ),
+                                    _InfoRow(
+                                      icon: Icons.sell_rounded,
+                                      label: 'Selling Price',
+                                      value:
+                                          '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                                      valueColor: AppTheme.successColor,
+                                    ),
+                                    if (product.profit != 0) ...[
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Divider(height: 1),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons.trending_up_rounded,
+                                        label: 'Profit / Unit',
+                                        value:
+                                            '${AppTheme.currencySymbol}${product.profit.toStringAsFixed(2)}',
+                                        valueColor: product.profit >= 0
+                                            ? AppTheme.successColor
+                                            : AppTheme.dangerColor,
+                                      ),
+                                    ],
+                                    if (product.quantity > 0 &&
+                                        product.sellingPrice > 0) ...[
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 10,
+                                        ),
+                                        child: Divider(height: 1),
+                                      ),
+                                      _InfoRow(
+                                        icon: Icons
+                                            .account_balance_wallet_rounded,
+                                        label: 'Total Value',
+                                        value:
+                                            '${AppTheme.currencySymbol}${product.totalStockValue.toStringAsFixed(2)}',
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       );
-                    }
-                    return infoGrid;
-                  }),
+
+                      final hasLocations =
+                          product.locationQuantities.isNotEmpty;
+                      if (Responsive.isDesktop(context) && hasLocations) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: infoGrid),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: GlassSectionCard(
+                                title: 'Stock by Location',
+                                icon: Icons.location_on_rounded,
+                                iconColor: AppTheme.primaryColor,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    ...product.locationQuantities.entries.map((
+                                      entry,
+                                    ) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.location_on_outlined,
+                                              size: 16,
+                                              color: AppTheme.textTer(context),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                entry.key,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: AppTheme.textPri(
+                                                    context,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.getStockColor(
+                                                  entry.value,
+                                                  threshold:
+                                                      product.lowStockThreshold,
+                                                ).withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                '${product.formatQuantity(entry.value)}'
+                                                '${(product.heldLocationQuantities[entry.key] ?? 0) > 0 ? ' (${product.formatQuantity(product.availableAtLocation(entry.key))} available)' : ''}',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppTheme.getStockColor(
+                                                    entry.value,
+                                                    threshold: product
+                                                        .lowStockThreshold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return infoGrid;
+                    },
+                  ),
 
                   // Location Breakdown (mobile/tablet)
-                  if (product.locationQuantities.isNotEmpty && !Responsive.isDesktop(context)) ...[
+                  if (product.locationQuantities.isNotEmpty &&
+                      !Responsive.isDesktop(context)) ...[
                     const SizedBox(height: 16),
                     GlassSectionCard(
                       title: 'Stock by Location',
@@ -507,7 +582,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${entry.value} ${product.unit}',
+                                    '${product.formatQuantity(entry.value)}'
+                                    '${(product.heldLocationQuantities[entry.key] ?? 0) > 0 ? ' (${product.formatQuantity(product.availableAtLocation(entry.key))} available)' : ''}',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 14,
@@ -537,7 +613,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.add_box_rounded,
                             label: 'Stock In',
                             color: AppTheme.successColor,
-                            onTap: () => context.pushAppRoute(AppRoutes.stockIn,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockIn,
                               extra: product,
                             ),
                           ),
@@ -546,7 +623,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.outbox_rounded,
                             label: 'Stock Out',
                             color: AppTheme.primaryColor,
-                            onTap: () => context.pushAppRoute(AppRoutes.stockOut,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockOut,
                               extra: product,
                             ),
                           ),
@@ -555,7 +633,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.swap_horiz_rounded,
                             label: 'Transfer',
                             color: AppTheme.indigoColor,
-                            onTap: () => context.pushAppRoute(AppRoutes.stockTransfer,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockTransfer,
                               extra: product,
                             ),
                           ),
@@ -564,7 +643,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.report_problem_rounded,
                             label: 'Damage',
                             color: AppTheme.dangerColor,
-                            onTap: () => context.pushAppRoute(AppRoutes.damageReport,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.damageReport,
                               extra: product,
                             ),
                           ),
@@ -573,7 +653,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             icon: Icons.tune_rounded,
                             label: 'Adjust',
                             color: AppTheme.warningColor,
-                            onTap: () => context.pushAppRoute(AppRoutes.stockAdjustment,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockAdjustment,
+                              extra: product,
+                            ),
+                          ),
+                        if (perms['canHoldStock'] == true)
+                          _ActionButton(
+                            icon: Icons.pause_circle_rounded,
+                            label: 'Hold',
+                            color: AppTheme.warningColor,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockHold,
+                              extra: product,
+                            ),
+                          ),
+                        if (perms['canReleaseStock'] == true)
+                          _ActionButton(
+                            icon: Icons.play_circle_rounded,
+                            label: 'Release',
+                            color: AppTheme.successColor,
+                            onTap: () => context.pushAppRoute(
+                              AppRoutes.stockRelease,
                               extra: product,
                             ),
                           ),
@@ -618,8 +719,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const Spacer(),
                       GestureDetector(
-                        onTap: () => context.pushAppRoute(AppRoutes.transactionHistory,
-                        ),
+                        onTap: () =>
+                            context.pushAppRoute(AppRoutes.transactionHistory),
                         child: Text(
                           'View All',
                           style: TextStyle(
@@ -700,6 +801,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               typeColor = AppTheme.warningColor;
                               typeIcon = Icons.tune_rounded;
                               break;
+                            case TransactionType.hold:
+                              typeColor = AppTheme.warningColor;
+                              typeIcon = Icons.pause_circle_rounded;
+                              break;
+                            case TransactionType.holdRelease:
+                              typeColor = AppTheme.successColor;
+                              typeIcon = Icons.play_circle_rounded;
+                              break;
                           }
 
                           return Padding(
@@ -779,7 +888,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     Text(
                                       t.type == TransactionType.stockIn
                                           ? '+${t.quantity}'
-                                          : t.type == TransactionType.transfer
+                                          : t.type ==
+                                                    TransactionType.transfer ||
+                                                t.type ==
+                                                    TransactionType.hold ||
+                                                t.type ==
+                                                    TransactionType.holdRelease
                                           ? '${t.quantity}'
                                           : '-${t.quantity}',
                                       style: TextStyle(
@@ -841,7 +955,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       id: '',
       name: '${product.name} (Copy)',
       quantity: 0,
+      heldQuantity: 0,
       locationQuantities: {},
+      heldLocationQuantities: {},
     );
     context.pushAppRoute(AppRoutes.addProduct, extra: template);
   }
@@ -1092,10 +1208,7 @@ class _BarcodeCardState extends State<_BarcodeCard> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: widget.barcode));
                     HapticFeedback.selectionClick();
-                    showInfoSnackBar(
-                      context,
-                      'Barcode copied to clipboard',
-                    );
+                    showInfoSnackBar(context, 'Barcode copied to clipboard');
                   },
                   icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('Copy'),

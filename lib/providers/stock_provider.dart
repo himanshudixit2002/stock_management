@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/stock_transaction_model.dart';
+import '../models/stock_hold_model.dart';
 import '../services/database_service.dart';
 import '../utils/error_helpers.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +14,8 @@ class StockProvider extends ChangeNotifier {
   String? _errorMessage;
 
   StreamSubscription? _transactionsSubscription;
+  StreamSubscription? _holdsSubscription;
+  List<StockHoldModel> _stockHolds = [];
 
   // Filter state
   DateTime? _filterStartDate;
@@ -30,6 +33,44 @@ class StockProvider extends ChangeNotifier {
   String get sortBy => _sortBy;
 
   List<StockTransactionModel> get allTransactions => _recentTransactions;
+  List<StockHoldModel> get stockHolds => _stockHolds;
+  List<StockHoldModel> get activeHolds => _stockHolds
+      .where(
+        (h) =>
+            h.status == StockHoldStatus.active ||
+            h.status == StockHoldStatus.partiallyConsumed,
+      )
+      .toList();
+
+  /// Active holds grouped by challan number, preserving creation order.
+  /// Holds without a challan are grouped under an empty-string key.
+  Map<String, List<StockHoldModel>> get activeHoldsByChallan {
+    final map = <String, List<StockHoldModel>>{};
+    for (final hold in activeHolds) {
+      if (hold.remainingQuantity <= 0) continue;
+      map.putIfAbsent(hold.challanNumber.trim(), () => []).add(hold);
+    }
+    return map;
+  }
+
+  /// Distinct challan numbers that still have active held stock.
+  List<String> get activeChallans => activeHoldsByChallan.keys
+      .where((c) => c.isNotEmpty)
+      .toList()
+    ..sort();
+
+  /// Active holds (with remaining qty) for a given product.
+  List<StockHoldModel> activeHoldsForProduct(String productId) => activeHolds
+      .where((h) => h.productId == productId && h.remainingQuantity > 0)
+      .toList();
+
+  /// Active holds belonging to a specific challan number.
+  List<StockHoldModel> activeHoldsForChallan(String challanNumber) {
+    final key = challanNumber.trim();
+    return activeHolds
+        .where((h) => h.challanNumber.trim() == key && h.remainingQuantity > 0)
+        .toList();
+  }
 
   // --- Analytics cache ---
   bool _filtersDirty = true;
@@ -194,6 +235,8 @@ class StockProvider extends ChangeNotifier {
           TransactionType.damage: 0,
           TransactionType.transfer: 0,
           TransactionType.adjustment: 0,
+          TransactionType.hold: 0,
+          TransactionType.holdRelease: 0,
         },
       );
       map[dayKey]![t.type] = (map[dayKey]![t.type] ?? 0) + t.quantity;
@@ -214,6 +257,8 @@ class StockProvider extends ChangeNotifier {
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
       TransactionType.adjustment: 0,
+      TransactionType.hold: 0,
+      TransactionType.holdRelease: 0,
     };
     for (final t in recentTransactions) {
       map[t.type] = (map[t.type] ?? 0) + 1;
@@ -232,6 +277,8 @@ class StockProvider extends ChangeNotifier {
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
       TransactionType.adjustment: 0,
+      TransactionType.hold: 0,
+      TransactionType.holdRelease: 0,
     };
     for (final t in recentTransactions) {
       map[t.type] = (map[t.type] ?? 0) + t.quantity;
@@ -380,6 +427,8 @@ class StockProvider extends ChangeNotifier {
           TransactionType.damage: 0,
           TransactionType.transfer: 0,
           TransactionType.adjustment: 0,
+          TransactionType.hold: 0,
+          TransactionType.holdRelease: 0,
         },
       );
       map[weekKey]![t.type] = (map[weekKey]![t.type] ?? 0) + t.quantity;
@@ -404,6 +453,8 @@ class StockProvider extends ChangeNotifier {
           TransactionType.damage: 0,
           TransactionType.transfer: 0,
           TransactionType.adjustment: 0,
+          TransactionType.hold: 0,
+          TransactionType.holdRelease: 0,
         },
       );
       map[monthKey]![t.type] = (map[monthKey]![t.type] ?? 0) + t.quantity;
@@ -421,18 +472,23 @@ class StockProvider extends ChangeNotifier {
     }
     final now = DateTime.now();
     final currentEnd = _filterEndDate ?? now;
-    final currentStart = _filterStartDate ??
-        currentEnd.subtract(const Duration(days: 30));
+    final currentStart =
+        _filterStartDate ?? currentEnd.subtract(const Duration(days: 30));
     final duration = currentEnd.difference(currentStart);
     final prevEnd = currentStart.subtract(const Duration(days: 1));
     final prevStart = prevEnd.subtract(duration);
 
-    final prevStartDay = DateTime(prevStart.year, prevStart.month, prevStart.day);
+    final prevStartDay = DateTime(
+      prevStart.year,
+      prevStart.month,
+      prevStart.day,
+    );
     final prevEndExcl = DateTime(prevEnd.year, prevEnd.month, prevEnd.day + 1);
 
     int stockIn = 0, stockOut = 0, damage = 0, transfer = 0, count = 0;
     for (final t in _recentTransactions) {
-      if (t.date.isBefore(prevStartDay) || !t.date.isBefore(prevEndExcl)) continue;
+      if (t.date.isBefore(prevStartDay) || !t.date.isBefore(prevEndExcl))
+        continue;
       if (_filterUserId.isNotEmpty && t.userId != _filterUserId) continue;
       if (_filterVendorId.isNotEmpty && t.vendorId != _filterVendorId) continue;
       if (_filterProductId.isNotEmpty) {
@@ -453,6 +509,8 @@ class StockProvider extends ChangeNotifier {
         case TransactionType.transfer:
           transfer += t.quantity;
         case TransactionType.adjustment:
+        case TransactionType.hold:
+        case TransactionType.holdRelease:
           break;
       }
     }
@@ -477,6 +535,7 @@ class StockProvider extends ChangeNotifier {
       if (previous == 0) return current > 0 ? 100.0 : 0.0;
       return ((current - previous) / previous) * 100;
     }
+
     _cachedPeriodChangePercentages = {
       'stockIn': pct(stockInTotal, prev['stockIn']!),
       'stockOut': pct(stockOutTotal, prev['stockOut']!),
@@ -500,6 +559,8 @@ class StockProvider extends ChangeNotifier {
       TransactionType.damage: 0,
       TransactionType.transfer: 0,
       TransactionType.adjustment: 0,
+      TransactionType.hold: 0,
+      TransactionType.holdRelease: 0,
     };
     for (final t in _recentTransactions) {
       if (!t.date.isBefore(today)) {
@@ -528,10 +589,13 @@ class StockProvider extends ChangeNotifier {
 
   void reset() {
     _transactionsSubscription?.cancel();
+    _holdsSubscription?.cancel();
     _transactionsSubscription = null;
+    _holdsSubscription = null;
     _loadingTimeout?.cancel();
     _loadingTimeout = null;
     _recentTransactions = [];
+    _stockHolds = [];
     _isLoading = false;
     _errorMessage = null;
     _filterStartDate = null;
@@ -583,6 +647,21 @@ class StockProvider extends ChangeNotifier {
             notifyListeners();
           },
         );
+    _holdsSubscription = _databaseService
+        .getStockHolds(limit: 1000)
+        .listen(
+          (holds) {
+            _stockHolds = holds;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = friendlyError(
+              error,
+              fallback: 'Could not load stock hold data.',
+            );
+            notifyListeners();
+          },
+        );
   }
 
   // --- Transaction updates ---
@@ -619,10 +698,7 @@ class StockProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(
-        e,
-        fallback: 'Could not update location.',
-      );
+      _errorMessage = friendlyError(e, fallback: 'Could not update location.');
       notifyListeners();
       return false;
     }
@@ -870,6 +946,209 @@ class StockProvider extends ChangeNotifier {
     return _databaseService.getTransactionsByType(type);
   }
 
+  Future<bool> createStockHold({
+    required String productId,
+    required String productName,
+    required int quantity,
+    String location = '',
+    required String userId,
+    required String userName,
+    StockHoldSourceType sourceType = StockHoldSourceType.manual,
+    String sourceId = '',
+    String challanNumber = '',
+    String reason = '',
+    String notes = '',
+    DateTime? expiresAt,
+  }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    // Location-bound holds (sales orders, invoices) must specify a location;
+    // manual holds reserve at the product level and pick a location at despatch.
+    if (sourceType != StockHoldSourceType.manual && location.trim().isEmpty) {
+      _errorMessage = 'Location is required.';
+      notifyListeners();
+      return false;
+    }
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _databaseService.createStockHold(
+        productId: productId,
+        productName: productName,
+        quantity: quantity,
+        location: location,
+        userId: userId,
+        userName: userName,
+        sourceType: sourceType,
+        sourceId: sourceId,
+        challanNumber: challanNumber,
+        reason: reason,
+        notes: notes,
+        expiresAt: expiresAt,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to create stock hold.',
+      );
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Creates several location-less manual holds under one challan in a single
+  /// transaction. Returns true only if every item was reserved.
+  Future<bool> createStockHoldsBatch({
+    required List<StockHoldBatchItem> items,
+    required String userId,
+    required String userName,
+    String challanNumber = '',
+    String reason = '',
+    String notes = '',
+    DateTime? expiresAt,
+  }) async {
+    if (_isLoading) return false;
+    if (items.where((e) => e.quantity > 0).isEmpty) {
+      _errorMessage = 'Add at least one item with a quantity.';
+      notifyListeners();
+      return false;
+    }
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _databaseService.createStockHoldsBatch(
+        items: items,
+        userId: userId,
+        userName: userName,
+        challanNumber: challanNumber,
+        reason: reason,
+        notes: notes,
+        expiresAt: expiresAt,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to create stock holds.',
+      );
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> releaseStockHold({
+    required String holdId,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    if (_isLoading) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _databaseService.releaseStockHold(
+        holdId: holdId,
+        userId: userId,
+        userName: userName,
+        reason: reason,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Failed to release hold.');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> releaseStockHoldQuantity({
+    required String holdId,
+    required int quantity,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _databaseService.releaseStockHoldQuantity(
+        holdId: holdId,
+        quantity: quantity,
+        userId: userId,
+        userName: userName,
+        reason: reason,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Failed to unhold stock.');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> dispatchHoldQuantity({
+    required String holdId,
+    required int quantity,
+    required String userId,
+    required String userName,
+    String location = '',
+    String reason = '',
+  }) async {
+    if (_isLoading) return false;
+    if (quantity <= 0) {
+      _errorMessage = 'Quantity must be greater than zero.';
+      notifyListeners();
+      return false;
+    }
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _databaseService.dispatchHoldQuantity(
+        holdId: holdId,
+        quantity: quantity,
+        userId: userId,
+        userName: userName,
+        location: location,
+        reason: reason,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Failed to despatch hold.');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   // --- Filter operations ---
 
   void setDateRangeFilter(DateTime? start, DateTime? end) {
@@ -934,6 +1213,7 @@ class StockProvider extends ChangeNotifier {
   void dispose() {
     _loadingTimeout?.cancel();
     _transactionsSubscription?.cancel();
+    _holdsSubscription?.cancel();
     super.dispose();
   }
 }

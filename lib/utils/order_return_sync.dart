@@ -32,9 +32,7 @@ SalesOrderModel applyCustomerReturnToSalesOrder(
         : (line.quantity - line.returnedQuantity);
     if (maxReturnable <= 0) continue;
     final add = need < maxReturnable ? need : maxReturnable;
-    newItems[i] = line.copyWith(
-      returnedQuantity: line.returnedQuantity + add,
-    );
+    newItems[i] = line.copyWith(returnedQuantity: line.returnedQuantity + add);
     demand[line.productId] = need - add;
   }
 
@@ -67,13 +65,12 @@ PurchaseOrderModel applyVendorReturnToPurchaseOrder(
     if (rem <= 0) continue;
     final sub = rem < line.receivedQuantity ? rem : line.receivedQuantity;
     if (sub <= 0) continue;
-    newItems[i] = line.copyWith(
-      receivedQuantity: line.receivedQuantity - sub,
-    );
+    newItems[i] = line.copyWith(receivedQuantity: line.receivedQuantity - sub);
     toRemove[line.productId] = rem - sub;
   }
 
-  final allFulfilled = newItems.isNotEmpty &&
+  final allFulfilled =
+      newItems.isNotEmpty &&
       newItems.every((l) => l.quantity > 0 && l.receivedQuantity >= l.quantity);
 
   var newStatus = po.status;

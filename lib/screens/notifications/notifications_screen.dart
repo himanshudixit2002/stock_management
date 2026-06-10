@@ -41,7 +41,9 @@ class NotificationsScreen extends StatelessWidget {
     if (t.contains('low_stock') || t.contains('warning')) {
       return AppTheme.warningColor;
     }
-    if (t.contains('out_of_stock') || t.contains('alert') || t.contains('damage')) {
+    if (t.contains('out_of_stock') ||
+        t.contains('alert') ||
+        t.contains('damage')) {
       return AppTheme.dangerColor;
     }
     if (t.contains('order') || t.contains('purchase')) {
@@ -84,7 +86,10 @@ class NotificationsScreen extends StatelessWidget {
             TextButton.icon(
               onPressed: () => provider.markAllRead(),
               icon: const Icon(Icons.done_all_rounded, size: 18),
-              label: const Text('Mark all read', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Mark all read',
+                style: TextStyle(fontSize: 12),
+              ),
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.primaryColor,
               ),
@@ -93,46 +98,53 @@ class NotificationsScreen extends StatelessWidget {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
           child: provider.isLoading
               ? const ShimmerLoading(layout: ShimmerLayout.listTile)
               : notifications.isEmpty
-                  ? const EmptyStateWidget(
-                      icon: Icons.notifications_off_rounded,
-                      title: 'No Notifications Yet',
-                      subtitle:
-                          'Notifications appear when stock runs low, orders change status, '
-                          'returns are filed, or batch items near expiry. '
-                          'Start adding products and stock to receive alerts.',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () async {
-                        final companyId = context.read<AuthProvider>().currentUser!.companyId;
-                        context.read<NotificationProvider>().initialize(companyId: companyId);
-                      },
-                      child: ListView.builder(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: Responsive.horizontalPadding(context),
-                        vertical: 8,
-                      ),
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final n = notifications[index];
-                    return _NotificationCard(
-                      notification: n,
-                      icon: _typeIcon(n.type),
-                      color: _typeColor(n.type),
-                      relativeTime: _relativeTime(n.timestamp),
-                      onTap: () {
-                        if (!n.isRead) {
-                          provider.markRead(n.id);
-                        }
-                      },
-                      onDismissed: () => provider.delete(n.id),
+              ? const EmptyStateWidget(
+                  icon: Icons.notifications_off_rounded,
+                  title: 'No Notifications Yet',
+                  subtitle:
+                      'Notifications appear when stock runs low, orders change status, '
+                      'returns are filed, or batch items near expiry. '
+                      'Start adding products and stock to receive alerts.',
+                )
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    final companyId = context
+                        .read<AuthProvider>()
+                        .currentUser!
+                        .companyId;
+                    context.read<NotificationProvider>().initialize(
+                      companyId: companyId,
                     );
                   },
+                  child: ListView.builder(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.horizontalPadding(context),
+                      vertical: 8,
+                    ),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final n = notifications[index];
+                      return _NotificationCard(
+                        notification: n,
+                        icon: _typeIcon(n.type),
+                        color: _typeColor(n.type),
+                        relativeTime: _relativeTime(n.timestamp),
+                        onTap: () {
+                          if (!n.isRead) {
+                            provider.markRead(n.id);
+                          }
+                        },
+                        onDismissed: () => provider.delete(n.id),
+                      );
+                    },
+                  ),
                 ),
-              ),
         ),
       ),
     );
@@ -172,10 +184,7 @@ class _NotificationCard extends StatelessWidget {
             color: AppTheme.dangerColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Icon(
-            Icons.delete_rounded,
-            color: AppTheme.dangerColor,
-          ),
+          child: const Icon(Icons.delete_rounded, color: AppTheme.dangerColor),
         ),
         onDismissed: (_) => onDismissed(),
         child: Material(

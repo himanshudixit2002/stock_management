@@ -79,13 +79,13 @@ class _StockInScreenState extends State<StockInScreen> {
     super.dispose();
   }
 
-
   Future<bool> _confirmLargeQuantity(int qty) async {
     if (qty <= 100) return true;
     return showConfirmDialog(
       context,
       title: 'Large Quantity',
-      message: 'Are you sure you want to add $qty items? Please confirm this is correct.',
+      message:
+          'Are you sure you want to add $qty items? Please confirm this is correct.',
       confirmLabel: 'Confirm',
       iconColor: AppTheme.warningColor,
     );
@@ -280,7 +280,11 @@ class _StockInScreenState extends State<StockInScreen> {
           subtitle: 'Add locations in Settings before receiving stock.',
           buttonText: 'Go to Settings',
           onButtonPressed: () {
-            Navigator.pushNamed(context, AppRoutes.settings, arguments: 'locations');
+            Navigator.pushNamed(
+              context,
+              AppRoutes.settings,
+              arguments: 'locations',
+            );
           },
         ),
       );
@@ -314,9 +318,7 @@ class _StockInScreenState extends State<StockInScreen> {
             ),
           ),
           body: Container(
-            decoration: BoxDecoration(
-              gradient: AppTheme.scaffoldGrad(context),
-            ),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -388,7 +390,9 @@ class _StockInScreenState extends State<StockInScreen> {
                                           : Text(
                                               'Tap to select a product...',
                                               style: TextStyle(
-                                                color: AppTheme.textSec(context),
+                                                color: AppTheme.textSec(
+                                                  context,
+                                                ),
                                                 fontSize: 15,
                                               ),
                                             ),
@@ -420,8 +424,9 @@ class _StockInScreenState extends State<StockInScreen> {
                                   return PickerItem(
                                     value: loc,
                                     label: loc,
-                                    subtitle:
-                                        qty != null ? '$qty in stock' : null,
+                                    subtitle: qty != null
+                                        ? '$qty in stock'
+                                        : null,
                                     icon: Icons.location_on_rounded,
                                     iconColor: AppTheme.primaryColor,
                                   );
@@ -429,8 +434,8 @@ class _StockInScreenState extends State<StockInScreen> {
                               );
                               if (result == null || !mounted) return;
                               if (result == '__create_new__') {
-                                final settingsProvider =
-                                    context.read<SettingsProvider>();
+                                final settingsProvider = context
+                                    .read<SettingsProvider>();
                                 final newName = await showAddNameDialog(
                                   context,
                                   title: 'Add new location',
@@ -463,7 +468,8 @@ class _StockInScreenState extends State<StockInScreen> {
                                         ),
                                       )
                                     : const Icon(Icons.arrow_drop_down),
-                                errorText: _submitted && _selectedLocation == null
+                                errorText:
+                                    _submitted && _selectedLocation == null
                                     ? 'Please select a location'
                                     : null,
                               ),
@@ -483,8 +489,10 @@ class _StockInScreenState extends State<StockInScreen> {
                               if (!settings.vendorsEnabled) {
                                 return const SizedBox.shrink();
                               }
-                              final vendorProvider = context.watch<VendorProvider>();
-                              final activeVendors = vendorProvider.activeVendors;
+                              final vendorProvider = context
+                                  .watch<VendorProvider>();
+                              final activeVendors =
+                                  vendorProvider.activeVendors;
                               return Padding(
                                 padding: const EdgeInsets.only(top: 16),
                                 child: GestureDetector(
@@ -495,14 +503,21 @@ class _StockInScreenState extends State<StockInScreen> {
                                       selectedValue: _selectedVendorId.isEmpty
                                           ? null
                                           : _selectedVendorId,
-                                      items: activeVendors.map((v) => PickerItem(
-                                        value: v.id,
-                                        label: v.name,
-                                        icon: Icons.local_shipping_rounded,
-                                      )).toList(),
+                                      items: activeVendors
+                                          .map(
+                                            (v) => PickerItem(
+                                              value: v.id,
+                                              label: v.name,
+                                              icon:
+                                                  Icons.local_shipping_rounded,
+                                            ),
+                                          )
+                                          .toList(),
                                     );
                                     if (result != null && mounted) {
-                                      final v = vendorProvider.getVendorById(result);
+                                      final v = vendorProvider.getVendorById(
+                                        result,
+                                      );
                                       setState(() {
                                         _selectedVendorId = result;
                                         _selectedVendorName = v?.name ?? '';
@@ -512,10 +527,15 @@ class _StockInScreenState extends State<StockInScreen> {
                                   child: InputDecorator(
                                     decoration: InputDecoration(
                                       labelText: 'Vendor (optional)',
-                                      prefixIcon: const Icon(Icons.local_shipping_rounded),
+                                      prefixIcon: const Icon(
+                                        Icons.local_shipping_rounded,
+                                      ),
                                       suffixIcon: _selectedVendorId.isNotEmpty
                                           ? IconButton(
-                                              icon: const Icon(Icons.close_rounded, size: 18),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 18,
+                                              ),
                                               onPressed: () => setState(() {
                                                 _selectedVendorId = '';
                                                 _selectedVendorName = '';
@@ -544,6 +564,9 @@ class _StockInScreenState extends State<StockInScreen> {
                           QuantityStepper(
                             controller: _quantityController,
                             label: 'Quantity to Add *',
+                            unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+                            packUnit: _selectedProduct?.packUnit ?? 'box',
+                            baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Enter quantity';

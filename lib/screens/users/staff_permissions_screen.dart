@@ -22,70 +22,93 @@ class StaffPermissionsScreen extends StatelessWidget {
       permission: AppPermissions.manageUsers,
       featureName: 'Permission Overrides',
       child: Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: AppBarTitleRow(
-          icon: Icons.shield_rounded,
-          color: AppTheme.warningColor,
-          title: 'User Permission Overrides',
+        backgroundColor: AppTheme.bg(context),
+        appBar: AppBar(
+          title: AppBarTitleRow(
+            icon: Icons.shield_rounded,
+            color: AppTheme.warningColor,
+            title: 'User Permission Overrides',
+          ),
         ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: StreamBuilder<List<UserModel>>(
-          stream: context.read<AuthProvider>().getAllUsers(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const ShimmerLoading(layout: ShimmerLayout.listTile);
-            }
-            final currentUid = context.read<AuthProvider>().currentUser?.uid;
-            final users = (snapshot.data ?? [])
-                .where((u) => u.uid != currentUid)
-                .toList();
+        body: Container(
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: StreamBuilder<List<UserModel>>(
+            stream: context.read<AuthProvider>().getAllUsers(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const ShimmerLoading(layout: ShimmerLayout.listTile);
+              }
+              final currentUid = context.read<AuthProvider>().currentUser?.uid;
+              final users = (snapshot.data ?? [])
+                  .where((u) => u.uid != currentUid)
+                  .toList();
 
-            if (users.isEmpty) {
+              if (users.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.people_outline,
+                        size: 64,
+                        color: AppTheme.emptyIcon(context),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No other users yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.textTer(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
               return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.people_outline, size: 64, color: AppTheme.emptyIcon(context)),
-                    const SizedBox(height: 16),
-                    Text('No other users yet',
-                        style: TextStyle(fontSize: 16, color: AppTheme.textTer(context))),
-                  ],
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.formMaxWidth(context),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          Responsive.horizontalPadding(context),
+                          16,
+                          Responsive.horizontalPadding(context),
+                          8,
+                        ),
+                        child: Text(
+                          'Override permissions for individual users on top of their role.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textTer(context),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.separated(
+                          padding: EdgeInsets.all(
+                            Responsive.horizontalPadding(context),
+                          ),
+                          itemCount: users.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) =>
+                              _UserOverrideCard(user: users[i]),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
-            }
-
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context), 16, Responsive.horizontalPadding(context), 8),
-                      child: Text(
-                        'Override permissions for individual users on top of their role.',
-                        style: TextStyle(fontSize: 13, color: AppTheme.textTer(context)),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.separated(
-                        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-                        itemCount: users.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, i) => _UserOverrideCard(user: users[i]),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+            },
+          ),
         ),
       ),
-    ),
     );
   }
 }
@@ -100,15 +123,20 @@ class _UserOverrideCard extends StatelessWidget {
     final role = roleProvider.getRoleById(user.roleId);
     final roleName = role?.name ?? 'Unknown';
 
-    final overrideCount = user.permissions.entries
-        .where((e) {
-          final roleVal = role?.permissions[e.key] ?? false;
-          return e.value != roleVal;
-        })
-        .length;
+    final overrideCount = user.permissions.entries.where((e) {
+      final roleVal = role?.permissions[e.key] ?? false;
+      return e.value != roleVal;
+    }).length;
 
     final initials = user.name.trim().isNotEmpty
-        ? user.name.trim().split(' ').where((w) => w.isNotEmpty).map((w) => w[0]).take(2).join().toUpperCase()
+        ? user.name
+              .trim()
+              .split(' ')
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0])
+              .take(2)
+              .join()
+              .toUpperCase()
         : '?';
 
     return GlassCard(
@@ -121,29 +149,55 @@ class _UserOverrideCard extends StatelessWidget {
             CircleAvatar(
               radius: 22,
               backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-              child: Text(initials, style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.primaryColor)),
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(roleName, style: TextStyle(fontSize: 12, color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+                      Text(
+                        roleName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       if (overrideCount > 0) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: AppTheme.warningColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             '$overrideCount override${overrideCount > 1 ? 's' : ''}',
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.warningColor),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.warningColor,
+                            ),
                           ),
                         ),
                       ],
@@ -159,7 +213,11 @@ class _UserOverrideCard extends StatelessWidget {
     );
   }
 
-  void _showOverrideSheet(BuildContext context, UserModel user, RoleModel? role) {
+  void _showOverrideSheet(
+    BuildContext context,
+    UserModel user,
+    RoleModel? role,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -227,7 +285,8 @@ class _OverrideEditorState extends State<_OverrideEditor> {
           children: [
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppTheme.emptyIcon(context),
                 borderRadius: BorderRadius.circular(2),
@@ -241,17 +300,29 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                        Text(
+                          widget.user.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         Text(
                           'Role: ${widget.role?.name ?? "Unknown"} — Override individual permissions',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTer(context),
+                          ),
                         ),
                       ],
                     ),
                   ),
                   TextButton(
                     onPressed: _clearOverrides,
-                    child: const Text('Reset All', style: TextStyle(fontSize: 12)),
+                    child: const Text(
+                      'Reset All',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -264,13 +335,24 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                 children: AppPermissions.groups.map((group) {
                   final perms = AppPermissions.byGroup(group.id);
                   return ExpansionTile(
-                    leading: Icon(group.icon, size: 20, color: AppTheme.primaryColor),
-                    title: Text(group.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    leading: Icon(
+                      group.icon,
+                      size: 20,
+                      color: AppTheme.primaryColor,
+                    ),
+                    title: Text(
+                      group.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     children: perms.map((perm) {
                       final roleVal = rolePerms[perm.key] ?? false;
                       final overrideVal = _overrides[perm.key];
                       final effectiveVal = overrideVal ?? roleVal;
-                      final isOverridden = overrideVal != null && overrideVal != roleVal;
+                      final isOverridden =
+                          overrideVal != null && overrideVal != roleVal;
 
                       return SwitchListTile(
                         value: effectiveVal,
@@ -285,16 +367,31 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                         },
                         title: Row(
                           children: [
-                            Text(perm.label, style: const TextStyle(fontSize: 14)),
+                            Text(
+                              perm.label,
+                              style: const TextStyle(fontSize: 14),
+                            ),
                             if (isOverridden) ...[
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 1,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.warningColor.withValues(alpha: 0.1),
+                                  color: AppTheme.warningColor.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(3),
                                 ),
-                                child: const Text('OVERRIDE', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppTheme.warningColor)),
+                                child: const Text(
+                                  'OVERRIDE',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.warningColor,
+                                  ),
+                                ),
                               ),
                             ],
                           ],
@@ -305,12 +402,22 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                               : 'From role',
                           style: TextStyle(
                             fontSize: 11,
-                            color: isOverridden ? AppTheme.warningColor : AppTheme.textTer(context),
+                            color: isOverridden
+                                ? AppTheme.warningColor
+                                : AppTheme.textTer(context),
                           ),
                         ),
-                        secondary: Icon(perm.icon, size: 18, color: effectiveVal ? AppTheme.primaryColor : AppTheme.iconMute(context)),
+                        secondary: Icon(
+                          perm.icon,
+                          size: 18,
+                          color: effectiveVal
+                              ? AppTheme.primaryColor
+                              : AppTheme.iconMute(context),
+                        ),
                         dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ),
                       );
                     }).toList(),
                   );
@@ -322,7 +429,14 @@ class _OverrideEditorState extends State<_OverrideEditor> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
-                    ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.surface(context)))
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.surface(context),
+                        ),
+                      )
                     : const Text('Save Overrides'),
               ),
             ),

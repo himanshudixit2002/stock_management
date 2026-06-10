@@ -23,6 +23,7 @@ import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/unit_conversion.dart';
 
 class CreateReturnScreen extends StatefulWidget {
   const CreateReturnScreen({super.key});
@@ -34,11 +35,22 @@ class CreateReturnScreen extends StatefulWidget {
 class _ReturnItemRow {
   String? productId;
   String productName = '';
-  final TextEditingController qtyController = TextEditingController();
+  String baseUnit = 'pcs';
+  String packUnit = 'box';
+  int unitsPerPack = 1;
+  final TextEditingController qtyController = TextEditingController(); // packs
+  final TextEditingController pieceController = TextEditingController();
   final TextEditingController reasonController = TextEditingController();
+
+  int get baseQuantity => toBaseQuantity(
+    packs: int.tryParse(qtyController.text) ?? 0,
+    pieces: int.tryParse(pieceController.text) ?? 0,
+    unitsPerPack: unitsPerPack,
+  );
 
   void dispose() {
     qtyController.dispose();
+    pieceController.dispose();
     reasonController.dispose();
   }
 }
@@ -103,12 +115,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
 
     final now = DateTime.now();
     final returnItems = validItems
-        .map((i) => ReturnItem(
-              productId: i.productId!,
-              productName: i.productName,
-              quantity: int.tryParse(i.qtyController.text) ?? 0,
-              reason: i.reasonController.text.trim(),
-            ))
+        .map(
+          (i) => ReturnItem(
+            productId: i.productId!,
+            productName: i.productName,
+            quantity: i.baseQuantity,
+            reason: i.reasonController.text.trim(),
+          ),
+        )
         .toList();
 
     final returnModel = ReturnModel(
@@ -116,10 +130,18 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
       type: _returnType,
       relatedOrderId: _relatedOrderId,
       relatedOrderSummary: _relatedOrderSummary,
-      customerId: _returnType == ReturnType.customerReturn ? (_selectedPartyId ?? '') : '',
-      customerName: _returnType == ReturnType.customerReturn ? _selectedPartyName : '',
-      vendorId: _returnType == ReturnType.vendorReturn ? (_selectedPartyId ?? '') : '',
-      vendorName: _returnType == ReturnType.vendorReturn ? _selectedPartyName : '',
+      customerId: _returnType == ReturnType.customerReturn
+          ? (_selectedPartyId ?? '')
+          : '',
+      customerName: _returnType == ReturnType.customerReturn
+          ? _selectedPartyName
+          : '',
+      vendorId: _returnType == ReturnType.vendorReturn
+          ? (_selectedPartyId ?? '')
+          : '',
+      vendorName: _returnType == ReturnType.vendorReturn
+          ? _selectedPartyName
+          : '',
       items: returnItems,
       status: ReturnStatus.pending,
       notes: _notesController.text.trim(),
@@ -138,8 +160,11 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
       showSuccessOverlay(context, message: 'Return created');
       Navigator.pop(context);
     } else {
-      showErrorSnackBar(context,
-          context.read<ReturnProvider>().errorMessage ?? 'Failed to create return');
+      showErrorSnackBar(
+        context,
+        context.read<ReturnProvider>().errorMessage ??
+            'Failed to create return',
+      );
     }
   }
 
@@ -154,6 +179,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
     setState(() {
       _items[itemIndex].productId = p.id;
       _items[itemIndex].productName = p.name;
+      _items[itemIndex].baseUnit = p.baseUnit;
+      _items[itemIndex].packUnit = p.unitsPerPack > 1 ? p.packUnit : p.baseUnit;
+      _items[itemIndex].unitsPerPack = p.unitsPerPack;
     });
   }
 
@@ -169,7 +197,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
         if (isCustomer) {
           var orders = context.read<SalesOrderProvider>().orders.toList();
           if (_selectedPartyId != null) {
-            orders = orders.where((o) => o.customerId == _selectedPartyId).toList();
+            orders = orders
+                .where((o) => o.customerId == _selectedPartyId)
+                .toList();
           }
           return _buildOrderLookupSheet(
             orders.map((o) => _orderRefFromSales(o, dateFmt)).toList(),
@@ -181,7 +211,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
         } else {
           var orders = context.read<PurchaseOrderProvider>().orders.toList();
           if (_selectedPartyId != null) {
-            orders = orders.where((o) => o.vendorId == _selectedPartyId).toList();
+            orders = orders
+                .where((o) => o.vendorId == _selectedPartyId)
+                .toList();
           }
           return _buildOrderLookupSheet(
             orders.map((o) => _orderRefFromPurchase(o, dateFmt)).toList(),
@@ -287,7 +319,10 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                   const SizedBox(height: 6),
                   Text(
                     emptyMessage,
-                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSec(context),
+                    ),
                   ),
                 ],
               ],
@@ -311,12 +346,17 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                     itemBuilder: (context, idx) {
                       final o = orders[idx];
                       return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         elevation: 0,
                         color: AppTheme.inputFill(context),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(color: AppTheme.inputBorder(context)),
+                          side: BorderSide(
+                            color: AppTheme.inputBorder(context),
+                          ),
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(14),
@@ -349,7 +389,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                                        color: AppTheme.primaryColor.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -409,7 +451,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
     if (user != null && !user.hasPermission(AppPermissions.createReturns)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Create Return')),
-        body: const Center(child: Text('You do not have permission to access this feature.')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
       );
     }
 
@@ -429,7 +473,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: Form(
               key: _formKey,
               child: ListView(
@@ -442,18 +488,29 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Return Type',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                                color: AppTheme.textPri(context))),
+                        Text(
+                          'Return Type',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
-                              child: _typeChip('Customer Return', ReturnType.customerReturn),
+                              child: _typeChip(
+                                'Customer Return',
+                                ReturnType.customerReturn,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _typeChip('Vendor Return', ReturnType.vendorReturn),
+                              child: _typeChip(
+                                'Vendor Return',
+                                ReturnType.vendorReturn,
+                              ),
                             ),
                           ],
                         ),
@@ -467,18 +524,30 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 selectedValue: _selectedPartyId,
                                 addNewLabel: 'Create new customer',
                                 addNewValue: '__create_new__',
-                                items: customers.map((c) => PickerItem(
-                                  value: c.id,
-                                  label: c.name,
-                                  subtitle: c.email.isNotEmpty ? c.email : null,
-                                  icon: Icons.person_rounded,
-                                  iconColor: AppTheme.primaryColor,
-                                )).toList(),
+                                items: customers
+                                    .map(
+                                      (c) => PickerItem(
+                                        value: c.id,
+                                        label: c.name,
+                                        subtitle: c.email.isNotEmpty
+                                            ? c.email
+                                            : null,
+                                        icon: Icons.person_rounded,
+                                        iconColor: AppTheme.primaryColor,
+                                      ),
+                                    )
+                                    .toList(),
                               );
                               if (result == '__create_new__') {
-                                final navResult = await context.pushAppRoute(AppRoutes.addCustomer);
-                                if (navResult is String && navResult.isNotEmpty && mounted) {
-                                  final c = context.read<CustomerProvider>().getCustomerById(navResult);
+                                final navResult = await context.pushAppRoute(
+                                  AppRoutes.addCustomer,
+                                );
+                                if (navResult is String &&
+                                    navResult.isNotEmpty &&
+                                    mounted) {
+                                  final c = context
+                                      .read<CustomerProvider>()
+                                      .getCustomerById(navResult);
                                   setState(() {
                                     _selectedPartyId = navResult;
                                     _selectedPartyName = c?.name ?? '';
@@ -487,7 +556,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 return;
                               }
                               if (result != null && mounted) {
-                                final c = context.read<CustomerProvider>().getCustomerById(result);
+                                final c = context
+                                    .read<CustomerProvider>()
+                                    .getCustomerById(result);
                                 setState(() {
                                   _selectedPartyId = result;
                                   _selectedPartyName = c?.name ?? '';
@@ -500,9 +571,13 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 prefixIcon: Icon(Icons.person_rounded),
                               ),
                               child: Text(
-                                _selectedPartyName.isNotEmpty ? _selectedPartyName : 'Select customer',
+                                _selectedPartyName.isNotEmpty
+                                    ? _selectedPartyName
+                                    : 'Select customer',
                                 style: TextStyle(
-                                  color: _selectedPartyName.isNotEmpty ? null : AppTheme.textSec(context),
+                                  color: _selectedPartyName.isNotEmpty
+                                      ? null
+                                      : AppTheme.textSec(context),
                                 ),
                               ),
                             ),
@@ -516,17 +591,27 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 selectedValue: _selectedPartyId,
                                 addNewLabel: 'Create new vendor',
                                 addNewValue: '__create_new__',
-                                items: vendors.map((v) => PickerItem(
-                                  value: v.id,
-                                  label: v.name,
-                                  icon: Icons.local_shipping_rounded,
-                                  iconColor: AppTheme.primaryColor,
-                                )).toList(),
+                                items: vendors
+                                    .map(
+                                      (v) => PickerItem(
+                                        value: v.id,
+                                        label: v.name,
+                                        icon: Icons.local_shipping_rounded,
+                                        iconColor: AppTheme.primaryColor,
+                                      ),
+                                    )
+                                    .toList(),
                               );
                               if (result == '__create_new__') {
-                                final navResult = await context.pushAppRoute(AppRoutes.addVendor);
-                                if (navResult is String && navResult.isNotEmpty && mounted) {
-                                  final v = context.read<VendorProvider>().getVendorById(navResult);
+                                final navResult = await context.pushAppRoute(
+                                  AppRoutes.addVendor,
+                                );
+                                if (navResult is String &&
+                                    navResult.isNotEmpty &&
+                                    mounted) {
+                                  final v = context
+                                      .read<VendorProvider>()
+                                      .getVendorById(navResult);
                                   setState(() {
                                     _selectedPartyId = navResult;
                                     _selectedPartyName = v?.name ?? '';
@@ -535,7 +620,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 return;
                               }
                               if (result != null && mounted) {
-                                final v = context.read<VendorProvider>().getVendorById(result);
+                                final v = context
+                                    .read<VendorProvider>()
+                                    .getVendorById(result);
                                 setState(() {
                                   _selectedPartyId = result;
                                   _selectedPartyName = v?.name ?? '';
@@ -548,9 +635,13 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 prefixIcon: Icon(Icons.local_shipping_rounded),
                               ),
                               child: Text(
-                                _selectedPartyName.isEmpty ? 'Select vendor' : _selectedPartyName,
+                                _selectedPartyName.isEmpty
+                                    ? 'Select vendor'
+                                    : _selectedPartyName,
                                 style: TextStyle(
-                                  color: _selectedPartyName.isNotEmpty ? null : AppTheme.textSec(context),
+                                  color: _selectedPartyName.isNotEmpty
+                                      ? null
+                                      : AppTheme.textSec(context),
                                 ),
                               ),
                             ),
@@ -568,10 +659,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                             child: _relatedOrderId.isEmpty
                                 ? Text(
                                     'Tap to choose — shows party, status, lines, total, full ID',
-                                    style: TextStyle(color: AppTheme.textSec(context), fontSize: 13),
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontSize: 13,
+                                    ),
                                   )
                                 : Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         _relatedOrderSummary.split('\n').first,
@@ -581,7 +676,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                           fontSize: 14,
                                         ),
                                       ),
-                                      if (_relatedOrderSummary.contains('\n')) ...[
+                                      if (_relatedOrderSummary.contains(
+                                        '\n',
+                                      )) ...[
                                         const SizedBox(height: 4),
                                         Text(
                                           _relatedOrderSummary
@@ -622,9 +719,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text('Items',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                                      color: AppTheme.textPri(context))),
+                              child: Text(
+                                'Items',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPri(context),
+                                ),
+                              ),
                             ),
                             TextButton.icon(
                               onPressed: _addItem,
@@ -643,7 +745,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                               decoration: BoxDecoration(
                                 color: AppTheme.inputFill(context),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.inputBorder(context)),
+                                border: Border.all(
+                                  color: AppTheme.inputBorder(context),
+                                ),
                               ),
                               child: Column(
                                 children: [
@@ -651,13 +755,21 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                     children: [
                                       Expanded(
                                         child: InkWell(
-                                          onTap: () => _showProductPicker(index),
+                                          onTap: () =>
+                                              _showProductPicker(index),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 14),
+                                              horizontal: 12,
+                                              vertical: 14,
+                                            ),
                                             decoration: BoxDecoration(
-                                              border: Border.all(color: AppTheme.inputBorder(context)),
-                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: AppTheme.inputBorder(
+                                                  context,
+                                                ),
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                               color: AppTheme.surface(context),
                                             ),
                                             child: Text(
@@ -665,11 +777,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                                   ? item.productName
                                                   : 'Select product...',
                                               style: TextStyle(
-                                                color: item.productName.isNotEmpty
+                                                color:
+                                                    item.productName.isNotEmpty
                                                     ? AppTheme.textPri(context)
                                                     : AppTheme.textSec(context),
-                                                fontWeight: item.productName.isNotEmpty
-                                                    ? FontWeight.w600 : FontWeight.normal,
+                                                fontWeight:
+                                                    item.productName.isNotEmpty
+                                                    ? FontWeight.w600
+                                                    : FontWeight.normal,
                                               ),
                                             ),
                                           ),
@@ -678,8 +793,10 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                       if (_items.length > 1) ...[
                                         const SizedBox(width: 8),
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_rounded,
-                                              color: AppTheme.dangerColor),
+                                          icon: const Icon(
+                                            Icons.remove_circle_rounded,
+                                            color: AppTheme.dangerColor,
+                                          ),
                                           onPressed: () => _removeItem(index),
                                         ),
                                       ],
@@ -691,19 +808,49 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                       Expanded(
                                         child: TextFormField(
                                           controller: item.qtyController,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Qty *',
+                                          decoration: InputDecoration(
+                                            labelText:
+                                                '${item.packUnit} Qty *',
                                             isDense: true,
                                           ),
                                           keyboardType: TextInputType.number,
-                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                           validator: (v) {
-                                            if (item.productId == null) return null;
-                                            if (v == null || v.isEmpty) return 'Required';
-                                            final qty = int.tryParse(v);
-                                            if (qty == null || qty <= 0) return 'Invalid';
+                                            if (item.productId == null)
+                                              return null;
+                                            final baseQty = toBaseQuantity(
+                                              packs:
+                                                  int.tryParse(v ?? '') ?? 0,
+                                              pieces: int.tryParse(
+                                                    item.pieceController.text,
+                                                  ) ??
+                                                  0,
+                                              unitsPerPack:
+                                                  item.unitsPerPack,
+                                            );
+                                            if (baseQty <= 0)
+                                              return 'Required';
                                             return null;
                                           },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 90,
+                                        child: TextFormField(
+                                          controller: item.pieceController,
+                                          decoration: InputDecoration(
+                                            labelText: item.baseUnit,
+                                            isDense: true,
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -731,8 +878,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                   ElevatedButton.icon(
                     onPressed: _isLoading ? null : _saveReturn,
                     icon: _isLoading
-                        ? const SizedBox(width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Icon(Icons.check_rounded),
                     label: const Text('Submit Return'),
                     style: ElevatedButton.styleFrom(
@@ -762,16 +915,22 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
               : AppTheme.inputFill(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppTheme.primaryColor : AppTheme.inputBorder(context),
+            color: isSelected
+                ? AppTheme.primaryColor
+                : AppTheme.inputBorder(context),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Center(
-          child: Text(label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: isSelected ? AppTheme.primaryColor : AppTheme.textSec(context),
-              )),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isSelected
+                  ? AppTheme.primaryColor
+                  : AppTheme.textSec(context),
+            ),
+          ),
         ),
       ),
     );

@@ -23,6 +23,9 @@ import '../screens/stock/damage_report_screen.dart';
 import '../screens/stock/stock_transfer_screen.dart';
 import '../screens/stock/low_stock_screen.dart';
 import '../screens/stock/stock_adjustment_screen.dart';
+import '../screens/stock/stock_hold_screen.dart';
+import '../screens/stock/stock_release_screen.dart';
+import '../screens/stock/hold_list_screen.dart';
 import '../screens/stock/transaction_history_screen.dart';
 import '../screens/excel/excel_import_screen.dart';
 import '../screens/excel/excel_export_screen.dart';
@@ -73,22 +76,31 @@ import '../screens/about/about_screen.dart';
 import '../screens/settings/home_customization_screen.dart';
 import '../screens/roles/role_list_screen.dart';
 import '../screens/roles/role_editor_screen.dart';
+import '../screens/pos/fast_pos_screen.dart';
 
 // Deferred groups — loaded on demand so they stay out of main.dart.js
 // and only fetch when the user actually navigates to the feature.
 import '../screens/reports/reports_screen.dart' deferred as reports;
-import '../screens/reports/damage_history_screen.dart' deferred as reports_damage;
+import '../screens/reports/damage_history_screen.dart'
+    deferred as reports_damage;
 import '../screens/reports/profit_loss_screen.dart' deferred as reports_pl;
 import '../screens/reports/abc_analysis_screen.dart' deferred as reports_abc;
-import '../screens/reports/valuation_trends_screen.dart' deferred as reports_val;
+import '../screens/reports/valuation_trends_screen.dart'
+    deferred as reports_val;
 import '../screens/reports/price_history_screen.dart' deferred as reports_price;
 import '../screens/billing/invoice_list_screen.dart' deferred as billing_list;
-import '../screens/billing/create_invoice_screen.dart' deferred as billing_create;
-import '../screens/billing/invoice_detail_screen.dart' deferred as billing_detail;
-import '../screens/billing/billing_settings_screen.dart' deferred as billing_settings;
-import '../screens/billing/billing_reports_screen.dart' deferred as billing_reports;
-import '../screens/billing/customer_statement_screen.dart' deferred as billing_cstmt;
-import '../screens/billing/vendor_statement_screen.dart' deferred as billing_vstmt;
+import '../screens/billing/create_invoice_screen.dart'
+    deferred as billing_create;
+import '../screens/billing/invoice_detail_screen.dart'
+    deferred as billing_detail;
+import '../screens/billing/billing_settings_screen.dart'
+    deferred as billing_settings;
+import '../screens/billing/billing_reports_screen.dart'
+    deferred as billing_reports;
+import '../screens/billing/customer_statement_screen.dart'
+    deferred as billing_cstmt;
+import '../screens/billing/vendor_statement_screen.dart'
+    deferred as billing_vstmt;
 import '../screens/bulk/bulk_stock_in_screen.dart' deferred as bulk_in;
 import '../screens/bulk/bulk_edit_screen.dart' deferred as bulk_edit;
 
@@ -102,21 +114,59 @@ const _kPublicRoutes = {
   AppRoutes.dataDeletion,
 };
 
+/// A soft, "cloudy" page transition shared by every pushed route:
+/// the incoming page gently glides in from the side while fading and easing up
+/// from a hair below full scale, and the page it covers eases back with a
+/// subtle parallax + fade so the stack feels layered and calm rather than
+/// snapping. Tuned to feel identical across mobile, web and desktop.
 PageRouteBuilder _slideRoute(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => page,
+    transitionDuration: const Duration(milliseconds: 360),
+    reverseTransitionDuration: const Duration(milliseconds: 280),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      // Incoming page: slide a short distance, fade in, settle from 0.985 scale.
+      final entering = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slideIn = Tween<Offset>(
+        begin: const Offset(0.07, 0),
+        end: Offset.zero,
+      ).animate(entering);
+      final fadeIn = CurvedAnimation(
+        parent: animation,
+        curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
+      );
+      final scaleIn = Tween<double>(begin: 0.985, end: 1).animate(entering);
+
+      // Outgoing page (covered by a newly pushed route): recede gently.
+      final leaving = CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slideOut = Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.035, 0),
+      ).animate(leaving);
+      final fadeOut = Tween<double>(begin: 1, end: 0.94).animate(leaving);
+
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1, 0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        position: slideOut,
+        child: FadeTransition(
+          opacity: fadeOut,
+          child: SlideTransition(
+            position: slideIn,
+            child: FadeTransition(
+              opacity: fadeIn,
+              child: ScaleTransition(scale: scaleIn, child: child),
+            ),
+          ),
         ),
-        child: child,
       );
     },
-    transitionDuration: const Duration(milliseconds: 280),
   );
 }
 
@@ -142,8 +192,11 @@ class _DeferredScreenLoader extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline,
-                        size: 48, color: AppTheme.dangerColor),
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: AppTheme.dangerColor,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Could not load this screen',
@@ -183,57 +236,82 @@ class _DeferredScreenLoader extends StatelessWidget {
   }
 }
 
-Route<dynamic>? onGenerateRoute(
-  RouteSettings settings,
-  BuildContext context,
-) {
+Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
   final isProtected = !_kPublicRoutes.contains(settings.name);
   if (isProtected && !context.read<AuthProvider>().isLoggedIn) {
     return MaterialPageRoute(builder: (_) => const LandingScreen());
   }
 
   return switch (settings.name) {
-    AppRoutes.landing =>
-      MaterialPageRoute(builder: (_) => const LandingScreen()),
-    AppRoutes.login =>
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    AppRoutes.register =>
-      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-    AppRoutes.home =>
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    AppRoutes.landing => MaterialPageRoute(
+      builder: (_) => const LandingScreen(),
+    ),
+    AppRoutes.login => MaterialPageRoute(builder: (_) => const LoginScreen()),
+    AppRoutes.register => MaterialPageRoute(
+      builder: (_) => const RegisterScreen(),
+    ),
+    AppRoutes.home => MaterialPageRoute(builder: (_) => const HomeScreen()),
 
     // -- Products --
     AppRoutes.productList => _slideRoute(const ProductListScreen()),
     AppRoutes.addProduct => _slideRoute(
-        AddEditProductScreen(product: settings.arguments as ProductModel?)),
+      AddEditProductScreen(product: settings.arguments as ProductModel?),
+    ),
     AppRoutes.editProduct => () {
-        final product = settings.arguments as ProductModel?;
-        return product == null
-            ? _slideRoute(const ProductListScreen())
-            : _slideRoute(AddEditProductScreen(product: product));
-      }(),
+      final product = settings.arguments as ProductModel?;
+      return product == null
+          ? _slideRoute(const ProductListScreen())
+          : _slideRoute(AddEditProductScreen(product: product));
+    }(),
     AppRoutes.productDetail => () {
-        final product = settings.arguments as ProductModel?;
-        return product == null
-            ? _slideRoute(const ProductListScreen())
-            : _slideRoute(ProductDetailScreen(product: product));
-      }(),
+      final product = settings.arguments as ProductModel?;
+      return product == null
+          ? _slideRoute(const ProductListScreen())
+          : _slideRoute(ProductDetailScreen(product: product));
+    }(),
     AppRoutes.categories => _slideRoute(const CategoryScreen()),
 
     // -- Stock --
-    AppRoutes.stockIn =>
-      _slideRoute(StockInScreen(product: settings.arguments as ProductModel?)),
-    AppRoutes.stockOut =>
-      _slideRoute(StockOutScreen(product: settings.arguments as ProductModel?)),
+    AppRoutes.stockIn => _slideRoute(
+      StockInScreen(product: settings.arguments as ProductModel?),
+    ),
+    AppRoutes.stockOut => _slideRoute(
+      StockOutScreen(
+        product: settings.arguments is ProductModel
+            ? settings.arguments as ProductModel
+            : null,
+        holdAction: settings.arguments is HoldActionArgs
+            ? settings.arguments as HoldActionArgs
+            : null,
+      ),
+    ),
     AppRoutes.damageReport => _slideRoute(
-        DamageReportScreen(product: settings.arguments as ProductModel?)),
+      DamageReportScreen(product: settings.arguments as ProductModel?),
+    ),
     AppRoutes.stockTransfer => _slideRoute(
-        StockTransferScreen(product: settings.arguments as ProductModel?)),
+      StockTransferScreen(product: settings.arguments as ProductModel?),
+    ),
     AppRoutes.lowStock => _slideRoute(const LowStockScreen()),
     AppRoutes.stockAdjustment => _slideRoute(
-        StockAdjustmentScreen(product: settings.arguments as ProductModel?)),
-    AppRoutes.transactionHistory =>
-      _slideRoute(const TransactionHistoryScreen()),
+      StockAdjustmentScreen(product: settings.arguments as ProductModel?),
+    ),
+    AppRoutes.stockHold => _slideRoute(
+      StockHoldScreen(product: settings.arguments as ProductModel?),
+    ),
+    AppRoutes.stockRelease => _slideRoute(
+      StockReleaseScreen(
+        product: settings.arguments is ProductModel
+            ? settings.arguments as ProductModel
+            : null,
+        initialChallan: settings.arguments is HoldActionArgs
+            ? (settings.arguments as HoldActionArgs).hold.challanNumber
+            : null,
+      ),
+    ),
+    AppRoutes.stockHolds => _slideRoute(const HoldListScreen()),
+    AppRoutes.transactionHistory => _slideRoute(
+      const TransactionHistoryScreen(),
+    ),
 
     // -- Excel --
     AppRoutes.excelImport => _slideRoute(const ExcelImportScreen()),
@@ -245,47 +323,59 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.staffPermissions => _slideRoute(const StaffPermissionsScreen()),
 
     // -- Reports (deferred) --
-    AppRoutes.reports => _slideRoute(_DeferredScreenLoader(
+    AppRoutes.reports => _slideRoute(
+      _DeferredScreenLoader(
         future: reports.loadLibrary(),
         builder: (_) => reports.ReportsScreen(),
-      )),
+      ),
+    ),
     AppRoutes.dashboard => _slideRoute(const DashboardScreen()),
-    AppRoutes.damageHistory => _slideRoute(_DeferredScreenLoader(
+    AppRoutes.damageHistory => _slideRoute(
+      _DeferredScreenLoader(
         future: reports_damage.loadLibrary(),
         builder: (_) => reports_damage.DamageHistoryScreen(),
-      )),
-    AppRoutes.profitLoss => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.profitLoss => _slideRoute(
+      _DeferredScreenLoader(
         future: reports_pl.loadLibrary(),
         builder: (_) => reports_pl.ProfitLossScreen(),
-      )),
-    AppRoutes.abcAnalysis => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.abcAnalysis => _slideRoute(
+      _DeferredScreenLoader(
         future: reports_abc.loadLibrary(),
         builder: (_) => reports_abc.AbcAnalysisScreen(),
-      )),
-    AppRoutes.valuationTrends => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.valuationTrends => _slideRoute(
+      _DeferredScreenLoader(
         future: reports_val.loadLibrary(),
         builder: (_) => reports_val.ValuationTrendsScreen(),
-      )),
-    AppRoutes.priceHistory => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.priceHistory => _slideRoute(
+      _DeferredScreenLoader(
         future: reports_price.loadLibrary(),
         builder: (_) => reports_price.PriceHistoryScreen(),
-      )),
+      ),
+    ),
 
     // -- Vendors --
     AppRoutes.vendors => _slideRoute(const VendorListScreen()),
     AppRoutes.addVendor => _slideRoute(const AddEditVendorScreen()),
     AppRoutes.editVendor => () {
-        final vendor = settings.arguments as VendorModel?;
-        return vendor == null
-            ? _slideRoute(const VendorListScreen())
-            : _slideRoute(AddEditVendorScreen(vendor: vendor));
-      }(),
+      final vendor = settings.arguments as VendorModel?;
+      return vendor == null
+          ? _slideRoute(const VendorListScreen())
+          : _slideRoute(AddEditVendorScreen(vendor: vendor));
+    }(),
     AppRoutes.vendorDetail => () {
-        final vendor = settings.arguments as VendorModel?;
-        return vendor == null
-            ? _slideRoute(const VendorListScreen())
-            : _slideRoute(VendorDetailScreen(vendor: vendor));
-      }(),
+      final vendor = settings.arguments as VendorModel?;
+      return vendor == null
+          ? _slideRoute(const VendorListScreen())
+          : _slideRoute(VendorDetailScreen(vendor: vendor));
+    }(),
 
     // -- Legal (public) --
     AppRoutes.privacyPolicy => _slideRoute(const PrivacyPolicyScreen()),
@@ -294,75 +384,75 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.dataDeletion => _slideRoute(const DataDeletionScreen()),
 
     // -- Orders --
-    AppRoutes.purchaseOrders =>
-      _slideRoute(const PurchaseOrderListScreen()),
-    AppRoutes.createPurchaseOrder =>
-      _slideRoute(const CreatePurchaseOrderScreen()),
+    AppRoutes.purchaseOrders => _slideRoute(const PurchaseOrderListScreen()),
+    AppRoutes.createPurchaseOrder => _slideRoute(
+      const CreatePurchaseOrderScreen(),
+    ),
     AppRoutes.purchaseOrderDetail => () {
-        final poId = settings.arguments as String?;
-        return poId == null
-            ? _slideRoute(const PurchaseOrderListScreen())
-            : _slideRoute(PurchaseOrderDetailScreen(orderId: poId));
-      }(),
+      final poId = settings.arguments as String?;
+      return poId == null
+          ? _slideRoute(const PurchaseOrderListScreen())
+          : _slideRoute(PurchaseOrderDetailScreen(orderId: poId));
+    }(),
     AppRoutes.salesOrders => _slideRoute(const SalesOrderListScreen()),
-    AppRoutes.createSalesOrder =>
-      _slideRoute(const CreateSalesOrderScreen()),
+    AppRoutes.createSalesOrder => _slideRoute(const CreateSalesOrderScreen()),
     AppRoutes.salesOrderDetail => () {
-        final soId = settings.arguments as String?;
-        return soId == null
-            ? _slideRoute(const SalesOrderListScreen())
-            : _slideRoute(SalesOrderDetailScreen(orderId: soId));
-      }(),
+      final soId = settings.arguments as String?;
+      return soId == null
+          ? _slideRoute(const SalesOrderListScreen())
+          : _slideRoute(SalesOrderDetailScreen(orderId: soId));
+    }(),
 
     // -- Returns --
     AppRoutes.returns => _slideRoute(const ReturnsListScreen()),
     AppRoutes.createReturn => _slideRoute(const CreateReturnScreen()),
     AppRoutes.returnDetail => () {
-        final retId = settings.arguments as String?;
-        return retId == null
-            ? _slideRoute(const ReturnsListScreen())
-            : _slideRoute(ReturnDetailScreen(returnId: retId));
-      }(),
+      final retId = settings.arguments as String?;
+      return retId == null
+          ? _slideRoute(const ReturnsListScreen())
+          : _slideRoute(ReturnDetailScreen(returnId: retId));
+    }(),
 
     // -- Customers --
     AppRoutes.customers => _slideRoute(const CustomerListScreen()),
     AppRoutes.addCustomer => _slideRoute(const AddEditCustomerScreen()),
     AppRoutes.editCustomer => () {
-        final customer = settings.arguments as CustomerModel?;
-        return customer == null
-            ? _slideRoute(const CustomerListScreen())
-            : _slideRoute(AddEditCustomerScreen(customer: customer));
-      }(),
+      final customer = settings.arguments as CustomerModel?;
+      return customer == null
+          ? _slideRoute(const CustomerListScreen())
+          : _slideRoute(AddEditCustomerScreen(customer: customer));
+    }(),
     AppRoutes.customerDetail => () {
-        final customerId = settings.arguments as String?;
-        return customerId == null
-            ? _slideRoute(const CustomerListScreen())
-            : _slideRoute(CustomerDetailScreen(customerId: customerId));
-      }(),
+      final customerId = settings.arguments as String?;
+      return customerId == null
+          ? _slideRoute(const CustomerListScreen())
+          : _slideRoute(CustomerDetailScreen(customerId: customerId));
+    }(),
 
     // -- Scanner & Batches --
     AppRoutes.barcodeScanner => () {
-        final scanArgs = settings.arguments;
-        final captureOnly =
-            scanArgs is BarcodeScannerArgs && scanArgs.captureOnly;
-        return _slideRoute(BarcodeScannerScreen(captureOnly: captureOnly));
-      }(),
+      final scanArgs = settings.arguments;
+      final captureOnly =
+          scanArgs is BarcodeScannerArgs && scanArgs.captureOnly;
+      return _slideRoute(BarcodeScannerScreen(captureOnly: captureOnly));
+    }(),
     AppRoutes.batches => _slideRoute(const BatchListScreen()),
     AppRoutes.addBatch => _slideRoute(const AddBatchScreen()),
     AppRoutes.expiryAlerts => _slideRoute(const ExpiryAlertsScreen()),
 
     // -- Inventory --
-    AppRoutes.reorderSuggestions =>
-      _slideRoute(const ReorderSuggestionsScreen()),
+    AppRoutes.reorderSuggestions => _slideRoute(
+      const ReorderSuggestionsScreen(),
+    ),
     AppRoutes.stockForecast => _slideRoute(const StockForecastScreen()),
     AppRoutes.stockTakes => _slideRoute(const StockTakeListScreen()),
     AppRoutes.createStockTake => _slideRoute(const CreateStockTakeScreen()),
     AppRoutes.stockTakeCount => () {
-        final st = settings.arguments as StockTakeModel?;
-        return st == null
-            ? _slideRoute(const StockTakeListScreen())
-            : _slideRoute(StockTakeCountScreen(stockTake: st));
-      }(),
+      final st = settings.arguments as StockTakeModel?;
+      return st == null
+          ? _slideRoute(const StockTakeListScreen())
+          : _slideRoute(StockTakeCountScreen(stockTake: st));
+    }(),
 
     // -- Audit & Notifications --
     AppRoutes.auditLog => _slideRoute(const AuditLogScreen()),
@@ -371,14 +461,18 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.activityTimeline => _slideRoute(const ActivityTimelineScreen()),
 
     // -- Bulk (deferred) --
-    AppRoutes.bulkStockIn => _slideRoute(_DeferredScreenLoader(
+    AppRoutes.bulkStockIn => _slideRoute(
+      _DeferredScreenLoader(
         future: bulk_in.loadLibrary(),
         builder: (_) => bulk_in.BulkStockInScreen(),
-      )),
-    AppRoutes.bulkEdit => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.bulkEdit => _slideRoute(
+      _DeferredScreenLoader(
         future: bulk_edit.loadLibrary(),
         builder: (_) => bulk_edit.BulkEditScreen(),
-      )),
+      ),
+    ),
 
     // -- Onboarding & Company --
     AppRoutes.onboarding => _slideRoute(const OnboardingScreen()),
@@ -392,32 +486,35 @@ Route<dynamic>? onGenerateRoute(
     AppRoutes.profile => _slideRoute(const ProfileScreen()),
     AppRoutes.about => _slideRoute(const AboutScreen()),
     AppRoutes.help => _slideRoute(const HelpScreen()),
-    AppRoutes.homeCustomization =>
-      _slideRoute(const HomeCustomizationScreen()),
+    AppRoutes.homeCustomization => _slideRoute(const HomeCustomizationScreen()),
     AppRoutes.settings => _slideRoute(
-        SettingsScreen(initialSection: settings.arguments as String?)),
+      SettingsScreen(initialSection: settings.arguments as String?),
+    ),
 
     // -- Roles --
     AppRoutes.roles => _slideRoute(const RoleListScreen()),
-    AppRoutes.roleEditor =>
-      _slideRoute(RoleEditorScreen(role: settings.arguments as RoleModel?)),
+    AppRoutes.roleEditor => _slideRoute(
+      RoleEditorScreen(role: settings.arguments as RoleModel?),
+    ),
 
     // -- Billing (deferred) --
-    AppRoutes.invoices => _slideRoute(_DeferredScreenLoader(
+    AppRoutes.invoices => _slideRoute(
+      _DeferredScreenLoader(
         future: billing_list.loadLibrary(),
         builder: (_) => billing_list.InvoiceListScreen(),
-      )),
+      ),
+    ),
     AppRoutes.createInvoice => () {
-        final args = settings.arguments;
-        return _slideRoute(_DeferredScreenLoader(
+      final args = settings.arguments;
+      return _slideRoute(
+        _DeferredScreenLoader(
           future: billing_create.loadLibrary(),
           builder: (_) {
             if (args is Map<String, dynamic>) {
               return billing_create.CreateInvoiceScreen(
                 salesOrderId: args['salesOrderId'] as String?,
                 purchaseOrderId: args['purchaseOrderId'] as String?,
-                initialType:
-                    args['type'] as InvoiceType? ?? InvoiceType.sales,
+                initialType: args['type'] as InvoiceType? ?? InvoiceType.sales,
                 preselectedVendorId: args['vendorId'] as String?,
                 preselectedVendorName: args['vendorName'] as String?,
                 preselectedCustomerId: args['customerId'] as String?,
@@ -428,38 +525,52 @@ Route<dynamic>? onGenerateRoute(
               salesOrderId: args is String ? args : null,
             );
           },
-        ));
-      }(),
+        ),
+      );
+    }(),
     AppRoutes.invoiceDetail => () {
-        final invoiceId = settings.arguments as String?;
-        if (invoiceId == null) {
-          return _slideRoute(_DeferredScreenLoader(
+      final invoiceId = settings.arguments as String?;
+      if (invoiceId == null) {
+        return _slideRoute(
+          _DeferredScreenLoader(
             future: billing_list.loadLibrary(),
             builder: (_) => billing_list.InvoiceListScreen(),
-          ));
-        }
-        return _slideRoute(_DeferredScreenLoader(
+          ),
+        );
+      }
+      return _slideRoute(
+        _DeferredScreenLoader(
           future: billing_detail.loadLibrary(),
           builder: (_) =>
               billing_detail.InvoiceDetailRouteEntry(routeArgument: invoiceId),
-        ));
-      }(),
-    AppRoutes.billingSettings => _slideRoute(_DeferredScreenLoader(
+        ),
+      );
+    }(),
+    AppRoutes.billingSettings => _slideRoute(
+      _DeferredScreenLoader(
         future: billing_settings.loadLibrary(),
         builder: (_) => billing_settings.BillingSettingsScreen(),
-      )),
-    AppRoutes.billingReports => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.billingReports => _slideRoute(
+      _DeferredScreenLoader(
         future: billing_reports.loadLibrary(),
         builder: (_) => billing_reports.BillingReportsScreen(),
-      )),
-    AppRoutes.customerStatement => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.customerStatement => _slideRoute(
+      _DeferredScreenLoader(
         future: billing_cstmt.loadLibrary(),
         builder: (_) => billing_cstmt.CustomerStatementScreen(),
-      )),
-    AppRoutes.vendorStatement => _slideRoute(_DeferredScreenLoader(
+      ),
+    ),
+    AppRoutes.vendorStatement => _slideRoute(
+      _DeferredScreenLoader(
         future: billing_vstmt.loadLibrary(),
         builder: (_) => billing_vstmt.VendorStatementScreen(),
-      )),
+      ),
+    ),
+    AppRoutes.fastPos => _slideRoute(const FastPosScreen()),
 
     _ => MaterialPageRoute(builder: (_) => const LandingScreen()),
   };

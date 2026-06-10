@@ -32,7 +32,11 @@ void main() {
       final list = [
         _txn(id: '1', productId: 'a', date: today),
         _txn(id: '2', productId: 'b', date: yesterday),
-        _txn(id: '3', productId: 'c', date: today.add(const Duration(hours: 1))),
+        _txn(
+          id: '3',
+          productId: 'c',
+          date: today.add(const Duration(hours: 1)),
+        ),
       ];
 
       expect(StockCalculations.todayTransactionCount(list), 2);
@@ -40,9 +44,11 @@ void main() {
 
     test('returns zero when no transactions fall on today', () {
       final now = DateTime.now();
-      final past = DateTime(now.year, now.month, now.day).subtract(
-        const Duration(days: 2),
-      );
+      final past = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 2));
 
       expect(
         StockCalculations.todayTransactionCount([
@@ -55,21 +61,9 @@ void main() {
 
   group('StockCalculations.recentTransactions', () {
     test('returns up to [limit] items preserving input order', () {
-      final t1 = _txn(
-        id: '1',
-        productId: 'p',
-        date: DateTime(2024, 3, 1),
-      );
-      final t2 = _txn(
-        id: '2',
-        productId: 'p',
-        date: DateTime(2024, 3, 2),
-      );
-      final t3 = _txn(
-        id: '3',
-        productId: 'p',
-        date: DateTime(2024, 3, 3),
-      );
+      final t1 = _txn(id: '1', productId: 'p', date: DateTime(2024, 3, 1));
+      final t2 = _txn(id: '2', productId: 'p', date: DateTime(2024, 3, 2));
+      final t3 = _txn(id: '3', productId: 'p', date: DateTime(2024, 3, 3));
       final list = [t1, t2, t3];
 
       expect(StockCalculations.recentTransactions(list, limit: 2), [t1, t2]);
@@ -79,11 +73,7 @@ void main() {
     test('default limit is 5', () {
       final list = List.generate(
         7,
-        (i) => _txn(
-          id: '$i',
-          productId: 'p',
-          date: DateTime(2024, 1, i + 1),
-        ),
+        (i) => _txn(id: '$i', productId: 'p', date: DateTime(2024, 1, i + 1)),
       );
       expect(StockCalculations.recentTransactions(list), hasLength(5));
     });
@@ -110,10 +100,11 @@ void main() {
         date: DateTime(2024, 1, 3),
       );
 
-      final filtered = StockCalculations.filterByType(
-        [in1, out1, in2],
-        TransactionType.stockIn,
-      );
+      final filtered = StockCalculations.filterByType([
+        in1,
+        out1,
+        in2,
+      ], TransactionType.stockIn);
 
       expect(filtered, [in1, in2]);
     });
@@ -121,72 +112,77 @@ void main() {
 
   group('StockCalculations.filterByProduct', () {
     test('returns only transactions for the given product id', () {
-      final a1 = _txn(
-        id: '1',
-        productId: 'prod-a',
-        date: DateTime(2024, 2, 1),
-      );
-      final b1 = _txn(
-        id: '2',
-        productId: 'prod-b',
-        date: DateTime(2024, 2, 2),
-      );
-      final a2 = _txn(
-        id: '3',
-        productId: 'prod-a',
-        date: DateTime(2024, 2, 3),
-      );
+      final a1 = _txn(id: '1', productId: 'prod-a', date: DateTime(2024, 2, 1));
+      final b1 = _txn(id: '2', productId: 'prod-b', date: DateTime(2024, 2, 2));
+      final a2 = _txn(id: '3', productId: 'prod-a', date: DateTime(2024, 2, 3));
 
-      expect(
-        StockCalculations.filterByProduct([a1, b1, a2], 'prod-a'),
-        [a1, a2],
-      );
+      expect(StockCalculations.filterByProduct([a1, b1, a2], 'prod-a'), [
+        a1,
+        a2,
+      ]);
     });
   });
 
   group('StockCalculations.netStockChange', () {
-    test('adds stock in, subtracts stock out and damage, ignores transfer and adjustment', () {
-      final base = DateTime(2024, 5, 1);
-      final list = [
-        _txn(
-          id: '1',
-          productId: 'p',
-          type: TransactionType.stockIn,
-          quantity: 100,
-          date: base,
-        ),
-        _txn(
-          id: '2',
-          productId: 'p',
-          type: TransactionType.stockOut,
-          quantity: 30,
-          date: base,
-        ),
-        _txn(
-          id: '3',
-          productId: 'p',
-          type: TransactionType.damage,
-          quantity: 5,
-          date: base,
-        ),
-        _txn(
-          id: '4',
-          productId: 'p',
-          type: TransactionType.transfer,
-          quantity: 40,
-          date: base,
-        ),
-        _txn(
-          id: '5',
-          productId: 'p',
-          type: TransactionType.adjustment,
-          quantity: 99,
-          date: base,
-        ),
-      ];
+    test(
+      'adds stock in, subtracts stock out and damage, ignores non-physical hold flows',
+      () {
+        final base = DateTime(2024, 5, 1);
+        final list = [
+          _txn(
+            id: '1',
+            productId: 'p',
+            type: TransactionType.stockIn,
+            quantity: 100,
+            date: base,
+          ),
+          _txn(
+            id: '2',
+            productId: 'p',
+            type: TransactionType.stockOut,
+            quantity: 30,
+            date: base,
+          ),
+          _txn(
+            id: '3',
+            productId: 'p',
+            type: TransactionType.damage,
+            quantity: 5,
+            date: base,
+          ),
+          _txn(
+            id: '4',
+            productId: 'p',
+            type: TransactionType.transfer,
+            quantity: 40,
+            date: base,
+          ),
+          _txn(
+            id: '5',
+            productId: 'p',
+            type: TransactionType.adjustment,
+            quantity: 99,
+            date: base,
+          ),
+          _txn(
+            id: '6',
+            productId: 'p',
+            type: TransactionType.hold,
+            quantity: 15,
+            date: base,
+          ),
+          _txn(
+            id: '7',
+            productId: 'p',
+            type: TransactionType.holdRelease,
+            quantity: 15,
+            date: base,
+          ),
+        ];
 
-      expect(StockCalculations.netStockChange(list), 65);
-    });
+        expect(StockCalculations.netStockChange(list), 65);
+      },
+    );
 
     test('returns zero for empty list', () {
       expect(StockCalculations.netStockChange([]), 0);

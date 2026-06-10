@@ -91,505 +91,516 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   child: AutofillGroup(
                     child: Form(
-                    key: _formKey,
-                    autovalidateMode: _didAttemptSubmit
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Back button
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: GlassPanel(
-                            borderRadius: 14,
-                            padding: EdgeInsets.zero,
-                            useContentVariant: true,
-                            child: IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(
-                                Icons.arrow_back_rounded,
-                                size: 20,
+                      key: _formKey,
+                      autovalidateMode: _didAttemptSubmit
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Back button
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GlassPanel(
+                              borderRadius: 14,
+                              padding: EdgeInsets.zero,
+                              useContentVariant: true,
+                              child: IconButton(
+                                onPressed: () => Navigator.pop(context),
+                                icon: const Icon(
+                                  Icons.arrow_back_rounded,
+                                  size: 20,
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                constraints: const BoxConstraints(),
                               ),
-                              padding: const EdgeInsets.all(10),
-                              constraints: const BoxConstraints(),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 20),
 
-                        GlassPanel(
-                          borderRadius: 22,
-                          padding: const EdgeInsets.all(14),
-                          useContentVariant: true,
-                          child: Image.asset(
-                            'logo.png',
-                            width: 56,
-                            height: 56,
+                          GlassPanel(
+                            borderRadius: 22,
+                            padding: const EdgeInsets.all(14),
+                            useContentVariant: true,
+                            child: Image.asset(
+                              'logo.png',
+                              width: 56,
+                              height: 56,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Create Account',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textPri(context),
-                            letterSpacing: -0.5,
+                          const SizedBox(height: 20),
+                          Text(
+                            'Create Account',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textPri(context),
+                              letterSpacing: -0.5,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Enter your details below. You can update them later in settings.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textTer(context),
-                            height: 1.35,
+                          const SizedBox(height: 6),
+                          Text(
+                            'Enter your details below. You can update them later in settings.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.textTer(context),
+                              height: 1.35,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'All fields are required.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSec(context),
-                            fontStyle: FontStyle.italic,
+                          const SizedBox(height: 8),
+                          Text(
+                            'All fields are required.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSec(context),
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 20),
 
-                        Consumer<AuthProvider>(
-                          builder: (context, auth, _) {
-                            if (auth.errorMessage == null ||
-                                auth.errorMessage!.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.dangerColor.withValues(
-                                  alpha: 0.08,
+                          Consumer<AuthProvider>(
+                            builder: (context, auth, _) {
+                              if (auth.errorMessage == null ||
+                                  auth.errorMessage!.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
                                 ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
+                                decoration: BoxDecoration(
                                   color: AppTheme.dangerColor.withValues(
-                                    alpha: 0.25,
+                                    alpha: 0.08,
                                   ),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline_rounded,
-                                    color: AppTheme.dangerColor,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      auth.errorMessage!,
-                                      style: TextStyle(
-                                        color: AppTheme.dangerColor,
-                                        fontSize: 13,
-                                        height: 1.35,
-                                      ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppTheme.dangerColor.withValues(
+                                      alpha: 0.25,
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-
-                        // Business info card
-                        GlassPanel(
-                          borderRadius: 16,
-                          padding: const EdgeInsets.all(20),
-                          useContentVariant: true,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryColor.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.business_rounded,
-                                      color: AppTheme.primaryColor,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Business Details',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppTheme.textPri(context),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Your company or store name and contact',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.textSec(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              CustomTextField(
-                                controller: _companyNameController,
-                                label: 'Company / Business Name',
-                                hint: 'e.g. My Store, Acme Ltd',
-                                prefixIcon: Icons.storefront_rounded,
-                                autofillHints: const [
-                                  AutofillHints.organizationName,
-                                ],
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Company name is required';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              CustomTextField(
-                                controller: _phoneController,
-                                label: 'Phone Number',
-                                hint: 'e.g. +1 234 567 8900',
-                                prefixIcon: Icons.phone_rounded,
-                                keyboardType: TextInputType.phone,
-                                autofillHints: const [
-                                  AutofillHints.telephoneNumber,
-                                ],
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Phone number is required';
-                                  }
-                                  final digits = value.replaceAll(RegExp(r'[^\d+]'), '');
-                                  if (digits.length < 10) {
-                                    return 'Enter at least 10 digits';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Account info card
-                        GlassPanel(
-                          borderRadius: 16,
-                          padding: const EdgeInsets.all(20),
-                          useContentVariant: true,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.indigoColor.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.person_rounded,
-                                      color: AppTheme.indigoColor,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Account Details',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppTheme.textPri(context),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Login credentials for this app',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.textSec(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              CustomTextField(
-                                controller: _nameController,
-                                label: 'Full Name',
-                                hint: 'e.g. John Smith',
-                                prefixIcon: Icons.badge_rounded,
-                                autofillHints: const [AutofillHints.name],
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Full name is required';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              CustomTextField(
-                                controller: _emailController,
-                                label: 'Email Address',
-                                hint: 'e.g. you@company.com',
-                                prefixIcon: Icons.email_rounded,
-                                keyboardType: TextInputType.emailAddress,
-                                autofillHints: const [AutofillHints.email],
-                                validator: validateEmail,
-                              ),
-                              CustomTextField(
-                                controller: _passwordController,
-                                label: 'Password',
-                                hint: 'At least 6 characters',
-                                prefixIcon: Icons.lock_rounded,
-                                obscureText: !_showPassword,
-                                autofillHints: const [
-                                  AutofillHints.newPassword,
-                                ],
-                                onChanged: (_) => setState(() {}),
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _showPassword
-                                        ? Icons.visibility_off_rounded
-                                        : Icons.visibility_rounded,
-                                    size: 20,
-                                    color: AppTheme.textSec(context),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _showPassword = !_showPassword;
-                                    });
-                                  },
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Password is required';
-                                  }
-                                  if (value.length < 6) {
-                                    return 'Use at least 6 characters';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              if (_passwordController.text.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _PasswordStrengthIndicator(
-                                    password: _passwordController.text,
+                                    width: 1,
                                   ),
                                 ),
-                              CustomTextField(
-                                controller: _confirmPasswordController,
-                                label: 'Confirm Password',
-                                hint: 'Type your password again',
-                                prefixIcon: Icons.lock_rounded,
-                                obscureText: !_showConfirmPassword,
-                                onChanged: (_) => setState(() {}),
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    _showConfirmPassword
-                                        ? Icons.visibility_off_rounded
-                                        : Icons.visibility_rounded,
-                                    size: 20,
-                                    color: AppTheme.textSec(context),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _showConfirmPassword =
-                                          !_showConfirmPassword;
-                                    });
-                                  },
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please confirm your password';
-                                  }
-                                  if (value != _passwordController.text) {
-                                    return 'Passwords do not match';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              if (_confirmPasswordController
-                                  .text.isNotEmpty) ...[
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        _confirmPasswordController.text ==
-                                                _passwordController.text
-                                            ? Icons.check_circle_rounded
-                                            : Icons.cancel_rounded,
-                                        size: 16,
-                                        color: _confirmPasswordController
-                                                    .text ==
-                                                _passwordController.text
-                                            ? AppTheme.successColor
-                                            : AppTheme.dangerColor,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _confirmPasswordController.text ==
-                                                _passwordController.text
-                                            ? 'Passwords match'
-                                            : 'Passwords do not match',
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline_rounded,
+                                      color: AppTheme.dangerColor,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        auth.errorMessage!,
                                         style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: _confirmPasswordController
-                                                      .text ==
+                                          color: AppTheme.dangerColor,
+                                          fontSize: 13,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
+                          // Business info card
+                          GlassPanel(
+                            borderRadius: 16,
+                            padding: const EdgeInsets.all(20),
+                            useContentVariant: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.business_rounded,
+                                        color: AppTheme.primaryColor,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Business Details',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppTheme.textPri(context),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Your company or store name and contact',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                CustomTextField(
+                                  controller: _companyNameController,
+                                  label: 'Company / Business Name',
+                                  hint: 'e.g. My Store, Acme Ltd',
+                                  prefixIcon: Icons.storefront_rounded,
+                                  autofillHints: const [
+                                    AutofillHints.organizationName,
+                                  ],
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Company name is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                CustomTextField(
+                                  controller: _phoneController,
+                                  label: 'Phone Number',
+                                  hint: 'e.g. +1 234 567 8900',
+                                  prefixIcon: Icons.phone_rounded,
+                                  keyboardType: TextInputType.phone,
+                                  autofillHints: const [
+                                    AutofillHints.telephoneNumber,
+                                  ],
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Phone number is required';
+                                    }
+                                    final digits = value.replaceAll(
+                                      RegExp(r'[^\d+]'),
+                                      '',
+                                    );
+                                    if (digits.length < 10) {
+                                      return 'Enter at least 10 digits';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Account info card
+                          GlassPanel(
+                            borderRadius: 16,
+                            padding: const EdgeInsets.all(20),
+                            useContentVariant: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.indigoColor.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.person_rounded,
+                                        color: AppTheme.indigoColor,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Account Details',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppTheme.textPri(context),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Login credentials for this app',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                CustomTextField(
+                                  controller: _nameController,
+                                  label: 'Full Name',
+                                  hint: 'e.g. John Smith',
+                                  prefixIcon: Icons.badge_rounded,
+                                  autofillHints: const [AutofillHints.name],
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Full name is required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                CustomTextField(
+                                  controller: _emailController,
+                                  label: 'Email Address',
+                                  hint: 'e.g. you@company.com',
+                                  prefixIcon: Icons.email_rounded,
+                                  keyboardType: TextInputType.emailAddress,
+                                  autofillHints: const [AutofillHints.email],
+                                  validator: validateEmail,
+                                ),
+                                CustomTextField(
+                                  controller: _passwordController,
+                                  label: 'Password',
+                                  hint: 'At least 6 characters',
+                                  prefixIcon: Icons.lock_rounded,
+                                  obscureText: !_showPassword,
+                                  autofillHints: const [
+                                    AutofillHints.newPassword,
+                                  ],
+                                  onChanged: (_) => setState(() {}),
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                      _showPassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                      size: 20,
+                                      color: AppTheme.textSec(context),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showPassword = !_showPassword;
+                                      });
+                                    },
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Password is required';
+                                    }
+                                    if (value.length < 6) {
+                                      return 'Use at least 6 characters';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                if (_passwordController.text.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _PasswordStrengthIndicator(
+                                      password: _passwordController.text,
+                                    ),
+                                  ),
+                                CustomTextField(
+                                  controller: _confirmPasswordController,
+                                  label: 'Confirm Password',
+                                  hint: 'Type your password again',
+                                  prefixIcon: Icons.lock_rounded,
+                                  obscureText: !_showConfirmPassword,
+                                  onChanged: (_) => setState(() {}),
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                      _showConfirmPassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                      size: 20,
+                                      color: AppTheme.textSec(context),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showConfirmPassword =
+                                            !_showConfirmPassword;
+                                      });
+                                    },
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please confirm your password';
+                                    }
+                                    if (value != _passwordController.text) {
+                                      return 'Passwords do not match';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                if (_confirmPasswordController
+                                    .text
+                                    .isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _confirmPasswordController.text ==
+                                                  _passwordController.text
+                                              ? Icons.check_circle_rounded
+                                              : Icons.cancel_rounded,
+                                          size: 16,
+                                          color:
+                                              _confirmPasswordController.text ==
                                                   _passwordController.text
                                               ? AppTheme.successColor
                                               : AppTheme.dangerColor,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Register button with gradient
-                        Semantics(
-                          button: true,
-                          label: 'Create account',
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: AppTheme.coloredShadow(
-                                AppTheme.primaryColor,
-                              ),
-                            ),
-                            child: Consumer<AuthProvider>(
-                              builder: (context, auth, _) {
-                                return ElevatedButton(
-                                  onPressed: auth.isLoading ? null : _register,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    disabledBackgroundColor: Colors.transparent,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: auth.isLoading
-                                      ? const SizedBox(
-                                          height: 22,
-                                          width: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _confirmPasswordController.text ==
+                                                  _passwordController.text
+                                              ? 'Passwords match'
+                                              : 'Passwords do not match',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                _confirmPasswordController
+                                                        .text ==
+                                                    _passwordController.text
+                                                ? AppTheme.successColor
+                                                : AppTheme.dangerColor,
                                           ),
-                                        )
-                                      : const Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              'Create Account',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            SizedBox(width: 8),
-                                            Icon(
-                                              Icons.arrow_forward_rounded,
-                                              size: 20,
-                                            ),
-                                          ],
                                         ),
-                                );
-                              },
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                        ),
 
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Already have an account? ',
-                              style: TextStyle(
-                                color: AppTheme.textTer(context),
-                                fontSize: 14,
+                          // Register button with gradient
+                          Semantics(
+                            button: true,
+                            label: 'Create account',
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: AppTheme.coloredShadow(
+                                  AppTheme.primaryColor,
+                                ),
+                              ),
+                              child: Consumer<AuthProvider>(
+                                builder: (context, auth, _) {
+                                  return ElevatedButton(
+                                    onPressed: auth.isLoading
+                                        ? null
+                                        : _register,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      disabledBackgroundColor:
+                                          Colors.transparent,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: auth.isLoading
+                                        ? const SizedBox(
+                                            height: 22,
+                                            width: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                'Create Account',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              SizedBox(width: 8),
+                                              Icon(
+                                                Icons.arrow_forward_rounded,
+                                                size: 20,
+                                              ),
+                                            ],
+                                          ),
+                                  );
+                                },
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                context.read<AuthProvider>().clearError();
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  AppRoutes.login,
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 40),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text(
-                                'Sign in',
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Already have an account? ',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textTer(context),
                                   fontSize: 14,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                              TextButton(
+                                onPressed: () {
+                                  context.read<AuthProvider>().clearError();
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    AppRoutes.login,
+                                  );
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 40),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Sign in',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ),

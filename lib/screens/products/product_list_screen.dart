@@ -149,324 +149,329 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final productProvider = context.watch<ProductProvider>();
     _productProvider = productProvider;
     final user = context.watch<AuthProvider>().currentUser;
-    final canManageProducts = user?.hasPermission(AppPermissions.addProducts) ?? false;
+    final canManageProducts =
+        user?.hasPermission(AppPermissions.addProducts) ?? false;
     final isMobile = Responsive.isMobile(context);
 
     return PermissionGate(
       permission: AppPermissions.viewProducts,
       featureName: 'Products',
       child: Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverAppBar(
-                  pinned: true,
-                  floating: true,
-                  snap: true,
-                  elevation: 0,
-                  backgroundColor: AppTheme.surface(context),
-                  surfaceTintColor: Colors.transparent,
-                  automaticallyImplyLeading: true,
-                  title: Text(
-                    'Products (${productProvider.products.length})',
-                    style: TextStyle(
-                      color: AppTheme.textPri(context),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  actions: [
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.sort_rounded, size: 22),
-                      tooltip: 'Sort',
-                      onSelected: (value) {
-                        productProvider.sortProducts(value);
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'name',
-                          child: Text('Name (A-Z)'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'quantity',
-                          child: Text('Stock (Low-High)'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'quantity_desc',
-                          child: Text('Stock (High-Low)'),
-                        ),
-                      ],
-                    ),
-                  ],
-                  bottom: PreferredSize(
-                    preferredSize: const Size(double.infinity, 72),
-                    child: Container(
-                      color: AppTheme.surface(context),
-                      padding: EdgeInsets.fromLTRB(
-                        Responsive.horizontalPadding(context),
-                        8,
-                        Responsive.horizontalPadding(context),
-                        8,
+        backgroundColor: AppTheme.bg(context),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  SliverAppBar(
+                    pinned: true,
+                    floating: true,
+                    snap: true,
+                    elevation: 0,
+                    backgroundColor: AppTheme.surface(context),
+                    surfaceTintColor: Colors.transparent,
+                    automaticallyImplyLeading: true,
+                    title: Text(
+                      'Products (${productProvider.products.length})',
+                      style: TextStyle(
+                        color: AppTheme.textPri(context),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(child: _buildSearchBar(productProvider)),
-                          const SizedBox(width: 10),
-                          _buildFilterButton(productProvider, isMobile),
+                    ),
+                    actions: [
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.sort_rounded, size: 22),
+                        tooltip: 'Sort',
+                        onSelected: (value) {
+                          productProvider.sortProducts(value);
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'name',
+                            child: Text('Name (A-Z)'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'quantity',
+                            child: Text('Stock (Low-High)'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'quantity_desc',
+                            child: Text('Stock (High-Low)'),
+                          ),
                         ],
                       ),
+                    ],
+                    bottom: PreferredSize(
+                      preferredSize: const Size(double.infinity, 72),
+                      child: Container(
+                        color: AppTheme.surface(context),
+                        padding: EdgeInsets.fromLTRB(
+                          Responsive.horizontalPadding(context),
+                          8,
+                          Responsive.horizontalPadding(context),
+                          8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildSearchBar(productProvider)),
+                            const SizedBox(width: 10),
+                            _buildFilterButton(productProvider, isMobile),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                if (productProvider.errorMessage != null &&
-                    productProvider.products.isNotEmpty)
+                  if (productProvider.errorMessage != null &&
+                      productProvider.products.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          Responsive.horizontalPadding(context),
+                          0,
+                          Responsive.horizontalPadding(context),
+                          8,
+                        ),
+                        child: ProviderErrorBanner(
+                          message: productProvider.errorMessage!,
+                          onDismiss: () => productProvider.clearError(),
+                          onRetry: () => productProvider.refreshProducts(),
+                        ),
+                      ),
+                    ),
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        Responsive.horizontalPadding(context),
-                        0,
-                        Responsive.horizontalPadding(context),
-                        8,
-                      ),
-                      child: ProviderErrorBanner(
-                        message: productProvider.errorMessage!,
-                        onDismiss: () => productProvider.clearError(),
-                        onRetry: () => productProvider.refreshProducts(),
-                      ),
+                    child: _PrimaryFilterChips(
+                      productProvider: productProvider,
                     ),
                   ),
-                SliverToBoxAdapter(
-                  child: _PrimaryFilterChips(productProvider: productProvider),
-                ),
-                SliverToBoxAdapter(
-                  child: _ActiveFilterChips(
-                    onClearAll: () {
-                      productProvider.clearFilters();
-                      _searchController.clear();
-                      setState(() {});
-                    },
+                  SliverToBoxAdapter(
+                    child: _ActiveFilterChips(
+                      onClearAll: () {
+                        productProvider.clearFilters();
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    ),
                   ),
-                ),
-                if (!isMobile && _showFilters)
-                  SliverToBoxAdapter(child: const _FilterSection()),
-              ];
-            },
-            body: RefreshIndicator(
-              onRefresh: () async {
-                await productProvider.refreshProducts();
-                if (mounted) {
-                  _searchController.clear();
-                  setState(() {});
-                }
+                  if (!isMobile && _showFilters)
+                    SliverToBoxAdapter(child: const _FilterSection()),
+                ];
               },
-              child: Builder(
-                builder: (context) {
-                  if (productProvider.isLoading) {
-                    _startLoadingTimer();
-                    if (_loadingTooLong) {
-                      return SingleChildScrollView(
-                        physics: Responsive.scrollPhysics(context),
-                        child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 32,
-                                  height: 32,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Loading is taking longer than usual...',
-                                  style: TextStyle(
-                                    color: AppTheme.textSec(context),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextButton.icon(
-                                  onPressed: () {
-                                    _cancelLoadingTimer();
-                                    productProvider.refreshProducts();
-                                  },
-                                  icon: const Icon(
-                                    Icons.refresh_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return const ShimmerLoading(
-                      itemCount: 6,
-                      layout: ShimmerLayout.card,
-                    );
+              body: RefreshIndicator(
+                onRefresh: () async {
+                  await productProvider.refreshProducts();
+                  if (mounted) {
+                    _searchController.clear();
+                    setState(() {});
                   }
-
-                  _cancelLoadingTimer();
-
-                  if (productProvider.errorMessage != null) {
-                    return SingleChildScrollView(
-                      physics: Responsive.scrollPhysics(context),
-                      child: SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        child: EmptyStateWidget(
-                          icon: Icons.cloud_off_rounded,
-                          title: 'Could Not Load Products',
-                          subtitle: productProvider.errorMessage!,
-                          buttonText: 'Retry',
-                          onButtonPressed: () {
-                            productProvider.refreshProducts();
-                          },
-                        ),
-                      ),
-                    );
-                  }
-
-                  final isSearchOrDebounce =
-                      productProvider.isSearching || _isDebouncing;
-
-                  if (productProvider.products.isEmpty) {
-                    if (isSearchOrDebounce) {
-                      return SingleChildScrollView(
-                        physics: Responsive.scrollPhysics(context),
-                        child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 32,
-                                  height: 32,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Searching...',
-                                  style: TextStyle(
-                                    color: AppTheme.textSec(context),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    // Analytics still loading — filter may find more once
-                    // the full set arrives.
-                    if (productProvider.hasActiveFilters &&
-                        productProvider.isLoadingAnalytics) {
-                      return SingleChildScrollView(
-                        physics: Responsive.scrollPhysics(context),
-                        child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 32,
-                                  height: 32,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Loading products...',
-                                  style: TextStyle(
-                                    color: AppTheme.textSec(context),
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-
-                    return SingleChildScrollView(
-                      physics: Responsive.scrollPhysics(context),
-                      child: SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.6,
-                        child: EmptyStateWidget(
-                          icon: Icons.inventory_2_outlined,
-                          title: 'No Products Found',
-                          subtitle:
-                              _searchController.text.isNotEmpty ||
-                                  productProvider.hasActiveFilters
-                              ? 'Try different search or filters'
-                              : 'Add your first product to get started',
-                          buttonText: canManageProducts ? 'Add Product' : null,
-                          onButtonPressed: canManageProducts
-                              ? () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.addProduct,
-                                )
-                              : null,
-                        ),
-                      ),
-                    );
-                  }
-
-                  return _buildProductList(context, productProvider);
                 },
+                child: Builder(
+                  builder: (context) {
+                    if (productProvider.isLoading) {
+                      _startLoadingTimer();
+                      if (_loadingTooLong) {
+                        return SingleChildScrollView(
+                          physics: Responsive.scrollPhysics(context),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading is taking longer than usual...',
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      _cancelLoadingTimer();
+                                      productProvider.refreshProducts();
+                                    },
+                                    icon: const Icon(
+                                      Icons.refresh_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return const ShimmerLoading(
+                        itemCount: 6,
+                        layout: ShimmerLayout.card,
+                      );
+                    }
+
+                    _cancelLoadingTimer();
+
+                    if (productProvider.errorMessage != null) {
+                      return SingleChildScrollView(
+                        physics: Responsive.scrollPhysics(context),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: EmptyStateWidget(
+                            icon: Icons.cloud_off_rounded,
+                            title: 'Could Not Load Products',
+                            subtitle: productProvider.errorMessage!,
+                            buttonText: 'Retry',
+                            onButtonPressed: () {
+                              productProvider.refreshProducts();
+                            },
+                          ),
+                        ),
+                      );
+                    }
+
+                    final isSearchOrDebounce =
+                        productProvider.isSearching || _isDebouncing;
+
+                    if (productProvider.products.isEmpty) {
+                      if (isSearchOrDebounce) {
+                        return SingleChildScrollView(
+                          physics: Responsive.scrollPhysics(context),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Searching...',
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Analytics still loading — filter may find more once
+                      // the full set arrives.
+                      if (productProvider.hasActiveFilters &&
+                          productProvider.isLoadingAnalytics) {
+                        return SingleChildScrollView(
+                          physics: Responsive.scrollPhysics(context),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading products...',
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return SingleChildScrollView(
+                        physics: Responsive.scrollPhysics(context),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: EmptyStateWidget(
+                            icon: Icons.inventory_2_outlined,
+                            title: 'No Products Found',
+                            subtitle:
+                                _searchController.text.isNotEmpty ||
+                                    productProvider.hasActiveFilters
+                                ? 'Try different search or filters'
+                                : 'Add your first product to get started',
+                            buttonText: canManageProducts
+                                ? 'Add Product'
+                                : null,
+                            onButtonPressed: canManageProducts
+                                ? () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.addProduct,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return _buildProductList(context, productProvider);
+                  },
+                ),
               ),
             ),
           ),
         ),
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_showScrollTop)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: FloatingActionButton.small(
-                heroTag: 'scroll_top',
-                tooltip: 'Scroll to top',
-                onPressed: () => _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_showScrollTop)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FloatingActionButton.small(
+                  heroTag: 'scroll_top',
+                  tooltip: 'Scroll to top',
+                  onPressed: () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutCubic,
+                  ),
+                  backgroundColor: AppTheme.surface(context),
+                  foregroundColor: AppTheme.primaryColor,
+                  child: const Icon(Icons.arrow_upward_rounded),
                 ),
-                backgroundColor: AppTheme.surface(context),
-                foregroundColor: AppTheme.primaryColor,
-                child: const Icon(Icons.arrow_upward_rounded),
               ),
-            ),
-          if (canManageProducts)
-            FloatingActionButton(
-              heroTag: 'add_product',
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.addProduct),
-              tooltip: 'Add Product',
-              child: const Icon(Icons.add),
-            ),
-        ],
+            if (canManageProducts)
+              FloatingActionButton(
+                heroTag: 'add_product',
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.addProduct),
+                tooltip: 'Add Product',
+                child: const Icon(Icons.add),
+              ),
+          ],
+        ),
       ),
-    ),
     );
   }
 

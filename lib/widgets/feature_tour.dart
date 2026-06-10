@@ -184,8 +184,9 @@ class _FeatureTourState extends State<FeatureTour>
                             decoration: BoxDecoration(
                               color: i <= _step
                                   ? AppTheme.primaryColor
-                                  : AppTheme.primaryColor
-                                        .withValues(alpha: 0.15),
+                                  : AppTheme.primaryColor.withValues(
+                                      alpha: 0.15,
+                                    ),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),

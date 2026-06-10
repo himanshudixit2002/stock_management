@@ -34,13 +34,38 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   DateTime? _lastBackPress;
   bool _showTour = false;
 
+  // Drives a gentle fade + rise when switching tabs. The IndexedStack keeps its
+  // identity (so each tab's state/scroll position is preserved) while this
+  // controller animates only the opacity/offset for a soft, cloudy settle.
+  late final AnimationController _tabController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+  late final Animation<double> _tabFade = CurvedAnimation(
+    parent: _tabController,
+    curve: Curves.easeOut,
+  );
+  late final Animation<Offset> _tabSlide = Tween<Offset>(
+    begin: const Offset(0, 0.02),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _tabController, curve: Curves.easeOutCubic));
+
+  void _playTabTransition() => _tabController.forward(from: 0.55);
+
+  Widget _tabTransition(Widget child) => FadeTransition(
+    opacity: _tabFade,
+    child: SlideTransition(position: _tabSlide, child: child),
+  );
+
   void switchToTab(int index) {
     setState(() => _currentIndex = index);
+    _playTabTransition();
     _loadAnalyticsIfNeeded(index);
   }
 
@@ -58,6 +83,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   void _onTabSelected(int index) {
     setState(() => _currentIndex = index);
+    _playTabTransition();
     _loadAnalyticsIfNeeded(index);
   }
 
@@ -71,6 +97,7 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController.forward();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadAnalyticsIfNeeded(0);
       _checkFeatureTour();
@@ -78,11 +105,18 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isWide = Responsive.isWide(context);
 
     final perms = context.select<AuthProvider, Map<String, bool>>(
-      (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
+      (a) =>
+          a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
 
     final tabs = <_TabItem>[
@@ -195,9 +229,11 @@ class HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Expanded(
-                child: IndexedStack(
-                  index: safeIndex,
-                  children: tabs.map((t) => t.body).toList(),
+                child: _tabTransition(
+                  IndexedStack(
+                    index: safeIndex,
+                    children: tabs.map((t) => t.body).toList(),
+                  ),
                 ),
               ),
             ],
@@ -209,9 +245,11 @@ class HomeScreenState extends State<HomeScreen> {
         backgroundColor: AppTheme.bg(context),
         body: Container(
           decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-          child: IndexedStack(
-            index: safeIndex,
-            children: tabs.map((t) => t.body).toList(),
+          child: _tabTransition(
+            IndexedStack(
+              index: safeIndex,
+              children: tabs.map((t) => t.body).toList(),
+            ),
           ),
         ),
         bottomNavigationBar: _CustomBottomNav(
@@ -236,31 +274,36 @@ class HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          if (_currentIndex != 0) {
-            setState(() => _currentIndex = 0);
-            return;
-          }
-          final now = DateTime.now();
-          if (_lastBackPress != null &&
-              now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
-            SystemNavigator.pop();
-            return;
-          }
-          _lastBackPress = now;
-          showInfoSnackBar(context, 'Press back again to exit');
-        },
-        child: Stack(
-          children: [
-            scaffold,
-            if (_showTour)
-              FeatureTour(onComplete: () => setState(() => _showTour = false)),
-          ],
-        ),
-      )),
+          Expanded(
+            child: PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) return;
+                if (_currentIndex != 0) {
+                  setState(() => _currentIndex = 0);
+                  return;
+                }
+                final now = DateTime.now();
+                if (_lastBackPress != null &&
+                    now.difference(_lastBackPress!) <
+                        const Duration(seconds: 2)) {
+                  SystemNavigator.pop();
+                  return;
+                }
+                _lastBackPress = now;
+                showInfoSnackBar(context, 'Press back again to exit');
+              },
+              child: Stack(
+                children: [
+                  scaffold,
+                  if (_showTour)
+                    FeatureTour(
+                      onComplete: () => setState(() => _showTour = false),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -519,6 +562,28 @@ class _HomeTabState extends State<_HomeTab> {
           'Adjust',
           AppTheme.warningColor,
           AppRoutes.stockAdjustment,
+        ),
+      if (perms['canHoldStock'] == true)
+        _SpeedDialItem(
+          Icons.pause_circle_rounded,
+          'Hold Stock',
+          AppTheme.warningColor,
+          AppRoutes.stockHold,
+        ),
+      if (perms['canReleaseStock'] == true)
+        _SpeedDialItem(
+          Icons.play_circle_rounded,
+          'Release Hold',
+          AppTheme.successColor,
+          AppRoutes.stockRelease,
+        ),
+      if (perms['canUseFastPos'] == true &&
+          context.watch<BillingSettingsProvider>().billingEnabled)
+        _SpeedDialItem(
+          Icons.point_of_sale_rounded,
+          'Fast POS',
+          AppTheme.successColor,
+          AppRoutes.fastPos,
         ),
     ];
 
@@ -916,6 +981,21 @@ class _HomeTabState extends State<_HomeTab> {
                                   ),
                                 ),
                               ),
+                            if (context
+                                    .watch<BillingSettingsProvider>()
+                                    .billingEnabled &&
+                                perms['canUseFastPos'] == true)
+                              SizedBox(
+                                width: cardWidth,
+                                child: _NavTile(
+                                  icon: Icons.point_of_sale_rounded,
+                                  label: 'Fast POS',
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.fastPos,
+                                  ),
+                                ),
+                              ),
                           ],
                         );
                       },
@@ -1014,6 +1094,18 @@ class _HomeTabState extends State<_HomeTab> {
                                 ),
                               ),
                             ),
+                            if (perms['canViewStockHolds'] == true)
+                              SizedBox(
+                                width: cardWidth,
+                                child: _NavTile(
+                                  icon: Icons.lock_clock_rounded,
+                                  label: 'Stock Holds',
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.stockHolds,
+                                  ),
+                                ),
+                              ),
                           ],
                         );
                       },
@@ -1137,54 +1229,54 @@ class _ActionCardState extends State<_ActionCard> {
       button: true,
       label: widget.label,
       child: GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        HapticFeedback.lightImpact();
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.95 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          decoration: BoxDecoration(
-            gradient: widget.gradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: widget.gradient.colors.first.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          HapticFeedback.lightImpact();
+          widget.onTap();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.95 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(
+              gradient: widget.gradient,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.gradient.colors.first.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-                child: Icon(widget.icon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  letterSpacing: 0.2,
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(widget.icon, color: Colors.white, size: 24),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  widget.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -1197,7 +1289,8 @@ class _QuickStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final perms = context.select<AuthProvider, Map<String, bool>>(
-      (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
+      (a) =>
+          a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
 
     final isInitialLoading = context.select<ProductProvider, bool>(
@@ -1217,10 +1310,14 @@ class _QuickStats extends StatelessWidget {
     );
     final todayTxns = context.select<StockProvider, int>((s) {
       final now = DateTime.now();
-      return s.allTransactions.where((t) =>
-          t.date.year == now.year &&
-          t.date.month == now.month &&
-          t.date.day == now.day).length;
+      return s.allTransactions
+          .where(
+            (t) =>
+                t.date.year == now.year &&
+                t.date.month == now.month &&
+                t.date.day == now.day,
+          )
+          .length;
     });
 
     int tabIndexFor(String tabLabel) {
@@ -1310,7 +1407,9 @@ class _QuickStats extends StatelessWidget {
                       onTap: () {
                         final idx = tabIndexFor('Products');
                         if (idx > 0) {
-                          context.read<ProductProvider>().filterByStockStatus('out_of_stock');
+                          context.read<ProductProvider>().filterByStockStatus(
+                            'out_of_stock',
+                          );
                           context
                               .findAncestorStateOfType<HomeScreenState>()
                               ?.switchToTab(idx);
@@ -1557,14 +1656,22 @@ class _InsightsCardState extends State<_InsightsCard> {
 
   @override
   Widget build(BuildContext context) {
-    final lowStockCount = context.select<ProductProvider, int>((p) => p.lowStockCount);
-    final outOfStockCount = context.select<ProductProvider, int>((p) => p.outOfStockCount);
+    final lowStockCount = context.select<ProductProvider, int>(
+      (p) => p.lowStockCount,
+    );
+    final outOfStockCount = context.select<ProductProvider, int>(
+      (p) => p.outOfStockCount,
+    );
     final todayTxns = context.select<StockProvider, int>((s) {
       final now = DateTime.now();
-      return s.allTransactions.where((t) =>
-          t.date.year == now.year &&
-          t.date.month == now.month &&
-          t.date.day == now.day).length;
+      return s.allTransactions
+          .where(
+            (t) =>
+                t.date.year == now.year &&
+                t.date.month == now.month &&
+                t.date.day == now.day,
+          )
+          .length;
     });
 
     final insights = <_InsightItem>[
@@ -1764,7 +1871,7 @@ class _FavoritesSection extends StatelessWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: favProducts.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, index) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 final product = favProducts[i];
                 return GestureDetector(
@@ -1852,11 +1959,12 @@ class _TipOfTheDayState extends State<_TipOfTheDay> {
   Future<void> _checkDismissed() async {
     final prefs = await SharedPreferences.getInstance();
     final dismissed = prefs.getBool(_prefKey) ?? false;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _dismissed = dismissed;
         _loaded = true;
       });
+    }
   }
 
   Future<void> _dismiss() async {
@@ -2047,6 +2155,14 @@ class _TransactionTile extends StatelessWidget {
         AppTheme.indigoColor,
       ),
       TransactionType.adjustment => (Icons.tune_rounded, AppTheme.warningColor),
+      TransactionType.hold => (
+        Icons.pause_circle_rounded,
+        AppTheme.warningColor,
+      ),
+      TransactionType.holdRelease => (
+        Icons.play_circle_rounded,
+        AppTheme.successColor,
+      ),
     };
 
     final typeLabel = switch (txn.type) {
@@ -2055,6 +2171,8 @@ class _TransactionTile extends StatelessWidget {
       TransactionType.damage => 'DMG',
       TransactionType.transfer => 'TFR',
       TransactionType.adjustment => 'ADJ',
+      TransactionType.hold => 'HLD',
+      TransactionType.holdRelease => 'REL',
     };
 
     final now = DateTime.now();

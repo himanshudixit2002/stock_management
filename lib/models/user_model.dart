@@ -25,11 +25,11 @@ class CompanyMembership {
   }
 
   Map<String, dynamic> toMap() => {
-        'companyId': companyId,
-        'companyName': companyName,
-        'role': role,
-        'roleId': roleId,
-      };
+    'companyId': companyId,
+    'companyName': companyName,
+    'role': role,
+    'roleId': roleId,
+  };
 
   bool get isAdmin => role == 'admin' || role == 'owner';
 }
@@ -61,6 +61,9 @@ class UserModel {
     'canDamage',
     'canTransfer',
     'canAdjustStock',
+    'canHoldStock',
+    'canReleaseStock',
+    'canViewStockHolds',
     'canViewProducts',
     'canManageProducts',
     'canManageCategories',
@@ -81,6 +84,9 @@ class UserModel {
     'canDamage': 'Record Damage',
     'canTransfer': 'Transfer Stock',
     'canAdjustStock': 'Adjust Stock (Admin)',
+    'canHoldStock': 'Hold Stock',
+    'canReleaseStock': 'Release Held Stock',
+    'canViewStockHolds': 'View Stock Holds',
     'canViewProducts': 'View Products',
     'canManageProducts': 'Add / Edit Products',
     'canManageCategories': 'Manage Categories',
@@ -113,8 +119,8 @@ class UserModel {
     required this.createdAt,
     Map<String, bool>? permissions,
     List<CompanyMembership>? companyMemberships,
-  })  : permissions = permissions ?? defaultPermissions,
-        companyMemberships = companyMemberships ?? const [];
+  }) : permissions = permissions ?? defaultPermissions,
+       companyMemberships = companyMemberships ?? const [];
 
   bool get isAdmin => role == 'admin' || role == 'owner';
   bool get isStaff => role == 'staff';
@@ -128,8 +134,7 @@ class UserModel {
 
   bool hasPermission(String key) => effectivePermissions[key] ?? false;
 
-  bool hasAnyPermission(List<String> keys) =>
-      keys.any((k) => hasPermission(k));
+  bool hasAnyPermission(List<String> keys) => keys.any((k) => hasPermission(k));
 
   bool hasAllPermissions(List<String> keys) =>
       keys.every((k) => hasPermission(k));
@@ -149,10 +154,14 @@ class UserModel {
     }
 
     List<CompanyMembership> memberships = [];
-    if (map['companyMemberships'] != null && map['companyMemberships'] is List) {
+    if (map['companyMemberships'] != null &&
+        map['companyMemberships'] is List) {
       memberships = (map['companyMemberships'] as List)
           .where((e) => e is Map)
-          .map((e) => CompanyMembership.fromMap(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) =>
+                CompanyMembership.fromMap(Map<String, dynamic>.from(e as Map)),
+          )
           .toList();
     }
 

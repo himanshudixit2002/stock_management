@@ -31,11 +31,18 @@ String? validatePassword(String? value) {
 
 String? validatePhone(String? value) {
   if (value == null || value.trim().isEmpty) return null;
-  final digits = value.replaceAll(RegExp(r'[^\d+]'), '');
+  final digits = value.replaceAll(RegExp(r'\D'), '');
   if (digits.length < 7 || digits.length > 15) {
     return 'Please enter a valid phone number';
   }
   return null;
+}
+
+String? validateRequiredPhone(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'Phone is required';
+  }
+  return validatePhone(value);
 }
 
 String? validateOptionalEmail(String? value) {

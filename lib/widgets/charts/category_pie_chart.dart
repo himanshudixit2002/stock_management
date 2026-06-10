@@ -60,12 +60,14 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                 PieChartData(
                   pieTouchData: PieTouchData(
                     touchCallback: (event, pieTouchResponse) {
-                      final newIdx = (!event.isInterestedForInteractions ||
+                      final newIdx =
+                          (!event.isInterestedForInteractions ||
                               pieTouchResponse == null ||
                               pieTouchResponse.touchedSection == null)
                           ? -1
                           : pieTouchResponse
-                              .touchedSection!.touchedSectionIndex;
+                                .touchedSection!
+                                .touchedSectionIndex;
 
                       setState(() => _touchedIndex = newIdx);
 
@@ -88,9 +90,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                     final entry = entries[i];
                     final pct = (entry.value / total * 100).toStringAsFixed(1);
                     final sliceColor = _colors[i % _colors.length];
-                    final labelColor = ThemeData.estimateBrightnessForColor(
-                              sliceColor,
-                            ) ==
+                    final labelColor =
+                        ThemeData.estimateBrightnessForColor(sliceColor) ==
                             Brightness.dark
                         ? Colors.white
                         : Colors.black87;

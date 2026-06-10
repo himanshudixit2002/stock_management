@@ -62,7 +62,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         onUnfavorite: () {
                           context.read<FavoritesProvider>().toggle(product.id);
                         },
-                        onTap: () => context.pushAppRoute(AppRoutes.productDetail,
+                        onTap: () => context.pushAppRoute(
+                          AppRoutes.productDetail,
                           extra: product,
                         ),
                       );
@@ -103,7 +104,10 @@ class _FavoriteProductCard extends StatelessWidget {
         useContentVariant: true,
         borderRadius: 16,
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
           onTap: onTap,
           leading: Container(
             width: 44,
@@ -112,11 +116,7 @@ class _FavoriteProductCard extends StatelessWidget {
               color: stockColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              Icons.inventory_2_rounded,
-              color: stockColor,
-              size: 22,
-            ),
+            child: Icon(Icons.inventory_2_rounded, color: stockColor, size: 22),
           ),
           title: Text(
             product.name,
@@ -142,10 +142,7 @@ class _FavoriteProductCard extends StatelessWidget {
             ],
           ),
           trailing: IconButton(
-            icon: const Icon(
-              Icons.star_rounded,
-              color: AppTheme.warningColor,
-            ),
+            icon: const Icon(Icons.star_rounded, color: AppTheme.warningColor),
             onPressed: onUnfavorite,
             tooltip: 'Remove from favorites',
           ),

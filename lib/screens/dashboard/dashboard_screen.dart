@@ -111,274 +111,283 @@ class _DashboardScreenState extends State<DashboardScreen> {
             },
             child: SingleChildScrollView(
               physics: Responsive.scrollPhysics(context),
-            padding: EdgeInsets.fromLTRB(
-              Responsive.horizontalPadding(context),
-              8,
-              Responsive.horizontalPadding(context),
-              24,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.contentMaxWidth(context),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Greeting
-                    Selector<AuthProvider, String>(
-                      selector: (_, auth) => auth.currentUser?.name ?? 'User',
-                      builder: (context, name, _) => Text(
-                        'Hi, $name',
-                        style: Theme.of(context).textTheme.headlineMedium,
+              padding: EdgeInsets.fromLTRB(
+                Responsive.horizontalPadding(context),
+                8,
+                Responsive.horizontalPadding(context),
+                24,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.contentMaxWidth(context),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Greeting
+                      Selector<AuthProvider, String>(
+                        selector: (_, auth) => auth.currentUser?.name ?? 'User',
+                        builder: (context, name, _) => Text(
+                          'Hi, $name',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(today, style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 2),
+                      Text(
+                        today,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
 
-                    Consumer<SettingsProvider>(
-                      builder: (context, settings, _) {
-                        if (!settings.vendorsEnabled) {
-                          return const SizedBox.shrink();
-                        }
-                        final vendorProvider = context.watch<VendorProvider>();
-                        final stockProvider = context.watch<StockProvider>();
-                        final productProvider = context
-                            .watch<ProductProvider>();
-                        if (vendorProvider.isLoading) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SizedBox(
-                              height: 36,
-                              child: Row(
-                                children: List.generate(
-                                  3,
-                                  (i) => Padding(
-                                    padding: EdgeInsets.only(right: 8),
-                                    child: Container(
-                                      width: 80,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.inputFill(context),
-                                        borderRadius: BorderRadius.circular(16),
+                      Consumer<SettingsProvider>(
+                        builder: (context, settings, _) {
+                          if (!settings.vendorsEnabled) {
+                            return const SizedBox.shrink();
+                          }
+                          final vendorProvider = context
+                              .watch<VendorProvider>();
+                          final stockProvider = context.watch<StockProvider>();
+                          final productProvider = context
+                              .watch<ProductProvider>();
+                          if (vendorProvider.isLoading) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: SizedBox(
+                                height: 36,
+                                child: Row(
+                                  children: List.generate(
+                                    3,
+                                    (i) => Padding(
+                                      padding: EdgeInsets.only(right: 8),
+                                      child: Container(
+                                        width: 80,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.inputFill(context),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        }
-                        final activeVendors = vendorProvider.activeVendors;
-                        if (activeVendors.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SizedBox(
-                            height: 36,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                _VendorToggleChip(
-                                  label: 'All Vendors',
-                                  isSelected:
-                                      stockProvider.filterVendorId.isEmpty &&
-                                      productProvider.selectedVendorId == null,
-                                  onTap: () {
-                                    stockProvider.setVendorFilter(null);
-                                    productProvider.filterByVendor(null);
-                                  },
-                                ),
-                                ...activeVendors.map(
-                                  (v) => _VendorToggleChip(
-                                    label: v.name,
+                            );
+                          }
+                          final activeVendors = vendorProvider.activeVendors;
+                          if (activeVendors.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: SizedBox(
+                              height: 36,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                children: [
+                                  _VendorToggleChip(
+                                    label: 'All Vendors',
                                     isSelected:
-                                        stockProvider.filterVendorId == v.id,
+                                        stockProvider.filterVendorId.isEmpty &&
+                                        productProvider.selectedVendorId ==
+                                            null,
                                     onTap: () {
-                                      final isActive =
-                                          stockProvider.filterVendorId == v.id;
-                                      stockProvider.setVendorFilter(
-                                        isActive ? null : v.id,
-                                      );
-                                      productProvider.filterByVendor(
-                                        isActive ? null : v.id,
-                                      );
+                                      stockProvider.setVendorFilter(null);
+                                      productProvider.filterByVendor(null);
                                     },
                                   ),
-                                ),
-                              ],
+                                  ...activeVendors.map(
+                                    (v) => _VendorToggleChip(
+                                      label: v.name,
+                                      isSelected:
+                                          stockProvider.filterVendorId == v.id,
+                                      onTap: () {
+                                        final isActive =
+                                            stockProvider.filterVendorId ==
+                                            v.id;
+                                        stockProvider.setVendorFilter(
+                                          isActive ? null : v.id,
+                                        );
+                                        productProvider.filterByVendor(
+                                          isActive ? null : v.id,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
 
-                    // Today summary
-                    Selector<StockProvider, bool>(
-                      selector: (_, s) => s.hasTodayActivity,
-                      builder: (context, hasActivity, _) {
-                        if (!hasActivity) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _TodaySummary(),
-                        );
-                      },
-                    ),
+                      // Today summary
+                      Selector<StockProvider, bool>(
+                        selector: (_, s) => s.hasTodayActivity,
+                        builder: (context, hasActivity, _) {
+                          if (!hasActivity) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _TodaySummary(),
+                          );
+                        },
+                      ),
 
-                    // Stats Cards
-                    const _StatsRow(),
+                      // Stats Cards
+                      const _StatsRow(),
 
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // Quick Actions
-                    Text(
-                      'Quick Actions',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    Selector<AuthProvider, bool>(
-                      selector: (_, auth) => auth.isAdmin,
-                      builder: (context, isAdmin, _) {
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            final actions = <Widget>[
-                              _QuickActionCard(
-                                icon: Icons.add_box_rounded,
-                                label: 'Stock In',
-                                subtitle: 'Add items',
-                                color: AppTheme.successColor,
-                                onTap: () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.stockIn,
-                                ),
-                              ),
-                              _QuickActionCard(
-                                icon: Icons.outbox_rounded,
-                                label: 'Stock Out',
-                                subtitle: 'Remove',
-                                color: AppTheme.primaryColor,
-                                onTap: () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.stockOut,
-                                ),
-                              ),
-                              _QuickActionCard(
-                                icon: Icons.swap_horiz_rounded,
-                                label: 'Transfer',
-                                subtitle: 'Move',
-                                color: AppTheme.indigoColor,
-                                onTap: () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.stockTransfer,
-                                ),
-                              ),
-                              _QuickActionCard(
-                                icon: Icons.report_problem_rounded,
-                                label: 'Damage',
-                                subtitle: 'Report',
-                                color: AppTheme.dangerColor,
-                                onTap: () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.damageReport,
-                                ),
-                              ),
-                              if (isAdmin) ...[
+                      // Quick Actions
+                      Text(
+                        'Quick Actions',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      Selector<AuthProvider, bool>(
+                        selector: (_, auth) => auth.isAdmin,
+                        builder: (context, isAdmin, _) {
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              final actions = <Widget>[
                                 _QuickActionCard(
-                                  icon: Icons.add_circle_rounded,
-                                  label: 'Add Item',
-                                  subtitle: 'New product',
-                                  color: AppTheme.primaryDark,
+                                  icon: Icons.add_box_rounded,
+                                  label: 'Stock In',
+                                  subtitle: 'Add items',
+                                  color: AppTheme.successColor,
                                   onTap: () => Navigator.pushNamed(
                                     context,
-                                    AppRoutes.addProduct,
+                                    AppRoutes.stockIn,
                                   ),
                                 ),
                                 _QuickActionCard(
-                                  icon: Icons.upload_file_rounded,
-                                  label: 'Import',
-                                  subtitle: 'From Excel',
-                                  color: AppTheme.accentColor,
+                                  icon: Icons.outbox_rounded,
+                                  label: 'Stock Out',
+                                  subtitle: 'Remove',
+                                  color: AppTheme.primaryColor,
                                   onTap: () => Navigator.pushNamed(
                                     context,
-                                    AppRoutes.excelImport,
+                                    AppRoutes.stockOut,
                                   ),
                                 ),
                                 _QuickActionCard(
-                                  icon: Icons.download_rounded,
-                                  label: 'Export',
-                                  subtitle: 'To Excel',
+                                  icon: Icons.swap_horiz_rounded,
+                                  label: 'Transfer',
+                                  subtitle: 'Move',
                                   color: AppTheme.indigoColor,
                                   onTap: () => Navigator.pushNamed(
                                     context,
-                                    AppRoutes.excelExport,
+                                    AppRoutes.stockTransfer,
                                   ),
                                 ),
-                              ],
-                            ];
+                                _QuickActionCard(
+                                  icon: Icons.report_problem_rounded,
+                                  label: 'Damage',
+                                  subtitle: 'Report',
+                                  color: AppTheme.dangerColor,
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.damageReport,
+                                  ),
+                                ),
+                                if (isAdmin) ...[
+                                  _QuickActionCard(
+                                    icon: Icons.add_circle_rounded,
+                                    label: 'Add Item',
+                                    subtitle: 'New product',
+                                    color: AppTheme.primaryDark,
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.addProduct,
+                                    ),
+                                  ),
+                                  _QuickActionCard(
+                                    icon: Icons.upload_file_rounded,
+                                    label: 'Import',
+                                    subtitle: 'From Excel',
+                                    color: AppTheme.accentColor,
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.excelImport,
+                                    ),
+                                  ),
+                                  _QuickActionCard(
+                                    icon: Icons.download_rounded,
+                                    label: 'Export',
+                                    subtitle: 'To Excel',
+                                    color: AppTheme.indigoColor,
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.excelExport,
+                                    ),
+                                  ),
+                                ],
+                              ];
 
-                            final crossAxisCount =
-                                Responsive.isDesktop(context)
-                                    ? 6
-                                    : (Responsive.isMobile(context) ? 2 : 4);
-                            const spacing = 10.0;
-                            final itemWidth = (constraints.maxWidth -
-                                    spacing * (crossAxisCount - 1)) /
-                                crossAxisCount;
+                              final crossAxisCount =
+                                  Responsive.isDesktop(context)
+                                  ? 6
+                                  : (Responsive.isMobile(context) ? 2 : 4);
+                              const spacing = 10.0;
+                              final itemWidth =
+                                  (constraints.maxWidth -
+                                      spacing * (crossAxisCount - 1)) /
+                                  crossAxisCount;
 
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: spacing,
-                              children: actions
-                                  .map(
-                                    (a) =>
-                                        SizedBox(width: itemWidth, child: a),
-                                  )
-                                  .toList(),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              return Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                children: actions
+                                    .map(
+                                      (a) =>
+                                          SizedBox(width: itemWidth, child: a),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                          );
+                        },
+                      ),
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 28),
 
-                    // Charts & Insights
-                    _ChartsSection(
-                      chartDays: _chartDays,
-                      onDaysChanged: (d) => setState(() => _chartDays = d),
-                    ),
+                      // Charts & Insights
+                      _ChartsSection(
+                        chartDays: _chartDays,
+                        onDaysChanged: (d) => setState(() => _chartDays = d),
+                      ),
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 28),
 
-                    // Recent Activity
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Recent Activity',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        TextButton.icon(
-                          onPressed: () =>
-                              Navigator.pushNamed(context, AppRoutes.reports),
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: const Text('View All'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                      // Recent Activity
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recent Activity',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          TextButton.icon(
+                            onPressed: () =>
+                                Navigator.pushNamed(context, AppRoutes.reports),
+                            icon: const Icon(Icons.arrow_forward, size: 16),
+                            label: const Text('View All'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
 
-                    const _RecentActivitySection(),
-                  ],
+                      const _RecentActivitySection(),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }
@@ -501,12 +510,13 @@ class _StatsRow extends StatelessWidget {
                             ),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount:
-                                  Responsive.isDesktop(context) ? 3 : 1,
-                              mainAxisExtent: 80,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                            ),
+                                  crossAxisCount: Responsive.isDesktop(context)
+                                      ? 3
+                                      : 1,
+                                  mainAxisExtent: 80,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                ),
                             itemCount: lowStock.length,
                             itemBuilder: (ctx3, index) {
                               final product = lowStock[index];
@@ -615,13 +625,25 @@ class _TodaySummary extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     if (inQty > 0)
-                      _TodayChip(label: '+$inQty in', color: AppTheme.successColor),
+                      _TodayChip(
+                        label: '+$inQty in',
+                        color: AppTheme.successColor,
+                      ),
                     if (outQty > 0)
-                      _TodayChip(label: '-$outQty out', color: AppTheme.primaryColor),
+                      _TodayChip(
+                        label: '-$outQty out',
+                        color: AppTheme.primaryColor,
+                      ),
                     if (xfrQty > 0)
-                      _TodayChip(label: '$xfrQty xfr', color: AppTheme.indigoColor),
+                      _TodayChip(
+                        label: '$xfrQty xfr',
+                        color: AppTheme.indigoColor,
+                      ),
                     if (dmgQty > 0)
-                      _TodayChip(label: '$dmgQty dmg', color: AppTheme.dangerColor),
+                      _TodayChip(
+                        label: '$dmgQty dmg',
+                        color: AppTheme.dangerColor,
+                      ),
                   ],
                 ),
               ),
@@ -661,7 +683,10 @@ class _RecentActivitySection extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'No recent activity',
-                  style: TextStyle(color: AppTheme.textTer(context), fontSize: 15),
+                  style: TextStyle(
+                    color: AppTheme.textTer(context),
+                    fontSize: 15,
+                  ),
                 ),
               ],
             ),
@@ -879,6 +904,14 @@ class _ActivityTile extends StatelessWidget {
         typeColor = AppTheme.warningColor;
         typeIcon = Icons.tune_rounded;
         break;
+      case TransactionType.hold:
+        typeColor = AppTheme.warningColor;
+        typeIcon = Icons.pause_circle_rounded;
+        break;
+      case TransactionType.holdRelease:
+        typeColor = AppTheme.successColor;
+        typeIcon = Icons.play_circle_rounded;
+        break;
     }
 
     return Container(
@@ -979,10 +1012,7 @@ class _ChartsSection extends StatelessWidget {
   final int chartDays;
   final ValueChanged<int> onDaysChanged;
 
-  const _ChartsSection({
-    required this.chartDays,
-    required this.onDaysChanged,
-  });
+  const _ChartsSection({required this.chartDays, required this.onDaysChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -996,8 +1026,11 @@ class _ChartsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.insights_rounded,
-                size: 20, color: AppTheme.primaryColor),
+            const Icon(
+              Icons.insights_rounded,
+              size: 20,
+              color: AppTheme.primaryColor,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1113,9 +1146,7 @@ class _ChartsSection extends StatelessWidget {
               title: 'Category Distribution',
               icon: Icons.pie_chart_rounded,
               child: CategoryPieChart(
-                data: countByCategory.map(
-                  (k, v) => MapEntry(k, v.toDouble()),
-                ),
+                data: countByCategory.map((k, v) => MapEntry(k, v.toDouble())),
                 valueLabel: 'products',
               ),
             ),

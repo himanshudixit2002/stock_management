@@ -6,7 +6,8 @@ import 'package:stock_management/utils/order_return_sync.dart';
 
 DateTime get _t => DateTime(2024, 6, 1);
 
-ReturnItem _r(String pid, int q) => ReturnItem(productId: pid, productName: pid, quantity: q);
+ReturnItem _r(String pid, int q) =>
+    ReturnItem(productId: pid, productName: pid, quantity: q);
 
 void main() {
   group('applyCustomerReturnToSalesOrder', () {
@@ -16,7 +17,12 @@ void main() {
         customerId: 'c',
         status: SOStatus.dispatched,
         items: [
-          SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 10, returnedQuantity: 0),
+          SOItem(
+            productId: 'a',
+            quantity: 10,
+            dispatchedQuantity: 10,
+            returnedQuantity: 0,
+          ),
         ],
         totalAmount: 100,
         createdAt: _t,
@@ -32,7 +38,12 @@ void main() {
         customerId: 'c',
         status: SOStatus.confirmed,
         items: [
-          SOItem(productId: 'a', quantity: 5, dispatchedQuantity: 0, returnedQuantity: 0),
+          SOItem(
+            productId: 'a',
+            quantity: 5,
+            dispatchedQuantity: 0,
+            returnedQuantity: 0,
+          ),
         ],
         totalAmount: 50,
         createdAt: _t,
@@ -49,9 +60,7 @@ void main() {
         id: 'p1',
         vendorId: 'v',
         status: POStatus.received,
-        items: [
-          POItem(productId: 'a', quantity: 10, receivedQuantity: 10),
-        ],
+        items: [POItem(productId: 'a', quantity: 10, receivedQuantity: 10)],
         totalAmount: 100,
         expectedDate: _t,
         receivedDate: _t,

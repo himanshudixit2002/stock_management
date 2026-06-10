@@ -205,9 +205,14 @@ service cloud.firestore {
            hasPermission(companyId, 'canDamage') ||
            hasPermission(companyId, 'canTransfer') ||
            hasPermission(companyId, 'canAdjustStock') ||
+           hasPermission(companyId, 'canHoldStock') ||
+           hasPermission(companyId, 'canReleaseStock') ||
            hasPermission(companyId, 'canBulkStockIn') ||
            hasPermission(companyId, 'canBulkEdit') ||
            hasPermission(companyId, 'canImport') ||
+           hasPermission(companyId, 'canConfirmSalesOrders') ||
+           hasPermission(companyId, 'canDispatchSalesOrders') ||
+           hasPermission(companyId, 'canCancelSalesOrders') ||
            hasPermission(companyId, 'canReceivePurchaseOrders') ||
            hasPermission(companyId, 'canProcessReturns'));
         allow delete: if belongsToCompany(companyId) &&
@@ -231,8 +236,32 @@ service cloud.firestore {
            hasPermission(companyId, 'canDamage') ||
            hasPermission(companyId, 'canTransfer') ||
            hasPermission(companyId, 'canAdjustStock') ||
-           hasPermission(companyId, 'canBulkStockIn'));
+           hasPermission(companyId, 'canBulkStockIn') ||
+           hasPermission(companyId, 'canHoldStock') ||
+           hasPermission(companyId, 'canReleaseStock') ||
+           hasPermission(companyId, 'canConfirmSalesOrders') ||
+           hasPermission(companyId, 'canDispatchSalesOrders') ||
+           hasPermission(companyId, 'canCancelSalesOrders'));
         allow update, delete: if belongsToCompany(companyId) && isAdmin();
+      }
+
+      // Stock Holds subcollection
+      match /stockHolds/{holdId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewStockHolds'));
+        allow create: if belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canHoldStock') ||
+           hasPermission(companyId, 'canConfirmSalesOrders'));
+        allow update: if belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canReleaseStock') ||
+           hasPermission(companyId, 'canHoldStock') ||
+           hasPermission(companyId, 'canConfirmSalesOrders') ||
+           hasPermission(companyId, 'canEditSalesOrders') ||
+           hasPermission(companyId, 'canDispatchSalesOrders') ||
+           hasPermission(companyId, 'canCancelSalesOrders'));
+        allow delete: if belongsToCompany(companyId) && isAdmin();
       }
 
       // Vendors subcollection

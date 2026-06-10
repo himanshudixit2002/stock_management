@@ -8,6 +8,7 @@ import '../../widgets/glass_panel.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/validators.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/success_overlay.dart';
 
@@ -158,8 +159,10 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
         );
       }
     } else if (mounted) {
-      showErrorSnackBar(context,
-          vendorProvider.errorMessage ?? 'Failed to save vendor');
+      showErrorSnackBar(
+        context,
+        vendorProvider.errorMessage ?? 'Failed to save vendor',
+      );
     }
   }
 
@@ -209,9 +212,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
             title: Text(_isEditing ? 'Edit Vendor' : 'Add Vendor'),
           ),
           body: Container(
-            decoration: BoxDecoration(
-              gradient: AppTheme.scaffoldGrad(context),
-            ),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -284,19 +285,12 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
                             TextFormField(
                               controller: _phoneCtrl,
                               decoration: const InputDecoration(
-                                labelText: 'Phone',
+                                labelText: 'Phone *',
                                 prefixIcon: Icon(Icons.phone_rounded),
                               ),
                               keyboardType: TextInputType.phone,
                               textInputAction: TextInputAction.next,
-                              validator: (v) {
-                                if (v != null && v.trim().isNotEmpty) {
-                                  if (v.trim().length < 7) {
-                                    return 'Phone number is too short';
-                                  }
-                                }
-                                return null;
-                              },
+                              validator: validateRequiredPhone,
                             ),
                           ],
                         ),

@@ -82,8 +82,14 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget>
 
   // Particle positions (angles in radians, relative to center)
   static final List<double> _particleAngles = [
-    0, math.pi / 4, math.pi / 2, (3 * math.pi) / 4, math.pi,
-    (5 * math.pi) / 4, (3 * math.pi) / 2, (7 * math.pi) / 4,
+    0,
+    math.pi / 4,
+    math.pi / 2,
+    (3 * math.pi) / 4,
+    math.pi,
+    (5 * math.pi) / 4,
+    (3 * math.pi) / 2,
+    (7 * math.pi) / 4,
   ];
 
   @override
@@ -157,7 +163,10 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedBuilder(
-                      animation: Listenable.merge([_controller, _checkController]),
+                      animation: Listenable.merge([
+                        _controller,
+                        _checkController,
+                      ]),
                       builder: (context, _) {
                         return SizedBox(
                           width: 64,
@@ -169,9 +178,10 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget>
                               // Subtle particle effects
                               ..._particleAngles.asMap().entries.map((e) {
                                 final delay = e.key * 0.08;
-                                final t = ((_checkController.value - delay) /
-                                        (1 - delay))
-                                    .clamp(0.0, 1.0);
+                                final t =
+                                    ((_checkController.value - delay) /
+                                            (1 - delay))
+                                        .clamp(0.0, 1.0);
                                 final scale = Curves.easeOut.transform(t);
                                 final opacity = (1 - t) * 0.5;
                                 final r = 22.0 + t * 8;
@@ -201,8 +211,9 @@ class _SuccessOverlayWidgetState extends State<_SuccessOverlayWidget>
                                 width: 64,
                                 height: 64,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.successColor
-                                      .withValues(alpha: 0.12),
+                                  color: AppTheme.successColor.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 child: CustomPaint(

@@ -65,10 +65,12 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      result = result.where((l) =>
-          l.entityName.toLowerCase().contains(q) ||
-          l.action.toLowerCase().contains(q) ||
-          l.userName.toLowerCase().contains(q));
+      result = result.where(
+        (l) =>
+            l.entityName.toLowerCase().contains(q) ||
+            l.action.toLowerCase().contains(q) ||
+            l.userName.toLowerCase().contains(q),
+      );
     }
 
     return result.take(_visibleCount).toList();
@@ -76,11 +78,15 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
   IconData _actionIcon(String action) {
     final a = action.toLowerCase();
-    if (a.contains('create') || a.contains('add')) return Icons.add_circle_rounded;
+    if (a.contains('create') || a.contains('add'))
+      return Icons.add_circle_rounded;
     if (a.contains('update') || a.contains('edit')) return Icons.edit_rounded;
-    if (a.contains('delete') || a.contains('remove')) return Icons.delete_rounded;
-    if (a.contains('stock_in') || a.contains('receive')) return Icons.archive_rounded;
-    if (a.contains('stock_out') || a.contains('dispatch')) return Icons.unarchive_rounded;
+    if (a.contains('delete') || a.contains('remove'))
+      return Icons.delete_rounded;
+    if (a.contains('stock_in') || a.contains('receive'))
+      return Icons.archive_rounded;
+    if (a.contains('stock_out') || a.contains('dispatch'))
+      return Icons.unarchive_rounded;
     if (a.contains('transfer')) return Icons.swap_horiz_rounded;
     if (a.contains('damage')) return Icons.report_problem_rounded;
     return Icons.history_rounded;
@@ -89,7 +95,8 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   Color _actionColor(String action) {
     final a = action.toLowerCase();
     if (a.contains('create') || a.contains('add')) return AppTheme.successColor;
-    if (a.contains('delete') || a.contains('remove')) return AppTheme.dangerColor;
+    if (a.contains('delete') || a.contains('remove'))
+      return AppTheme.dangerColor;
     if (a.contains('damage')) return AppTheme.dangerColor;
     if (a.contains('update') || a.contains('edit')) return AppTheme.infoColor;
     if (a.contains('transfer')) return AppTheme.indigoColor;
@@ -137,38 +144,52 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
           child: Column(
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context), 8, Responsive.horizontalPadding(context), 4),
+                padding: EdgeInsets.fromLTRB(
+                  Responsive.horizontalPadding(context),
+                  8,
+                  Responsive.horizontalPadding(context),
+                  4,
+                ),
                 child: SizedBox(
                   height: 40,
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                    hintText: 'Search by name, action, or user...',
-                    hintStyle: TextStyle(fontSize: 13, color: AppTheme.textTer(context)),
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 16),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                                _visibleCount = 50;
-                              });
-                            },
-                          )
-                        : null,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: AppTheme.dividerC(context)),
+                      hintText: 'Search by name, action, or user...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textTer(context),
+                      ),
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                  _visibleCount = 50;
+                                });
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: AppTheme.dividerC(context),
+                        ),
+                      ),
+                      isDense: true,
                     ),
-                    isDense: true,
-                  ),
                     style: const TextStyle(fontSize: 13),
                     onChanged: (v) => setState(() {
                       _searchQuery = v;
@@ -180,29 +201,32 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
               SizedBox(
                 height: 40,
                 child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: Responsive.horizontalPadding(context), vertical: 4),
-              itemCount: _entityFilters.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (_, i) {
-                final filter = _entityFilters[i];
-                final selected = _selectedEntity == filter;
-                return _FilterChip(
-                  label: filter,
-                  selected: selected,
-                  onTap: () => setState(() {
-                    _selectedEntity = filter;
-                    _visibleCount = 50;
-                  }),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: provider.isLoading
-                ? const ShimmerLoading(layout: ShimmerLayout.listTile)
-                : logs.isEmpty
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: Responsive.horizontalPadding(context),
+                    vertical: 4,
+                  ),
+                  itemCount: _entityFilters.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 6),
+                  itemBuilder: (_, i) {
+                    final filter = _entityFilters[i];
+                    final selected = _selectedEntity == filter;
+                    return _FilterChip(
+                      label: filter,
+                      selected: selected,
+                      onTap: () => setState(() {
+                        _selectedEntity = filter;
+                        _visibleCount = 50;
+                      }),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: provider.isLoading
+                    ? const ShimmerLoading(layout: ShimmerLayout.listTile)
+                    : logs.isEmpty
                     ? const EmptyStateWidget(
                         icon: Icons.history_rounded,
                         title: 'No Activity',
@@ -210,24 +234,28 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: () async {
-                          final companyId = context.read<AuthProvider>().currentUser!.companyId;
-                          context.read<AuditLogProvider>().initialize(companyId: companyId);
+                          final companyId = context
+                              .read<AuthProvider>()
+                              .currentUser!
+                              .companyId;
+                          context.read<AuditLogProvider>().initialize(
+                            companyId: companyId,
+                          );
                         },
                         child: ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: Responsive.horizontalPadding(context),
-                          vertical: 8,
-                        ),
-                        itemCount: logs.length,
-                        itemBuilder: (_, i) =>
-                            _AuditLogTile(
-                              log: logs[i],
-                              icon: _actionIcon(logs[i].action),
-                              color: _actionColor(logs[i].action),
-                              relativeTime: _relativeTime(logs[i].timestamp),
-                              isLast: i == logs.length - 1,
-                            ),
+                          controller: _scrollController,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: Responsive.horizontalPadding(context),
+                            vertical: 8,
+                          ),
+                          itemCount: logs.length,
+                          itemBuilder: (_, i) => _AuditLogTile(
+                            log: logs[i],
+                            icon: _actionIcon(logs[i].action),
+                            color: _actionColor(logs[i].action),
+                            relativeTime: _relativeTime(logs[i].timestamp),
+                            isLast: i == logs.length - 1,
+                          ),
                         ),
                       ),
               ),
@@ -357,9 +385,7 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                           if (hasChanges) ...[
                             const Spacer(),
                             Icon(
-                              _expanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
+                              _expanded ? Icons.expand_less : Icons.expand_more,
                               size: 16,
                               color: AppTheme.textSec(context),
                             ),
@@ -370,34 +396,36 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                         const SizedBox(height: 8),
                         const Divider(height: 1),
                         const SizedBox(height: 8),
-                        ...log.changes.entries.map((e) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 80,
-                                    child: Text(
-                                      e.key,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.textSec(context),
-                                      ),
+                        ...log.changes.entries.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: 80,
+                                  child: Text(
+                                    e.key,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textSec(context),
                                     ),
                                   ),
-                                  Expanded(
-                                    child: Text(
-                                      '${e.value}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppTheme.textPri(context),
-                                      ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    '${e.value}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.textPri(context),
                                     ),
                                   ),
-                                ],
-                              ),
-                            )),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ],
                   ),

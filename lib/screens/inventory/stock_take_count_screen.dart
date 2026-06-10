@@ -94,10 +94,12 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
     final updatedItems = <StockTakeItem>[];
     for (int i = 0; i < _items.length; i++) {
       final counted = int.tryParse(_controllers[i].text) ?? 0;
-      updatedItems.add(_items[i].copyWith(
-        countedQty: counted,
-        variance: counted - _items[i].expectedQty,
-      ));
+      updatedItems.add(
+        _items[i].copyWith(
+          countedQty: counted,
+          variance: counted - _items[i].expectedQty,
+        ),
+      );
     }
 
     final updated = widget.stockTake.copyWith(
@@ -105,8 +107,9 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
       status: StockTakeStatus.inProgress,
     );
 
-    final success =
-        await context.read<StockTakeProvider>().updateStockTake(updated);
+    final success = await context.read<StockTakeProvider>().updateStockTake(
+      updated,
+    );
 
     if (!context.mounted) return;
     if (success) {
@@ -122,7 +125,8 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
       final proceed = await showConfirmDialog(
         context,
         title: 'Uncounted Items',
-        message: '$uncounted item${uncounted == 1 ? '' : 's'} haven\'t been counted yet. '
+        message:
+            '$uncounted item${uncounted == 1 ? '' : 's'} haven\'t been counted yet. '
             'They will be recorded as 0. Continue?',
         confirmLabel: 'Submit Anyway',
         icon: Icons.warning_amber_rounded,
@@ -137,10 +141,12 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
     final updatedItems = <StockTakeItem>[];
     for (int i = 0; i < _items.length; i++) {
       final counted = int.tryParse(_controllers[i].text) ?? 0;
-      updatedItems.add(_items[i].copyWith(
-        countedQty: counted,
-        variance: counted - _items[i].expectedQty,
-      ));
+      updatedItems.add(
+        _items[i].copyWith(
+          countedQty: counted,
+          variance: counted - _items[i].expectedQty,
+        ),
+      );
     }
 
     final updated = widget.stockTake.copyWith(items: updatedItems);
@@ -148,25 +154,31 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
     final user = auth.currentUser;
 
     final success = await context.read<StockTakeProvider>().completeStockTake(
-          stockTake: updated,
-          userId: user?.uid ?? '',
-          userName: user?.name ?? '',
-        );
+      stockTake: updated,
+      userId: user?.uid ?? '',
+      userName: user?.name ?? '',
+    );
 
     if (!context.mounted) return;
     setState(() => _isSubmitting = false);
     if (success) {
-      showSuccessSnackBar(context, 'Stock take completed and adjustments recorded');
+      showSuccessSnackBar(
+        context,
+        'Stock take completed and adjustments recorded',
+      );
       Navigator.pop(context);
     } else {
-      showErrorSnackBar(context, context.read<StockTakeProvider>().errorMessage ?? 'Failed to complete stock take');
+      showErrorSnackBar(
+        context,
+        context.read<StockTakeProvider>().errorMessage ??
+            'Failed to complete stock take',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted =
-        widget.stockTake.status == StockTakeStatus.completed;
+    final isCompleted = widget.stockTake.status == StockTakeStatus.completed;
 
     return Container(
       decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
@@ -268,8 +280,12 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
                 children: [
                   LinearProgressIndicator(
                     value: _items.isEmpty ? 1.0 : _countedItems / _items.length,
-                    backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                    backgroundColor: AppTheme.primaryColor.withValues(
+                      alpha: 0.15,
+                    ),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.primaryColor,
+                    ),
                     minHeight: 4,
                   ),
                   Expanded(
@@ -278,305 +294,383 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
                       controller: _scrollController,
                       itemCount: _items.length,
                       itemBuilder: (context, index) {
-                  final item = _items[index];
-                  final variance = _variance(index);
-                  final hasVariance = _controllers[index].text.isNotEmpty &&
-                      variance != 0;
-                  final isNextUncounted = !isCompleted &&
-                      _nextUncountedIndex == index;
+                        final item = _items[index];
+                        final variance = _variance(index);
+                        final hasVariance =
+                            _controllers[index].text.isNotEmpty &&
+                            variance != 0;
+                        final isNextUncounted =
+                            !isCompleted && _nextUncountedIndex == index;
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: AnimatedBuilder(
-                      animation: _pulseController,
-                      builder: (context, child) {
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: isNextUncounted
-                              ? BoxDecoration(
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppTheme.primaryColor.withValues(
-                                        alpha: 0.15 + (_pulseController.value * 0.2),
-                                      ),
-                                      blurRadius: 12 + (_pulseController.value * 8),
-                                      spreadRadius: _pulseController.value * 2,
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          child: child,
-                        );
-                      },
-                      child: GlassCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: hasVariance
-                                        ? AppTheme.dangerColor
-                                            .withValues(alpha: 0.12)
-                                        : (_controllers[index].text.isNotEmpty
-                                            ? AppTheme.successColor
-                                                .withValues(alpha: 0.12)
-                                            : AppTheme.inputFill(context)),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${index + 1}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: hasVariance
-                                            ? AppTheme.dangerColor
-                                            : (_controllers[index]
-                                                    .text
-                                                    .isNotEmpty
-                                                ? AppTheme.successColor
-                                                : AppTheme.textSec(context)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    item.productName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                      color: AppTheme.textPri(context),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Expected',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppTheme.textSec(context),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.inputFill(context),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          '${item.expectedQty}',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppTheme.textPri(context),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                decoration: isNextUncounted
+                                    ? BoxDecoration(
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppTheme.primaryColor
+                                                .withValues(
+                                                  alpha:
+                                                      0.15 +
+                                                      (_pulseController.value *
+                                                          0.2),
+                                                ),
+                                            blurRadius:
+                                                12 +
+                                                (_pulseController.value * 8),
+                                            spreadRadius:
+                                                _pulseController.value * 2,
                                           ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Counted',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppTheme.textSec(context),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      TextField(
-                                        controller: _controllers[index],
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters: [
-                                          FilteringTextInputFormatter
-                                              .digitsOnly,
                                         ],
-                                        readOnly: isCompleted,
-                                        decoration: InputDecoration(
-                                          isDense: true,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          hintText: '0',
-                                          border: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            borderSide: BorderSide(
-                                              color: hasVariance
-                                                  ? AppTheme.dangerColor
-                                                  : AppTheme.inputBorder(context),
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            borderSide: const BorderSide(
-                                              color: AppTheme.primaryColor,
-                                              width: 2,
-                                            ),
-                                          ),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        onChanged: (_) => setState(() {}),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Variance',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppTheme.textSec(context),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: hasVariance
-                                              ? AppTheme.dangerColor
-                                                  .withValues(alpha: 0.08)
-                                              : (_controllers[index]
-                                                      .text
-                                                      .isNotEmpty
-                                                  ? AppTheme.successColor
-                                                      .withValues(alpha: 0.08)
-                                                  : AppTheme.inputFill(context)),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          _controllers[index].text.isEmpty
-                                              ? '-'
-                                              : (variance >= 0
-                                                  ? '+$variance'
-                                                  : '$variance'),
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
+                                      )
+                                    : null,
+                                child: child,
+                              );
+                            },
+                            child: GlassCard(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
                                             color: hasVariance
                                                 ? AppTheme.dangerColor
+                                                      .withValues(alpha: 0.12)
                                                 : (_controllers[index]
-                                                        .text
-                                                        .isNotEmpty
-                                                    ? AppTheme.successColor
-                                                    : AppTheme.textSec(context)),
+                                                          .text
+                                                          .isNotEmpty
+                                                      ? AppTheme.successColor
+                                                            .withValues(
+                                                              alpha: 0.12,
+                                                            )
+                                                      : AppTheme.inputFill(
+                                                          context,
+                                                        )),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '${index + 1}',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: hasVariance
+                                                    ? AppTheme.dangerColor
+                                                    : (_controllers[index]
+                                                              .text
+                                                              .isNotEmpty
+                                                          ? AppTheme
+                                                                .successColor
+                                                          : AppTheme.textSec(
+                                                              context,
+                                                            )),
+                                              ),
+                                            ),
                                           ),
                                         ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            item.productName,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                              color: AppTheme.textPri(context),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Expected',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.inputFill(
+                                                    context,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  '${item.expectedQty}',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppTheme.textPri(
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Counted',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              TextField(
+                                                controller: _controllers[index],
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                inputFormatters: [
+                                                  FilteringTextInputFormatter
+                                                      .digitsOnly,
+                                                ],
+                                                readOnly: isCompleted,
+                                                decoration: InputDecoration(
+                                                  isDense: true,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 10,
+                                                      ),
+                                                  hintText: '0',
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                    borderSide: BorderSide(
+                                                      color: hasVariance
+                                                          ? AppTheme.dangerColor
+                                                          : AppTheme.inputBorder(
+                                                              context,
+                                                            ),
+                                                    ),
+                                                  ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color: AppTheme
+                                                                  .primaryColor,
+                                                              width: 2,
+                                                            ),
+                                                      ),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                onChanged: (_) =>
+                                                    setState(() {}),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Variance',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: hasVariance
+                                                      ? AppTheme.dangerColor
+                                                            .withValues(
+                                                              alpha: 0.08,
+                                                            )
+                                                      : (_controllers[index]
+                                                                .text
+                                                                .isNotEmpty
+                                                            ? AppTheme
+                                                                  .successColor
+                                                                  .withValues(
+                                                                    alpha: 0.08,
+                                                                  )
+                                                            : AppTheme.inputFill(
+                                                                context,
+                                                              )),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  _controllers[index]
+                                                          .text
+                                                          .isEmpty
+                                                      ? '-'
+                                                      : (variance >= 0
+                                                            ? '+$variance'
+                                                            : '$variance'),
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: hasVariance
+                                                        ? AppTheme.dangerColor
+                                                        : (_controllers[index]
+                                                                  .text
+                                                                  .isNotEmpty
+                                                              ? AppTheme
+                                                                    .successColor
+                                                              : AppTheme.textSec(
+                                                                  context,
+                                                                )),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (!isCompleted) ...[
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          TextButton.icon(
+                                            onPressed: () {
+                                              _controllers[index].text = '0';
+                                              _controllers[index].selection =
+                                                  TextSelection.collapsed(
+                                                    offset: _controllers[index]
+                                                        .text
+                                                        .length,
+                                                  );
+                                              setState(() {});
+                                            },
+                                            icon: const Icon(
+                                              Icons.exposure_zero,
+                                              size: 16,
+                                            ),
+                                            label: const Text('Mark as Zero'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: AppTheme.textSec(
+                                                context,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          TextButton.icon(
+                                            onPressed:
+                                                _nextUncountedIndexAfter(
+                                                      index,
+                                                    ) !=
+                                                    null
+                                                ? () {
+                                                    final nextIdx =
+                                                        _nextUncountedIndexAfter(
+                                                          index,
+                                                        )!;
+                                                    final itemHeight = 200.0;
+                                                    _scrollController.animateTo(
+                                                      (nextIdx * itemHeight)
+                                                          .clamp(
+                                                            0.0,
+                                                            _scrollController
+                                                                .position
+                                                                .maxScrollExtent,
+                                                          ),
+                                                      duration: const Duration(
+                                                        milliseconds: 300,
+                                                      ),
+                                                      curve: Curves.easeInOut,
+                                                    );
+                                                  }
+                                                : null,
+                                            icon: const Icon(
+                                              Icons.skip_next,
+                                              size: 16,
+                                            ),
+                                            label: const Text('Skip'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: AppTheme.textSec(
+                                                context,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
-                                  ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            if (!isCompleted) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: () {
-                                      _controllers[index].text = '0';
-                                      _controllers[index].selection =
-                                          TextSelection.collapsed(
-                                        offset: _controllers[index].text.length,
-                                      );
-                                      setState(() {});
-                                    },
-                                    icon: const Icon(Icons.exposure_zero, size: 16),
-                                    label: const Text('Mark as Zero'),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: AppTheme.textSec(context),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TextButton.icon(
-                                    onPressed: _nextUncountedIndexAfter(index) != null
-                                        ? () {
-                                            final nextIdx = _nextUncountedIndexAfter(index)!;
-                                            final itemHeight = 200.0;
-                                            _scrollController.animateTo(
-                                              (nextIdx * itemHeight).clamp(
-                                                0.0,
-                                                _scrollController.position.maxScrollExtent,
-                                              ),
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              curve: Curves.easeInOut,
-                                            );
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.skip_next, size: 16),
-                                    label: const Text('Skip'),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: AppTheme.textSec(context),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    ),
-                  );
-                },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
-            ),
+      ),
     );
   }
 
@@ -594,10 +688,7 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
         ),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            color: AppTheme.textSec(context),
-          ),
+          style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
         ),
       ],
     );

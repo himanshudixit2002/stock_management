@@ -46,13 +46,17 @@ Future<String?> showSearchablePicker({
       String search = '';
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final selectableItems = items.where((item) => !item.isAction).toList();
+          final selectableItems = items
+              .where((item) => !item.isAction)
+              .toList();
           final filtered = search.isEmpty
               ? selectableItems
               : selectableItems.where((item) {
                   final q = search.toLowerCase();
                   if (item.label.toLowerCase().contains(q)) return true;
-                  if (item.subtitle != null && item.subtitle!.toLowerCase().contains(q)) return true;
+                  if (item.subtitle != null &&
+                      item.subtitle!.toLowerCase().contains(q))
+                    return true;
                   return false;
                 }).toList();
 
@@ -184,7 +188,8 @@ Future<String?> showSearchablePicker({
                                     ? Icon(
                                         item.icon,
                                         size: 20,
-                                        color: item.iconColor ??
+                                        color:
+                                            item.iconColor ??
                                             AppTheme.textSec(ctx),
                                       )
                                     : null,
@@ -226,9 +231,7 @@ Future<String?> showSearchablePicker({
                   if (addNewLabel != null && addNewValue != null)
                     Container(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface(ctx),
-                      ),
+                      decoration: BoxDecoration(color: AppTheme.surface(ctx)),
                       child: SafeArea(
                         top: false,
                         child: OutlinedButton.icon(

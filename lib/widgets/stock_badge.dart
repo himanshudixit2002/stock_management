@@ -24,7 +24,8 @@ class StockBadge extends StatelessWidget {
     );
 
     return Semantics(
-      label: '$label: ${product.quantity} ${product.unit}',
+      label:
+          '$label: ${product.formatQuantity(product.availableQuantity)} available of ${product.formatQuantity(product.quantity)}',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         decoration: BoxDecoration(
@@ -45,7 +46,9 @@ class StockBadge extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              showQuantity ? '${product.quantity} ${product.unit}' : label,
+              showQuantity
+                  ? '${product.formatQuantity(product.availableQuantity)}/${product.formatQuantity(product.quantity)}'
+                  : label,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,

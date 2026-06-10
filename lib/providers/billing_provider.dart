@@ -166,10 +166,14 @@ class BillingProvider extends ChangeNotifier {
     _checkingOverdue = true;
     try {
       final now = DateTime.now();
-      final overdue = _invoices.where((inv) =>
-          (inv.status == InvoiceStatus.sent ||
-              inv.status == InvoiceStatus.partiallyPaid) &&
-          now.isAfter(inv.dueDate)).toList();
+      final overdue = _invoices
+          .where(
+            (inv) =>
+                (inv.status == InvoiceStatus.sent ||
+                    inv.status == InvoiceStatus.partiallyPaid) &&
+                now.isAfter(inv.dueDate),
+          )
+          .toList();
 
       for (final inv in overdue) {
         await _databaseService.updateInvoice(
@@ -204,6 +208,9 @@ class BillingProvider extends ChangeNotifier {
     bool autoCreateStandalonePurchaseOrder = false,
   }) async {
     _errorMessage = null;
+    final operationLocation = defaultLocation.trim().isEmpty
+        ? 'Main'
+        : defaultLocation.trim();
     try {
       final id = await _databaseService.addInvoice(invoice);
 
@@ -222,7 +229,8 @@ class BillingProvider extends ChangeNotifier {
       }
 
       final now = DateTime.now();
-      final runStockAndSoSync = invoice.invoiceType == InvoiceType.sales &&
+      final runStockAndSoSync =
+          invoice.invoiceType == InvoiceType.sales &&
           !invoice.isDraft &&
           invoice.items.isNotEmpty;
 
@@ -246,11 +254,28 @@ class BillingProvider extends ChangeNotifier {
           try {
             for (final item in invoice.items) {
               if (item.quantity <= 0 || item.productId.isEmpty) continue;
+              final itemLocation = item.location.trim().isNotEmpty
+                  ? item.location.trim()
+                  : operationLocation;
+              final consumedHold = await _databaseService
+                  .consumeHeldStockForOutbound(
+                    productId: item.productId,
+                    productName: item.productName,
+                    quantity: item.quantity,
+                    location: itemLocation,
+                    userId: userId,
+                    userName: userName,
+                    sourceType: 'invoice',
+                    sourceId: id,
+                    reason: 'INV #${invoice.invoiceNumber} hold consumed',
+                  );
+              final remainingQty = item.quantity - consumedHold;
+              if (remainingQty <= 0) continue;
               await _databaseService.removeStock(
                 productId: item.productId,
                 productName: item.productName,
-                quantity: item.quantity,
-                location: defaultLocation,
+                quantity: remainingQty,
+                location: itemLocation,
                 userId: userId,
                 userName: userName,
                 reason: 'INV #${invoice.invoiceNumber}',
@@ -263,11 +288,7 @@ class BillingProvider extends ChangeNotifier {
                 invoice.linkedSalesOrderId,
               );
               if (so != null) {
-                final updated = applyInvoiceFulfillment(
-                  so,
-                  invoice.items,
-                  now,
-                );
+                final updated = applyInvoiceFulfillment(so, invoice.items, now);
                 await _databaseService.updateSalesOrder(updated);
               }
             } else if (autoCreateStandaloneSalesOrder) {
@@ -290,7 +311,8 @@ class BillingProvider extends ChangeNotifier {
         }
       }
 
-      final runStockAndPoSync = invoice.invoiceType == InvoiceType.purchase &&
+      final runStockAndPoSync =
+          invoice.invoiceType == InvoiceType.purchase &&
           !invoice.isDraft &&
           invoice.items.isNotEmpty;
 
@@ -312,11 +334,14 @@ class BillingProvider extends ChangeNotifier {
           try {
             for (final item in invoice.items) {
               if (item.quantity <= 0 || item.productId.isEmpty) continue;
+              final itemLocation = item.location.trim().isNotEmpty
+                  ? item.location.trim()
+                  : operationLocation;
               await _databaseService.addStock(
                 productId: item.productId,
                 productName: item.productName,
                 quantity: item.quantity,
-                location: defaultLocation,
+                location: itemLocation,
                 userId: userId,
                 userName: userName,
                 reason: 'BILL #${invoice.invoiceNumber}',
@@ -329,11 +354,7 @@ class BillingProvider extends ChangeNotifier {
                 invoice.linkedPurchaseOrderId,
               );
               if (po != null) {
-                final updated = applyBillReceipt(
-                  po,
-                  invoice.items,
-                  now,
-                );
+                final updated = applyBillReceipt(po, invoice.items, now);
                 await _databaseService.updatePurchaseOrder(updated);
               }
             } else if (autoCreateStandalonePurchaseOrder) {
@@ -404,6 +425,9 @@ class BillingProvider extends ChangeNotifier {
   }) async {
     final inv = getInvoiceById(id);
     if (inv == null) return false;
+    final operationLocation = defaultLocation.trim().isEmpty
+        ? 'Main'
+        : defaultLocation.trim();
 
     final success = await updateInvoice(
       inv.copyWith(status: InvoiceStatus.cancelled, updatedAt: DateTime.now()),
@@ -416,11 +440,14 @@ class BillingProvider extends ChangeNotifier {
       try {
         for (final item in inv.items) {
           if (item.quantity <= 0 || item.productId.isEmpty) continue;
+          final itemLocation = item.location.trim().isNotEmpty
+              ? item.location.trim()
+              : operationLocation;
           await _databaseService.addStock(
             productId: item.productId,
             productName: item.productName,
             quantity: item.quantity,
-            location: defaultLocation,
+            location: itemLocation,
             userId: userId,
             userName: userName,
             reason: 'Cancelled INV #${inv.invoiceNumber}',
@@ -439,11 +466,14 @@ class BillingProvider extends ChangeNotifier {
       try {
         for (final item in inv.items) {
           if (item.quantity <= 0 || item.productId.isEmpty) continue;
+          final itemLocation = item.location.trim().isNotEmpty
+              ? item.location.trim()
+              : operationLocation;
           await _databaseService.removeStock(
             productId: item.productId,
             productName: item.productName,
             quantity: item.quantity,
-            location: defaultLocation,
+            location: itemLocation,
             userId: userId,
             userName: userName,
             reason: 'Cancelled BILL #${inv.invoiceNumber}',
@@ -475,11 +505,7 @@ class BillingProvider extends ChangeNotifier {
                 ),
               );
             } else {
-              final reverted = revertInvoiceFulfillment(
-                so,
-                inv.items,
-                now,
-              );
+              final reverted = revertInvoiceFulfillment(so, inv.items, now);
               await _databaseService.updateSalesOrder(
                 reverted.copyWith(invoiceId: '', updatedAt: now),
               );
@@ -511,11 +537,7 @@ class BillingProvider extends ChangeNotifier {
                 ),
               );
             } else {
-              final reverted = revertBillReceipt(
-                po,
-                inv.items,
-                now,
-              );
+              final reverted = revertBillReceipt(po, inv.items, now);
               await _databaseService.updatePurchaseOrder(
                 reverted.copyWith(invoiceId: '', updatedAt: now),
               );

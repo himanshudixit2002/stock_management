@@ -64,14 +64,19 @@ class CustomerDetailScreen extends StatelessWidget {
           title: customer.name,
         ),
         actions: [
-          if (context.watch<AuthProvider>().currentUser?.hasPermission(AppPermissions.editCustomers) ?? false)
+          if (context.watch<AuthProvider>().currentUser?.hasPermission(
+                AppPermissions.editCustomers,
+              ) ??
+              false)
             IconButton(
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => context.pushAppRoute(AppRoutes.editCustomer,
-                extra: customer,
-              ),
+              onPressed: () =>
+                  context.pushAppRoute(AppRoutes.editCustomer, extra: customer),
             ),
-          if (context.watch<AuthProvider>().currentUser?.hasPermission(AppPermissions.deleteCustomers) ?? false)
+          if (context.watch<AuthProvider>().currentUser?.hasPermission(
+                AppPermissions.deleteCustomers,
+              ) ??
+              false)
             IconButton(
               icon: const Icon(Icons.delete_rounded),
               onPressed: () => _confirmDelete(context, customer),
@@ -88,311 +93,318 @@ class CustomerDetailScreen extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
-                Builder(builder: (context) {
-                  final section1 = Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      GlassPanel(
-                        borderRadius: 20,
-                        padding: const EdgeInsets.all(20),
-                        useContentVariant: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      customer.name.isNotEmpty
-                                          ? customer.name[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.primaryColor,
+                Builder(
+                  builder: (context) {
+                    final section1 = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        GlassPanel(
+                          borderRadius: 20,
+                          padding: const EdgeInsets.all(20),
+                          useContentVariant: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryColor.withValues(
+                                        alpha: 0.12,
                                       ),
+                                      borderRadius: BorderRadius.circular(14),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        customer.name,
-                                        style: TextStyle(
-                                          fontSize: 20,
+                                    child: Center(
+                                      child: Text(
+                                        customer.name.isNotEmpty
+                                            ? customer.name[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          fontSize: 24,
                                           fontWeight: FontWeight.w700,
-                                          color: AppTheme.textPri(context),
+                                          color: AppTheme.primaryColor,
                                         ),
                                       ),
-                                      if (customer.company.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          customer.company,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: AppTheme.textSec(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: customer.isActive
-                                        ? AppTheme.successColor.withValues(
-                                            alpha: 0.12,
-                                          )
-                                        : AppTheme.dangerColor.withValues(
-                                            alpha: 0.12,
-                                          ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    customer.isActive ? 'Active' : 'Inactive',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: customer.isActive
-                                          ? AppTheme.successColor
-                                          : AppTheme.dangerColor,
                                     ),
                                   ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          customer.name,
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.textPri(context),
+                                          ),
+                                        ),
+                                        if (customer.company.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            customer.company,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: customer.isActive
+                                          ? AppTheme.successColor.withValues(
+                                              alpha: 0.12,
+                                            )
+                                          : AppTheme.dangerColor.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      customer.isActive ? 'Active' : 'Inactive',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: customer.isActive
+                                            ? AppTheme.successColor
+                                            : AppTheme.dangerColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              if (customer.email.isNotEmpty)
+                                _contactRow(
+                                  context,
+                                  Icons.email_rounded,
+                                  customer.email,
+                                ),
+                              if (customer.phone.isNotEmpty)
+                                _contactRow(
+                                  context,
+                                  Icons.phone_rounded,
+                                  customer.phone,
+                                ),
+                              if (customer.address.isNotEmpty)
+                                _contactRow(
+                                  context,
+                                  Icons.location_on_rounded,
+                                  customer.address,
+                                ),
+                              if (customer.notes.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _contactRow(
+                                  context,
+                                  Icons.note_rounded,
+                                  customer.notes,
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 20),
-                            if (customer.email.isNotEmpty)
-                              _contactRow(
-                                context,
-                                Icons.email_rounded,
-                                customer.email,
-                              ),
-                            if (customer.phone.isNotEmpty)
-                              _contactRow(
-                                context,
-                                Icons.phone_rounded,
-                                customer.phone,
-                              ),
-                            if (customer.address.isNotEmpty)
-                              _contactRow(
-                                context,
-                                Icons.location_on_rounded,
-                                customer.address,
-                              ),
-                            if (customer.notes.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              _contactRow(
-                                context,
-                                Icons.note_rounded,
-                                customer.notes,
-                              ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _statCard(
+                                context,
+                                'Total Orders',
+                                '${customer.totalOrders}',
+                                AppTheme.indigoColor,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _statCard(
+                                context,
+                                'Total Spent',
+                                currencyFormat.format(customer.totalSpent),
+                                AppTheme.primaryColor,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _statCard(
-                              context,
-                              'Total Orders',
-                              '${customer.totalOrders}',
-                              AppTheme.indigoColor,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _statCard(
-                              context,
-                              'Total Spent',
-                              currencyFormat.format(customer.totalSpent),
-                              AppTheme.primaryColor,
-                            ),
+                        if (context
+                            .watch<BillingSettingsProvider>()
+                            .billingEnabled) ...[
+                          const SizedBox(height: 16),
+                          _buildBillingSection(
+                            context,
+                            customerId,
+                            customer.name,
+                            currencyFormat,
                           ),
                         ],
-                      ),
-                      if (context
-                          .watch<BillingSettingsProvider>()
-                          .billingEnabled) ...[
-                        const SizedBox(height: 16),
-                        _buildBillingSection(
-                          context,
-                          customerId,
-                          customer.name,
-                          currencyFormat,
-                        ),
                       ],
-                    ],
-                  );
-                  final section2 = customerOrders.isEmpty
-                      ? const SizedBox.shrink()
-                      : Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                'Recent Orders (${customerOrders.length})',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.textPri(context),
+                    );
+                    final section2 = customerOrders.isEmpty
+                        ? const SizedBox.shrink()
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Text(
+                                  'Recent Orders (${customerOrders.length})',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textPri(context),
+                                  ),
                                 ),
                               ),
-                            ),
-                            ...List.generate(
-                              customerOrders.length > 10
-                                  ? 10
-                                  : customerOrders.length,
-                              (index) {
-                                final order = customerOrders[index];
-                                final statusColor = _statusColor(context, order.status);
-                                return AnimatedListItem(
-                                  index: index,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: GlassCard(
-                                      onTap: () => context.pushAppRoute(AppRoutes.salesOrderDetail,
-                                        extra: order.id,
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(14),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 36,
-                                              height: 36,
-                                              decoration: BoxDecoration(
-                                                color: statusColor.withValues(
-                                                  alpha: 0.12,
+                              ...List.generate(
+                                customerOrders.length > 10
+                                    ? 10
+                                    : customerOrders.length,
+                                (index) {
+                                  final order = customerOrders[index];
+                                  final statusColor = _statusColor(
+                                    context,
+                                    order.status,
+                                  );
+                                  return AnimatedListItem(
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: GlassCard(
+                                        onTap: () => context.pushAppRoute(
+                                          AppRoutes.salesOrderDetail,
+                                          extra: order.id,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(14),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: statusColor.withValues(
+                                                    alpha: 0.12,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
+                                                child: Icon(
+                                                  Icons.receipt_long_rounded,
+                                                  color: statusColor,
+                                                  size: 18,
+                                                ),
                                               ),
-                                              child: Icon(
-                                                Icons.receipt_long_rounded,
-                                                color: statusColor,
-                                                size: 18,
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'SO-${order.id.substring(0, 6).toUpperCase()}',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      '${order.items.length} items \u2022 ${dateFormat.format(order.createdAt)}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppTheme.textSec(
+                                                          context,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
+                                              Column(
                                                 crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                                    CrossAxisAlignment.end,
                                                 children: [
                                                   Text(
-                                                    'SO-${order.id.substring(0, 6).toUpperCase()}',
+                                                    currencyFormat.format(
+                                                      order.totalAmount,
+                                                    ),
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.w600,
-                                                      fontSize: 14,
+                                                      fontSize: 13,
                                                     ),
                                                   ),
-                                                  Text(
-                                                    '${order.items.length} items \u2022 ${dateFormat.format(order.createdAt)}',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color:
-                                                          AppTheme.textSec(
-                                                            context,
+                                                  const SizedBox(height: 2),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 2,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: statusColor
+                                                          .withValues(
+                                                            alpha: 0.12,
                                                           ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      order.statusLabel,
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: statusColor,
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                            ),
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  currencyFormat.format(
-                                                    order.totalAmount,
-                                                  ),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: statusColor
-                                                        .withValues(
-                                                          alpha: 0.12,
-                                                        ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      6,
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    order.statusLabel,
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: statusColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        );
-                  if (Responsive.isDesktop(context) &&
-                      customerOrders.isNotEmpty) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                                  );
+                                },
+                              ),
+                            ],
+                          );
+                    if (Responsive.isDesktop(context) &&
+                        customerOrders.isNotEmpty) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: section1),
+                          const SizedBox(width: 16),
+                          Expanded(child: section2),
+                        ],
+                      );
+                    }
+                    return Column(
                       children: [
-                        Expanded(child: section1),
-                        const SizedBox(width: 16),
-                        Expanded(child: section2),
+                        section1,
+                        const SizedBox(height: 16),
+                        section2,
                       ],
                     );
-                  }
-                  return Column(
-                    children: [
-                      section1,
-                      const SizedBox(height: 16),
-                      section2,
-                    ],
-                  );
-                }),
+                  },
+                ),
                 const SizedBox(height: 32),
               ],
             ),
@@ -479,7 +491,8 @@ class CustomerDetailScreen extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => context.pushAppRoute(AppRoutes.invoiceDetail,
+                    onTap: () => context.pushAppRoute(
+                      AppRoutes.invoiceDetail,
                       extra: inv.id,
                     ),
                     child: Padding(
@@ -562,7 +575,8 @@ class CustomerDetailScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => context.pushAppRoute(AppRoutes.createInvoice,
+                  onPressed: () => context.pushAppRoute(
+                    AppRoutes.createInvoice,
                     extra: <String, dynamic>{
                       'type': InvoiceType.sales,
                       'customerId': customerId,
@@ -638,7 +652,10 @@ class CustomerDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, CustomerModel customer) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    CustomerModel customer,
+  ) async {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Delete Customer',
@@ -648,7 +665,9 @@ class CustomerDetailScreen extends StatelessWidget {
       icon: Icons.delete_forever_rounded,
     );
     if (!confirmed || !context.mounted) return;
-    final ok = await context.read<CustomerProvider>().deleteCustomer(customer.id);
+    final ok = await context.read<CustomerProvider>().deleteCustomer(
+      customer.id,
+    );
     if (!context.mounted) return;
     if (ok) {
       Navigator.pop(context);

@@ -31,8 +31,9 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.role?.name ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.role?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.role?.description ?? '',
+    );
     _permissions = Map<String, bool>.from(
       widget.role?.permissions ?? AppPermissions.allFalse(),
     );
@@ -67,11 +68,18 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+          constraints: BoxConstraints(
+            maxWidth: Responsive.formMaxWidth(context),
+          ),
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context), 8, Responsive.horizontalPadding(context), 100),
+              padding: EdgeInsets.fromLTRB(
+                Responsive.horizontalPadding(context),
+                8,
+                Responsive.horizontalPadding(context),
+                100,
+              ),
               children: [
                 _buildNameSection(),
                 const SizedBox(height: 16),
@@ -93,12 +101,14 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Role Details',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPri(context),
-              )),
+          Text(
+            'Role Details',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPri(context),
+            ),
+          ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _nameController,
@@ -136,14 +146,12 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
       decoration: AppTheme.cardDeco(context),
       child: Row(
         children: [
-          Icon(Icons.copy_rounded,
-              size: 20, color: AppTheme.textTer(context)),
+          Icon(Icons.copy_rounded, size: 20, color: AppTheme.textTer(context)),
           const SizedBox(width: 12),
-          Text('Copy from:',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppTheme.textTer(context),
-              )),
+          Text(
+            'Copy from:',
+            style: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButton<String>(
@@ -174,12 +182,14 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Permissions',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPri(context),
-                )),
+            Text(
+              'Permissions',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPri(context),
+              ),
+            ),
             if (!_isReadOnly)
               Row(
                 children: [
@@ -312,19 +322,24 @@ class _PermissionGroupSectionState extends State<_PermissionGroupSection> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
-                  Icon(widget.group.icon,
-                      size: 22, color: AppTheme.primaryColor),
+                  Icon(
+                    widget.group.icon,
+                    size: 22,
+                    color: AppTheme.primaryColor,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.group.label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPri(context),
-                            )),
+                        Text(
+                          widget.group.label,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                         Text(
                           '$_enabledCount/${widget.permissions.length} enabled',
                           style: TextStyle(
@@ -338,8 +353,10 @@ class _PermissionGroupSectionState extends State<_PermissionGroupSection> {
                   if (!widget.readOnly)
                     TextButton(
                       onPressed: () => widget.onToggleAll(!_allEnabled),
-                      child: Text(_allEnabled ? 'None' : 'All',
-                          style: const TextStyle(fontSize: 12)),
+                      child: Text(
+                        _allEnabled ? 'None' : 'All',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   Icon(
                     _expanded
@@ -362,25 +379,30 @@ class _PermissionGroupSectionState extends State<_PermissionGroupSection> {
                     onChanged: widget.readOnly
                         ? null
                         : (v) => widget.onChanged(perm.key, v),
-                    title: Text(perm.label,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AppTheme.textPri(context),
-                        )),
-                    subtitle: Text(perm.description,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textTer(context),
-                        )),
-                    secondary: Icon(perm.icon,
-                        size: 20,
-                        color: value
-                            ? AppTheme.primaryColor
-                            : AppTheme.iconMute(context)),
+                    title: Text(
+                      perm.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textPri(context),
+                      ),
+                    ),
+                    subtitle: Text(
+                      perm.description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTer(context),
+                      ),
+                    ),
+                    secondary: Icon(
+                      perm.icon,
+                      size: 20,
+                      color: value
+                          ? AppTheme.primaryColor
+                          : AppTheme.iconMute(context),
+                    ),
                     dense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   );
                 }).toList(),
               ),

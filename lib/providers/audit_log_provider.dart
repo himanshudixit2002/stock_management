@@ -23,22 +23,24 @@ class AuditLogProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    _logsSubscription = _databaseService.getAuditLogs(limit: 500).listen(
-      (logs) {
-        _logs = logs;
-        _isLoading = false;
-        _errorMessage = null;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = friendlyError(
-          error,
-          fallback: 'Could not load audit logs.',
+    _logsSubscription = _databaseService
+        .getAuditLogs(limit: 500)
+        .listen(
+          (logs) {
+            _logs = logs;
+            _isLoading = false;
+            _errorMessage = null;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = friendlyError(
+              error,
+              fallback: 'Could not load audit logs.',
+            );
+            _isLoading = false;
+            notifyListeners();
+          },
         );
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
   }
 
   void reset() {

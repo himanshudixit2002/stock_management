@@ -10,6 +10,7 @@ import '../../models/invoice_model.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/billing_settings_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/billing_pdf_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
@@ -43,9 +44,7 @@ class InvoiceDetailScreen extends StatelessWidget {
               Responsive.horizontalPadding(context),
               24,
             ),
-            children: const [
-              ShimmerLoading(layout: ShimmerLayout.detail),
-            ],
+            children: const [ShimmerLoading(layout: ShimmerLayout.detail)],
           ),
         );
       }
@@ -78,8 +77,9 @@ class InvoiceDetailScreen extends StatelessWidget {
                         const SizedBox(height: 20),
                         FilledButton.icon(
                           onPressed: () {
-                            final cid =
-                                context.read<ProductProvider>().companyId;
+                            final cid = context
+                                .read<ProductProvider>()
+                                .companyId;
                             if (cid.isNotEmpty) {
                               billing.initialize(companyId: cid);
                             }
@@ -110,10 +110,12 @@ class InvoiceDetailScreen extends StatelessWidget {
     }
 
     final canEdit = user?.hasPermission(AppPermissions.editInvoices) ?? false;
-    final canDelete = user?.hasPermission(AppPermissions.deleteInvoices) ?? false;
+    final canDelete =
+        user?.hasPermission(AppPermissions.deleteInvoices) ?? false;
     final canRecordPayments =
         user?.hasPermission(AppPermissions.recordPayments) ?? false;
-    final canCreate = user?.hasPermission(AppPermissions.createInvoices) ?? false;
+    final canCreate =
+        user?.hasPermission(AppPermissions.createInvoices) ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -128,7 +130,9 @@ class InvoiceDetailScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
-                  color: Theme.of(context).appBarTheme.foregroundColor?.withValues(alpha: 0.85),
+                  color: Theme.of(
+                    context,
+                  ).appBarTheme.foregroundColor?.withValues(alpha: 0.85),
                 ),
               ),
           ],
@@ -914,10 +918,13 @@ class InvoiceDetailScreen extends StatelessWidget {
             source: invoice,
             invoiceNumber: num,
           );
+          final locations = context.read<SettingsProvider>().locations;
+          final defaultLoc = locations.isNotEmpty ? locations.first : 'Main';
           await billing.addInvoice(
             dup,
             userId: user?.uid ?? '',
             userName: user?.name ?? '',
+            defaultLocation: defaultLoc,
             autoCreateStandaloneSalesOrder: false,
             autoCreateStandalonePurchaseOrder: false,
           );
@@ -1017,7 +1024,7 @@ class InvoiceDetailRouteEntry extends StatelessWidget {
     final resolvedId = byId != null
         ? routeArgument
         : (billing.getInvoiceByInvoiceNumber(routeArgument)?.id ??
-            routeArgument);
+              routeArgument);
     return InvoiceDetailScreen(invoiceId: resolvedId);
   }
 }

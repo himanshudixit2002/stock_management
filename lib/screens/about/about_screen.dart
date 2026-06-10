@@ -93,10 +93,7 @@ class _AboutScreenState extends State<AboutScreen> {
         const SizedBox(height: 4),
         Text(
           'Simple Inventory Management',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppTheme.textSec(context),
-          ),
+          style: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
         ),
       ],
     );
@@ -111,11 +108,7 @@ class _AboutScreenState extends State<AboutScreen> {
       icon: Icons.info_outline_rounded,
       child: Column(
         children: [
-          _InfoTile(
-            icon: Icons.tag_rounded,
-            label: 'Version',
-            value: version,
-          ),
+          _InfoTile(icon: Icons.tag_rounded, label: 'Version', value: version),
           Divider(height: 1, color: AppTheme.dividerC(context)),
           _InfoTile(
             icon: Icons.build_rounded,
@@ -173,8 +166,7 @@ class _AboutScreenState extends State<AboutScreen> {
             icon: Icons.support_agent_rounded,
             iconColor: AppTheme.accentColor,
             title: 'Support & Feedback',
-            onTap: () =>
-                context.pushAppRoute(AppRoutes.support),
+            onTap: () => context.pushAppRoute(AppRoutes.support),
           ),
         ],
       ),
@@ -283,10 +275,7 @@ class _InfoTile extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSec(context),
-            ),
+            style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
           ),
           const Spacer(),
           Text(

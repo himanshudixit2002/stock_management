@@ -70,9 +70,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           if (user?.hasPermission(AppPermissions.editVendors) ?? false)
             IconButton(
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => context.pushAppRoute(AppRoutes.editVendor,
-                extra: vendor,
-              ),
+              onPressed: () =>
+                  context.pushAppRoute(AppRoutes.editVendor, extra: vendor),
             ),
           if (user?.hasPermission(AppPermissions.deleteVendors) ?? false)
             IconButton(
@@ -104,47 +103,49 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                       Responsive.horizontalPadding(context),
                     ),
                     children: [
-                      Builder(builder: (context) {
-                        final section1 = Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildInfoCard(vendor),
-                            const SizedBox(height: 16),
-                            _buildScorecardSection(scorecard),
-                          ],
-                        );
-                        final section2 = Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildLinkedProductsSection(
-                              linkedProducts,
-                              allProducts,
-                              vendor,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildPurchaseOrderSection(vendor, allProducts),
-                          ],
-                        );
-                        if (Responsive.isDesktop(context)) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      Builder(
+                        builder: (context) {
+                          final section1 = Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: section1),
-                              const SizedBox(width: 16),
-                              Expanded(child: section2),
+                              _buildInfoCard(vendor),
+                              const SizedBox(height: 16),
+                              _buildScorecardSection(scorecard),
                             ],
                           );
-                        }
-                        return Column(
-                          children: [
-                            section1,
-                            const SizedBox(height: 16),
-                            section2,
-                          ],
-                        );
-                      }),
+                          final section2 = Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildLinkedProductsSection(
+                                linkedProducts,
+                                allProducts,
+                                vendor,
+                              ),
+                              const SizedBox(height: 16),
+                              _buildPurchaseOrderSection(vendor, allProducts),
+                            ],
+                          );
+                          if (Responsive.isDesktop(context)) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: section1),
+                                const SizedBox(width: 16),
+                                Expanded(child: section2),
+                              ],
+                            );
+                          }
+                          return Column(
+                            children: [
+                              section1,
+                              const SizedBox(height: 16),
+                              section2,
+                            ],
+                          );
+                        },
+                      ),
                       if (context
                           .watch<BillingSettingsProvider>()
                           .billingEnabled) ...[
@@ -745,7 +746,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => context.pushAppRoute(AppRoutes.invoiceDetail,
+                    onTap: () => context.pushAppRoute(
+                      AppRoutes.invoiceDetail,
                       extra: inv.id,
                     ),
                     child: Padding(
@@ -828,7 +830,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => context.pushAppRoute(AppRoutes.createInvoice,
+                  onPressed: () => context.pushAppRoute(
+                    AppRoutes.createInvoice,
                     extra: <String, dynamic>{
                       'type': InvoiceType.purchase,
                       'vendorId': vendor.id,

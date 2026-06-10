@@ -30,11 +30,12 @@ class HomeAction {
 
 class HomeActionsRegistry {
   static const List<String> defaultActionIds = [
+    'fastPos',
     'stockIn',
     'stockOut',
-    'damage',
-    'transfer',
-    'adjust',
+    'holds',
+    'release',
+    'hold',
   ];
 
   static const int maxActions = 6;
@@ -79,6 +80,30 @@ class HomeActionsRegistry {
       gradient: AppTheme.warningGradient,
       route: AppRoutes.stockAdjustment,
       permissionKey: AppPermissions.adjustStock,
+    ),
+    HomeAction(
+      id: 'hold',
+      label: 'Hold Stock',
+      icon: Icons.pause_circle_rounded,
+      gradient: AppTheme.warningGradient,
+      route: AppRoutes.stockHold,
+      permissionKey: AppPermissions.holdStock,
+    ),
+    HomeAction(
+      id: 'release',
+      label: 'Release Hold',
+      icon: Icons.play_circle_rounded,
+      gradient: AppTheme.successGradient,
+      route: AppRoutes.stockRelease,
+      permissionKey: AppPermissions.releaseStock,
+    ),
+    HomeAction(
+      id: 'holds',
+      label: 'Hold Dashboard',
+      icon: Icons.lock_clock_rounded,
+      gradient: AppTheme.indigoGradient,
+      route: AppRoutes.stockHolds,
+      permissionKey: AppPermissions.viewStockHolds,
     ),
     HomeAction(
       id: 'purchaseOrders',
@@ -167,6 +192,15 @@ class HomeActionsRegistry {
       gradient: AppTheme.indigoGradient,
       route: AppRoutes.barcodeScanner,
       featureGates: [HomeActionFeatureGate.barcode],
+    ),
+    HomeAction(
+      id: 'fastPos',
+      label: 'Fast POS',
+      icon: Icons.point_of_sale_rounded,
+      gradient: AppTheme.successGradient,
+      route: AppRoutes.fastPos,
+      permissionKey: AppPermissions.useFastPos,
+      featureGates: [HomeActionFeatureGate.billing],
     ),
     HomeAction(
       id: 'invoices',

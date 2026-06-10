@@ -1,25 +1,100 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config/theme.dart';
+import '../utils/unit_conversion.dart';
 
-class QuantityStepper extends StatelessWidget {
+class QuantityStepper extends StatefulWidget {
   final TextEditingController controller;
   final String? label;
   final String? Function(String?)? validator;
+  final int unitsPerPack;
+  final String packUnit;
+  final String baseUnit;
 
   const QuantityStepper({
     super.key,
     required this.controller,
     this.label,
     this.validator,
+    this.unitsPerPack = 1,
+    this.packUnit = 'box',
+    this.baseUnit = 'pcs',
   });
 
+  @override
+  State<QuantityStepper> createState() => _QuantityStepperState();
+}
+
+class _QuantityStepperState extends State<QuantityStepper> {
+  late final TextEditingController _packController;
+  late final TextEditingController _pieceController;
+
+  bool get _isMixed => widget.unitsPerPack > 1;
+
   void _increment(int amount) {
-    final current = int.tryParse(controller.text) ?? 0;
+    final current = int.tryParse(widget.controller.text) ?? 0;
     final newVal = current + amount;
     if (newVal >= 0) {
-      controller.text = '$newVal';
+      widget.controller.text = '$newVal';
+      _syncFromTotal();
       HapticFeedback.selectionClick();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _packController = TextEditingController();
+    _pieceController = TextEditingController();
+    widget.controller.addListener(_syncFromTotal);
+    _syncFromTotal();
+  }
+
+  @override
+  void didUpdateWidget(covariant QuantityStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_syncFromTotal);
+      widget.controller.addListener(_syncFromTotal);
+      _syncFromTotal();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_syncFromTotal);
+    _packController.dispose();
+    _pieceController.dispose();
+    super.dispose();
+  }
+
+  void _syncFromTotal() {
+    if (!_isMixed) return;
+    final total = int.tryParse(widget.controller.text) ?? 0;
+    final split = splitBaseQuantity(
+      baseQuantity: total,
+      unitsPerPack: widget.unitsPerPack,
+    );
+    final nextPack = split.packs.toString();
+    final nextPiece = split.pieces.toString();
+    if (_packController.text != nextPack) {
+      _packController.text = nextPack;
+    }
+    if (_pieceController.text != nextPiece) {
+      _pieceController.text = nextPiece;
+    }
+  }
+
+  void _updateTotalFromMixed() {
+    final packs = int.tryParse(_packController.text) ?? 0;
+    final pieces = int.tryParse(_pieceController.text) ?? 0;
+    final total = toBaseQuantity(
+      packs: packs,
+      pieces: pieces,
+      unitsPerPack: widget.unitsPerPack,
+    );
+    if (widget.controller.text != total.toString()) {
+      widget.controller.text = '$total';
     }
   }
 
@@ -28,11 +103,13 @@ class QuantityStepper extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (label != null)
+        if (widget.label != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              label!,
+              _isMixed
+                  ? '${widget.label!} (${widget.packUnit} + ${widget.baseUnit})'
+                  : widget.label!,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -45,37 +122,118 @@ class QuantityStepper extends StatelessWidget {
             _StepperButton(
               icon: Icons.remove_rounded,
               onTap: () => _increment(-1),
-              onLongPress: () => _increment(-10),
+              onLongPress: () => _increment(-(_isMixed ? widget.unitsPerPack : 10)),
               color: AppTheme.dangerColor,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: AppTheme.inputFill(context),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator: validator,
-              ),
+              child: _isMixed
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _packController,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  labelText: widget.packUnit,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  filled: true,
+                                  fillColor: AppTheme.inputFill(context),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                onChanged: (_) => _updateTotalFromMixed(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _pieceController,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  labelText: widget.baseUnit,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  filled: true,
+                                  fillColor: AppTheme.inputFill(context),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                onChanged: (_) => _updateTotalFromMixed(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: widget.controller,
+                          readOnly: true,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSec(context),
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Total (${widget.baseUnit})',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: AppTheme.inputFill(context),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
+                            ),
+                          ),
+                          validator: widget.validator,
+                        ),
+                      ],
+                    )
+                  : TextFormField(
+                      controller: widget.controller,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.inputFill(context),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      validator: widget.validator,
+                    ),
             ),
             const SizedBox(width: 12),
             _StepperButton(
               icon: Icons.add_rounded,
               onTap: () => _increment(1),
-              onLongPress: () => _increment(10),
+              onLongPress: () => _increment(_isMixed ? widget.unitsPerPack : 10),
               color: AppTheme.successColor,
             ),
           ],
@@ -84,13 +242,16 @@ class QuantityStepper extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [5, 10, 25, 50, 100]
+          children: (_isMixed
+                  ? [widget.unitsPerPack, widget.unitsPerPack * 2, widget.unitsPerPack * 5]
+                  : [5, 10, 25, 50, 100])
               .map(
                 (v) => ActionChip(
                   label: Text('+$v'),
                   onPressed: () => _increment(v),
-                  backgroundColor:
-                      AppTheme.primaryColor.withValues(alpha: 0.08),
+                  backgroundColor: AppTheme.primaryColor.withValues(
+                    alpha: 0.08,
+                  ),
                   side: BorderSide(
                     color: AppTheme.primaryColor.withValues(alpha: 0.2),
                   ),

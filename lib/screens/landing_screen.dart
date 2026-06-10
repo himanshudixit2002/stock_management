@@ -56,12 +56,20 @@ class LandingScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: AppTheme.isDark(context)
             ? const LinearGradient(
-                colors: [Color(0xFF1A2C2B), Color(0xFF161616), Color(0xFF121212)],
+                colors: [
+                  Color(0xFF1A2C2B),
+                  Color(0xFF161616),
+                  Color(0xFF121212),
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               )
             : const LinearGradient(
-                colors: [Color(0xFFE0F2F1), Color(0xFFF7F8FA), Color(0xFFFFFFFF)],
+                colors: [
+                  Color(0xFFE0F2F1),
+                  Color(0xFFF7F8FA),
+                  Color(0xFFFFFFFF),
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -96,7 +104,11 @@ class LandingScreen extends StatelessWidget {
             const SizedBox(height: 20),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFF00695C), Color(0xFF00897B), Color(0xFF26A69A)],
+                colors: [
+                  Color(0xFF00695C),
+                  Color(0xFF00897B),
+                  Color(0xFF26A69A),
+                ],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ).createShader(bounds),
@@ -142,8 +154,7 @@ class LandingScreen extends StatelessWidget {
                     boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
                   ),
                   child: ElevatedButton(
-                    onPressed: () =>
-                        context.pushAppRoute(AppRoutes.register),
+                    onPressed: () => context.pushAppRoute(AppRoutes.register),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
@@ -164,8 +175,11 @@ class LandingScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded,
-                            size: 20, color: AppTheme.surface(context)),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 20,
+                          color: AppTheme.surface(context),
+                        ),
                       ],
                     ),
                   ),
@@ -181,7 +195,10 @@ class LandingScreen extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.primaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 15),
-                    side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+                    side: const BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 1.5,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -230,13 +247,13 @@ class LandingScreen extends StatelessWidget {
   }
 
   Widget _capDot(BuildContext context) => Container(
-        width: 3,
-        height: 3,
-        decoration: BoxDecoration(
-          color: AppTheme.dividerStrongC(context),
-          shape: BoxShape.circle,
-        ),
-      );
+    width: 3,
+    height: 3,
+    decoration: BoxDecoration(
+      color: AppTheme.dividerStrongC(context),
+      shape: BoxShape.circle,
+    ),
+  );
 
   // --------------- FEATURE CATEGORIES ---------------
   Widget _buildFeatureCategories(BuildContext context, bool isWide) {
@@ -297,10 +314,18 @@ class LandingScreen extends StatelessWidget {
   // --------------- HIGHLIGHTS GRID ---------------
   Widget _buildHighlightsGrid(BuildContext context, bool isWide) {
     const highlights = <(IconData, String, String)>[
-      (Icons.qr_code_scanner_rounded, 'Barcode Scanner', 'Scan & look up instantly'),
+      (
+        Icons.qr_code_scanner_rounded,
+        'Barcode Scanner',
+        'Scan & look up instantly',
+      ),
       (Icons.business_rounded, 'Multi-Company', 'Manage multiple businesses'),
       (Icons.upload_file_rounded, 'Excel Import/Export', 'Bulk data anytime'),
-      (Icons.notifications_active_rounded, 'Smart Alerts', 'Low stock & expiry'),
+      (
+        Icons.notifications_active_rounded,
+        'Smart Alerts',
+        'Low stock & expiry',
+      ),
       (Icons.favorite_rounded, 'Favorites', 'Quick access to key products'),
       (Icons.history_rounded, 'Audit Log', 'Full traceability'),
     ];
@@ -346,7 +371,10 @@ class LandingScreen extends StatelessWidget {
                     child: SizedBox(
                       width: cardW,
                       child: _HighlightChip(
-                          icon: h.$1, title: h.$2, subtitle: h.$3),
+                        icon: h.$1,
+                        title: h.$2,
+                        subtitle: h.$3,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -441,8 +469,10 @@ class LandingScreen extends StatelessWidget {
                 label: 'Privacy Policy',
                 onTap: () {
                   if (kIsWeb) {
-                    _openUrl(context,
-                        'https://smartshelfkart.com/privacy-policy.html');
+                    _openUrl(
+                      context,
+                      'https://smartshelfkart.com/privacy-policy.html',
+                    );
                   } else {
                     context.pushAppRoute(AppRoutes.privacyPolicy);
                   }
@@ -463,7 +493,9 @@ class LandingScreen extends StatelessWidget {
                 onTap: () {
                   if (kIsWeb) {
                     _openUrl(
-                        context, 'https://smartshelfkart.com/support.html');
+                      context,
+                      'https://smartshelfkart.com/support.html',
+                    );
                   } else {
                     context.pushAppRoute(AppRoutes.support);
                   }
@@ -473,8 +505,10 @@ class LandingScreen extends StatelessWidget {
                 label: 'Data Deletion',
                 onTap: () {
                   if (kIsWeb) {
-                    _openUrl(context,
-                        'https://smartshelfkart.com/data-deletion.html');
+                    _openUrl(
+                      context,
+                      'https://smartshelfkart.com/data-deletion.html',
+                    );
                   } else {
                     context.pushAppRoute(AppRoutes.dataDeletion);
                   }
@@ -526,8 +560,7 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
     super.dispose();
   }
 
-  Future<void> _openPlayListing() =>
-      openUrl(context, _kGooglePlayListingUrl);
+  Future<void> _openPlayListing() => openUrl(context, _kGooglePlayListingUrl);
 
   @override
   Widget build(BuildContext context) {
@@ -539,12 +572,13 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
-          final pulseT =
-              Curves.easeInOut.transform(_pulseController.value);
-          final borderA =
-              _expanded ? 0.14 : (lerpDouble(0.08, 0.18, pulseT) ?? 0.12);
-          final shadowA =
-              _expanded ? 0.06 : (lerpDouble(0.035, 0.09, pulseT) ?? 0.06);
+          final pulseT = Curves.easeInOut.transform(_pulseController.value);
+          final borderA = _expanded
+              ? 0.14
+              : (lerpDouble(0.08, 0.18, pulseT) ?? 0.12);
+          final shadowA = _expanded
+              ? 0.06
+              : (lerpDouble(0.035, 0.09, pulseT) ?? 0.06);
 
           return Container(
             decoration: BoxDecoration(
@@ -577,12 +611,14 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
               label: '${_expanded ? 'Collapse' : 'Expand'} Android app section',
               child: Material(
                 color: Colors.transparent,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
                 child: InkWell(
                   onTap: () => setState(() => _expanded = !_expanded),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -629,8 +665,7 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
               clipBehavior: Clip.hardEdge,
               child: _expanded
                   ? Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                       child: Tooltip(
                         message: 'Opens Google Play in a new tab',
                         child: Semantics(
@@ -646,8 +681,7 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
                               filterQuality: FilterQuality.high,
                               semanticLabel:
                                   'Get SmartShelfKart on Google Play',
-                              loadingBuilder:
-                                  (context, child, progress) {
+                              loadingBuilder: (context, child, progress) {
                                 if (progress == null) return child;
                                 return SizedBox(
                                   height: 58,
@@ -665,10 +699,10 @@ class _WebPlayStoreToggleState extends State<_WebPlayStoreToggle>
                               },
                               errorBuilder: (context, error, stackTrace) =>
                                   OutlinedButton.icon(
-                                onPressed: _openPlayListing,
-                                icon: const Icon(Icons.open_in_new_rounded),
-                                label: const Text('Google Play'),
-                              ),
+                                    onPressed: _openPlayListing,
+                                    icon: const Icon(Icons.open_in_new_rounded),
+                                    label: const Text('Google Play'),
+                                  ),
                             ),
                           ),
                         ),
@@ -740,17 +774,12 @@ final _featureGroups = <_FeatureGroup>[
       'Full audit trail',
     ],
   ),
-  _FeatureGroup(
-    Icons.bolt_rounded,
-    'Productivity',
-    AppTheme.successColor,
-    [
-      'Barcode scanner (camera + manual)',
-      'Excel import / export / update',
-      'Bulk stock-in & bulk edit',
-      'Batch tracking & expiry alerts',
-    ],
-  ),
+  _FeatureGroup(Icons.bolt_rounded, 'Productivity', AppTheme.successColor, [
+    'Barcode scanner (camera + manual)',
+    'Excel import / export / update',
+    'Bulk stock-in & bulk edit',
+    'Batch tracking & expiry alerts',
+  ]),
 ];
 
 // ======================================================================
@@ -850,24 +879,27 @@ class _FeatureGroupCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: items
-                .map((t) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: color.withValues(alpha: 0.10)),
+                .map(
+                  (t) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: color.withValues(alpha: 0.10)),
+                    ),
+                    child: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textPri(context),
                       ),
-                      child: Text(
-                        t,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppTheme.textPri(context),
-                        ),
-                      ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -912,10 +944,7 @@ class _HighlightChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 11,
-              color: AppTheme.textSec(context),
-            ),
+            style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
           ),
         ],
       ),

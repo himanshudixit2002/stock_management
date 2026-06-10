@@ -56,7 +56,10 @@ class StockTakeProvider extends ChangeNotifier {
       await _databaseService.addStockTake(stockTake);
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to create stock take.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to create stock take.',
+      );
       notifyListeners();
       return false;
     }
@@ -68,7 +71,10 @@ class StockTakeProvider extends ChangeNotifier {
       await _databaseService.updateStockTake(stockTake);
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to update stock take.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to update stock take.',
+      );
       notifyListeners();
       return false;
     }

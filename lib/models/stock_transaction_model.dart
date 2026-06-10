@@ -1,7 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/parse_helpers.dart';
 
-enum TransactionType { stockIn, stockOut, damage, transfer, adjustment }
+enum TransactionType {
+  stockIn,
+  stockOut,
+  damage,
+  transfer,
+  adjustment,
+  hold,
+  holdRelease,
+}
 
 class StockTransactionModel {
   final String id;
@@ -39,6 +47,8 @@ class StockTransactionModel {
       TransactionType.damage => 'Damage',
       TransactionType.transfer => 'Transfer',
       TransactionType.adjustment => 'Adjustment',
+      TransactionType.hold => 'Hold',
+      TransactionType.holdRelease => 'Hold Release',
     };
   }
 
@@ -49,6 +59,8 @@ class StockTransactionModel {
       TransactionType.damage => '⚠️',
       TransactionType.transfer => '🔄',
       TransactionType.adjustment => '📋',
+      TransactionType.hold => '⏸️',
+      TransactionType.holdRelease => '▶️',
     };
   }
 
@@ -59,6 +71,8 @@ class StockTransactionModel {
       'damage' => TransactionType.damage,
       'transfer' => TransactionType.transfer,
       'adjustment' => TransactionType.adjustment,
+      'hold' => TransactionType.hold,
+      'hold_release' => TransactionType.holdRelease,
       _ => TransactionType.stockIn,
     };
   }
@@ -70,6 +84,8 @@ class StockTransactionModel {
       TransactionType.damage => 'damage',
       TransactionType.transfer => 'transfer',
       TransactionType.adjustment => 'adjustment',
+      TransactionType.hold => 'hold',
+      TransactionType.holdRelease => 'hold_release',
     };
   }
 

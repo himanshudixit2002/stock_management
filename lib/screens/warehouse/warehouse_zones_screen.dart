@@ -21,7 +21,8 @@ class WarehouseZonesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.manageWarehouseZones)) {
+    if (user != null &&
+        !user.hasPermission(AppPermissions.manageWarehouseZones)) {
       return Scaffold(
         appBar: AppBar(
           title: const AppBarTitleRow(
@@ -64,34 +65,35 @@ class WarehouseZonesScreen extends StatelessWidget {
         child: isLoading
             ? const ShimmerLoading(layout: ShimmerLayout.card)
             : zones.isEmpty
-                ? EmptyStateWidget(
-                    icon: Icons.warehouse_rounded,
-                    title: 'No Zones Yet',
-                    subtitle:
-                        'Organize your warehouse into zones and bins for better tracking.',
-                    buttonText: 'Add Zone',
-                    onButtonPressed: () => _showZoneForm(context, locations: locations),
-                  )
-                : Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: Responsive.contentMaxWidth(context),
-                      ),
-                      child: ListView(
-                        padding: EdgeInsets.all(
-                          Responsive.horizontalPadding(context),
-                        ),
-                        children: grouped.entries.map((entry) {
-                          return _buildLocationSection(
-                            context,
-                            entry.key,
-                            entry.value,
-                            locations,
-                          );
-                        }).toList(),
-                      ),
-                    ),
+            ? EmptyStateWidget(
+                icon: Icons.warehouse_rounded,
+                title: 'No Zones Yet',
+                subtitle:
+                    'Organize your warehouse into zones and bins for better tracking.',
+                buttonText: 'Add Zone',
+                onButtonPressed: () =>
+                    _showZoneForm(context, locations: locations),
+              )
+            : Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.contentMaxWidth(context),
                   ),
+                  child: ListView(
+                    padding: EdgeInsets.all(
+                      Responsive.horizontalPadding(context),
+                    ),
+                    children: grouped.entries.map((entry) {
+                      return _buildLocationSection(
+                        context,
+                        entry.key,
+                        entry.value,
+                        locations,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -109,7 +111,11 @@ class WarehouseZonesScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
-              Icon(Icons.location_on_rounded, size: 18, color: AppTheme.primaryColor),
+              Icon(
+                Icons.location_on_rounded,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
               const SizedBox(width: 8),
               Text(
                 locationName,
@@ -138,10 +144,7 @@ class WarehouseZonesScreen extends StatelessWidget {
             ],
           ),
         ),
-        ...zones.map((z) => _ZoneCard(
-              zone: z,
-              locations: locations,
-            )),
+        ...zones.map((z) => _ZoneCard(zone: z, locations: locations)),
         const SizedBox(height: 8),
       ],
     );
@@ -157,10 +160,7 @@ class WarehouseZonesScreen extends StatelessWidget {
       constraints: Responsive.sheetConstraints(context),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _ZoneFormSheet(
-        zone: zone,
-        locations: locations,
-      ),
+      builder: (ctx) => _ZoneFormSheet(zone: zone, locations: locations),
     );
   }
 }
@@ -173,14 +173,17 @@ class _ZoneCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final capacityRatio =
-        zone.capacity > 0 ? (zone.currentStock / zone.capacity).clamp(0.0, 1.0) : 0.0;
+    final capacityRatio = zone.capacity > 0
+        ? (zone.currentStock / zone.capacity).clamp(0.0, 1.0)
+        : 0.0;
     final capacityColor = capacityRatio > 0.9
         ? AppTheme.dangerColor
         : capacityRatio > 0.7
-            ? AppTheme.warningColor
-            : AppTheme.successColor;
-    final statusColor = zone.isActive ? AppTheme.successColor : AppTheme.textSec(context);
+        ? AppTheme.warningColor
+        : AppTheme.successColor;
+    final statusColor = zone.isActive
+        ? AppTheme.successColor
+        : AppTheme.textSec(context);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -230,8 +233,10 @@ class _ZoneCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -246,8 +251,7 @@ class _ZoneCard extends StatelessWidget {
                   ),
                 ),
                 PopupMenuButton<String>(
-                  onSelected: (action) =>
-                      _handleAction(context, action),
+                  onSelected: (action) => _handleAction(context, action),
                   itemBuilder: (ctx) => [
                     const PopupMenuItem(
                       value: 'edit',
@@ -263,11 +267,16 @@ class _ZoneCard extends StatelessWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_rounded,
-                              size: 18, color: AppTheme.dangerColor),
+                          Icon(
+                            Icons.delete_rounded,
+                            size: 18,
+                            color: AppTheme.dangerColor,
+                          ),
                           SizedBox(width: 8),
-                          Text('Delete',
-                              style: TextStyle(color: AppTheme.dangerColor)),
+                          Text(
+                            'Delete',
+                            style: TextStyle(color: AppTheme.dangerColor),
+                          ),
                         ],
                       ),
                     ),
@@ -333,10 +342,7 @@ class _ZoneCard extends StatelessWidget {
           constraints: Responsive.sheetConstraints(context),
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (ctx) => _ZoneFormSheet(
-            zone: zone,
-            locations: locations,
-          ),
+          builder: (ctx) => _ZoneFormSheet(zone: zone, locations: locations),
         );
         break;
       case 'delete':
@@ -381,10 +387,15 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
   void initState() {
     super.initState();
     _selectedLocation = widget.zone?.locationName;
-    _zoneNameController = TextEditingController(text: widget.zone?.zoneName ?? '');
-    _binCodeController = TextEditingController(text: widget.zone?.binCode ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.zone?.description ?? '');
+    _zoneNameController = TextEditingController(
+      text: widget.zone?.zoneName ?? '',
+    );
+    _binCodeController = TextEditingController(
+      text: widget.zone?.binCode ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.zone?.description ?? '',
+    );
     _capacityController = TextEditingController(
       text: widget.zone != null && widget.zone!.capacity > 0
           ? widget.zone!.capacity.toString()
@@ -480,19 +491,26 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
               ),
               const SizedBox(height: 20),
               FormField<String>(
-                validator: (_) => _selectedLocation == null || _selectedLocation!.isEmpty ? 'Select a location' : null,
+                validator: (_) =>
+                    _selectedLocation == null || _selectedLocation!.isEmpty
+                    ? 'Select a location'
+                    : null,
                 builder: (field) => GestureDetector(
                   onTap: () async {
                     final result = await showSearchablePicker(
                       context: context,
                       title: 'Location',
                       selectedValue: _selectedLocation,
-                      items: widget.locations.map((l) => PickerItem(
-                        value: l,
-                        label: l,
-                        icon: Icons.location_on_rounded,
-                        iconColor: AppTheme.primaryColor,
-                      )).toList(),
+                      items: widget.locations
+                          .map(
+                            (l) => PickerItem(
+                              value: l,
+                              label: l,
+                              icon: Icons.location_on_rounded,
+                              iconColor: AppTheme.primaryColor,
+                            ),
+                          )
+                          .toList(),
                     );
                     if (result != null) {
                       setState(() => _selectedLocation = result);
@@ -508,7 +526,9 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
                     child: Text(
                       _selectedLocation ?? 'Tap to select',
                       style: TextStyle(
-                        color: _selectedLocation != null ? null : AppTheme.textSec(context),
+                        color: _selectedLocation != null
+                            ? null
+                            : AppTheme.textSec(context),
                       ),
                     ),
                   ),

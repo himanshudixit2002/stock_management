@@ -21,13 +21,15 @@ class BillingSettings {
   final String purchasePrefix;
   final int nextPurchaseNumber;
   final String defaultNotes;
+
   /// When true, saving a non-draft standalone sales invoice creates a dispatched SO linked to it.
   final bool autoCreateSalesOrderForStandaloneSales;
+
   /// When true, saving a non-draft standalone purchase bill creates a received PO linked to it.
   final bool autoCreatePurchaseOrderForStandaloneBills;
 
   const BillingSettings({
-    this.billingEnabled = false,
+    this.billingEnabled = true,
     this.businessName = '',
     this.businessAddress = '',
     this.businessPhone = '',
@@ -53,7 +55,7 @@ class BillingSettings {
 
   factory BillingSettings.fromMap(Map<String, dynamic> map) {
     return BillingSettings(
-      billingEnabled: safeBool(map['billingEnabled']),
+      billingEnabled: safeBool(map['billingEnabled'], true),
       businessName: safeString(map['businessName']),
       businessAddress: safeString(map['businessAddress']),
       businessPhone: safeString(map['businessPhone']),

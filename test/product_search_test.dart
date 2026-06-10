@@ -76,6 +76,19 @@ void main() {
     });
   });
 
+  group('rankedProductsByBarcodeOrName', () {
+    test('prioritizes exact barcode and keeps unique results', () {
+      final catalog = [
+        _product(id: 'a', name: 'Rice 5kg', barcode: '890-111-222'),
+        _product(id: 'b', name: 'Rinse Liquid', barcode: ''),
+      ];
+      final r = rankedProductsByBarcodeOrName(catalog, '890111222');
+      expect(r, isNotEmpty);
+      expect(r.first.id, 'a');
+      expect(r.map((p) => p.id).toSet().length, r.length);
+    });
+  });
+
   group('parseProductSearchQuery', () {
     test('extracts stock and free-text tokens', () {
       final q = parseProductSearchQuery('stock:low organic milk');
@@ -101,18 +114,14 @@ void main() {
     });
 
     test('typo-tolerant multi-token search', () {
-      final catalog = [
-        _product(id: 'x', name: 'Samsung Galaxy Case'),
-      ];
+      final catalog = [_product(id: 'x', name: 'Samsung Galaxy Case')];
       final r = searchProductsRanked(catalog, 'samsng galxy');
       expect(r, isNotEmpty);
       expect(r.first.product.id, 'x');
     });
 
     test('typo in product name matches via fuzzy', () {
-      final catalog = [
-        _product(id: 'p', name: 'iPhone 15 Cover'),
-      ];
+      final catalog = [_product(id: 'p', name: 'iPhone 15 Cover')];
       final r = searchProductsRanked(catalog, 'iphnoe');
       expect(r, isNotEmpty);
       expect(r.first.product.id, 'p');

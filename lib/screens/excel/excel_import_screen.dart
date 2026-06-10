@@ -9,7 +9,6 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../../models/vendor_model.dart';
 import '../../models/product_model.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
@@ -171,27 +170,19 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           .map((d) => d['preferredVendor']?.toString().trim() ?? '')
           .where((v) => v.isNotEmpty)
           .toSet();
-
-      final now = DateTime.now();
-      try {
-        for (final vendorName in dataVendors) {
-          if (!existingVendors.contains(vendorName.toLowerCase())) {
-            final newVendor = VendorModel(
-              id: '',
-              name: vendorName,
-              createdAt: now,
-              updatedAt: now,
-              createdBy: user.uid,
-              createdByName: user.name,
-            );
-            final addedVendor = await vendorProvider.addVendor(newVendor);
-            if (addedVendor != null) {
-              vendorMap[vendorName.toLowerCase()] = addedVendor;
-            }
-          }
-        }
-      } catch (e) {
-        throw Exception('Failed to create missing vendors: $e');
+      final missingVendors =
+          dataVendors
+              .where((v) => !existingVendors.contains(v.toLowerCase()))
+              .toList()
+            ..sort();
+      if (missingVendors.isNotEmpty) {
+        final preview = missingVendors.take(5).join(', ');
+        final suffix = missingVendors.length > 5 ? ' and more' : '';
+        throw Exception(
+          'Import references vendors without phone numbers configured: '
+          '$preview$suffix. Create these vendors with phone numbers in '
+          'Manage Vendors, then retry import.',
+        );
       }
 
       List<ProductModel> products;
@@ -260,7 +251,9 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       // Update existing products
       if (mergeResult.updates.isNotEmpty) {
         try {
-          final mergedProducts = mergeResult.updates.map((m) => m.merged).toList();
+          final mergedProducts = mergeResult.updates
+              .map((m) => m.merged)
+              .toList();
           updatedCount = await productProvider.bulkUpdateProducts(
             mergedProducts,
             userId: user.uid,
@@ -976,11 +969,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.merge_rounded,
-                size: 20,
-                color: AppTheme.infoColor,
-              ),
+              Icon(Icons.merge_rounded, size: 20, color: AppTheme.infoColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

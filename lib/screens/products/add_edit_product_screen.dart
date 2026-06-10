@@ -46,11 +46,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   final _lowStockController = TextEditingController();
   final _costPriceController = TextEditingController();
   final _sellingPriceController = TextEditingController();
+  final _unitsPerPackController = TextEditingController(text: '1');
 
   String? _selectedCategoryId;
   String? _selectedCompany;
   String? _selectedSize;
-  String _selectedUnit = 'pcs';
+  String _selectedBaseUnit = 'pcs';
+  String _selectedPackUnit = 'box';
   String? _selectedVendorId;
   String? _selectedVendorName;
   bool _isLoading = false;
@@ -73,7 +75,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
           _selectedCategoryId != (p.categoryId.isEmpty ? null : p.categoryId) ||
           _selectedCompany != (p.company.isEmpty ? null : p.company) ||
           _selectedSize != (p.size.isEmpty ? null : p.size) ||
-          _selectedUnit != p.unit ||
+          _selectedBaseUnit != p.baseUnit ||
+          _selectedPackUnit != p.packUnit ||
+          _unitsPerPackController.text.trim() != p.unitsPerPack.toString() ||
           _lowStockController.text.trim() != p.lowStockThreshold.toString() ||
           _costPriceController.text.trim() != origCost ||
           _sellingPriceController.text.trim() != origSelling ||
@@ -136,7 +140,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       _selectedCategoryId = p.categoryId.isEmpty ? null : p.categoryId;
       _selectedCompany = p.company.isEmpty ? null : p.company;
       _selectedSize = p.size.isEmpty ? null : p.size;
-      _selectedUnit = p.unit;
+      _selectedBaseUnit = p.baseUnit;
+      _selectedPackUnit = p.packUnit;
+      _unitsPerPackController.text = p.unitsPerPack.toString();
       if (p.costPrice > 0) _costPriceController.text = p.costPrice.toString();
       if (p.sellingPrice > 0) {
         _sellingPriceController.text = p.sellingPrice.toString();
@@ -161,6 +167,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _lowStockController.dispose();
     _costPriceController.dispose();
     _sellingPriceController.dispose();
+    _unitsPerPackController.dispose();
     super.dispose();
   }
 
@@ -430,7 +437,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       company: _selectedCompany ?? '',
       size: _selectedSize ?? '',
       quantity: isEditing ? widget.product!.quantity : 0,
-      unit: _selectedUnit,
+      unit: _selectedBaseUnit,
+      baseUnit: _selectedBaseUnit,
+      packUnit: _selectedPackUnit,
+      unitsPerPack: int.tryParse(_unitsPerPackController.text) ?? 1,
       locationQuantities: isEditing
           ? widget.product!.locationQuantities
           : const {},
@@ -922,9 +932,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         bottom: 16,
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        value: _selectedUnit,
+                                        value: _selectedBaseUnit,
                                         decoration: const InputDecoration(
-                                          labelText: 'Unit',
+                                          labelText: 'Base Unit',
                                           prefixIcon: Icon(
                                             Icons.straighten_rounded,
                                           ),
@@ -937,10 +947,62 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         }).toList(),
                                         onChanged: (value) {
                                           setState(() {
-                                            _selectedUnit = value ?? 'pcs';
+                                            _selectedBaseUnit = value ?? 'pcs';
                                           });
                                         },
                                       ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 16,
+                                      ),
+                                      child: DropdownButtonFormField<String>(
+                                        value: _selectedPackUnit,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Pack Unit',
+                                          prefixIcon: Icon(
+                                            Icons.inventory_rounded,
+                                          ),
+                                        ),
+                                        items: _units.map((unit) {
+                                          return DropdownMenuItem(
+                                            value: unit,
+                                            child: Text(unit),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedPackUnit = value ?? 'box';
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: CustomTextField(
+                                      controller: _unitsPerPackController,
+                                      label: 'Units per Pack',
+                                      hint: 'e.g., 10',
+                                      helperText: '1 box = N base units',
+                                      prefixIcon: Icons.calculate_rounded,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                      ],
+                                      validator: (value) {
+                                        final parsed = int.tryParse(value ?? '');
+                                        if (parsed == null || parsed <= 0) {
+                                          return 'Enter valid conversion';
+                                        }
+                                        return null;
+                                      },
                                     ),
                                   ),
                                   const SizedBox(width: 12),

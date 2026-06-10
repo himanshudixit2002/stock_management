@@ -7,6 +7,7 @@ import '../../models/customer_model.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/validators.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -38,11 +39,21 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.customer?.name ?? '');
-    _emailController = TextEditingController(text: widget.customer?.email ?? '');
-    _phoneController = TextEditingController(text: widget.customer?.phone ?? '');
-    _addressController = TextEditingController(text: widget.customer?.address ?? '');
-    _companyController = TextEditingController(text: widget.customer?.company ?? '');
-    _notesController = TextEditingController(text: widget.customer?.notes ?? '');
+    _emailController = TextEditingController(
+      text: widget.customer?.email ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: widget.customer?.phone ?? '',
+    );
+    _addressController = TextEditingController(
+      text: widget.customer?.address ?? '',
+    );
+    _companyController = TextEditingController(
+      text: widget.customer?.company ?? '',
+    );
+    _notesController = TextEditingController(
+      text: widget.customer?.notes ?? '',
+    );
     _isActive = widget.customer?.isActive ?? true;
   }
 
@@ -90,7 +101,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     if (_isEditing) {
       success = await context.read<CustomerProvider>().updateCustomer(customer);
     } else {
-      final result = await context.read<CustomerProvider>().addCustomer(customer);
+      final result = await context.read<CustomerProvider>().addCustomer(
+        customer,
+      );
       success = result != null;
       newId = result?.id;
     }
@@ -100,12 +113,16 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
 
     if (success) {
       HapticFeedback.mediumImpact();
-      showSuccessOverlay(context,
-          message: _isEditing ? 'Customer updated' : 'Customer added',
-          popResult: newId);
+      showSuccessOverlay(
+        context,
+        message: _isEditing ? 'Customer updated' : 'Customer added',
+        popResult: newId,
+      );
     } else {
-      showErrorSnackBar(context,
-          context.read<CustomerProvider>().errorMessage ?? 'Operation failed');
+      showErrorSnackBar(
+        context,
+        context.read<CustomerProvider>().errorMessage ?? 'Operation failed',
+      );
     }
   }
 
@@ -117,8 +134,12 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         : (user?.hasPermission(AppPermissions.addCustomers) ?? false);
     if (user != null && !canAccess) {
       return Scaffold(
-        appBar: AppBar(title: Text(_isEditing ? 'Edit Customer' : 'Add Customer')),
-        body: const Center(child: Text('You do not have permission to access this feature.')),
+        appBar: AppBar(
+          title: Text(_isEditing ? 'Edit Customer' : 'Add Customer'),
+        ),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
       );
     }
 
@@ -135,7 +156,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: SingleChildScrollView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               child: GlassPanel(
@@ -157,7 +180,8 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                             ),
                             textCapitalization: TextCapitalization.words,
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Name is required';
+                              if (v == null || v.trim().isEmpty)
+                                return 'Name is required';
                               return null;
                             },
                           ),
@@ -181,7 +205,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                             ),
                             keyboardType: TextInputType.emailAddress,
                             validator: (v) {
-                              if (v != null && v.isNotEmpty && !v.contains('@')) {
+                              if (v != null &&
+                                  v.isNotEmpty &&
+                                  !v.contains('@')) {
                                 return 'Enter a valid email';
                               }
                               return null;
@@ -190,10 +216,11 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                           TextFormField(
                             controller: _phoneController,
                             decoration: const InputDecoration(
-                              labelText: 'Phone',
+                              labelText: 'Phone *',
                               prefixIcon: Icon(Icons.phone_rounded),
                             ),
                             keyboardType: TextInputType.phone,
+                            validator: validateRequiredPhone,
                           ),
                         ],
                       ),
@@ -218,8 +245,10 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                       if (_isEditing) ...[
                         const SizedBox(height: 16),
                         SwitchListTile(
-                          title: const Text('Active',
-                              style: TextStyle(fontWeight: FontWeight.w500)),
+                          title: const Text(
+                            'Active',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
                           value: _isActive,
                           onChanged: (v) => setState(() => _isActive = v),
                           activeThumbColor: AppTheme.primaryColor,
@@ -231,12 +260,21 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                         onPressed: _isLoading ? null : _save,
                         icon: _isLoading
                             ? const SizedBox(
-                                width: 20, height: 20,
+                                width: 20,
+                                height: 20,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
-                            : Icon(_isEditing ? Icons.check_rounded : Icons.person_add_rounded),
-                        label: Text(_isEditing ? 'Save Changes' : 'Add Customer'),
+                            : Icon(
+                                _isEditing
+                                    ? Icons.check_rounded
+                                    : Icons.person_add_rounded,
+                              ),
+                        label: Text(
+                          _isEditing ? 'Save Changes' : 'Add Customer',
+                        ),
                       ),
                     ],
                   ),

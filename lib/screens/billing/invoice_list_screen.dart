@@ -121,13 +121,14 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   ),
                   child: ProviderErrorBanner(
                     message: billing.errorMessage!,
-                    onDismiss: () => context.read<BillingProvider>().clearError(),
+                    onDismiss: () =>
+                        context.read<BillingProvider>().clearError(),
                     onRetry: () {
                       final cid = context.read<ProductProvider>().companyId;
                       if (cid.isNotEmpty) {
                         context.read<BillingProvider>().initialize(
-                              companyId: cid,
-                            );
+                          companyId: cid,
+                        );
                       }
                     },
                   ),
@@ -178,7 +179,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     required UserModel? user,
   }) {
     final hPad = Responsive.horizontalPadding(context);
-    final canCreate = user?.hasPermission(AppPermissions.createInvoices) ?? false;
+    final canCreate =
+        user?.hasPermission(AppPermissions.createInvoices) ?? false;
 
     if (billing.isLoading && billing.invoices.isEmpty) {
       return ListView(
@@ -205,13 +207,9 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               title: 'No invoices yet',
               subtitle: 'Create your first invoice to get started',
               buttonText: canCreate ? 'New invoice' : null,
-              onButtonPressed:
-                  canCreate
-                      ? () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.createInvoice,
-                          )
-                      : null,
+              onButtonPressed: canCreate
+                  ? () => Navigator.pushNamed(context, AppRoutes.createInvoice)
+                  : null,
             ),
           ),
         ],

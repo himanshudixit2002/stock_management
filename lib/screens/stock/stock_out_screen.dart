@@ -18,11 +18,13 @@ import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/permissions.dart';
+import '../../models/stock_hold_model.dart';
 
 class StockOutScreen extends StatefulWidget {
   final ProductModel? product;
+  final HoldActionArgs? holdAction;
 
-  const StockOutScreen({super.key, this.product});
+  const StockOutScreen({super.key, this.product, this.holdAction});
 
   @override
   State<StockOutScreen> createState() => _StockOutScreenState();
@@ -40,6 +42,25 @@ class _StockOutScreenState extends State<StockOutScreen> {
   String _selectedVendorId = '';
   String _selectedVendorName = '';
   bool _isLoading = false;
+
+  /// When set, the screen is despatching units directly from this hold
+  /// (reduces both held reservation and on-hand stock).
+  StockHoldModel? _fromHold;
+  bool _holdPrefillApplied = false;
+
+  /// Max quantity allowed for the current operation. When despatching from a
+  /// hold this is the hold's remaining qty capped by the on-hand stock at the
+  /// chosen despatch location; otherwise it is the unheld available stock.
+  int get _maxQty {
+    if (_fromHold != null) {
+      final held = _fromHold!.remainingQuantity;
+      if (_selectedLocation.isEmpty) return held;
+      final onHand =
+          _selectedProduct?.locationQuantities[_selectedLocation] ?? 0;
+      return onHand < held ? onHand : held;
+    }
+    return _availableAtLocation;
+  }
 
   bool get _hasUnsavedChanges =>
       _quantityController.text.trim().isNotEmpty ||
@@ -59,14 +80,19 @@ class _StockOutScreenState extends State<StockOutScreen> {
 
   int get _availableAtLocation {
     if (_selectedProduct == null || _selectedLocation.isEmpty) return 0;
-    return _selectedProduct!.locationQuantities[_selectedLocation] ?? 0;
+    return _selectedProduct!.availableAtLocation(_selectedLocation);
   }
 
   @override
   void initState() {
     super.initState();
     _selectedProduct = widget.product;
-    if (_selectedProduct != null) {
+    _fromHold = widget.holdAction?.hold;
+    if (_fromHold != null) {
+      // Location-less holds choose a despatch location below; legacy
+      // location-bound holds keep their reserved location.
+      if (_fromHold!.hasLocation) _selectedLocation = _fromHold!.location;
+    } else if (_selectedProduct != null) {
       final locs = _selectedProduct!.locationQuantities.entries
           .where((e) => e.value > 0)
           .toList();
@@ -82,13 +108,12 @@ class _StockOutScreenState extends State<StockOutScreen> {
     super.dispose();
   }
 
-
-
   Future<bool> _confirmStockOut(int qty) async {
     return showConfirmDialog(
       context,
       title: 'Confirm Stock Out',
-      message: 'Remove $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" from $_selectedLocation?\n\n'
+      message:
+          'Remove $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" from $_selectedLocation?\n\n'
           'This action cannot be undone.',
       confirmLabel: 'Confirm',
       icon: Icons.outbox_rounded,
@@ -101,7 +126,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
     return showConfirmDialog(
       context,
       title: 'Large Quantity',
-      message: 'Are you sure you want to remove $qty items? Please confirm this is correct.',
+      message:
+          'Are you sure you want to remove $qty items? Please confirm this is correct.',
       confirmLabel: 'Confirm',
       iconColor: AppTheme.warningColor,
     );
@@ -122,6 +148,24 @@ class _StockOutScreenState extends State<StockOutScreen> {
 
     final qty = int.tryParse(_quantityController.text);
     if (qty == null || qty <= 0) return;
+    if (_fromHold != null) {
+      if (qty > _fromHold!.remainingQuantity) {
+        showErrorSnackBar(
+          context,
+          'Cannot despatch more than held qty (${_fromHold!.remainingQuantity}).',
+        );
+        return;
+      }
+      final onHand =
+          _selectedProduct?.locationQuantities[_selectedLocation] ?? 0;
+      if (qty > onHand) {
+        showErrorSnackBar(
+          context,
+          'Only $onHand on hand at $_selectedLocation.',
+        );
+        return;
+      }
+    }
     if (!await _confirmStockOut(qty)) return;
     if (!await _confirmLargeQuantity(qty)) return;
     if (!mounted) return;
@@ -136,17 +180,33 @@ class _StockOutScreenState extends State<StockOutScreen> {
       }
       return;
     }
-    final success = await context.read<StockProvider>().removeStock(
-      productId: _selectedProduct!.id,
-      productName: _selectedProduct!.name,
-      quantity: qty,
-      location: _selectedLocation,
-      userId: user.uid,
-      userName: user.name,
-      reason: _reasonController.text.trim(),
-      vendorId: _selectedVendorId,
-      vendorName: _selectedVendorName,
-    );
+    final stockProvider = context.read<StockProvider>();
+    final bool success;
+    if (_fromHold != null) {
+      success = await stockProvider.dispatchHoldQuantity(
+        holdId: _fromHold!.id,
+        quantity: qty,
+        userId: user.uid,
+        userName: user.name,
+        location: _selectedLocation,
+        reason: _reasonController.text.trim().isNotEmpty
+            ? _reasonController.text.trim()
+            : 'Despatched from held stock'
+                '${_fromHold!.challanNumber.isNotEmpty ? ' (Challan ${_fromHold!.challanNumber})' : ''}',
+      );
+    } else {
+      success = await stockProvider.removeStock(
+        productId: _selectedProduct!.id,
+        productName: _selectedProduct!.name,
+        quantity: qty,
+        location: _selectedLocation,
+        userId: user.uid,
+        userName: user.name,
+        reason: _reasonController.text.trim(),
+        vendorId: _selectedVendorId,
+        vendorName: _selectedVendorName,
+      );
+    }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -161,11 +221,14 @@ class _StockOutScreenState extends State<StockOutScreen> {
       _reasonController.clear();
       _locationController.clear();
       setState(() {
-        if (widget.product == null) _selectedProduct = null;
+        if (widget.product == null && _fromHold == null) {
+          _selectedProduct = null;
+        }
         _selectedLocation = '';
         _selectedVendorId = '';
         _selectedVendorName = '';
         _submitted = false;
+        _fromHold = null;
         _formKey = GlobalKey<FormState>();
       });
       showSuccessOverlay(context, message: 'Stock removed successfully');
@@ -185,10 +248,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
       MaterialBanner(
         content: Text(
           '$productName is now low stock. Create PO?',
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
         ),
         backgroundColor: AppTheme.warningColor,
         leading: Icon(
@@ -199,10 +259,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
           TextButton(
             onPressed: () {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              Navigator.pushNamed(
-                context,
-                AppRoutes.createPurchaseOrder,
-              );
+              Navigator.pushNamed(context, AppRoutes.createPurchaseOrder);
             },
             child: Text(
               'Create PO',
@@ -218,9 +275,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
             },
             child: Text(
               'Dismiss',
-              style: TextStyle(
-                color: AppTheme.surface(context),
-              ),
+              style: TextStyle(color: AppTheme.surface(context)),
             ),
           ),
         ],
@@ -235,11 +290,87 @@ class _StockOutScreenState extends State<StockOutScreen> {
       selectedProductId: _selectedProduct?.id,
     );
     if (p == null || !mounted) return;
-    final locs = p.locationQuantities.entries.where((e) => e.value > 0).toList();
+    final locs = p.locationQuantities.entries
+        .where((e) => p.availableAtLocation(e.key) > 0)
+        .toList();
     setState(() {
       _selectedProduct = p;
+      _fromHold = null;
       _selectedLocation = locs.length == 1 ? locs.first.key : '';
       _locationController.clear();
+    });
+    await _maybePromptDespatchFromHeld(p);
+  }
+
+  /// If the picked product has held stock, offer to despatch directly from a
+  /// hold (by challan) instead of a normal stock out.
+  Future<void> _maybePromptDespatchFromHeld(ProductModel product) async {
+    final stockProvider = context.read<StockProvider>();
+    // Only manual holds can be despatched directly here. Sales-order holds must
+    // be dispatched from the order so its status/dispatched qty stays in sync.
+    final manualHolds = stockProvider
+        .activeHoldsForProduct(product.id)
+        .where((h) => h.isManual)
+        .toList();
+    if (manualHolds.isEmpty || !mounted) return;
+    final totalHeld =
+        manualHolds.fold<int>(0, (s, h) => s + h.remainingQuantity);
+    final yes = await showConfirmDialog(
+      context,
+      title: 'Despatch from held stock?',
+      message:
+          '${product.name} has $totalHeld unit(s) on manual hold across '
+          '${manualHolds.length} challan(s). Despatch from held stock?',
+      confirmLabel: 'Yes, from held',
+      cancelLabel: 'No, normal',
+      icon: Icons.lock_clock_rounded,
+      iconColor: AppTheme.warningColor,
+    );
+    if (!yes || !mounted) return;
+    await _chooseHoldToDespatch(manualHolds);
+  }
+
+  Future<void> _chooseHoldToDespatch(List<StockHoldModel> holds) async {
+    StockHoldModel? picked;
+    if (holds.length == 1) {
+      picked = holds.first;
+    } else {
+      final pickedId = await showSearchablePicker(
+        context: context,
+        title: 'Select Challan',
+        items: holds
+            .map(
+              (h) => PickerItem(
+                value: h.id,
+                label: h.challanNumber.isEmpty
+                    ? 'No challan'
+                    : 'Challan ${h.challanNumber}',
+                subtitle: '${h.location} • ${h.remainingQuantity} held',
+                icon: Icons.receipt_long_rounded,
+                iconColor: AppTheme.warningColor,
+              ),
+            )
+            .toList(),
+      );
+      if (pickedId == null || !mounted) return;
+      picked = holds.firstWhere((h) => h.id == pickedId);
+    }
+    setState(() {
+      _fromHold = picked;
+      _selectedLocation = picked!.location;
+      _quantityController.text = '${picked.remainingQuantity}';
+    });
+  }
+
+  void _exitHoldMode() {
+    setState(() {
+      _fromHold = null;
+      _quantityController.clear();
+      final locs = _selectedProduct?.locationQuantities.entries
+              .where((e) => _selectedProduct!.availableAtLocation(e.key) > 0)
+              .toList() ??
+          [];
+      _selectedLocation = locs.length == 1 ? locs.first.key : '';
     });
   }
 
@@ -257,6 +388,21 @@ class _StockOutScreenState extends State<StockOutScreen> {
 
     final allProducts = context.watch<ProductProvider>().allProducts;
 
+    // Resolve the product for a hold deep-link (Despatch from dashboard).
+    if (_fromHold != null && _selectedProduct == null) {
+      _selectedProduct = allProducts.cast<ProductModel?>().firstWhere(
+        (p) => p!.id == _fromHold!.productId,
+        orElse: () => null,
+      );
+    }
+    if (_fromHold != null && !_holdPrefillApplied) {
+      _holdPrefillApplied = true;
+      if (_fromHold!.hasLocation) _selectedLocation = _fromHold!.location;
+      if (_quantityController.text.trim().isEmpty) {
+        _quantityController.text = '${_fromHold!.remainingQuantity}';
+      }
+    }
+
     // Keep _selectedProduct in sync with provider data
     if (_selectedProduct != null) {
       final fresh = allProducts.cast<ProductModel?>().firstWhere(
@@ -271,16 +417,30 @@ class _StockOutScreenState extends State<StockOutScreen> {
     final products = allProducts
         .where(
           (p) =>
-              p.quantity > 0 && p.locationQuantities.values.any((q) => q > 0),
+              p.availableQuantity > 0 &&
+              p.locationQuantities.keys.any(
+                (loc) => p.availableAtLocation(loc) > 0,
+              ),
         )
         .toList();
 
     final productLocations =
         _selectedProduct?.locationQuantities.entries
+            .where((e) => _selectedProduct!.availableAtLocation(e.key) > 0)
+            .map((e) => e.key)
+            .toList() ??
+        [];
+
+    final holdMode = _fromHold != null;
+    // When despatching a hold we can pull from any location that physically
+    // holds stock (the reservation isn't tied to a location).
+    final dispatchLocations =
+        _selectedProduct?.locationQuantities.entries
             .where((e) => e.value > 0)
             .map((e) => e.key)
             .toList() ??
         [];
+    final locationOptions = holdMode ? dispatchLocations : productLocations;
 
     if (allProducts.isEmpty) {
       return Scaffold(
@@ -303,7 +463,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
       );
     }
 
-    if (products.isEmpty) {
+    if (products.isEmpty && _fromHold == null) {
       return Scaffold(
         appBar: AppBar(
           title: AppBarTitleRow(
@@ -318,7 +478,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
           subtitle:
               'All products are out of stock. Add stock before dispatching.',
           buttonText: 'Go to Stock In',
-          onButtonPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.stockIn),
+          onButtonPressed: () =>
+              Navigator.pushReplacementNamed(context, AppRoutes.stockIn),
         ),
       );
     }
@@ -351,9 +512,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
             ),
           ),
           body: Container(
-            decoration: BoxDecoration(
-              gradient: AppTheme.scaffoldGrad(context),
-            ),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -436,17 +595,82 @@ class _StockOutScreenState extends State<StockOutScreen> {
                           ),
                         ),
 
-                        // Stock by location breakdown
-                        if (_selectedProduct != null &&
-                            _selectedProduct!.locationQuantities.isNotEmpty) ...[
+                        // Despatch-from-held banner
+                        if (_fromHold != null) ...[
                           const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                              color: AppTheme.warningColor.withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                                color: AppTheme.warningColor.withValues(
+                                  alpha: 0.25,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.lock_clock_rounded,
+                                  color: AppTheme.warningColor,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Despatching from held stock',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: AppTheme.warningColor,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${_fromHold!.challanNumber.isEmpty ? 'No challan' : 'Challan ${_fromHold!.challanNumber}'} • '
+                                        '${_fromHold!.remainingQuantity} held'
+                                        '${_fromHold!.hasLocation ? ' • ${_fromHold!.location}' : ''}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSec(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _exitHoldMode,
+                                  child: const Text('Cancel'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Stock by location breakdown
+                        if (_fromHold == null &&
+                            _selectedProduct != null &&
+                            _selectedProduct!
+                                .locationQuantities
+                                .isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.06,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.15,
+                                ),
                               ),
                             ),
                             child: Column(
@@ -454,7 +678,11 @@ class _StockOutScreenState extends State<StockOutScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.warehouse_rounded, size: 16, color: AppTheme.primaryColor),
+                                    Icon(
+                                      Icons.warehouse_rounded,
+                                      size: 16,
+                                      color: AppTheme.primaryColor,
+                                    ),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Stock by Location',
@@ -466,7 +694,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                     ),
                                     const Spacer(),
                                     Text(
-                                      'Total: ${_selectedProduct!.quantity} ${_selectedProduct!.unit}',
+                                      'On Hand: ${_selectedProduct!.quantity} ${_selectedProduct!.unit} • Available: ${_selectedProduct!.availableQuantity}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -499,7 +727,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                           ),
                                         ),
                                         Text(
-                                          '${e.value} ${_selectedProduct!.unit}',
+                                          '${e.value} ${_selectedProduct!.unit}'
+                                          '${(_selectedProduct!.heldLocationQuantities[e.key] ?? 0) > 0 ? ' (${_selectedProduct!.availableAtLocation(e.key)} available)' : ''}',
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
@@ -519,32 +748,39 @@ class _StockOutScreenState extends State<StockOutScreen> {
 
                         const SizedBox(height: 16),
 
-                        // Location selector
+                        // Location selector (shown for normal stock out and for
+                        // hold despatch, where the user chooses the source).
                         if (_selectedProduct != null &&
-                            productLocations.isNotEmpty)
+                            locationOptions.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: GestureDetector(
                               onTap: () async {
                                 final result = await showSearchablePicker(
                                   context: context,
-                                  title: 'Location',
-                                  selectedValue:
-                                      _selectedLocation.isEmpty
-                                          ? null
-                                          : _selectedLocation,
-                                  addNewLabel: 'Add new location',
-                                  addNewValue: '__create_new__',
-                                  items: productLocations.map((loc) {
-                                    final qty =
+                                  title: holdMode
+                                      ? 'Despatch From'
+                                      : 'Location',
+                                  selectedValue: _selectedLocation.isEmpty
+                                      ? null
+                                      : _selectedLocation,
+                                  addNewLabel:
+                                      holdMode ? null : 'Add new location',
+                                  addNewValue:
+                                      holdMode ? null : '__create_new__',
+                                  items: locationOptions.map((loc) {
+                                    final onHand =
                                         _selectedProduct!
                                             .locationQuantities[loc] ??
                                         0;
+                                    final available = _selectedProduct!
+                                        .availableAtLocation(loc);
                                     return PickerItem(
                                       value: loc,
                                       label: loc,
-                                      subtitle:
-                                          '$qty ${_selectedProduct!.unit}',
+                                      subtitle: holdMode
+                                          ? '$onHand on hand ${_selectedProduct!.unit}'
+                                          : '$available available • $onHand on hand ${_selectedProduct!.unit}',
                                       icon: Icons.location_on_rounded,
                                       iconColor: AppTheme.primaryColor,
                                     );
@@ -552,8 +788,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                 );
                                 if (result == null || !mounted) return;
                                 if (result == '__create_new__') {
-                                  final settingsProvider =
-                                      context.read<SettingsProvider>();
+                                  final settingsProvider = context
+                                      .read<SettingsProvider>();
                                   final newName = await showAddNameDialog(
                                     context,
                                     title: 'Add new location',
@@ -571,9 +807,12 @@ class _StockOutScreenState extends State<StockOutScreen> {
                               },
                               child: InputDecorator(
                                 decoration: InputDecoration(
-                                  labelText: 'Location *',
-                                  prefixIcon:
-                                      const Icon(Icons.location_on_rounded),
+                                  labelText: holdMode
+                                      ? 'Despatch From *'
+                                      : 'Location *',
+                                  prefixIcon: const Icon(
+                                    Icons.location_on_rounded,
+                                  ),
                                   suffixIcon: _selectedLocation.isNotEmpty
                                       ? IconButton(
                                           icon: const Icon(
@@ -581,17 +820,20 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                             size: 18,
                                           ),
                                           onPressed: () => setState(
-                                              () => _selectedLocation = ''),
+                                            () => _selectedLocation = '',
+                                          ),
                                         )
                                       : const Icon(Icons.arrow_drop_down),
-                                  errorText: _submitted &&
-                                          _selectedLocation.isEmpty
+                                  errorText:
+                                      _submitted && _selectedLocation.isEmpty
                                       ? 'Please select a location'
                                       : null,
                                 ),
                                 child: Text(
                                   _selectedLocation.isEmpty
-                                      ? 'Select location'
+                                      ? (holdMode
+                                          ? 'Select despatch location'
+                                          : 'Select location')
                                       : _selectedLocation,
                                   style: TextStyle(
                                     color: _selectedLocation.isNotEmpty
@@ -604,7 +846,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                           ),
 
                         if (_selectedProduct != null &&
-                            productLocations.isEmpty)
+                            locationOptions.isEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Text(
@@ -620,7 +862,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Text(
-                              'Available at $_selectedLocation: $_availableAtLocation ${_selectedProduct?.unit ?? "pcs"}',
+                              _fromHold != null
+                                  ? 'Despatching up to $_maxQty of ${_fromHold!.remainingQuantity} held from $_selectedLocation'
+                                  : 'Available at $_selectedLocation: $_availableAtLocation ${_selectedProduct?.unit ?? "pcs"}',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: AppTheme.textSec(context),
@@ -632,6 +876,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
                         QuantityStepper(
                           controller: _quantityController,
                           label: 'Quantity to Remove *',
+                          unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+                          packUnit: _selectedProduct?.packUnit ?? 'box',
+                          baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Enter quantity';
@@ -640,8 +887,10 @@ class _StockOutScreenState extends State<StockOutScreen> {
                             if (qty == null || qty <= 0) {
                               return 'Enter a valid quantity';
                             }
-                            if (qty > _availableAtLocation) {
-                              return 'Exceeds stock at $_selectedLocation ($_availableAtLocation)';
+                            if (qty > _maxQty) {
+                              return _fromHold != null
+                                  ? 'Exceeds held qty ($_maxQty)'
+                                  : 'Exceeds stock at $_selectedLocation ($_maxQty)';
                             }
                             return null;
                           },
@@ -665,7 +914,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                             if (!settings.vendorsEnabled) {
                               return const SizedBox.shrink();
                             }
-                            final vendorProvider = context.watch<VendorProvider>();
+                            final vendorProvider = context
+                                .watch<VendorProvider>();
                             final activeVendors = vendorProvider.activeVendors;
                             return Padding(
                               padding: const EdgeInsets.only(top: 16),
@@ -677,14 +927,20 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                     selectedValue: _selectedVendorId.isEmpty
                                         ? null
                                         : _selectedVendorId,
-                                    items: activeVendors.map((v) => PickerItem(
-                                      value: v.id,
-                                      label: v.name,
-                                      icon: Icons.local_shipping_rounded,
-                                    )).toList(),
+                                    items: activeVendors
+                                        .map(
+                                          (v) => PickerItem(
+                                            value: v.id,
+                                            label: v.name,
+                                            icon: Icons.local_shipping_rounded,
+                                          ),
+                                        )
+                                        .toList(),
                                   );
                                   if (result != null && mounted) {
-                                    final v = vendorProvider.getVendorById(result);
+                                    final v = vendorProvider.getVendorById(
+                                      result,
+                                    );
                                     setState(() {
                                       _selectedVendorId = result;
                                       _selectedVendorName = v?.name ?? '';
@@ -694,10 +950,15 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                 child: InputDecorator(
                                   decoration: InputDecoration(
                                     labelText: 'Vendor (optional)',
-                                    prefixIcon: const Icon(Icons.local_shipping_rounded),
+                                    prefixIcon: const Icon(
+                                      Icons.local_shipping_rounded,
+                                    ),
                                     suffixIcon: _selectedVendorId.isNotEmpty
                                         ? IconButton(
-                                            icon: const Icon(Icons.close_rounded, size: 18),
+                                            icon: const Icon(
+                                              Icons.close_rounded,
+                                              size: 18,
+                                            ),
                                             onPressed: () => setState(() {
                                               _selectedVendorId = '';
                                               _selectedVendorName = '';
@@ -727,7 +988,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                           valueListenable: _quantityController,
                           builder: (context, value, _) {
                             final qty = int.tryParse(value.text) ?? 0;
-                            final exceedsStock = qty > _availableAtLocation;
+                            final exceedsStock = qty > _maxQty;
                             return ElevatedButton.icon(
                               onPressed: _isLoading || exceedsStock
                                   ? null
@@ -741,8 +1002,16 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                         color: Colors.white,
                                       ),
                                     )
-                                  : const Icon(Icons.check_rounded),
-                              label: const Text('Remove Stock'),
+                                  : Icon(
+                                      _fromHold != null
+                                          ? Icons.local_shipping_rounded
+                                          : Icons.check_rounded,
+                                    ),
+                              label: Text(
+                                _fromHold != null
+                                    ? 'Despatch from Hold'
+                                    : 'Remove Stock',
+                              ),
                             );
                           },
                         ),

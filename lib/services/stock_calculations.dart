@@ -53,6 +53,8 @@ class StockCalculations {
           net -= t.quantity;
         case TransactionType.transfer:
         case TransactionType.adjustment:
+        case TransactionType.hold:
+        case TransactionType.holdRelease:
           break;
       }
     }

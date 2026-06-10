@@ -10,8 +10,10 @@ import '../../providers/sales_order_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../utils/unit_conversion.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
@@ -29,12 +31,23 @@ class _SOItemRow {
   String? productId;
   String productName = '';
   int availableStock = 0;
-  String unit = 'pcs';
-  final TextEditingController qtyController = TextEditingController();
+  String unit = 'pcs'; // Pack/display unit
+  String baseUnit = 'pcs';
+  String packUnit = 'box';
+  int unitsPerPack = 1;
+  final TextEditingController qtyController = TextEditingController(); // packs
+  final TextEditingController pieceController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
+
+  int get baseQuantity => toBaseQuantity(
+    packs: int.tryParse(qtyController.text) ?? 0,
+    pieces: int.tryParse(pieceController.text) ?? 0,
+    unitsPerPack: unitsPerPack,
+  );
 
   void dispose() {
     qtyController.dispose();
+    pieceController.dispose();
     priceController.dispose();
   }
 }
@@ -50,7 +63,7 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
   double get _totalAmount {
     double total = 0;
     for (final item in _items) {
-      final qty = int.tryParse(item.qtyController.text) ?? 0;
+      final qty = item.baseQuantity;
       final price = double.tryParse(item.priceController.text) ?? 0;
       total += qty * price;
     }
@@ -98,12 +111,14 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
 
     final now = DateTime.now();
     final soItems = validItems
-        .map((i) => SOItem(
-              productId: i.productId!,
-              productName: i.productName,
-              quantity: int.tryParse(i.qtyController.text) ?? 0,
-              unitPrice: double.tryParse(i.priceController.text) ?? 0,
-            ))
+        .map(
+          (i) => SOItem(
+            productId: i.productId!,
+            productName: i.productName,
+            quantity: i.baseQuantity,
+            unitPrice: double.tryParse(i.priceController.text) ?? 0,
+          ),
+        )
         .toList();
 
     final order = SalesOrderModel(
@@ -120,18 +135,28 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
       updatedAt: now,
     );
 
-    final id = await context.read<SalesOrderProvider>().addOrder(order);
+    final locations = context.read<SettingsProvider>().locations;
+    final defaultLoc = locations.isNotEmpty ? locations.first : 'Main';
+    final id = await context.read<SalesOrderProvider>().addOrder(
+      order,
+      defaultLocation: defaultLoc,
+    );
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (id != null) {
       HapticFeedback.mediumImpact();
-      showSuccessOverlay(context,
-          message: asDraft ? 'Draft saved' : 'Sales order confirmed');
+      showSuccessOverlay(
+        context,
+        message: asDraft ? 'Draft saved' : 'Sales order confirmed',
+      );
       Navigator.pop(context);
     } else {
-      showErrorSnackBar(context,
-          context.read<SalesOrderProvider>().errorMessage ?? 'Failed to create order');
+      showErrorSnackBar(
+        context,
+        context.read<SalesOrderProvider>().errorMessage ??
+            'Failed to create order',
+      );
     }
   }
 
@@ -146,10 +171,16 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
     setState(() {
       _items[itemIndex].productId = p.id;
       _items[itemIndex].productName = p.name;
-      _items[itemIndex].availableStock = p.quantity;
-      _items[itemIndex].unit = p.unit;
-      if (p.sellingPrice > 0 && _items[itemIndex].priceController.text.isEmpty) {
-        _items[itemIndex].priceController.text = p.sellingPrice.toStringAsFixed(2);
+      _items[itemIndex].availableStock = p.availableQuantity;
+      _items[itemIndex].unit = p.packUnit;
+      _items[itemIndex].baseUnit = p.baseUnit;
+      _items[itemIndex].packUnit = p.unitsPerPack > 1 ? p.packUnit : p.baseUnit;
+      _items[itemIndex].unitsPerPack = p.unitsPerPack;
+      if (p.sellingPrice > 0 &&
+          _items[itemIndex].priceController.text.isEmpty) {
+        _items[itemIndex].priceController.text = p.sellingPrice.toStringAsFixed(
+          2,
+        );
       }
     });
   }
@@ -167,7 +198,10 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
     }
 
     final customers = context.watch<CustomerProvider>().activeCustomers;
-    final currencyFormat = NumberFormat.currency(symbol: AppTheme.currencySymbol, decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(
+      symbol: AppTheme.currencySymbol,
+      decimalDigits: 2,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
@@ -182,7 +216,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: Form(
               key: _formKey,
               child: ListView(
@@ -195,9 +231,14 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Order Details',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                                color: AppTheme.textPri(context))),
+                        Text(
+                          'Order Details',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         GestureDetector(
                           onTap: () async {
@@ -207,18 +248,31 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                               selectedValue: _selectedCustomerId,
                               addNewLabel: 'Create new customer',
                               addNewValue: '__create_new__',
-                              items: customers.map((c) => PickerItem(
-                                value: c.id,
-                                label: c.name,
-                                subtitle: c.email.isNotEmpty ? c.email : null,
-                                icon: Icons.person_rounded,
-                                iconColor: AppTheme.primaryColor,
-                              )).toList(),
+                              items: customers
+                                  .map(
+                                    (c) => PickerItem(
+                                      value: c.id,
+                                      label: c.name,
+                                      subtitle: c.email.isNotEmpty
+                                          ? c.email
+                                          : null,
+                                      icon: Icons.person_rounded,
+                                      iconColor: AppTheme.primaryColor,
+                                    ),
+                                  )
+                                  .toList(),
                             );
                             if (result == '__create_new__') {
-                              final navResult = await Navigator.pushNamed(context, AppRoutes.addCustomer);
-                              if (navResult is String && navResult.isNotEmpty && mounted) {
-                                final c = context.read<CustomerProvider>().getCustomerById(navResult);
+                              final navResult = await Navigator.pushNamed(
+                                context,
+                                AppRoutes.addCustomer,
+                              );
+                              if (navResult is String &&
+                                  navResult.isNotEmpty &&
+                                  mounted) {
+                                final c = context
+                                    .read<CustomerProvider>()
+                                    .getCustomerById(navResult);
                                 setState(() {
                                   _selectedCustomerId = navResult;
                                   _selectedCustomerName = c?.name ?? '';
@@ -227,7 +281,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                               return;
                             }
                             if (result != null && mounted) {
-                              final c = context.read<CustomerProvider>().getCustomerById(result);
+                              final c = context
+                                  .read<CustomerProvider>()
+                                  .getCustomerById(result);
                               setState(() {
                                 _selectedCustomerId = result;
                                 _selectedCustomerName = c?.name ?? '';
@@ -240,9 +296,13 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                               prefixIcon: Icon(Icons.person_rounded),
                             ),
                             child: Text(
-                              _selectedCustomerName.isNotEmpty ? _selectedCustomerName : 'Select customer',
+                              _selectedCustomerName.isNotEmpty
+                                  ? _selectedCustomerName
+                                  : 'Select customer',
                               style: TextStyle(
-                                color: _selectedCustomerName.isNotEmpty ? null : AppTheme.textSec(context),
+                                color: _selectedCustomerName.isNotEmpty
+                                    ? null
+                                    : AppTheme.textSec(context),
                               ),
                             ),
                           ),
@@ -270,9 +330,14 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text('Items',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                                      color: AppTheme.textPri(context))),
+                              child: Text(
+                                'Items',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPri(context),
+                                ),
+                              ),
                             ),
                             TextButton.icon(
                               onPressed: _addItem,
@@ -291,7 +356,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                               decoration: BoxDecoration(
                                 color: AppTheme.inputFill(context),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.inputBorder(context)),
+                                border: Border.all(
+                                  color: AppTheme.inputBorder(context),
+                                ),
                               ),
                               child: Column(
                                 children: [
@@ -299,13 +366,21 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                     children: [
                                       Expanded(
                                         child: InkWell(
-                                          onTap: () => _showProductPicker(index),
+                                          onTap: () =>
+                                              _showProductPicker(index),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 14),
+                                              horizontal: 12,
+                                              vertical: 14,
+                                            ),
                                             decoration: BoxDecoration(
-                                              border: Border.all(color: AppTheme.inputBorder(context)),
-                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: AppTheme.inputBorder(
+                                                  context,
+                                                ),
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                               color: AppTheme.surface(context),
                                             ),
                                             child: Row(
@@ -316,20 +391,45 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                                         ? item.productName
                                                         : 'Select product...',
                                                     style: TextStyle(
-                                                      color: item.productName.isNotEmpty
-                                                          ? AppTheme.textPri(context)
-                                                          : AppTheme.textSec(context),
-                                                      fontWeight: item.productName.isNotEmpty
-                                                          ? FontWeight.w600 : FontWeight.normal,
+                                                      color:
+                                                          item
+                                                              .productName
+                                                              .isNotEmpty
+                                                          ? AppTheme.textPri(
+                                                              context,
+                                                            )
+                                                          : AppTheme.textSec(
+                                                              context,
+                                                            ),
+                                                      fontWeight:
+                                                          item
+                                                              .productName
+                                                              .isNotEmpty
+                                                          ? FontWeight.w600
+                                                          : FontWeight.normal,
                                                     ),
                                                   ),
                                                 ),
                                                 if (item.productId != null)
-                                                  Text('${item.availableStock} ${item.unit}',
-                                                      style: TextStyle(fontSize: 12,
-                                                          color: AppTheme.getStockColor(
-                                                              item.availableStock),
-                                                          fontWeight: FontWeight.w600)),
+                                                  Text(
+                                                    formatQuantityWithUnits(
+                                                      baseQuantity:
+                                                          item.availableStock,
+                                                      baseUnit: item.baseUnit,
+                                                      packUnit: item.packUnit,
+                                                      unitsPerPack:
+                                                          item.unitsPerPack,
+                                                    ),
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color:
+                                                          AppTheme.getStockColor(
+                                                            item.availableStock,
+                                                          ),
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                           ),
@@ -338,8 +438,10 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                       if (_items.length > 1) ...[
                                         const SizedBox(width: 8),
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_rounded,
-                                              color: AppTheme.dangerColor),
+                                          icon: const Icon(
+                                            Icons.remove_circle_rounded,
+                                            color: AppTheme.dangerColor,
+                                          ),
                                           onPressed: () => _removeItem(index),
                                         ),
                                       ],
@@ -352,23 +454,55 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                         child: TextFormField(
                                           controller: item.qtyController,
                                           decoration: InputDecoration(
-                                            labelText: 'Qty *',
+                                            labelText:
+                                                '${item.packUnit} Qty *',
                                             isDense: true,
-                                            suffixText: item.unit,
                                           ),
                                           keyboardType: TextInputType.number,
-                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                           onChanged: (_) => setState(() {}),
                                           validator: (v) {
-                                            if (item.productId == null) return null;
-                                            if (v == null || v.isEmpty) return 'Required';
-                                            final qty = int.tryParse(v);
-                                            if (qty == null || qty <= 0) return 'Invalid';
-                                            if (qty > item.availableStock) {
+                                            if (item.productId == null)
+                                              return null;
+                                            final packs =
+                                                int.tryParse(v ?? '') ?? 0;
+                                            final pieces = int.tryParse(
+                                                  item.pieceController.text,
+                                                ) ??
+                                                0;
+                                            final baseQty = toBaseQuantity(
+                                              packs: packs,
+                                              pieces: pieces,
+                                              unitsPerPack:
+                                                  item.unitsPerPack,
+                                            );
+                                            if (baseQty <= 0)
+                                              return 'Required';
+                                            if (baseQty > item.availableStock) {
                                               return 'Max ${item.availableStock}';
                                             }
                                             return null;
                                           },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 90,
+                                        child: TextFormField(
+                                          controller: item.pieceController,
+                                          decoration: InputDecoration(
+                                            labelText: item.baseUnit,
+                                            isDense: true,
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
+                                          onChanged: (_) => setState(() {}),
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -378,9 +512,13 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                           decoration: InputDecoration(
                                             labelText: 'Unit Price',
                                             isDense: true,
-                                            prefixText: '${AppTheme.currencySymbol} ',
+                                            prefixText:
+                                                '${AppTheme.currencySymbol} ',
                                           ),
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                              ),
                                           onChanged: (_) => setState(() {}),
                                         ),
                                       ),
@@ -397,18 +535,29 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                   const SizedBox(height: 16),
                   GlassPanel(
                     borderRadius: 16,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     useContentVariant: true,
                     child: Row(
                       children: [
-                        Text('Total Amount',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
-                                color: AppTheme.textPri(context))),
+                        Text(
+                          'Total Amount',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                         const Spacer(),
                         Text(
                           currencyFormat.format(_totalAmount),
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700,
-                              color: AppTheme.primaryColor),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.primaryColor,
+                          ),
                         ),
                       ],
                     ),
@@ -418,7 +567,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _saveOrder(asDraft: true),
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOrder(asDraft: true),
                           icon: const Icon(Icons.save_outlined),
                           label: const Text('Save Draft'),
                         ),
@@ -426,10 +577,18 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : () => _saveOrder(asDraft: false),
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOrder(asDraft: false),
                           icon: _isLoading
-                              ? const SizedBox(width: 20, height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
                               : const Icon(Icons.check_rounded),
                           label: const Text('Confirm'),
                         ),

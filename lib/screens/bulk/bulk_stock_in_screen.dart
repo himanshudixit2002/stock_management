@@ -23,8 +23,7 @@ class _BulkRow {
   final TextEditingController qtyController;
   String? location;
 
-  _BulkRow()
-      : qtyController = TextEditingController();
+  _BulkRow() : qtyController = TextEditingController();
 
   void dispose() {
     qtyController.dispose();
@@ -265,7 +264,9 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(color: AppTheme.inputBorder(context)),
+                                        border: Border.all(
+                                          color: AppTheme.inputBorder(context),
+                                        ),
                                       ),
                                       child: Row(
                                         children: [
@@ -279,7 +280,8 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              row.product?.name ?? 'Select product...',
+                                              row.product?.name ??
+                                                  'Select product...',
                                               style: TextStyle(
                                                 fontWeight: row.product != null
                                                     ? FontWeight.w600
@@ -313,12 +315,15 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                         ),
                                         keyboardType: TextInputType.number,
                                         inputFormatters: [
-                                          FilteringTextInputFormatter.digitsOnly,
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
                                         ],
                                         validator: (v) {
-                                          if (v == null || v.isEmpty) return 'Required';
+                                          if (v == null || v.isEmpty)
+                                            return 'Required';
                                           final qty = int.tryParse(v);
-                                          if (qty == null || qty <= 0) return 'Invalid';
+                                          if (qty == null || qty <= 0)
+                                            return 'Invalid';
                                           return null;
                                         },
                                       ),
@@ -333,12 +338,17 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                         ),
                                         items: locations
                                             .map(
-                                              (l) => DropdownMenuItem(value: l, child: Text(l)),
+                                              (l) => DropdownMenuItem(
+                                                value: l,
+                                                child: Text(l),
+                                              ),
                                             )
                                             .toList(),
-                                        onChanged: (v) => setState(() => row.location = v),
+                                        onChanged: (v) =>
+                                            setState(() => row.location = v),
                                         validator: (v) {
-                                          if (v == null || v.isEmpty) return 'Required';
+                                          if (v == null || v.isEmpty)
+                                            return 'Required';
                                           return null;
                                         },
                                       ),
@@ -353,7 +363,9 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+                    padding: EdgeInsets.all(
+                      Responsive.horizontalPadding(context),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

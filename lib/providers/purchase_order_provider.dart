@@ -67,7 +67,10 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return id;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to create purchase order.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to create purchase order.',
+      );
       _isLoading = false;
       notifyListeners();
       return null;
@@ -85,7 +88,10 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to update purchase order.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to update purchase order.',
+      );
       _isLoading = false;
       notifyListeners();
       return false;
@@ -96,7 +102,8 @@ class PurchaseOrderProvider extends ChangeNotifier {
     if (_isLoading) return false;
     final order = getOrderById(id);
     if (order != null && order.invoiceId.isNotEmpty) {
-      _errorMessage = 'Cannot delete an order with a linked invoice. Cancel the order instead.';
+      _errorMessage =
+          'Cannot delete an order with a linked invoice. Cancel the order instead.';
       notifyListeners();
       return false;
     }
@@ -109,7 +116,10 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to delete purchase order.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to delete purchase order.',
+      );
       _isLoading = false;
       notifyListeners();
       return false;
@@ -137,7 +147,10 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to receive purchase order.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to receive purchase order.',
+      );
       _isLoading = false;
       notifyListeners();
       return false;
@@ -189,7 +202,10 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Failed to cancel purchase order.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to cancel purchase order.',
+      );
       _isLoading = false;
       notifyListeners();
       return false;

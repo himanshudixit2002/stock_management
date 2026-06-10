@@ -584,6 +584,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                       onTap: () => setState(() => _selectedFilter = 'transfer'),
                       color: AppTheme.indigoColor,
                     ),
+                    const SizedBox(width: 6),
+                    _FilterChip(
+                      label: 'Hold',
+                      isSelected: _selectedFilter == 'hold',
+                      onTap: () => setState(() => _selectedFilter = 'hold'),
+                      color: AppTheme.warningColor,
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterChip(
+                      label: 'Release',
+                      isSelected: _selectedFilter == 'hold_release',
+                      onTap: () =>
+                          setState(() => _selectedFilter = 'hold_release'),
+                      color: AppTheme.successColor,
+                    ),
                     const SizedBox(width: 8),
                     InkWell(
                       onTap: () => Navigator.pushNamed(
@@ -749,6 +764,12 @@ class _ReportsScreenState extends State<ReportsScreen>
           break;
         case 'transfer':
           filterType = TransactionType.transfer;
+          break;
+        case 'hold':
+          filterType = TransactionType.hold;
+          break;
+        case 'hold_release':
+          filterType = TransactionType.holdRelease;
           break;
         default:
           filterType = TransactionType.stockIn;
@@ -1882,6 +1903,14 @@ class _TransactionTile extends StatelessWidget {
         typeColor = AppTheme.warningColor;
         typeIcon = Icons.tune_rounded;
         break;
+      case TransactionType.hold:
+        typeColor = AppTheme.warningColor;
+        typeIcon = Icons.pause_circle_rounded;
+        break;
+      case TransactionType.holdRelease:
+        typeColor = AppTheme.successColor;
+        typeIcon = Icons.play_circle_rounded;
+        break;
     }
 
     return Padding(
@@ -1954,7 +1983,9 @@ class _TransactionTile extends StatelessWidget {
               Text(
                 t.type == TransactionType.stockIn
                     ? '+${t.quantity}'
-                    : t.type == TransactionType.transfer
+                    : t.type == TransactionType.transfer ||
+                          t.type == TransactionType.hold ||
+                          t.type == TransactionType.holdRelease
                     ? '${t.quantity}'
                     : '-${t.quantity}',
                 style: TextStyle(

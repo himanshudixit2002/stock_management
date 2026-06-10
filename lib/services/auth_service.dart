@@ -58,7 +58,9 @@ class AuthService {
         rethrow;
       }
     }
-    throw Exception('Could not allocate a unique company join code. Try again.');
+    throw Exception(
+      'Could not allocate a unique company join code. Try again.',
+    );
   }
 
   /// Ensures the company has a permanent join code (for existing tenants). Creator only.
@@ -74,7 +76,9 @@ class AuthService {
     if (existing.isNotEmpty) return existing;
     final adminUid = data['adminUid'] as String? ?? '';
     if (adminUid != uid) {
-      throw Exception('Only the company creator can generate the first join code.');
+      throw Exception(
+        'Only the company creator can generate the first join code.',
+      );
     }
     final name = (data['companyName'] as String?)?.trim() ?? '';
     return _allocatePermanentJoinCode(companyId, name);
@@ -106,10 +110,7 @@ class AuthService {
 
   /// Join codes + which companies the user created (for generating first code / regenerate UX).
   Future<({Map<String, String> joinCodes, Set<String> creatorCompanyIds})>
-      getCompanySwitcherMeta(
-    Iterable<String> companyIds,
-    String uid,
-  ) async {
+  getCompanySwitcherMeta(Iterable<String> companyIds, String uid) async {
     final joinCodes = <String, String>{};
     final creatorCompanyIds = <String>{};
     for (final id in companyIds.toSet()) {
@@ -315,10 +316,7 @@ class AuthService {
       }
     }
 
-    final update = <String, dynamic>{
-      'role': roleField,
-      'roleId': roleId,
-    };
+    final update = <String, dynamic>{'role': roleField, 'roleId': roleId};
     if (updatedMemberships.isNotEmpty) {
       update['companyMemberships'] = updatedMemberships;
     }
@@ -433,18 +431,31 @@ class AuthService {
     final companyRef = _firestore.collection('companies').doc(companyId);
     final companySnap = await companyRef.get();
     if (companySnap.exists) {
-      final code = (companySnap.data()?['permanentJoinCode'] as String?)?.trim() ??
-          '';
+      final code =
+          (companySnap.data()?['permanentJoinCode'] as String?)?.trim() ?? '';
       if (code.isNotEmpty) {
         await _firestore.collection('joinCodeIndex').doc(code).delete();
       }
     }
 
     for (final sub in [
-      'products', 'categories', 'transactions', 'vendors', 'roles',
-      'purchaseOrders', 'salesOrders', 'returns', 'customers', 'batches',
-      'stockTakes', 'auditLogs', 'notifications', 'priceHistory',
-      'warehouseZones', 'invoices', 'invites',
+      'products',
+      'categories',
+      'transactions',
+      'vendors',
+      'roles',
+      'purchaseOrders',
+      'salesOrders',
+      'returns',
+      'customers',
+      'batches',
+      'stockTakes',
+      'auditLogs',
+      'notifications',
+      'priceHistory',
+      'warehouseZones',
+      'invoices',
+      'invites',
     ]) {
       QuerySnapshot snapshot;
       do {
@@ -499,8 +510,8 @@ class AuthService {
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
     final data = userDoc.data() ?? {};
-    final existing = (data['companyMemberships'] as List?)
-            ?.cast<Map<String, dynamic>>() ??
+    final existing =
+        (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
         [];
 
     if (existing.isEmpty) {
@@ -565,13 +576,14 @@ class AuthService {
         .collection('invites')
         .doc(code)
         .set({
-      'code': code,
-      'companyId': companyId,
-      'companyName': companyName,
-      'createdAt': Timestamp.now(),
-      'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7))),
-    });
+          'code': code,
+          'companyId': companyId,
+          'companyName': companyName,
+          'createdAt': Timestamp.now(),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 7)),
+          ),
+        });
 
     return code;
   }
@@ -605,24 +617,29 @@ class AuthService {
       companyId = invite['companyId'] as String;
       companyName = invite['companyName'] as String? ?? '';
     } else {
-      final indexSnap =
-          await _firestore.collection('joinCodeIndex').doc(normalized).get();
+      final indexSnap = await _firestore
+          .collection('joinCodeIndex')
+          .doc(normalized)
+          .get();
       if (!indexSnap.exists) {
-        throw Exception('Invalid code. Use the company join code or a fresh invite.');
+        throw Exception(
+          'Invalid code. Use the company join code or a fresh invite.',
+        );
       }
       final idx = indexSnap.data()!;
       companyId = idx['companyId'] as String;
       companyName = idx['companyName'] as String? ?? '';
-      final co =
-          await _firestore.collection('companies').doc(companyId).get();
+      final co = await _firestore.collection('companies').doc(companyId).get();
       if (!co.exists) {
         throw Exception('This company no longer exists.');
       }
       final onCompany =
           (co.data()?['permanentJoinCode'] as String?)?.trim().toUpperCase() ??
-              '';
+          '';
       if (onCompany != normalized) {
-        throw Exception('This join code is no longer valid. Ask for the current code.');
+        throw Exception(
+          'This join code is no longer valid. Ask for the current code.',
+        );
       }
     }
 
@@ -635,8 +652,8 @@ class AuthService {
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
     final data = userDoc.data() ?? {};
-    final existing = (data['companyMemberships'] as List?)
-            ?.cast<Map<String, dynamic>>() ??
+    final existing =
+        (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
         [];
 
     if (existing.isEmpty) {
@@ -713,8 +730,7 @@ class AuthService {
     }
 
     final remaining = List<Map<String, dynamic>>.from(list);
-    final removeIdx =
-        remaining.indexWhere((m) => identical(m, storedEntry));
+    final removeIdx = remaining.indexWhere((m) => identical(m, storedEntry));
     if (removeIdx >= 0) remaining.removeAt(removeIdx);
 
     final updates = <String, dynamic>{
@@ -792,9 +808,7 @@ class AuthService {
         newRoleId = RoleModel.staffRoleId;
     }
 
-    await _firestore.collection('users').doc(uid).update({
-      'roleId': newRoleId,
-    });
+    await _firestore.collection('users').doc(uid).update({'roleId': newRoleId});
   }
 
   static String? safeStringOrNull(dynamic v) {

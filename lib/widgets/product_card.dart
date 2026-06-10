@@ -199,7 +199,8 @@ class _ProductCardState extends State<ProductCard> {
           onTapDown: widget.onTap != null ? _onTapDown : null,
           onTapUp: widget.onTap != null ? _onTapUp : null,
           onTapCancel: widget.onTap != null ? _onTapCancel : null,
-          onLongPressDown: (details) => _longPressPosition = details.globalPosition,
+          onLongPressDown: (details) =>
+              _longPressPosition = details.globalPosition,
           onLongPress: _onLongPress,
           child: AnimatedScale(
             scale: _scale,
@@ -209,33 +210,33 @@ class _ProductCardState extends State<ProductCard> {
               onTap: widget.onTap,
               borderRadius: 16,
               child: Row(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isGrid ? 8 : 10,
-                      vertical: isGrid ? 6 : 8,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isGrid ? 8 : 10,
+                        vertical: isGrid ? 6 : 8,
+                      ),
+                      child: isGrid
+                          ? _buildGridContent(product, stockColor, stockLabel)
+                          : _buildListContent(product, stockColor, stockLabel),
                     ),
-                    child: isGrid
-                        ? _buildGridContent(product, stockColor, stockLabel)
-                        : _buildListContent(product, stockColor, stockLabel),
                   ),
-                ),
-                if (widget.onTap != null)
-                  Padding(
-                    padding: EdgeInsets.only(right: isGrid ? 6 : 8),
-                    child: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: AppTheme.iconMute(context),
-                      size: isGrid ? 12 : 16,
-                  ),
-                ),
-              ],
+                  if (widget.onTap != null)
+                    Padding(
+                      padding: EdgeInsets.only(right: isGrid ? 6 : 8),
+                      child: Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: AppTheme.iconMute(context),
+                        size: isGrid ? 12 : 16,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -282,13 +283,16 @@ class _ProductCardState extends State<ProductCard> {
               child: Material(
                 type: MaterialType.transparency,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: stockColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '${product.quantity} ${product.unit}',
+                    product.formatQuantity(product.quantity),
                     style: TextStyle(
                       color: stockColor,
                       fontWeight: FontWeight.w700,
@@ -424,14 +428,17 @@ class _ProductCardState extends State<ProductCard> {
           builder: (context, settings, _) {
             final parts = <InlineSpan>[];
             if (settings.pricingEnabled && product.sellingPrice > 0) {
-              parts.add(TextSpan(
-                text: '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.successColor,
+              parts.add(
+                TextSpan(
+                  text:
+                      '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.successColor,
+                  ),
                 ),
-              ));
+              );
             }
             if (settings.vendorsEnabled) {
               final vendorName = product.preferredVendorName.isNotEmpty
@@ -439,19 +446,26 @@ class _ProductCardState extends State<ProductCard> {
                   : product.lastVendorName;
               if (vendorName.isNotEmpty) {
                 if (parts.isNotEmpty) {
-                  parts.add(TextSpan(
-                    text: '  \u00B7  ',
-                    style: TextStyle(fontSize: 11, color: AppTheme.textTer(context)),
-                  ));
+                  parts.add(
+                    TextSpan(
+                      text: '  \u00B7  ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textTer(context),
+                      ),
+                    ),
+                  );
                 }
-                parts.add(TextSpan(
-                  text: vendorName,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.indigoColor,
+                parts.add(
+                  TextSpan(
+                    text: vendorName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.indigoColor,
+                    ),
                   ),
-                ));
+                );
               }
             }
             if (parts.isEmpty) return const SizedBox.shrink();

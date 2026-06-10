@@ -187,8 +187,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
       floatingActionButton:
           (user?.hasPermission(AppPermissions.createReturns) ?? false)
           ? FloatingActionButton.extended(
-              onPressed: () =>
-                  context.pushAppRoute(AppRoutes.createReturn),
+              onPressed: () => context.pushAppRoute(AppRoutes.createReturn),
               icon: const Icon(Icons.add_rounded),
               label: const Text('New Return'),
             )
@@ -266,7 +265,8 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: GlassCard(
-                      onTap: () => context.pushAppRoute(AppRoutes.returnDetail,
+                      onTap: () => context.pushAppRoute(
+                        AppRoutes.returnDetail,
                         extra: ret.id,
                       ),
                       child: Padding(
@@ -351,12 +351,18 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                                   _infoChip(
                                     Icons.link_rounded,
                                     ret.relatedOrderSummary.isNotEmpty
-                                        ? (ret.relatedOrderSummary.split('\n').first.length > 28
-                                            ? '${ret.relatedOrderSummary.split('\n').first.substring(0, 28)}…'
-                                            : ret.relatedOrderSummary.split('\n').first)
+                                        ? (ret.relatedOrderSummary
+                                                      .split('\n')
+                                                      .first
+                                                      .length >
+                                                  28
+                                              ? '${ret.relatedOrderSummary.split('\n').first.substring(0, 28)}…'
+                                              : ret.relatedOrderSummary
+                                                    .split('\n')
+                                                    .first)
                                         : ret.relatedOrderId
-                                            .substring(0, 6)
-                                            .toUpperCase(),
+                                              .substring(0, 6)
+                                              .toUpperCase(),
                                   ),
                                 ],
                               ],
@@ -388,7 +394,8 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: GlassCard(
-                      onTap: () => context.pushAppRoute(AppRoutes.returnDetail,
+                      onTap: () => context.pushAppRoute(
+                        AppRoutes.returnDetail,
                         extra: ret.id,
                       ),
                       child: Padding(
@@ -473,12 +480,18 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
                                   _infoChip(
                                     Icons.link_rounded,
                                     ret.relatedOrderSummary.isNotEmpty
-                                        ? (ret.relatedOrderSummary.split('\n').first.length > 28
-                                            ? '${ret.relatedOrderSummary.split('\n').first.substring(0, 28)}…'
-                                            : ret.relatedOrderSummary.split('\n').first)
+                                        ? (ret.relatedOrderSummary
+                                                      .split('\n')
+                                                      .first
+                                                      .length >
+                                                  28
+                                              ? '${ret.relatedOrderSummary.split('\n').first.substring(0, 28)}…'
+                                              : ret.relatedOrderSummary
+                                                    .split('\n')
+                                                    .first)
                                         : ret.relatedOrderId
-                                            .substring(0, 6)
-                                            .toUpperCase(),
+                                              .substring(0, 6)
+                                              .toUpperCase(),
                                   ),
                                 ],
                               ],

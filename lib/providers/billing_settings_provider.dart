@@ -55,7 +55,10 @@ class BillingSettingsProvider extends ChangeNotifier {
         );
       }
     } catch (e) {
-      _errorMessage = friendlyError(e, fallback: 'Could not load billing settings.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Could not load billing settings.',
+      );
     }
     _initialized = true;
     notifyListeners();
@@ -69,12 +72,15 @@ class BillingSettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'billing': {'billingEnabled': enabled}},
+        'settings.billing.billingEnabled': enabled,
       }, SetOptions(merge: true));
       return true;
     } catch (e) {
       _settings = previous;
-      _errorMessage = friendlyError(e, fallback: 'Failed to update billing settings.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to update billing settings.',
+      );
       notifyListeners();
       return false;
     }
@@ -88,7 +94,7 @@ class BillingSettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _companyDoc.set({
-        'settings': {'billing': updated.toMap()},
+        'settings.billing': updated.toMap(),
       }, SetOptions(merge: true));
       await _companyDoc.collection('billingSequences').doc('default').set({
         'nextInvoiceNumber': updated.nextInvoiceNumber,
@@ -98,7 +104,10 @@ class BillingSettingsProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _settings = previous;
-      _errorMessage = friendlyError(e, fallback: 'Failed to save billing settings.');
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to save billing settings.',
+      );
       notifyListeners();
       return false;
     }

@@ -28,15 +28,15 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
   ) {
     Iterable<StockTransactionModel> result = transactions;
     if (_startDate != null) {
-      final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+      final start = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+      );
       result = result.where((t) => !t.date.isBefore(start));
     }
     if (_endDate != null) {
-      final end = DateTime(
-        _endDate!.year,
-        _endDate!.month,
-        _endDate!.day + 1,
-      );
+      final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day + 1);
       result = result.where((t) => t.date.isBefore(end));
     }
     return result.toList();
@@ -67,10 +67,11 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
   Widget build(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
 
-    final allDamage = stockProvider.allTransactions
-        .where((t) => t.type == TransactionType.damage)
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final allDamage =
+        stockProvider.allTransactions
+            .where((t) => t.type == TransactionType.damage)
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
 
     final damage = _filterByDate(allDamage);
 
@@ -280,10 +281,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
             _startDate != null
                 ? 'No damage entries in the selected date range'
                 : 'No damage entries found',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSec(context),
-            ),
+            style: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
           ),
         ],
       ),
@@ -363,7 +361,9 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
               final item = entry.value;
               final fraction = maxQty > 0 ? item.value / maxQty : 0.0;
               return Padding(
-                padding: EdgeInsets.only(bottom: idx < items.length - 1 ? 10 : 0),
+                padding: EdgeInsets.only(
+                  bottom: idx < items.length - 1 ? 10 : 0,
+                ),
                 child: Row(
                   children: [
                     SizedBox(
@@ -399,8 +399,9 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
                         child: LinearProgressIndicator(
                           value: fraction,
                           minHeight: 8,
-                          backgroundColor: AppTheme.dangerColor
-                              .withValues(alpha: 0.08),
+                          backgroundColor: AppTheme.dangerColor.withValues(
+                            alpha: 0.08,
+                          ),
                           valueColor: AlwaysStoppedAnimation(
                             idx < 3
                                 ? AppTheme.dangerColor
@@ -526,8 +527,7 @@ class _DamageTile extends StatelessWidget {
       ...settingsLocations,
       ...productLocations,
       if (txn.location.isNotEmpty) txn.location,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
 
     final customController = TextEditingController();
 
@@ -673,7 +673,11 @@ class _DamageTile extends StatelessWidget {
                                 final ok = await stockProvider
                                     .updateTransactionLocation(txn.id, loc);
                                 if (context.mounted && !ok) {
-                                  showInfoSnackBar(context, stockProvider.errorMessage ?? 'Failed to update location');
+                                  showInfoSnackBar(
+                                    context,
+                                    stockProvider.errorMessage ??
+                                        'Failed to update location',
+                                  );
                                 }
                               },
                       );
@@ -697,7 +701,10 @@ class _DamageTile extends StatelessWidget {
                             controller: customController,
                             decoration: InputDecoration(
                               hintText: 'New location name',
-                              hintStyle: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
+                              hintStyle: TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.textTer(context),
+                              ),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -719,7 +726,11 @@ class _DamageTile extends StatelessWidget {
                             final ok = await stockProvider
                                 .updateTransactionLocation(txn.id, loc);
                             if (context.mounted && !ok) {
-                              showInfoSnackBar(context, stockProvider.errorMessage ?? 'Failed to update location');
+                              showInfoSnackBar(
+                                context,
+                                stockProvider.errorMessage ??
+                                    'Failed to update location',
+                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -756,9 +767,7 @@ class _DamageTile extends StatelessWidget {
             .where((p) => p.id == txn.productId)
             .firstOrNull;
         if (product != null) {
-          context.pushAppRoute(AppRoutes.productDetail,
-            extra: product,
-          );
+          context.pushAppRoute(AppRoutes.productDetail, extra: product);
         }
       },
       child: Padding(
@@ -938,8 +947,9 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment:
-          isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: isMultiline
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         Icon(icon, size: 16, color: AppTheme.textTer(context)),
         const SizedBox(width: 6),

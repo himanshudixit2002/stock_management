@@ -145,10 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 4),
         Text(
           user.email,
-          style: TextStyle(
-            fontSize: 14,
-            color: AppTheme.textSec(context),
-          ),
+          style: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
         ),
         const SizedBox(height: 10),
         Container(
@@ -307,10 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           subtitle: Text(
             'Update your account password',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppTheme.textTer(context),
-            ),
+            style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
           ),
           trailing: Icon(
             Icons.arrow_forward_ios_rounded,
@@ -416,8 +410,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.surface(context),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -441,8 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color:
-                              AppTheme.indigoColor.withValues(alpha: 0.1),
+                          color: AppTheme.indigoColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -504,8 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             prefixIcon: Icon(Icons.lock),
                           ),
                           obscureText: true,
-                          onChanged: (_) =>
-                              formKey.currentState?.validate(),
+                          onChanged: (_) => formKey.currentState?.validate(),
                           validator: (v) {
                             if (v == null || v.isEmpty) return 'Required';
                             if (v.length < 6) return 'Min 6 characters';
@@ -541,12 +532,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     vertical: 14,
                                   ),
                                   side: BorderSide(
-                                    color:
-                                        AppTheme.dividerStrongC(context),
+                                    color: AppTheme.dividerStrongC(context),
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                                 child: Text(
@@ -561,8 +550,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Consumer<AuthProvider>(
-                                builder: (context, auth, _) =>
-                                    ElevatedButton(
+                                builder: (context, auth, _) => ElevatedButton(
                                   onPressed: auth.isLoading
                                       ? null
                                       : () async {
@@ -570,8 +558,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               .validate()) {
                                             return;
                                           }
-                                          final ok =
-                                              await auth.changePassword(
+                                          final ok = await auth.changePassword(
                                             currentPw.text,
                                             newPw.text,
                                           );
@@ -579,13 +566,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             Navigator.pop(sheetCtx);
                                             HapticFeedback.mediumImpact();
                                             if (ok) {
-                                              showSuccessSnackBar(context,
-                                                  'Password changed!');
+                                              showSuccessSnackBar(
+                                                context,
+                                                'Password changed!',
+                                              );
                                             } else {
                                               showErrorSnackBar(
                                                 context,
-                                                auth.errorMessage ??
-                                                    'Failed',
+                                                auth.errorMessage ?? 'Failed',
                                               );
                                             }
                                             auth.clearError();
@@ -596,8 +584,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       vertical: 14,
                                     ),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     elevation: 0,
                                   ),
@@ -605,8 +592,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ? const SizedBox(
                                           width: 20,
                                           height: 20,
-                                          child:
-                                              CircularProgressIndicator(
+                                          child: CircularProgressIndicator(
                                             strokeWidth: 2,
                                           ),
                                         )
@@ -651,8 +637,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.surface(context),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -676,8 +661,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color:
-                              AppTheme.dangerColor.withValues(alpha: 0.1),
+                          color: AppTheme.dangerColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -724,12 +708,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppTheme.dangerColor
-                                .withValues(alpha: 0.06),
+                            color: AppTheme.dangerColor.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: AppTheme.dangerColor
-                                  .withValues(alpha: 0.15),
+                              color: AppTheme.dangerColor.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
                           ),
                           child: Column(
@@ -798,12 +782,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     vertical: 14,
                                   ),
                                   side: BorderSide(
-                                    color:
-                                        AppTheme.dividerStrongC(context),
+                                    color: AppTheme.dividerStrongC(context),
                                   ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                                 child: Text(
@@ -818,8 +800,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Consumer<AuthProvider>(
-                                builder: (context, auth, _) =>
-                                    ElevatedButton(
+                                builder: (context, auth, _) => ElevatedButton(
                                   onPressed: auth.isLoading
                                       ? null
                                       : () async {
@@ -827,16 +808,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               .validate()) {
                                             return;
                                           }
-                                          final ok =
-                                              await auth.deleteAccount(
+                                          final ok = await auth.deleteAccount(
                                             passwordCtrl.text,
                                           );
                                           if (sheetCtx.mounted) {
                                             Navigator.pop(sheetCtx);
                                           }
                                           if (ok && context.mounted) {
-                                            Navigator.of(context)
-                                                .popUntil(
+                                            Navigator.of(context).popUntil(
                                               (route) => route.isFirst,
                                             );
                                           } else if (context.mounted) {
@@ -854,8 +833,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       vertical: 14,
                                     ),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     elevation: 0,
                                   ),
@@ -863,11 +841,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ? SizedBox(
                                           width: 20,
                                           height: 20,
-                                          child:
-                                              CircularProgressIndicator(
+                                          child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            color:
-                                                AppTheme.surface(context),
+                                            color: AppTheme.surface(context),
                                           ),
                                         )
                                       : const Text(
@@ -931,10 +907,7 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSec(context),
-            ),
+            style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
           ),
           const Spacer(),
           Flexible(

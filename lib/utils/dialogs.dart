@@ -88,17 +88,18 @@ void showInfoSnackBar(BuildContext context, String message) {
   final cs = Theme.of(context).colorScheme;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(
-        message,
-        style: TextStyle(color: cs.onInverseSurface),
-      ),
+      content: Text(message, style: TextStyle(color: cs.onInverseSurface)),
       backgroundColor: cs.inverseSurface,
       behavior: SnackBarBehavior.floating,
     ),
   );
 }
 
-void showUndoSnackBar(BuildContext context, String message, VoidCallback onUndo) {
+void showUndoSnackBar(
+  BuildContext context,
+  String message,
+  VoidCallback onUndo,
+) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
@@ -210,13 +211,19 @@ class _UndoSnackBarContentState extends State<_UndoSnackBarContent>
                   onPressed: _onUndo,
                   style: TextButton.styleFrom(
                     foregroundColor: cs.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: const Text(
                     'Undo',
-                    style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ],
@@ -227,11 +234,15 @@ class _UndoSnackBarContentState extends State<_UndoSnackBarContent>
             builder: (context, _) {
               final t = 1.0 - _controller.value;
               return ClipRRect(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16),
+                ),
                 child: LinearProgressIndicator(
                   minHeight: 3,
                   value: t.clamp(0.0, 1.0),
-                  backgroundColor: AppTheme.dividerC(context).withValues(alpha: 0.35),
+                  backgroundColor: AppTheme.dividerC(
+                    context,
+                  ).withValues(alpha: 0.35),
                   valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                 ),
               );

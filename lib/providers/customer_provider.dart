@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/customer_model.dart';
 import '../utils/error_helpers.dart';
+import '../utils/validators.dart';
 import '../services/database_service.dart';
 
 class CustomerProvider extends ChangeNotifier {
@@ -17,6 +18,16 @@ class CustomerProvider extends ChangeNotifier {
       _customers.where((c) => c.isActive).toList();
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  bool _validateCustomerPhone(String phone) {
+    final validationError = validateRequiredPhone(phone);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      notifyListeners();
+      return false;
+    }
+    return true;
+  }
 
   CustomerModel? getCustomerById(String id) {
     for (final c in _customers) {
@@ -57,6 +68,7 @@ class CustomerProvider extends ChangeNotifier {
 
   Future<CustomerModel?> addCustomer(CustomerModel customer) async {
     if (_isLoading) return null;
+    if (!_validateCustomerPhone(customer.phone)) return null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -75,6 +87,7 @@ class CustomerProvider extends ChangeNotifier {
 
   Future<bool> updateCustomer(CustomerModel customer) async {
     if (_isLoading) return false;
+    if (!_validateCustomerPhone(customer.phone)) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

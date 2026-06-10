@@ -50,14 +50,14 @@ class RoleModel {
   }
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'description': description,
-        'permissions': permissions,
-        'isSystem': isSystem,
-        'companyId': companyId,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': Timestamp.fromDate(updatedAt),
-      };
+    'name': name,
+    'description': description,
+    'permissions': permissions,
+    'isSystem': isSystem,
+    'companyId': companyId,
+    'createdAt': Timestamp.fromDate(createdAt),
+    'updatedAt': Timestamp.fromDate(updatedAt),
+  };
 
   RoleModel copyWith({
     String? id,
@@ -123,7 +123,8 @@ class RoleModel {
       RoleModel(
         id: adminRoleId,
         name: 'Admin',
-        description: 'Full access except company deletion. Can manage users and roles.',
+        description:
+            'Full access except company deletion. Can manage users and roles.',
         permissions: AppPermissions.allTrue(),
         isSystem: true,
         companyId: companyId,
@@ -133,7 +134,8 @@ class RoleModel {
       RoleModel(
         id: managerRoleId,
         name: 'Manager',
-        description: 'Can approve orders and returns, manage products and stock, view reports.',
+        description:
+            'Can approve orders and returns, manage products and stock, view reports.',
         permissions: {
           ...AppPermissions.allFalse(),
           // Dashboard & Reports
@@ -155,6 +157,9 @@ class RoleModel {
           AppPermissions.adjustStock: true,
           AppPermissions.bulkStockIn: true,
           AppPermissions.bulkEdit: true,
+          AppPermissions.holdStock: true,
+          AppPermissions.releaseStock: true,
+          AppPermissions.viewStockHolds: true,
           // Purchase Orders (full)
           AppPermissions.viewPurchaseOrders: true,
           AppPermissions.createPurchaseOrders: true,
@@ -200,6 +205,7 @@ class RoleModel {
           AppPermissions.editInvoices: true,
           AppPermissions.deleteInvoices: true,
           AppPermissions.recordPayments: true,
+          AppPermissions.useFastPos: true,
           // Import / Export
           AppPermissions.importData: true,
           AppPermissions.exportData: true,
@@ -213,7 +219,8 @@ class RoleModel {
       RoleModel(
         id: staffRoleId,
         name: 'Staff',
-        description: 'Basic stock operations and product viewing. No approvals or management.',
+        description:
+            'Basic stock operations and product viewing. No approvals or management.',
         permissions: {
           ...AppPermissions.allFalse(),
           AppPermissions.viewDashboard: true,
@@ -222,13 +229,18 @@ class RoleModel {
           AppPermissions.stockOut: true,
           AppPermissions.damage: true,
           AppPermissions.transfer: true,
+          AppPermissions.holdStock: true,
           AppPermissions.viewPurchaseOrders: true,
           AppPermissions.viewSalesOrders: true,
+          AppPermissions.viewStockHolds: true,
           AppPermissions.viewReturns: true,
           AppPermissions.viewCustomers: true,
           AppPermissions.viewVendors: true,
           AppPermissions.viewExpiryAlerts: true,
           AppPermissions.viewInvoices: true,
+          AppPermissions.createInvoices: true,
+          AppPermissions.recordPayments: true,
+          AppPermissions.useFastPos: true,
           AppPermissions.exportData: true,
         },
         isSystem: true,
@@ -247,6 +259,7 @@ class RoleModel {
           AppPermissions.viewProducts: true,
           AppPermissions.viewPurchaseOrders: true,
           AppPermissions.viewSalesOrders: true,
+          AppPermissions.viewStockHolds: true,
           AppPermissions.viewReturns: true,
           AppPermissions.viewCustomers: true,
           AppPermissions.viewVendors: true,

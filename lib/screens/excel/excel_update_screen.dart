@@ -9,7 +9,6 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../../models/vendor_model.dart';
 import '../../models/product_model.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
@@ -69,12 +68,16 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       await _excelService.saveAndShare(result);
       if (mounted) {
         HapticFeedback.mediumImpact();
-        showSuccessSnackBar(context, 'Exported ${products.length} products for editing');
+        showSuccessSnackBar(
+          context,
+          'Exported ${products.length} products for editing',
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Export failed: ${e.toString().replaceAll('Exception: ', '')}';
+          _error =
+              'Export failed: ${e.toString().replaceAll('Exception: ', '')}';
         });
       }
     } finally {
@@ -166,8 +169,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
   Future<void> _applyChanges() async {
     if (_diffs == null || _parsedData == null) return;
 
-    final modified = _diffs!.where((d) => d.status == UpdateStatus.modified).toList();
-    final newProducts = _diffs!.where((d) => d.status == UpdateStatus.newProduct).toList();
+    final modified = _diffs!
+        .where((d) => d.status == UpdateStatus.modified)
+        .toList();
+    final newProducts = _diffs!
+        .where((d) => d.status == UpdateStatus.newProduct)
+        .toList();
 
     if (modified.isEmpty && newProducts.isEmpty) {
       showInfoSnackBar(context, 'No changes to apply.');
@@ -198,7 +205,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       final vendorMap = vendorProvider.getVendorNameMap();
 
       // Create missing categories and vendors
-      final allParsedData = [...modified, ...newProducts].map((d) => d.parsedData);
+      final allParsedData = [
+        ...modified,
+        ...newProducts,
+      ].map((d) => d.parsedData);
       final dataCategories = allParsedData
           .map((d) => d['category']?.toString().trim() ?? '')
           .where((c) => c.isNotEmpty)
@@ -221,22 +231,20 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           .map((d) => d['preferredVendor']?.toString().trim() ?? '')
           .where((v) => v.isNotEmpty)
           .toSet();
-      final now = DateTime.now();
-      for (final vendorName in dataVendors) {
-        if (!vendorMap.keys.contains(vendorName.toLowerCase())) {
-          final newVendor = VendorModel(
-            id: '',
-            name: vendorName,
-            createdAt: now,
-            updatedAt: now,
-            createdBy: user.uid,
-            createdByName: user.name,
-          );
-          final addedVendor = await vendorProvider.addVendor(newVendor);
-          if (addedVendor != null) {
-            vendorMap[vendorName.toLowerCase()] = addedVendor;
-          }
-        }
+      final existingVendors = vendorMap.keys.toSet();
+      final missingVendors =
+          dataVendors
+              .where((v) => !existingVendors.contains(v.toLowerCase()))
+              .toList()
+            ..sort();
+      if (missingVendors.isNotEmpty) {
+        final preview = missingVendors.take(5).join(', ');
+        final suffix = missingVendors.length > 5 ? ' and more' : '';
+        throw Exception(
+          'Update references vendors without phone numbers configured: '
+          '$preview$suffix. Create these vendors with phone numbers in '
+          'Manage Vendors, then retry update.',
+        );
       }
 
       int updatedCount = 0;
@@ -259,8 +267,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           final catName = data['category']?.toString().trim() ?? '';
           final category = categoryMap[catName.toLowerCase()];
           final vendorName = data['preferredVendor']?.toString().trim() ?? '';
-          final vendor =
-              vendorName.isNotEmpty ? vendorMap[vendorName.toLowerCase()] : null;
+          final vendor = vendorName.isNotEmpty
+              ? vendorMap[vendorName.toLowerCase()]
+              : null;
 
           final locStr = data['locations']?.toString().trim() ?? '';
           var locQuantities = _excelService.parseLocationString(locStr);
@@ -277,7 +286,8 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             }
           } else {
             locQuantities = existing.locationQuantities;
-            if (quantity != existing.quantity && existing.locationQuantities.length == 1) {
+            if (quantity != existing.quantity &&
+                existing.locationQuantities.length == 1) {
               final loc = existing.locationQuantities.keys.first;
               locQuantities = {loc: quantity};
             } else {
@@ -285,27 +295,35 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             }
           }
 
-          int threshold = _excelService.parseIntValue(data['lowStockThreshold']);
+          int threshold = _excelService.parseIntValue(
+            data['lowStockThreshold'],
+          );
           if (threshold <= 0) threshold = existing.lowStockThreshold;
 
           final unitVal = data['unit']?.toString().trim() ?? '';
 
-          productsToUpdate.add(existing.copyWith(
-            name: data['name']?.toString().trim() ?? existing.name,
-            categoryId: category?.id ?? existing.categoryId,
-            categoryName: category?.name ?? catName,
-            company: data['company']?.toString().trim() ?? existing.company,
-            size: data['size']?.toString().trim() ?? existing.size,
-            quantity: quantity,
-            unit: unitVal.isNotEmpty ? unitVal : existing.unit,
-            locationQuantities: locQuantities,
-            description: data['description']?.toString().trim() ?? existing.description,
-            lowStockThreshold: threshold,
-            costPrice: _excelService.parseDoubleValue(data['costPrice']),
-            sellingPrice: _excelService.parseDoubleValue(data['sellingPrice']),
-            preferredVendorId: vendor?.id ?? existing.preferredVendorId,
-            preferredVendorName: vendor?.name ?? vendorName,
-          ));
+          productsToUpdate.add(
+            existing.copyWith(
+              name: data['name']?.toString().trim() ?? existing.name,
+              categoryId: category?.id ?? existing.categoryId,
+              categoryName: category?.name ?? catName,
+              company: data['company']?.toString().trim() ?? existing.company,
+              size: data['size']?.toString().trim() ?? existing.size,
+              quantity: quantity,
+              unit: unitVal.isNotEmpty ? unitVal : existing.unit,
+              locationQuantities: locQuantities,
+              description:
+                  data['description']?.toString().trim() ??
+                  existing.description,
+              lowStockThreshold: threshold,
+              costPrice: _excelService.parseDoubleValue(data['costPrice']),
+              sellingPrice: _excelService.parseDoubleValue(
+                data['sellingPrice'],
+              ),
+              preferredVendorId: vendor?.id ?? existing.preferredVendorId,
+              preferredVendorName: vendor?.name ?? vendorName,
+            ),
+          );
         }
 
         if (productsToUpdate.isNotEmpty) {
@@ -319,8 +337,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
       // Bulk add new products
       if (newProducts.isNotEmpty) {
-        final newParsedData =
-            newProducts.map((d) => d.parsedData).toList();
+        final newParsedData = newProducts.map((d) => d.parsedData).toList();
         final products = _excelService.convertToProducts(
           newParsedData,
           categoryMap,
@@ -488,7 +505,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: isActive ? Colors.white : AppTheme.textTer(context),
+                      color: isActive
+                          ? Colors.white
+                          : AppTheme.textTer(context),
                     ),
                   ),
           ),
@@ -499,7 +518,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           style: TextStyle(
             fontSize: 10,
             fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-            color: isCurrent ? AppTheme.primaryColor : AppTheme.textTer(context),
+            color: isCurrent
+                ? AppTheme.primaryColor
+                : AppTheme.textTer(context),
           ),
           textAlign: TextAlign.center,
         ),
@@ -514,7 +535,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 18),
-        color: isActive ? AppTheme.primaryColor : AppTheme.glassBorderCont(context),
+        color: isActive
+            ? AppTheme.primaryColor
+            : AppTheme.glassBorderCont(context),
       ),
     );
   }
@@ -528,7 +551,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.dangerColor, size: 18),
+              const Icon(
+                Icons.error_outline,
+                color: AppTheme.dangerColor,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -542,7 +569,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               ),
               GestureDetector(
                 onTap: () => setState(() => _error = null),
-                child: Icon(Icons.close, size: 16, color: AppTheme.textTer(context)),
+                child: Icon(
+                  Icons.close,
+                  size: 16,
+                  color: AppTheme.textTer(context),
+                ),
               ),
             ],
           ),
@@ -640,7 +671,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        _isExporting ? 'Exporting...' : 'Download Products Excel',
+                        _isExporting
+                            ? 'Exporting...'
+                            : 'Download Products Excel',
                         style: const TextStyle(fontSize: 14),
                       ),
                     ),
@@ -769,7 +802,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               const SizedBox(height: 4),
               Text(
                 'Processing...',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSec(context),
+                ),
               ),
             ],
           ],
@@ -924,7 +960,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'All products in the file match your current data.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSec(context),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -1188,11 +1227,9 @@ class _NewProductCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      [
-                        data['category'],
-                        data['company'],
-                        data['size'],
-                      ].where((v) => v != null && v.toString().isNotEmpty).join(' · '),
+                      [data['category'], data['company'], data['size']]
+                          .where((v) => v != null && v.toString().isNotEmpty)
+                          .join(' · '),
                       style: TextStyle(
                         fontSize: 11,
                         color: AppTheme.textTer(context),

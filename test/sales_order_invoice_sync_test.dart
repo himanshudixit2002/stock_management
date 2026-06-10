@@ -21,12 +21,8 @@ SalesOrderModel _so({
   );
 }
 
-InvoiceItem _inv(String pid, int q) => InvoiceItem(
-      productId: pid,
-      productName: pid,
-      quantity: q,
-      unitPrice: 10,
-    );
+InvoiceItem _inv(String pid, int q) =>
+    InvoiceItem(productId: pid, productName: pid, quantity: q, unitPrice: 10);
 
 void main() {
   group('applyInvoiceFulfillment', () {
@@ -45,9 +41,7 @@ void main() {
 
     test('full fulfillment sets dispatched', () {
       final so = _so(
-        items: [
-          SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 0),
-        ],
+        items: [SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 0)],
       );
       final out = applyInvoiceFulfillment(so, [_inv('a', 10)], _t);
       expect(out.status, SOStatus.dispatched);
@@ -58,11 +52,7 @@ void main() {
       final so = _so(
         items: [SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 0)],
       );
-      final out = applyInvoiceFulfillment(
-        so,
-        [_inv('a', 4), _inv('a', 6)],
-        _t,
-      );
+      final out = applyInvoiceFulfillment(so, [_inv('a', 4), _inv('a', 6)], _t);
       expect(out.items[0].dispatchedQuantity, 10);
       expect(out.status, SOStatus.dispatched);
     });
@@ -79,9 +69,7 @@ void main() {
     test('no-op for delivered', () {
       final so = _so(
         status: SOStatus.delivered,
-        items: [
-          SOItem(productId: 'a', quantity: 5, dispatchedQuantity: 5),
-        ],
+        items: [SOItem(productId: 'a', quantity: 5, dispatchedQuantity: 5)],
       );
       final out = applyInvoiceFulfillment(so, [_inv('a', 1)], _t);
       expect(out.items[0].dispatchedQuantity, 5);
@@ -93,9 +81,7 @@ void main() {
     test('subtracts and downgrades dispatched to confirmed', () {
       final so = _so(
         status: SOStatus.dispatched,
-        items: [
-          SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 10),
-        ],
+        items: [SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 10)],
       );
       final out = revertInvoiceFulfillment(so, [_inv('a', 10)], _t);
       expect(out.items[0].dispatchedQuantity, 0);
@@ -105,9 +91,7 @@ void main() {
     test('partial revert leaves confirmed', () {
       final so = _so(
         status: SOStatus.dispatched,
-        items: [
-          SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 10),
-        ],
+        items: [SOItem(productId: 'a', quantity: 10, dispatchedQuantity: 10)],
       );
       final out = revertInvoiceFulfillment(so, [_inv('a', 3)], _t);
       expect(out.items[0].dispatchedQuantity, 7);

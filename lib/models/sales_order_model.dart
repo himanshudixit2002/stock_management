@@ -8,6 +8,7 @@ class SOItem {
   final String productName;
   final int quantity;
   final int dispatchedQuantity;
+
   /// Qty recorded back on this line when a customer return is processed (capped vs dispatched).
   final int returnedQuantity;
   final double unitPrice;
@@ -69,6 +70,7 @@ class SalesOrderModel {
   final double totalAmount;
   final String notes;
   final String invoiceId;
+
   /// When set, this order was auto-created from a standalone sales invoice ([originInvoiceId]).
   final String originInvoiceId;
   final String createdBy;

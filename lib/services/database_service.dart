@@ -15,6 +15,7 @@ import '../models/app_notification_model.dart';
 import '../models/price_history_model.dart';
 import '../models/warehouse_zone_model.dart';
 import '../models/invoice_model.dart';
+import '../models/stock_hold_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -24,6 +25,7 @@ class DatabaseService {
   }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final RegExp _nonDigitRegex = RegExp(r'\D');
   String _companyId = '';
 
   String get companyId => _companyId;
@@ -37,6 +39,17 @@ class DatabaseService {
       throw StateError(
         'companyId must be set before accessing database. Call setCompanyId first.',
       );
+    }
+  }
+
+  void _validateRequiredPhoneOrThrow(String phone, {required String entity}) {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('$entity phone is required.');
+    }
+    final digits = trimmed.replaceAll(_nonDigitRegex, '');
+    if (digits.length < 7 || digits.length > 15) {
+      throw ArgumentError('Please enter a valid $entity phone number.');
     }
   }
 
@@ -62,6 +75,14 @@ class DatabaseService {
         .collection('companies')
         .doc(_companyId)
         .collection('transactions');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _stockHolds {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('stockHolds');
   }
 
   CollectionReference<Map<String, dynamic>> get _vendors {
@@ -376,11 +397,31 @@ class DatabaseService {
       if (!snapshot.exists) throw Exception('Product not found');
 
       final data = snapshot.data()!;
-      final locQty = ((data['locationQuantities'] as Map?)?[location] as num?)?.toInt() ?? 0;
+      final allLocQty = _toIntMap(
+        (data['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final allHeldQty = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final locQty = allLocQty[location] ?? 0;
+      final heldLocQty = allHeldQty[location] ?? 0;
+      final availableLocQty = locQty - heldLocQty;
       final unit = data['unit'] ?? 'pcs';
-      if (locQty < quantity) {
+      if (availableLocQty < quantity) {
         throw Exception(
-          'Not enough stock at $location. Available: $locQty $unit',
+          'Not enough available stock at $location. Available: $availableLocQty $unit',
+        );
+      }
+      // Global guard: location-less (product-level) reservations are not tied
+      // to a location, so removing from here must not drop total on-hand below
+      // the total held across the product.
+      final totalOnHand = _sumMapValues(allLocQty);
+      final totalHeld = _sumMapValues(allHeldQty);
+      if (totalOnHand - quantity < totalHeld) {
+        final globalAvailable = totalOnHand - totalHeld;
+        throw Exception(
+          'Some units are on hold. Available to remove: '
+          '${globalAvailable < 0 ? 0 : globalAvailable} $unit',
         );
       }
 
@@ -428,6 +469,886 @@ class DatabaseService {
     });
   }
 
+  Map<String, int> _toIntMap(Map<dynamic, dynamic>? raw) {
+    if (raw == null) return {};
+    final map = <String, int>{};
+    raw.forEach((key, value) {
+      final k = key.toString();
+      final v = (value as num?)?.toInt() ?? 0;
+      if (v > 0) map[k] = v;
+    });
+    return map;
+  }
+
+  int _sumMapValues(Map<String, int> map) {
+    return map.values.fold<int>(0, (sum, value) => sum + value);
+  }
+
+  String _normalizeLocation(String location) {
+    final trimmed = location.trim();
+    return trimmed.isEmpty ? 'Main' : trimmed;
+  }
+
+  Future<String> createStockHold({
+    required String productId,
+    required String productName,
+    required int quantity,
+    required String location,
+    required String userId,
+    required String userName,
+    StockHoldSourceType sourceType = StockHoldSourceType.manual,
+    String sourceId = '',
+    String challanNumber = '',
+    String reason = '',
+    String notes = '',
+    DateTime? expiresAt,
+  }) async {
+    if (quantity <= 0) throw ArgumentError('quantity must be > 0');
+    location = location.trim();
+
+    final holdRef = _stockHolds.doc();
+    final now = DateTime.now();
+    final hold = StockHoldModel(
+      id: holdRef.id,
+      productId: productId,
+      productName: productName,
+      location: location,
+      quantity: quantity,
+      status: StockHoldStatus.active,
+      sourceType: sourceType,
+      sourceId: sourceId,
+      challanNumber: challanNumber.trim(),
+      reason: reason,
+      notes: notes,
+      createdBy: userId,
+      createdByName: userName,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: expiresAt,
+    );
+
+    await _firestore.runTransaction((txn) async {
+      final productRef = _products.doc(productId);
+      final productSnap = await txn.get(productRef);
+      if (!productSnap.exists) throw Exception('Product not found');
+      final data = productSnap.data()!;
+
+      final locationQuantities = _toIntMap(
+        (data['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final heldLocationQuantities = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final unit = data['unit'] ?? 'pcs';
+
+      // Bucket the reservation under the chosen location, or under the
+      // unassigned sentinel for location-less (product-level) holds.
+      final bucket = location.isEmpty ? kUnassignedHoldLocation : location;
+
+      if (location.isEmpty) {
+        // Product-level reservation: validate against total available.
+        final onHandTotal = _sumMapValues(locationQuantities);
+        final heldTotalBefore = _sumMapValues(heldLocationQuantities);
+        final available = onHandTotal - heldTotalBefore;
+        if (available < quantity) {
+          throw Exception(
+            'Not enough available stock. Available: $available $unit',
+          );
+        }
+      } else {
+        final onHand = locationQuantities[location] ?? 0;
+        final held = heldLocationQuantities[location] ?? 0;
+        final available = onHand - held;
+        if (available < quantity) {
+          throw Exception(
+            'Not enough available stock at $location. Available: $available $unit',
+          );
+        }
+      }
+
+      heldLocationQuantities[bucket] =
+          (heldLocationQuantities[bucket] ?? 0) + quantity;
+      final heldTotal = _sumMapValues(heldLocationQuantities);
+
+      txn.set(holdRef, hold.toMap());
+      txn.update(productRef, {
+        'heldQuantity': heldTotal,
+        'heldLocationQuantities': heldLocationQuantities,
+        'updatedAt': Timestamp.now(),
+      });
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: productId,
+          productName: productName,
+          type: TransactionType.hold,
+          quantity: quantity,
+          location: location,
+          reason: reason.isNotEmpty ? reason : 'Stock hold created',
+          userId: userId,
+          userName: userName,
+          date: now,
+        ).toMap(),
+      );
+    });
+
+    return holdRef.id;
+  }
+
+  /// Creates multiple location-less manual holds under a single challan in one
+  /// transaction. Each entry reserves stock at the product level; if any item
+  /// lacks available stock the whole batch is rolled back.
+  Future<List<String>> createStockHoldsBatch({
+    required List<StockHoldBatchItem> items,
+    required String userId,
+    required String userName,
+    String challanNumber = '',
+    String reason = '',
+    String notes = '',
+    DateTime? expiresAt,
+  }) async {
+    final filtered = items.where((e) => e.quantity > 0).toList();
+    if (filtered.isEmpty) {
+      throw ArgumentError('At least one item with quantity > 0 is required');
+    }
+
+    // Aggregate quantities per product so the same product picked twice is
+    // validated against its combined reservation.
+    final totalByProduct = <String, int>{};
+    for (final item in filtered) {
+      totalByProduct[item.productId] =
+          (totalByProduct[item.productId] ?? 0) + item.quantity;
+    }
+
+    final now = DateTime.now();
+    final trimmedChallan = challanNumber.trim();
+    final holdIds = <String>[];
+
+    await _firestore.runTransaction((txn) async {
+      // Read all products first (Firestore requires reads before writes).
+      final productRefs = <String, DocumentReference<Map<String, dynamic>>>{};
+      final productData = <String, Map<String, dynamic>>{};
+      for (final productId in totalByProduct.keys) {
+        final ref = _products.doc(productId);
+        final snap = await txn.get(ref);
+        if (!snap.exists) {
+          throw Exception('Product not found for one of the held items.');
+        }
+        productRefs[productId] = ref;
+        productData[productId] = snap.data()!;
+      }
+
+      // Validate availability per product against total reservation.
+      for (final entry in totalByProduct.entries) {
+        final data = productData[entry.key]!;
+        final locationQuantities = _toIntMap(
+          (data['locationQuantities'] as Map<dynamic, dynamic>?),
+        );
+        final heldLocationQuantities = _toIntMap(
+          (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+        );
+        final onHandTotal = _sumMapValues(locationQuantities);
+        final heldTotalBefore = _sumMapValues(heldLocationQuantities);
+        final available = onHandTotal - heldTotalBefore;
+        final unit = data['unit'] ?? 'pcs';
+        if (available < entry.value) {
+          final name = data['name'] ?? 'product';
+          throw Exception(
+            'Not enough available stock for $name. '
+            'Available: $available $unit, requested: ${entry.value}.',
+          );
+        }
+      }
+
+      // Apply reservations + create hold docs + transactions.
+      final heldMaps = <String, Map<String, int>>{};
+      for (final entry in totalByProduct.entries) {
+        heldMaps[entry.key] = _toIntMap(
+          (productData[entry.key]!['heldLocationQuantities']
+              as Map<dynamic, dynamic>?),
+        );
+      }
+
+      for (final item in filtered) {
+        final holdRef = _stockHolds.doc();
+        holdIds.add(holdRef.id);
+        final hold = StockHoldModel(
+          id: holdRef.id,
+          productId: item.productId,
+          productName: item.productName,
+          location: '',
+          quantity: item.quantity,
+          status: StockHoldStatus.active,
+          sourceType: StockHoldSourceType.manual,
+          challanNumber: trimmedChallan,
+          reason: reason,
+          notes: notes,
+          createdBy: userId,
+          createdByName: userName,
+          createdAt: now,
+          updatedAt: now,
+          expiresAt: expiresAt,
+        );
+        final heldMap = heldMaps[item.productId]!;
+        heldMap[kUnassignedHoldLocation] =
+            (heldMap[kUnassignedHoldLocation] ?? 0) + item.quantity;
+
+        txn.set(holdRef, hold.toMap());
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: item.productId,
+            productName: item.productName,
+            type: TransactionType.hold,
+            quantity: item.quantity,
+            location: '',
+            reason: reason.isNotEmpty
+                ? reason
+                : 'Stock hold created'
+                      '${trimmedChallan.isNotEmpty ? ' (Challan $trimmedChallan)' : ''}',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+      }
+
+      for (final entry in totalByProduct.entries) {
+        final heldMap = heldMaps[entry.key]!;
+        txn.update(productRefs[entry.key]!, {
+          'heldQuantity': _sumMapValues(heldMap),
+          'heldLocationQuantities': heldMap,
+          'updatedAt': Timestamp.now(),
+        });
+      }
+    });
+
+    return holdIds;
+  }
+
+  Future<void> releaseStockHold({
+    required String holdId,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    await _firestore.runTransaction((txn) async {
+      final holdRef = _stockHolds.doc(holdId);
+      final holdSnap = await txn.get(holdRef);
+      if (!holdSnap.exists) throw Exception('Hold not found');
+      final hold = StockHoldModel.fromMap(holdSnap.data()!, holdSnap.id);
+      final releasableQty = hold.remainingQuantity;
+      if (releasableQty <= 0) return;
+
+      final productRef = _products.doc(hold.productId);
+      final productSnap = await txn.get(productRef);
+      if (!productSnap.exists) throw Exception('Product not found');
+      final data = productSnap.data()!;
+      final heldLocationQuantities = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final bucket =
+          hold.hasLocation ? hold.location : kUnassignedHoldLocation;
+      final currentHeld = heldLocationQuantities[bucket] ?? 0;
+      final nextHeld = currentHeld - releasableQty;
+      if (nextHeld <= 0) {
+        heldLocationQuantities.remove(bucket);
+      } else {
+        heldLocationQuantities[bucket] = nextHeld;
+      }
+      final heldTotal = _sumMapValues(heldLocationQuantities);
+      final now = DateTime.now();
+
+      txn.update(holdRef, {
+        'releasedQuantity': hold.releasedQuantity + releasableQty,
+        'status': 'released',
+        'updatedAt': Timestamp.fromDate(now),
+      });
+      txn.update(productRef, {
+        'heldQuantity': heldTotal,
+        'heldLocationQuantities': heldLocationQuantities,
+        'updatedAt': Timestamp.now(),
+      });
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: hold.productId,
+          productName: hold.productName,
+          type: TransactionType.holdRelease,
+          quantity: releasableQty,
+          location: hold.location,
+          reason: reason.isNotEmpty ? reason : 'Hold released',
+          userId: userId,
+          userName: userName,
+          date: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  /// Partially (or fully) unholds [quantity] units from a single hold without
+  /// shipping them: reduces the held reservation, returns stock to available.
+  Future<void> releaseStockHoldQuantity({
+    required String holdId,
+    required int quantity,
+    required String userId,
+    required String userName,
+    String reason = '',
+  }) async {
+    if (quantity <= 0) throw ArgumentError('quantity must be > 0');
+    await _firestore.runTransaction((txn) async {
+      final holdRef = _stockHolds.doc(holdId);
+      final holdSnap = await txn.get(holdRef);
+      if (!holdSnap.exists) throw Exception('Hold not found');
+      final hold = StockHoldModel.fromMap(holdSnap.data()!, holdSnap.id);
+      final releasable = hold.remainingQuantity;
+      if (releasable <= 0) return;
+      final releaseQty = quantity > releasable ? releasable : quantity;
+
+      final productRef = _products.doc(hold.productId);
+      final productSnap = await txn.get(productRef);
+      if (!productSnap.exists) throw Exception('Product not found');
+      final data = productSnap.data()!;
+      final heldLocationQuantities = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final bucket =
+          hold.hasLocation ? hold.location : kUnassignedHoldLocation;
+      final currentHeld = heldLocationQuantities[bucket] ?? 0;
+      final nextHeld = currentHeld - releaseQty;
+      if (nextHeld <= 0) {
+        heldLocationQuantities.remove(bucket);
+      } else {
+        heldLocationQuantities[bucket] = nextHeld;
+      }
+      final heldTotal = _sumMapValues(heldLocationQuantities);
+      final now = DateTime.now();
+      final newReleased = hold.releasedQuantity + releaseQty;
+      final remainingAfter = hold.quantity - hold.consumedQuantity - newReleased;
+      final nextStatus = remainingAfter <= 0
+          ? 'released'
+          : (hold.status == StockHoldStatus.partiallyConsumed
+                ? 'partially_consumed'
+                : 'active');
+
+      txn.update(holdRef, {
+        'releasedQuantity': newReleased,
+        'status': nextStatus,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+      txn.update(productRef, {
+        'heldQuantity': heldTotal,
+        'heldLocationQuantities': heldLocationQuantities,
+        'updatedAt': Timestamp.now(),
+      });
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: hold.productId,
+          productName: hold.productName,
+          type: TransactionType.holdRelease,
+          quantity: releaseQty,
+          location: hold.location,
+          reason: reason.isNotEmpty ? reason : 'Hold partially released',
+          userId: userId,
+          userName: userName,
+          date: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  /// Despatches [quantity] units from a specific hold: marks the hold consumed
+  /// and physically removes the units from on-hand stock (a real stock out).
+  Future<void> dispatchHoldQuantity({
+    required String holdId,
+    required int quantity,
+    required String userId,
+    required String userName,
+    String location = '',
+    String reason = '',
+  }) async {
+    if (quantity <= 0) throw ArgumentError('quantity must be > 0');
+    location = location.trim();
+    await _firestore.runTransaction((txn) async {
+      final holdRef = _stockHolds.doc(holdId);
+      final holdSnap = await txn.get(holdRef);
+      if (!holdSnap.exists) throw Exception('Hold not found');
+      final hold = StockHoldModel.fromMap(holdSnap.data()!, holdSnap.id);
+      final dispatchable = hold.remainingQuantity;
+      if (dispatchable <= 0) throw Exception('Nothing left to despatch.');
+      final dispatchQty = quantity > dispatchable ? dispatchable : quantity;
+
+      // The physical location stock leaves from. For location-bound holds it is
+      // the hold's reserved location; location-less holds require an explicit
+      // despatch location chosen by the caller.
+      final dispatchLocation = hold.hasLocation ? hold.location : location;
+      if (dispatchLocation.isEmpty) {
+        throw Exception('Select a location to despatch from.');
+      }
+      // The bucket where this hold's reservation is tracked.
+      final reservedBucket =
+          hold.hasLocation ? hold.location : kUnassignedHoldLocation;
+
+      final productRef = _products.doc(hold.productId);
+      final productSnap = await txn.get(productRef);
+      if (!productSnap.exists) throw Exception('Product not found');
+      final data = productSnap.data()!;
+      final heldLocationQuantities = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final locationQuantities = _toIntMap(
+        (data['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+
+      final unit = data['unit'] ?? 'pcs';
+      final onHand = locationQuantities[dispatchLocation] ?? 0;
+      if (onHand < dispatchQty) {
+        throw Exception(
+          'Not enough stock at $dispatchLocation. On hand: $onHand $unit',
+        );
+      }
+
+      final currentHeld = heldLocationQuantities[reservedBucket] ?? 0;
+      final nextHeld = currentHeld - dispatchQty;
+      if (nextHeld <= 0) {
+        heldLocationQuantities.remove(reservedBucket);
+      } else {
+        heldLocationQuantities[reservedBucket] = nextHeld;
+      }
+      final nextOnHand = onHand - dispatchQty;
+      if (nextOnHand <= 0) {
+        locationQuantities.remove(dispatchLocation);
+      } else {
+        locationQuantities[dispatchLocation] = nextOnHand;
+      }
+      final heldTotal = _sumMapValues(heldLocationQuantities);
+      final onHandTotal = _sumMapValues(locationQuantities);
+      final now = DateTime.now();
+      final newConsumed = hold.consumedQuantity + dispatchQty;
+      final remainingAfter = hold.quantity - newConsumed - hold.releasedQuantity;
+      final nextStatus = remainingAfter <= 0 ? 'consumed' : 'partially_consumed';
+
+      txn.update(holdRef, {
+        'consumedQuantity': newConsumed,
+        'status': nextStatus,
+        'updatedAt': Timestamp.fromDate(now),
+        'lastConsumedBy': userId,
+        'lastConsumedByName': userName,
+      });
+      txn.update(productRef, {
+        'quantity': onHandTotal,
+        'locationQuantities': locationQuantities,
+        'heldQuantity': heldTotal,
+        'heldLocationQuantities': heldLocationQuantities,
+        'updatedAt': Timestamp.now(),
+      });
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: hold.productId,
+          productName: hold.productName,
+          type: TransactionType.stockOut,
+          quantity: dispatchQty,
+          location: dispatchLocation,
+          reason: reason.isNotEmpty
+              ? reason
+              : 'Despatched from held stock'
+                  '${hold.challanNumber.isNotEmpty ? ' (Challan ${hold.challanNumber})' : ''}',
+          userId: userId,
+          userName: userName,
+          date: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  Future<int> consumeHeldStockForOutbound({
+    required String productId,
+    required String productName,
+    required int quantity,
+    required String location,
+    required String userId,
+    required String userName,
+    String sourceType = 'sales_order',
+    String sourceId = '',
+    String reason = '',
+  }) async {
+    if (quantity <= 0) return 0;
+    location = _normalizeLocation(location);
+
+    return _firestore.runTransaction((txn) async {
+      final productRef = _products.doc(productId);
+      final productSnap = await txn.get(productRef);
+      if (!productSnap.exists) throw Exception('Product not found');
+
+      final data = productSnap.data()!;
+      final heldLocationQuantities = _toIntMap(
+        (data['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final locationQuantities = _toIntMap(
+        (data['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final heldAtLocation = heldLocationQuantities[location] ?? 0;
+      final consumeQty = heldAtLocation < quantity ? heldAtLocation : quantity;
+      if (consumeQty <= 0) return 0;
+
+      final holdQuery = await _stockHolds
+          .where('productId', isEqualTo: productId)
+          .where('location', isEqualTo: location)
+          .where('status', whereIn: ['active', 'partially_consumed'])
+          .get();
+      final sortedDocs = holdQuery.docs.toList()
+        ..sort((a, b) {
+          final aTime =
+              (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final bTime =
+              (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return aTime.compareTo(bTime);
+        });
+
+      var remainingToConsume = consumeQty;
+      var actualConsumed = 0;
+      final now = DateTime.now();
+
+      bool matchesSource(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
+          sourceId.isNotEmpty &&
+          (d.data()['sourceType']?.toString() ?? '') == sourceType &&
+          (d.data()['sourceId']?.toString() ?? '') == sourceId;
+      bool isManualHold(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
+          (d.data()['sourceType']?.toString() ?? 'manual') == 'manual';
+
+      // Consume this source's own holds first, then fall back to manual holds.
+      // Never consume holds reserved by a *different* order/invoice, so one
+      // document can't silently eat another order's reservation.
+      final prioritizedDocs = sortedDocs.where(matchesSource).toList();
+      prioritizedDocs.addAll(
+        sortedDocs.where((d) => !matchesSource(d) && isManualHold(d)),
+      );
+      for (final doc in prioritizedDocs) {
+        if (remainingToConsume <= 0) break;
+        final hold = StockHoldModel.fromMap(doc.data(), doc.id);
+        final available = hold.remainingQuantity;
+        if (available <= 0) continue;
+        final take = available < remainingToConsume
+            ? available
+            : remainingToConsume;
+        final newConsumed = hold.consumedQuantity + take;
+        final remainingAfter =
+            hold.quantity - newConsumed - hold.releasedQuantity;
+        final status = remainingAfter <= 0 ? 'consumed' : 'partially_consumed';
+        txn.update(doc.reference, {
+          'consumedQuantity': newConsumed,
+          'status': status,
+          'updatedAt': Timestamp.fromDate(now),
+          'lastConsumedBy': userId,
+          'lastConsumedByName': userName,
+          'lastConsumedSourceType': sourceType,
+          'lastConsumedSourceId': sourceId,
+        });
+        actualConsumed += take;
+        remainingToConsume -= take;
+      }
+
+      if (actualConsumed <= 0) return 0;
+      final newHeldAtLocation = heldAtLocation - actualConsumed;
+      if (newHeldAtLocation <= 0) {
+        heldLocationQuantities.remove(location);
+      } else {
+        heldLocationQuantities[location] = newHeldAtLocation;
+      }
+      final heldTotal = _sumMapValues(heldLocationQuantities);
+
+      // Despatching held units physically removes them from stock: reduce the
+      // on-hand count at the location alongside releasing the reservation.
+      final onHandAtLocation = locationQuantities[location] ?? 0;
+      final newOnHand = onHandAtLocation - actualConsumed;
+      if (newOnHand <= 0) {
+        locationQuantities.remove(location);
+      } else {
+        locationQuantities[location] = newOnHand;
+      }
+      final onHandTotal = _sumMapValues(locationQuantities);
+
+      txn.update(productRef, {
+        'quantity': onHandTotal,
+        'locationQuantities': locationQuantities,
+        'heldQuantity': heldTotal,
+        'heldLocationQuantities': heldLocationQuantities,
+        'updatedAt': Timestamp.now(),
+      });
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: productId,
+          productName: productName,
+          type: TransactionType.stockOut,
+          quantity: actualConsumed,
+          location: location,
+          reason: reason.isNotEmpty ? reason : 'Despatched from held stock',
+          userId: userId,
+          userName: userName,
+          date: now,
+        ).toMap(),
+      );
+      return actualConsumed;
+    });
+  }
+
+  Future<void> syncSalesOrderHoldsOnConfirmOrEdit({
+    required SalesOrderModel order,
+    SalesOrderModel? previousOrder,
+    required String userId,
+    required String userName,
+    String defaultLocation = 'Main',
+  }) async {
+    defaultLocation = _normalizeLocation(defaultLocation);
+    final shouldHold = order.status == SOStatus.confirmed;
+    final previousShouldHold = previousOrder?.status == SOStatus.confirmed;
+
+    Future<void> releaseAllOrderHolds(String orderId) async {
+      if (orderId.trim().isEmpty) return;
+      final holds = await _stockHolds
+          .where('sourceType', isEqualTo: 'sales_order')
+          .where('sourceId', isEqualTo: orderId)
+          .where('status', whereIn: ['active', 'partially_consumed'])
+          .get();
+      for (final hold in holds.docs) {
+        await releaseStockHold(
+          holdId: hold.id,
+          userId: userId,
+          userName: userName,
+          reason: 'SO #${orderId.substring(0, 6)} hold release',
+        );
+      }
+    }
+
+    if (!shouldHold) {
+      if (previousShouldHold) {
+        await releaseAllOrderHolds(order.id);
+      }
+      return;
+    }
+
+    final prevQtyByProduct = <String, int>{};
+    if (previousOrder != null) {
+      for (final item in previousOrder.items) {
+        prevQtyByProduct[item.productId] =
+            (prevQtyByProduct[item.productId] ?? 0) + item.quantity;
+      }
+    }
+
+    final nextQtyByProduct = <String, int>{};
+    for (final item in order.items) {
+      nextQtyByProduct[item.productId] =
+          (nextQtyByProduct[item.productId] ?? 0) + item.quantity;
+    }
+
+    final productNames = <String, String>{};
+    for (final item in order.items) {
+      productNames[item.productId] = item.productName;
+    }
+    for (final item in previousOrder?.items ?? const <SOItem>[]) {
+      productNames[item.productId] = item.productName;
+    }
+
+    final allProductIds = <String>{
+      ...prevQtyByProduct.keys,
+      ...nextQtyByProduct.keys,
+    };
+    for (final productId in allProductIds) {
+      final prevQty = prevQtyByProduct[productId] ?? 0;
+      final nextQty = nextQtyByProduct[productId] ?? 0;
+      final delta = nextQty - prevQty;
+      if (delta == 0) continue;
+
+      if (delta > 0) {
+        final productSnap = await _products.doc(productId).get();
+        if (!productSnap.exists) {
+          throw Exception('Product not found for sales order reservation.');
+        }
+        final productData = productSnap.data()!;
+        final locationQuantities = _toIntMap(
+          (productData['locationQuantities'] as Map<dynamic, dynamic>?),
+        );
+        final heldLocationQuantities = _toIntMap(
+          (productData['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+        );
+
+        final locations = <String>[];
+        if (locationQuantities.containsKey(defaultLocation)) {
+          locations.add(defaultLocation);
+        }
+        for (final loc in locationQuantities.keys) {
+          if (!locations.contains(loc)) locations.add(loc);
+        }
+
+        // Product-level budget honoring location-less manual holds: the total
+        // we may reserve cannot exceed total on-hand minus everything already
+        // held (including the unassigned sentinel bucket).
+        final totalOnHand = _sumMapValues(locationQuantities);
+        final totalHeld = _sumMapValues(heldLocationQuantities);
+        var globalBudget = totalOnHand - totalHeld;
+
+        var remaining = delta;
+        for (final loc in locations) {
+          if (remaining <= 0 || globalBudget <= 0) break;
+          final onHand = locationQuantities[loc] ?? 0;
+          final held = heldLocationQuantities[loc] ?? 0;
+          final available = onHand - held;
+          if (available <= 0) continue;
+          var reserveQty = available < remaining ? available : remaining;
+          if (reserveQty > globalBudget) reserveQty = globalBudget;
+          if (reserveQty <= 0) continue;
+          await createStockHold(
+            productId: productId,
+            productName: productNames[productId] ?? '',
+            quantity: reserveQty,
+            location: loc,
+            userId: userId,
+            userName: userName,
+            sourceType: StockHoldSourceType.salesOrder,
+            sourceId: order.id,
+            challanNumber: 'SO-${order.id.substring(0, 6)}',
+            reason: 'SO #${order.id.substring(0, 6)} confirmed',
+          );
+          remaining -= reserveQty;
+          globalBudget -= reserveQty;
+        }
+
+        if (remaining > 0) {
+          final totalAvailable = totalOnHand - totalHeld;
+          throw Exception(
+            'Not enough available stock to reserve for ${productNames[productId] ?? 'product'}. '
+            'Required: $delta, available: ${totalAvailable < 0 ? 0 : totalAvailable}.',
+          );
+        }
+      } else {
+        var releaseRemaining = -delta;
+        final holds = await _stockHolds
+            .where('sourceType', isEqualTo: 'sales_order')
+            .where('sourceId', isEqualTo: order.id)
+            .where('productId', isEqualTo: productId)
+            .where('status', whereIn: ['active', 'partially_consumed'])
+            .get();
+        for (final holdDoc in holds.docs) {
+          if (releaseRemaining <= 0) break;
+          final hold = StockHoldModel.fromMap(holdDoc.data(), holdDoc.id);
+          final releasable = hold.remainingQuantity;
+          if (releasable <= 0) continue;
+          if (releasable <= releaseRemaining) {
+            await releaseStockHold(
+              holdId: hold.id,
+              userId: userId,
+              userName: userName,
+              reason: 'SO #${order.id.substring(0, 6)} qty reduced',
+            );
+            releaseRemaining -= releasable;
+          } else {
+            await _firestore.runTransaction((txn) async {
+              final productRef = _products.doc(hold.productId);
+              final productSnap = await txn.get(productRef);
+              if (!productSnap.exists) throw Exception('Product not found');
+              final productData = productSnap.data()!;
+              final heldLocationQuantities = _toIntMap(
+                (productData['heldLocationQuantities']
+                    as Map<dynamic, dynamic>?),
+              );
+              final currentHeld = heldLocationQuantities[hold.location] ?? 0;
+              final nextHeld = currentHeld - releaseRemaining;
+              if (nextHeld <= 0) {
+                heldLocationQuantities.remove(hold.location);
+              } else {
+                heldLocationQuantities[hold.location] = nextHeld;
+              }
+              final heldTotal = _sumMapValues(heldLocationQuantities);
+              final now = DateTime.now();
+              txn.update(holdDoc.reference, {
+                'releasedQuantity': hold.releasedQuantity + releaseRemaining,
+                'status': StockHoldStatus.partiallyConsumed == hold.status
+                    ? 'partially_consumed'
+                    : 'active',
+                'updatedAt': Timestamp.fromDate(now),
+              });
+              txn.update(productRef, {
+                'heldQuantity': heldTotal,
+                'heldLocationQuantities': heldLocationQuantities,
+                'updatedAt': Timestamp.now(),
+              });
+              txn.set(
+                _transactions.doc(),
+                StockTransactionModel(
+                  id: '',
+                  productId: hold.productId,
+                  productName: hold.productName,
+                  type: TransactionType.holdRelease,
+                  quantity: releaseRemaining,
+                  location: hold.location,
+                  reason: 'SO #${order.id.substring(0, 6)} qty reduced',
+                  userId: userId,
+                  userName: userName,
+                  date: now,
+                ).toMap(),
+              );
+            });
+            releaseRemaining = 0;
+          }
+        }
+      }
+    }
+  }
+
+  /// Active (or partially-consumed) holds for a given source, optionally
+  /// filtered to a single product. Used to despatch an order from the exact
+  /// locations it reserved.
+  Future<List<StockHoldModel>> getActiveHoldsForSource({
+    required String sourceType,
+    required String sourceId,
+    String productId = '',
+  }) async {
+    if (sourceId.isEmpty) return [];
+    Query<Map<String, dynamic>> query = _stockHolds
+        .where('sourceType', isEqualTo: sourceType)
+        .where('sourceId', isEqualTo: sourceId)
+        .where('status', whereIn: ['active', 'partially_consumed']);
+    if (productId.isNotEmpty) {
+      query = query.where('productId', isEqualTo: productId);
+    }
+    final snap = await query.get();
+    return snap.docs
+        .map((doc) => StockHoldModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Stream<List<StockHoldModel>> getStockHolds({
+    String status = '',
+    int limit = 500,
+  }) {
+    Query<Map<String, dynamic>> query = _stockHolds.orderBy(
+      'createdAt',
+      descending: true,
+    );
+    if (status.isNotEmpty) {
+      query = query.where('status', isEqualTo: status);
+    }
+    return query
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StockHoldModel.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
+  }
+
   Future<void> recordDamage({
     required String productId,
     required String productName,
@@ -445,7 +1366,9 @@ class DatabaseService {
       if (!snapshot.exists) throw Exception('Product not found');
 
       final data = snapshot.data()!;
-      final locQty = ((data['locationQuantities'] as Map?)?[location] as num?)?.toInt() ?? 0;
+      final locQty =
+          ((data['locationQuantities'] as Map?)?[location] as num?)?.toInt() ??
+          0;
       final unit = data['unit'] ?? 'pcs';
       if (locQty < quantity) {
         throw Exception(
@@ -522,9 +1445,7 @@ class DatabaseService {
       final locQty = (data['locationQuantities'] as Map?)?[from] ?? 0;
       final unit = data['unit'] ?? 'pcs';
       if (locQty < quantity) {
-        throw Exception(
-          'Not enough stock at $from. Available: $locQty $unit',
-        );
+        throw Exception('Not enough stock at $from. Available: $locQty $unit');
       }
 
       final stockTransaction = StockTransactionModel(
@@ -717,6 +1638,12 @@ class DatabaseService {
       case TransactionType.adjustment:
         typeStr = 'adjustment';
         break;
+      case TransactionType.hold:
+        typeStr = 'hold';
+        break;
+      case TransactionType.holdRelease:
+        typeStr = 'hold_release';
+        break;
     }
 
     return _transactions
@@ -773,11 +1700,13 @@ class DatabaseService {
   }
 
   Future<String> addVendor(VendorModel vendor) async {
+    _validateRequiredPhoneOrThrow(vendor.phone, entity: 'Vendor');
     final docRef = await _vendors.add(vendor.toMap());
     return docRef.id;
   }
 
   Future<void> updateVendor(VendorModel vendor) async {
+    _validateRequiredPhoneOrThrow(vendor.phone, entity: 'Vendor');
     await _vendors.doc(vendor.id).update(vendor.toMap());
   }
 
@@ -929,13 +1858,21 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _purchaseOrders {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('purchaseOrders');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('purchaseOrders');
   }
 
   Stream<List<PurchaseOrderModel>> getPurchaseOrders() {
-    return _purchaseOrders.orderBy('createdAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => PurchaseOrderModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _purchaseOrders
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => PurchaseOrderModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<String> addPurchaseOrder(PurchaseOrderModel po) async {
@@ -951,7 +1888,10 @@ class DatabaseService {
     await _purchaseOrders.doc(id).delete();
   }
 
-  Future<void> setPurchaseOrderInvoiceId(String orderId, String invoiceId) async {
+  Future<void> setPurchaseOrderInvoiceId(
+    String orderId,
+    String invoiceId,
+  ) async {
     await _purchaseOrders.doc(orderId).update({
       'invoiceId': invoiceId,
       'updatedAt': Timestamp.now(),
@@ -971,10 +1911,16 @@ class DatabaseService {
       final qty = item.quantity - item.receivedQuantity;
       if (qty <= 0) continue;
       final txn = StockTransactionModel(
-        id: '', productId: item.productId, productName: item.productName,
-        type: TransactionType.stockIn, quantity: qty,
-        location: location, reason: 'PO #${po.id.substring(0, 6)}',
-        userId: userId, userName: userName, date: DateTime.now(),
+        id: '',
+        productId: item.productId,
+        productName: item.productName,
+        type: TransactionType.stockIn,
+        quantity: qty,
+        location: location,
+        reason: 'PO #${po.id.substring(0, 6)}',
+        userId: userId,
+        userName: userName,
+        date: DateTime.now(),
       );
       batch.set(_transactions.doc(), txn.toMap());
       opCount++;
@@ -992,10 +1938,14 @@ class DatabaseService {
       }
     }
 
-    final updatedItems = po.items.map((i) => i.copyWith(receivedQuantity: i.quantity).toMap()).toList();
+    final updatedItems = po.items
+        .map((i) => i.copyWith(receivedQuantity: i.quantity).toMap())
+        .toList();
     batch.update(_purchaseOrders.doc(po.id), {
-      'status': 'received', 'items': updatedItems,
-      'receivedDate': Timestamp.now(), 'updatedAt': Timestamp.now(),
+      'status': 'received',
+      'items': updatedItems,
+      'receivedDate': Timestamp.now(),
+      'updatedAt': Timestamp.now(),
     });
     opCount++;
 
@@ -1013,17 +1963,19 @@ class DatabaseService {
           'costPrice': item.unitPrice,
           'updatedAt': Timestamp.now(),
         });
-        await addPriceHistory(PriceHistoryModel(
-          id: '',
-          productId: item.productId,
-          productName: item.productName,
-          field: 'costPrice',
-          oldValue: currentCost,
-          newValue: item.unitPrice,
-          changedBy: userId,
-          changedByName: userName,
-          timestamp: DateTime.now(),
-        ));
+        await addPriceHistory(
+          PriceHistoryModel(
+            id: '',
+            productId: item.productId,
+            productName: item.productName,
+            field: 'costPrice',
+            oldValue: currentCost,
+            newValue: item.unitPrice,
+            changedBy: userId,
+            changedByName: userName,
+            timestamp: DateTime.now(),
+          ),
+        );
       }
     }
   }
@@ -1032,13 +1984,21 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _salesOrders {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('salesOrders');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('salesOrders');
   }
 
   Stream<List<SalesOrderModel>> getSalesOrders() {
-    return _salesOrders.orderBy('createdAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => SalesOrderModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _salesOrders
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => SalesOrderModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<String> addSalesOrder(SalesOrderModel so) async {
@@ -1065,13 +2025,20 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _returns {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('returns');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('returns');
   }
 
   Stream<List<ReturnModel>> getReturns() {
-    return _returns.orderBy('createdAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => ReturnModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _returns
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => ReturnModel.fromMap(d.data(), d.id)).toList(),
+        );
   }
 
   Future<String> addReturn(ReturnModel r) async {
@@ -1087,13 +2054,20 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _customers {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('customers');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('customers');
   }
 
   Stream<List<CustomerModel>> getCustomers() {
-    return _customers.orderBy('name').snapshots().map(
-      (s) => s.docs.map((d) => CustomerModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _customers
+        .orderBy('name')
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => CustomerModel.fromMap(d.data(), d.id)).toList(),
+        );
   }
 
   Future<List<CustomerModel>> getCustomersOnce() async {
@@ -1102,11 +2076,13 @@ class DatabaseService {
   }
 
   Future<String> addCustomer(CustomerModel c) async {
+    _validateRequiredPhoneOrThrow(c.phone, entity: 'Customer');
     final ref = await _customers.add(c.toMap());
     return ref.id;
   }
 
   Future<void> updateCustomer(CustomerModel c) async {
+    _validateRequiredPhoneOrThrow(c.phone, entity: 'Customer');
     await _customers.doc(c.id).update(c.toMap());
   }
 
@@ -1118,13 +2094,19 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _batches {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('batches');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('batches');
   }
 
   Stream<List<BatchModel>> getBatches() {
-    return _batches.orderBy('createdAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => BatchModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _batches
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs.map((d) => BatchModel.fromMap(d.data(), d.id)).toList(),
+        );
   }
 
   Future<String> addBatch(BatchModel b) async {
@@ -1144,13 +2126,21 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _stockTakes {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('stockTakes');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('stockTakes');
   }
 
   Stream<List<StockTakeModel>> getStockTakes() {
-    return _stockTakes.orderBy('startedAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => StockTakeModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _stockTakes
+        .orderBy('startedAt', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => StockTakeModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<String> addStockTake(StockTakeModel st) async {
@@ -1166,13 +2156,21 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _auditLogs {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('auditLogs');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('auditLogs');
   }
 
   Stream<List<AuditLogModel>> getAuditLogs({int limit = 200}) {
-    return _auditLogs.orderBy('timestamp', descending: true).limit(limit).snapshots().map(
-      (s) => s.docs.map((d) => AuditLogModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _auditLogs
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => AuditLogModel.fromMap(d.data(), d.id)).toList(),
+        );
   }
 
   Future<void> addAuditLog(AuditLogModel log) async {
@@ -1183,13 +2181,22 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _notifications {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('notifications');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('notifications');
   }
 
   Stream<List<AppNotificationModel>> getNotifications({int limit = 100}) {
-    return _notifications.orderBy('timestamp', descending: true).limit(limit).snapshots().map(
-      (s) => s.docs.map((d) => AppNotificationModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _notifications
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => AppNotificationModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<void> addNotification(AppNotificationModel n) async {
@@ -1217,15 +2224,26 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _priceHistory {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('priceHistory');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('priceHistory');
   }
 
   Stream<List<PriceHistoryModel>> getPriceHistory({String? productId}) {
-    Query<Map<String, dynamic>> q = _priceHistory.orderBy('timestamp', descending: true);
-    if (productId != null) q = q.where('productId', isEqualTo: productId);
-    return q.limit(500).snapshots().map(
-      (s) => s.docs.map((d) => PriceHistoryModel.fromMap(d.data(), d.id)).toList(),
+    Query<Map<String, dynamic>> q = _priceHistory.orderBy(
+      'timestamp',
+      descending: true,
     );
+    if (productId != null) q = q.where('productId', isEqualTo: productId);
+    return q
+        .limit(500)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => PriceHistoryModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<void> addPriceHistory(PriceHistoryModel p) async {
@@ -1236,13 +2254,21 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _warehouseZones {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('warehouseZones');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('warehouseZones');
   }
 
   Stream<List<WarehouseZoneModel>> getWarehouseZones() {
-    return _warehouseZones.orderBy('locationName').snapshots().map(
-      (s) => s.docs.map((d) => WarehouseZoneModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _warehouseZones
+        .orderBy('locationName')
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => WarehouseZoneModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
   }
 
   Future<String> addWarehouseZone(WarehouseZoneModel z) async {
@@ -1262,7 +2288,10 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> get _invoices {
     _ensureCompanyId();
-    return _firestore.collection('companies').doc(_companyId).collection('invoices');
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('invoices');
   }
 
   DocumentReference get _companyDoc {
@@ -1271,9 +2300,13 @@ class DatabaseService {
   }
 
   Stream<List<InvoiceModel>> getInvoices() {
-    return _invoices.orderBy('createdAt', descending: true).snapshots().map(
-      (s) => s.docs.map((d) => InvoiceModel.fromMap(d.data(), d.id)).toList(),
-    );
+    return _invoices
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => InvoiceModel.fromMap(d.data(), d.id)).toList(),
+        );
   }
 
   Future<String> addInvoice(InvoiceModel invoice) async {
@@ -1454,8 +2487,8 @@ class DatabaseService {
       'status': newStatus == InvoiceStatus.paid
           ? 'paid'
           : newStatus == InvoiceStatus.partiallyPaid
-              ? 'partiallyPaid'
-              : 'sent',
+          ? 'partiallyPaid'
+          : 'sent',
       'updatedAt': Timestamp.now(),
     });
   }

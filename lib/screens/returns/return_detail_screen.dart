@@ -58,7 +58,9 @@ class ReturnDetailScreen extends StatelessWidget {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
@@ -75,46 +77,75 @@ class ReturnDetailScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(partyName,
-                                    style: TextStyle(fontSize: 20,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.textPri(context))),
+                                Text(
+                                  partyName,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.textPri(context),
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
-                                Text(ret.typeLabel,
-                                    style: TextStyle(fontSize: 13,
-                                        color: AppTheme.textSec(context))),
+                                Text(
+                                  ret.typeLabel,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: statusColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(ret.statusLabel,
-                                style: TextStyle(color: statusColor,
-                                    fontWeight: FontWeight.w600, fontSize: 13)),
+                            child: Text(
+                              ret.statusLabel,
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _detailRow(context, 'Created', dateFormat.format(ret.createdAt)),
+                      _detailRow(
+                        context,
+                        'Created',
+                        dateFormat.format(ret.createdAt),
+                      ),
                       _detailRow(context, 'Created By', ret.createdByName),
                       if (ret.relatedOrderId.isNotEmpty) ...[
                         if (ret.relatedOrderSummary.isNotEmpty)
-                          _detailRow(context, 'Related order', ret.relatedOrderSummary),
+                          _detailRow(
+                            context,
+                            'Related order',
+                            ret.relatedOrderSummary,
+                          ),
                         _detailRow(
                           context,
                           'Order document ID',
                           ret.relatedOrderId,
                         ),
                       ],
-                      if (ret.notes.isNotEmpty) _detailRow(context, 'Notes', ret.notes),
+                      if (ret.notes.isNotEmpty)
+                        _detailRow(context, 'Notes', ret.notes),
                       if (ret.refundAmount > 0)
-                        _detailRow(context, 'Refund Amount',
-                            NumberFormat.currency(symbol: AppTheme.currencySymbol)
-                                .format(ret.refundAmount)),
+                        _detailRow(
+                          context,
+                          'Refund Amount',
+                          NumberFormat.currency(
+                            symbol: AppTheme.currencySymbol,
+                          ).format(ret.refundAmount),
+                        ),
                     ],
                   ),
                 ),
@@ -126,50 +157,70 @@ class ReturnDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Items',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                              color: AppTheme.textPri(context))),
+                      Text(
+                        'Items',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      ...ret.items.map((item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.inputFill(context),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 36, height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.warningColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.inventory_2_rounded,
-                                    color: AppTheme.warningColor, size: 18),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(item.productName,
-                                        style: const TextStyle(fontWeight: FontWeight.w600,
-                                            fontSize: 14)),
-                                    Text(
-                                      'Qty: ${item.quantity}'
-                                      '${item.reason.isNotEmpty ? ' \u2022 ${item.reason}' : ''}',
-                                      style: TextStyle(fontSize: 12,
-                                          color: AppTheme.textSec(context)),
+                      ...ret.items.map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.inputFill(context),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.warningColor.withValues(
+                                      alpha: 0.1,
                                     ),
-                                  ],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.inventory_2_rounded,
+                                    color: AppTheme.warningColor,
+                                    size: 18,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.productName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Qty: ${item.quantity}'
+                                        '${item.reason.isNotEmpty ? ' \u2022 ${item.reason}' : ''}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSec(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      )),
+                      ),
                     ],
                   ),
                 ),
@@ -190,12 +241,23 @@ class ReturnDetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 120,
-              child: Text(label, style: TextStyle(fontSize: 13,
-                  color: AppTheme.textSec(context)))),
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
+            ),
+          ),
           Expanded(
-              child: Text(value, style: TextStyle(fontSize: 14,
-                  fontWeight: FontWeight.w500, color: AppTheme.textPri(context)))),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPri(context),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -219,7 +281,8 @@ class ReturnDetailScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            if (user?.hasPermission(AppPermissions.rejectReturns) ?? false) const SizedBox(width: 12),
+            if (user?.hasPermission(AppPermissions.rejectReturns) ?? false)
+              const SizedBox(width: 12),
             if (user?.hasPermission(AppPermissions.approveReturns) ?? false)
               Expanded(
                 child: ElevatedButton.icon(
@@ -236,7 +299,9 @@ class ReturnDetailScreen extends StatelessWidget {
                 onPressed: () => _showProcessDialog(context, ret),
                 icon: const Icon(Icons.sync_rounded),
                 label: const Text('Process Return'),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successColor),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.successColor,
+                ),
               )
             : const SizedBox.shrink();
       case ReturnStatus.processed:
@@ -292,16 +357,21 @@ class ReturnDetailScreen extends StatelessWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(ret.type == ReturnType.customerReturn
-                  ? 'Items will be added back to stock at:'
-                  : 'Items will be removed from stock at:'),
+              Text(
+                ret.type == ReturnType.customerReturn
+                    ? 'Items will be added back to stock at:'
+                    : 'Items will be removed from stock at:',
+              ),
               if (ret.relatedOrderId.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(
                   ret.type == ReturnType.customerReturn
                       ? 'The linked sales order will be updated with returned quantities (where the product lines match).'
                       : 'The linked purchase order will be updated (received quantities reduced where lines match).',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSec(context),
+                  ),
                 ),
               ],
               const SizedBox(height: 16),
@@ -311,12 +381,16 @@ class ReturnDetailScreen extends StatelessWidget {
                     context: context,
                     title: 'Location',
                     selectedValue: selectedLocation,
-                    items: locations.map((l) => PickerItem(
-                      value: l,
-                      label: l,
-                      icon: Icons.location_on_rounded,
-                      iconColor: AppTheme.primaryColor,
-                    )).toList(),
+                    items: locations
+                        .map(
+                          (l) => PickerItem(
+                            value: l,
+                            label: l,
+                            icon: Icons.location_on_rounded,
+                            iconColor: AppTheme.primaryColor,
+                          ),
+                        )
+                        .toList(),
                   );
                   if (result != null) {
                     setDialogState(() => selectedLocation = result);
@@ -330,7 +404,9 @@ class ReturnDetailScreen extends StatelessWidget {
                   child: Text(
                     selectedLocation ?? 'Tap to select',
                     style: TextStyle(
-                      color: selectedLocation != null ? null : AppTheme.textSec(context),
+                      color: selectedLocation != null
+                          ? null
+                          : AppTheme.textSec(context),
                     ),
                   ),
                 ),
@@ -338,7 +414,10 @@ class ReturnDetailScreen extends StatelessWidget {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: selectedLocation != null
                   ? () => Navigator.pop(ctx, selectedLocation)
@@ -359,7 +438,8 @@ class ReturnDetailScreen extends StatelessWidget {
       userId: user.uid,
       userName: user.name,
       location: result,
-      db: DatabaseService()..setCompanyId(context.read<SettingsProvider>().companyId),
+      db: DatabaseService()
+        ..setCompanyId(context.read<SettingsProvider>().companyId),
     );
 
     if (context.mounted && success) {
@@ -367,8 +447,10 @@ class ReturnDetailScreen extends StatelessWidget {
       HapticFeedback.mediumImpact();
       showSuccessOverlay(context, message: 'Return processed');
     } else if (context.mounted) {
-      showErrorSnackBar(context,
-          context.read<ReturnProvider>().errorMessage ?? 'Processing failed');
+      showErrorSnackBar(
+        context,
+        context.read<ReturnProvider>().errorMessage ?? 'Processing failed',
+      );
     }
   }
 }

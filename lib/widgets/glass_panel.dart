@@ -44,7 +44,9 @@ class GlassPanel extends StatelessWidget {
         color: surface,
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(color: borderColor, width: 1),
-        boxShadow: kIsWeb ? null : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
+        boxShadow: kIsWeb
+            ? null
+            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: child,
     );
@@ -125,11 +127,20 @@ class _GlassCardState extends State<GlassCard> {
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(widget.borderRadius),
-        border: Border.all(color: borderColor, width: _isHovered && kIsWeb ? 1.5 : 1),
+        border: Border.all(
+          color: borderColor,
+          width: _isHovered && kIsWeb ? 1.5 : 1,
+        ),
         boxShadow: kIsWeb
             ? (_isHovered && widget.onTap != null
-                ? [BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 2))]
-                : null)
+                  ? [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null)
             : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: widget.child,
@@ -214,10 +225,14 @@ class GlassSectionCard extends StatelessWidget {
 
     final content = Container(
       decoration: BoxDecoration(
-        color: kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context),
+        color: kIsWeb
+            ? AppTheme.glassContent(context)
+            : AppTheme.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.glassBorderCont(context), width: 1),
-        boxShadow: kIsWeb ? null : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
+        boxShadow: kIsWeb
+            ? null
+            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

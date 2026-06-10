@@ -64,6 +64,7 @@ class PurchaseOrderModel {
   final DateTime? receivedDate;
   final String notes;
   final String invoiceId;
+
   /// Set when this PO was auto-created from a purchase bill (standalone bill).
   final String originInvoiceId;
   final String createdBy;
@@ -148,8 +149,7 @@ class PurchaseOrderModel {
     'items': items.map((e) => e.toMap()).toList(),
     'totalAmount': totalAmount,
     'expectedDate': Timestamp.fromDate(expectedDate),
-    if (receivedDate != null)
-      'receivedDate': Timestamp.fromDate(receivedDate!),
+    if (receivedDate != null) 'receivedDate': Timestamp.fromDate(receivedDate!),
     'notes': notes,
     'invoiceId': invoiceId,
     'originInvoiceId': originInvoiceId,

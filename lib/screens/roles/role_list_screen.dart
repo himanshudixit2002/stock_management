@@ -63,28 +63,40 @@ class _RoleListBody extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.admin_panel_settings_rounded,
-                      size: 64, color: AppTheme.emptyIcon(context)),
+                  Icon(
+                    Icons.admin_panel_settings_rounded,
+                    size: 64,
+                    color: AppTheme.emptyIcon(context),
+                  ),
                   const SizedBox(height: 16),
-                  Text('No roles found',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPri(context),
-                      )),
+                  Text(
+                    'No roles found',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPri(context),
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Roles will appear here once created.',
-                      style: TextStyle(
-                        color: AppTheme.textTer(context),
-                      )),
+                  Text(
+                    'Roles will appear here once created.',
+                    style: TextStyle(color: AppTheme.textTer(context)),
+                  ),
                 ],
               ),
             )
           : Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.contentMaxWidth(context),
+                ),
                 child: ListView(
-                  padding: EdgeInsets.fromLTRB(Responsive.horizontalPadding(context), 8, Responsive.horizontalPadding(context), 100),
+                  padding: EdgeInsets.fromLTRB(
+                    Responsive.horizontalPadding(context),
+                    8,
+                    Responsive.horizontalPadding(context),
+                    100,
+                  ),
                   children: [
                     if (systemRoles.isNotEmpty) ...[
                       _sectionHeader(context, 'System Roles'),
@@ -129,12 +141,14 @@ class _RoleListBody extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('About Roles',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPri(context),
-                )),
+            Text(
+              'About Roles',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPri(context),
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
               'Roles define what users can see and do in the app. '
@@ -186,11 +200,13 @@ class _RoleCard extends StatelessWidget {
         ),
         title: Row(
           children: [
-            Text(role.name,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPri(context),
-                )),
+            Text(
+              role.name,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPri(context),
+              ),
+            ),
             if (role.isSystem) ...[
               const SizedBox(width: 8),
               Container(
@@ -199,13 +215,15 @@ class _RoleCard extends StatelessWidget {
                   color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text('SYSTEM',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryColor,
-                      letterSpacing: 0.5,
-                    )),
+                child: Text(
+                  'SYSTEM',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ],
           ],
@@ -215,13 +233,15 @@ class _RoleCard extends StatelessWidget {
           children: [
             if (role.description.isNotEmpty) ...[
               const SizedBox(height: 2),
-              Text(role.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textTer(context),
-                  )),
+              Text(
+                role.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textTer(context),
+                ),
+              ),
             ],
             const SizedBox(height: 4),
             Text(
@@ -235,11 +255,8 @@ class _RoleCard extends StatelessWidget {
           ],
         ),
         trailing: _buildPopupMenu(context),
-        onTap: () => Navigator.pushNamed(
-          context,
-          AppRoutes.roleEditor,
-          arguments: role,
-        ),
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.roleEditor, arguments: role),
       ),
     );
   }
@@ -255,7 +272,10 @@ class _RoleCard extends StatelessWidget {
         if (!role.isSystem)
           const PopupMenuItem(
             value: 'delete',
-            child: Text('Delete', style: TextStyle(color: AppTheme.dangerColor)),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: AppTheme.dangerColor),
+            ),
           ),
       ],
     );

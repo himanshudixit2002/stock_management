@@ -1,3 +1,5 @@
+import '../models/stock_hold_model.dart';
+
 /// Optional arguments for [AppRoutes.barcodeScanner].
 class BarcodeScannerArgs {
   const BarcodeScannerArgs({this.captureOnly = false});
@@ -5,6 +7,14 @@ class BarcodeScannerArgs {
   /// When true, first successful scan (or manual entry on web) pops the route
   /// with the code as the result instead of searching the catalog.
   final bool captureOnly;
+}
+
+/// Arguments to deep-link a specific hold into the Stock Out or Release screen
+/// (e.g. tapping Despatch/Unhold from the hold dashboard).
+class HoldActionArgs {
+  const HoldActionArgs({required this.hold});
+
+  final StockHoldModel hold;
 }
 
 class AppRoutes {
@@ -23,6 +33,9 @@ class AppRoutes {
   static const String damageReport = '/stock/damage';
   static const String lowStock = '/stock/low';
   static const String stockAdjustment = '/stock/adjustment';
+  static const String stockHold = '/stock/hold';
+  static const String stockRelease = '/stock/release';
+  static const String stockHolds = '/stock/holds';
   static const String transactionHistory = '/transactions';
   static const String excelImport = '/excel/import';
   static const String excelExport = '/excel/export';
@@ -90,4 +103,5 @@ class AppRoutes {
   static const String billingReports = '/billing/reports';
   static const String customerStatement = '/billing/customer-statement';
   static const String vendorStatement = '/billing/vendor-statement';
+  static const String fastPos = '/pos/fast';
 }

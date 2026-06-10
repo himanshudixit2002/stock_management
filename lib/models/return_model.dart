@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/parse_helpers.dart';
 
 enum ReturnType { customerReturn, vendorReturn }
+
 enum ReturnStatus { pending, approved, processed, rejected }
 
 class ReturnItem {
@@ -58,6 +59,7 @@ class ReturnModel {
   final String id;
   final ReturnType type;
   final String relatedOrderId;
+
   /// Human-readable snapshot when the user picked an order (party, status, date, etc.).
   final String relatedOrderSummary;
   final String customerId;

@@ -16,7 +16,14 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../config/app_navigation.dart';
 
-enum _CustomerSort { nameAsc, nameDesc, ordersHigh, ordersLow, spentHigh, spentLow }
+enum _CustomerSort {
+  nameAsc,
+  nameDesc,
+  ordersHigh,
+  ordersLow,
+  spentHigh,
+  spentLow,
+}
 
 enum _StatusFilter { all, activeOnly, inactiveOnly }
 
@@ -68,20 +75,28 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           return false;
         }
       }
-      if (_statusFilter == _StatusFilter.activeOnly && !c.isActive) return false;
-      if (_statusFilter == _StatusFilter.inactiveOnly && c.isActive) return false;
+      if (_statusFilter == _StatusFilter.activeOnly && !c.isActive)
+        return false;
+      if (_statusFilter == _StatusFilter.inactiveOnly && c.isActive)
+        return false;
       if (_hasOrdersOnly && c.totalOrders <= 0) return false;
       return true;
     }).toList();
 
-    result.sort((a, b) => switch (_sort) {
-      _CustomerSort.nameAsc => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      _CustomerSort.nameDesc => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
-      _CustomerSort.ordersHigh => b.totalOrders.compareTo(a.totalOrders),
-      _CustomerSort.ordersLow => a.totalOrders.compareTo(b.totalOrders),
-      _CustomerSort.spentHigh => b.totalSpent.compareTo(a.totalSpent),
-      _CustomerSort.spentLow => a.totalSpent.compareTo(b.totalSpent),
-    });
+    result.sort(
+      (a, b) => switch (_sort) {
+        _CustomerSort.nameAsc => a.name.toLowerCase().compareTo(
+          b.name.toLowerCase(),
+        ),
+        _CustomerSort.nameDesc => b.name.toLowerCase().compareTo(
+          a.name.toLowerCase(),
+        ),
+        _CustomerSort.ordersHigh => b.totalOrders.compareTo(a.totalOrders),
+        _CustomerSort.ordersLow => a.totalOrders.compareTo(b.totalOrders),
+        _CustomerSort.spentHigh => b.totalSpent.compareTo(a.totalSpent),
+        _CustomerSort.spentLow => a.totalSpent.compareTo(b.totalSpent),
+      },
+    );
 
     return result;
   }
@@ -156,19 +171,25 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                         _FilterToggle(
                           label: 'All',
                           selected: tempStatus == _StatusFilter.all,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.all),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.all,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         _FilterToggle(
                           label: 'Active',
                           selected: tempStatus == _StatusFilter.activeOnly,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.activeOnly),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.activeOnly,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         _FilterToggle(
                           label: 'Inactive',
                           selected: tempStatus == _StatusFilter.inactiveOnly,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.inactiveOnly),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.inactiveOnly,
+                          ),
                         ),
                       ],
                     ),
@@ -236,14 +257,19 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     if (user != null && !user.hasPermission(AppPermissions.viewCustomers)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Customers')),
-        body: const Center(child: Text('You do not have permission to access this feature.')),
+        body: const Center(
+          child: Text('You do not have permission to access this feature.'),
+        ),
       );
     }
 
     final customerProvider = context.watch<CustomerProvider>();
     final allCustomers = customerProvider.customers;
     final filtered = _applyFiltersAndSort(allCustomers);
-    final currencyFormat = NumberFormat.currency(symbol: AppTheme.currencySymbol, decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: AppTheme.currencySymbol,
+      decimalDigits: 0,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
@@ -284,13 +310,17 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
             child: Column(
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(
-                    Responsive.horizontalPadding(context), 12,
-                    Responsive.horizontalPadding(context), 8,
+                    Responsive.horizontalPadding(context),
+                    12,
+                    Responsive.horizontalPadding(context),
+                    8,
                   ),
                   child: TextField(
                     controller: _searchController,
@@ -322,9 +352,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     statusFilter: _statusFilter,
                     hasOrdersOnly: _hasOrdersOnly,
                     sort: _sort,
-                    onClearStatus: () => setState(() => _statusFilter = _StatusFilter.all),
-                    onClearHasOrders: () => setState(() => _hasOrdersOnly = false),
-                    onClearSort: () => setState(() => _sort = _CustomerSort.nameAsc),
+                    onClearStatus: () =>
+                        setState(() => _statusFilter = _StatusFilter.all),
+                    onClearHasOrders: () =>
+                        setState(() => _hasOrdersOnly = false),
+                    onClearSort: () =>
+                        setState(() => _sort = _CustomerSort.nameAsc),
                     onClearAll: () => setState(() {
                       _statusFilter = _StatusFilter.all;
                       _hasOrdersOnly = false;
@@ -335,69 +368,97 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   child: customerProvider.isLoading && allCustomers.isEmpty
                       ? const ShimmerLoading(layout: ShimmerLayout.listTile)
                       : filtered.isEmpty
-                          ? EmptyStateWidget(
-                              icon: Icons.people_outline_rounded,
-                              title: _searchQuery.isEmpty && !_hasActiveFilters
-                                  ? 'No Customers'
-                                  : 'No matching customers',
-                              subtitle: _searchQuery.isEmpty && !_hasActiveFilters
-                                  ? 'Add your first customer to get started.'
-                                  : 'Try different search terms or filters',
-                              buttonText: _searchQuery.isEmpty && !_hasActiveFilters
-                                      && (user?.hasPermission(AppPermissions.addCustomers) ?? false)
-                                  ? 'Add Customer'
-                                  : null,
-                              onButtonPressed: _searchQuery.isEmpty && !_hasActiveFilters
-                                      && (user?.hasPermission(AppPermissions.addCustomers) ?? false)
-                                  ? () => context.pushAppRoute(AppRoutes.addCustomer)
-                                  : null,
-                            )
-                          : RefreshIndicator(
-                              onRefresh: () async {
-                                context.read<CustomerProvider>().initialize(
-                                  companyId: context
-                                      .read<AuthProvider>()
-                                      .currentUser!
-                                      .companyId,
-                                );
-                              },
-                              child: Responsive.listGridColumns(context) > 1
-                                  ? GridView.builder(
-                                      controller: _scrollController,
-                                      padding: EdgeInsets.all(
-                                        Responsive.horizontalPadding(context),
-                                      ),
-                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: Responsive.listGridColumns(context),
+                      ? EmptyStateWidget(
+                          icon: Icons.people_outline_rounded,
+                          title: _searchQuery.isEmpty && !_hasActiveFilters
+                              ? 'No Customers'
+                              : 'No matching customers',
+                          subtitle: _searchQuery.isEmpty && !_hasActiveFilters
+                              ? 'Add your first customer to get started.'
+                              : 'Try different search terms or filters',
+                          buttonText:
+                              _searchQuery.isEmpty &&
+                                  !_hasActiveFilters &&
+                                  (user?.hasPermission(
+                                        AppPermissions.addCustomers,
+                                      ) ??
+                                      false)
+                              ? 'Add Customer'
+                              : null,
+                          onButtonPressed:
+                              _searchQuery.isEmpty &&
+                                  !_hasActiveFilters &&
+                                  (user?.hasPermission(
+                                        AppPermissions.addCustomers,
+                                      ) ??
+                                      false)
+                              ? () =>
+                                    context.pushAppRoute(AppRoutes.addCustomer)
+                              : null,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () async {
+                            context.read<CustomerProvider>().initialize(
+                              companyId: context
+                                  .read<AuthProvider>()
+                                  .currentUser!
+                                  .companyId,
+                            );
+                          },
+                          child: Responsive.listGridColumns(context) > 1
+                              ? GridView.builder(
+                                  controller: _scrollController,
+                                  padding: EdgeInsets.all(
+                                    Responsive.horizontalPadding(context),
+                                  ),
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount:
+                                            Responsive.listGridColumns(context),
                                         crossAxisSpacing: 12,
                                         mainAxisSpacing: 0,
-                                        mainAxisExtent: Responsive.listGridColumns(context) >= 3 ? 110 : 100,
+                                        mainAxisExtent:
+                                            Responsive.listGridColumns(
+                                                  context,
+                                                ) >=
+                                                3
+                                            ? 110
+                                            : 100,
                                       ),
-                                      itemCount: filtered.length,
-                                      itemBuilder: (context, index) {
-                                        final customer = filtered[index];
-                                        return AnimatedListItem(
-                                          index: index,
-                                          child: _buildCustomerCard(context, customer, currencyFormat),
-                                        );
-                                      },
-                                    )
-                                  : ListView.separated(
-                                      controller: _scrollController,
-                                      padding: EdgeInsets.all(
-                                        Responsive.horizontalPadding(context),
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, index) {
+                                    final customer = filtered[index];
+                                    return AnimatedListItem(
+                                      index: index,
+                                      child: _buildCustomerCard(
+                                        context,
+                                        customer,
+                                        currencyFormat,
                                       ),
-                                      itemCount: filtered.length,
-                                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                                      itemBuilder: (context, index) {
-                                        final customer = filtered[index];
-                                        return AnimatedListItem(
-                                          index: index,
-                                          child: _buildCustomerCard(context, customer, currencyFormat),
-                                        );
-                                      },
-                                    ),
-                            ),
+                                    );
+                                  },
+                                )
+                              : ListView.separated(
+                                  controller: _scrollController,
+                                  padding: EdgeInsets.all(
+                                    Responsive.horizontalPadding(context),
+                                  ),
+                                  itemCount: filtered.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    final customer = filtered[index];
+                                    return AnimatedListItem(
+                                      index: index,
+                                      child: _buildCustomerCard(
+                                        context,
+                                        customer,
+                                        currencyFormat,
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
                 ),
               ],
             ),
@@ -436,13 +497,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
-  Widget _buildCustomerCard(BuildContext context, CustomerModel customer, NumberFormat currencyFormat) {
+  Widget _buildCustomerCard(
+    BuildContext context,
+    CustomerModel customer,
+    NumberFormat currencyFormat,
+  ) {
     return GlassCard(
       onTap: () {
         HapticFeedback.lightImpact();
-        context.pushAppRoute(AppRoutes.customerDetail,
-          extra: customer.id,
-        );
+        context.pushAppRoute(AppRoutes.customerDetail, extra: customer.id);
       },
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -495,25 +558,33 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   Row(
                     children: [
                       if (customer.phone.isNotEmpty) ...[
-                        Icon(Icons.phone_rounded,
-                            size: 13,
-                            color: AppTheme.textTer(context)),
+                        Icon(
+                          Icons.phone_rounded,
+                          size: 13,
+                          color: AppTheme.textTer(context),
+                        ),
                         const SizedBox(width: 4),
-                        Text(customer.phone,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textSec(context))),
+                        Text(
+                          customer.phone,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSec(context),
+                          ),
+                        ),
                         const SizedBox(width: 12),
                       ],
-                      Icon(Icons.receipt_rounded,
-                          size: 13,
-                          color: AppTheme.textTer(context)),
+                      Icon(
+                        Icons.receipt_rounded,
+                        size: 13,
+                        color: AppTheme.textTer(context),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${customer.totalOrders} orders',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSec(context)),
+                          fontSize: 12,
+                          color: AppTheme.textSec(context),
+                        ),
                       ),
                     ],
                   ),
@@ -534,7 +605,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: customer.isActive
                         ? AppTheme.successColor.withValues(alpha: 0.12)
@@ -560,7 +633,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     );
   }
 
-  PopupMenuEntry<_CustomerSort> _sortMenuItem(_CustomerSort value, String label) {
+  PopupMenuEntry<_CustomerSort> _sortMenuItem(
+    _CustomerSort value,
+    String label,
+  ) {
     return PopupMenuItem(
       value: value,
       child: Row(
@@ -568,7 +644,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           if (_sort == value)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: Icon(Icons.check_rounded, size: 18, color: AppTheme.primaryColor),
+              child: Icon(
+                Icons.check_rounded,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
             ),
           Text(label),
         ],
@@ -703,9 +783,7 @@ class _FilterToggle extends StatelessWidget {
                 : AppTheme.inputFill(context),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? AppTheme.primaryColor
-                  : Colors.transparent,
+              color: selected ? AppTheme.primaryColor : Colors.transparent,
               width: 1.5,
             ),
           ),

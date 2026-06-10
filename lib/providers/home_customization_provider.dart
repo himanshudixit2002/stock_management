@@ -29,7 +29,15 @@ class HomeCustomizationProvider extends ChangeNotifier {
           .where((id) => HomeActionsRegistry.getById(id) != null)
           .toList();
       if (valid.isNotEmpty) {
-        _selectedIds = valid.take(HomeActionsRegistry.maxActions).toList();
+        final merged = <String>[...valid];
+        for (final defaultId in HomeActionsRegistry.defaultActionIds) {
+          if (merged.length >= HomeActionsRegistry.maxActions) break;
+          if (!merged.contains(defaultId) &&
+              HomeActionsRegistry.getById(defaultId) != null) {
+            merged.add(defaultId);
+          }
+        }
+        _selectedIds = merged.take(HomeActionsRegistry.maxActions).toList();
       }
     }
     _loaded = true;

@@ -12,6 +12,7 @@ import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../utils/unit_conversion.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
@@ -22,17 +23,29 @@ class CreatePurchaseOrderScreen extends StatefulWidget {
   const CreatePurchaseOrderScreen({super.key});
 
   @override
-  State<CreatePurchaseOrderScreen> createState() => _CreatePurchaseOrderScreenState();
+  State<CreatePurchaseOrderScreen> createState() =>
+      _CreatePurchaseOrderScreenState();
 }
 
 class _ItemRow {
   String? productId;
   String productName = '';
-  final TextEditingController qtyController = TextEditingController();
+  String baseUnit = 'pcs';
+  String packUnit = 'box';
+  int unitsPerPack = 1;
+  final TextEditingController qtyController = TextEditingController(); // packs
+  final TextEditingController pieceController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
+
+  int get baseQuantity => toBaseQuantity(
+    packs: int.tryParse(qtyController.text) ?? 0,
+    pieces: int.tryParse(pieceController.text) ?? 0,
+    unitsPerPack: unitsPerPack,
+  );
 
   void dispose() {
     qtyController.dispose();
+    pieceController.dispose();
     priceController.dispose();
   }
 }
@@ -49,7 +62,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
   double get _totalAmount {
     double total = 0;
     for (final item in _items) {
-      final qty = int.tryParse(item.qtyController.text) ?? 0;
+      final qty = item.baseQuantity;
       final price = double.tryParse(item.priceController.text) ?? 0;
       total += qty * price;
     }
@@ -107,12 +120,14 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
 
     final now = DateTime.now();
     final poItems = validItems
-        .map((i) => POItem(
-              productId: i.productId!,
-              productName: i.productName,
-              quantity: int.tryParse(i.qtyController.text) ?? 0,
-              unitPrice: double.tryParse(i.priceController.text) ?? 0,
-            ))
+        .map(
+          (i) => POItem(
+            productId: i.productId!,
+            productName: i.productName,
+            quantity: i.baseQuantity,
+            unitPrice: double.tryParse(i.priceController.text) ?? 0,
+          ),
+        )
         .toList();
 
     final order = PurchaseOrderModel(
@@ -136,13 +151,17 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
 
     if (id != null) {
       HapticFeedback.mediumImpact();
-      showSuccessOverlay(context,
-          message: asDraft ? 'Draft saved' : 'Purchase order sent');
+      showSuccessOverlay(
+        context,
+        message: asDraft ? 'Draft saved' : 'Purchase order sent',
+      );
       Navigator.pop(context);
     } else {
-      showErrorSnackBar(context,
-          context.read<PurchaseOrderProvider>().errorMessage ??
-              'Failed to create order');
+      showErrorSnackBar(
+        context,
+        context.read<PurchaseOrderProvider>().errorMessage ??
+            'Failed to create order',
+      );
     }
   }
 
@@ -157,6 +176,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
     setState(() {
       _items[itemIndex].productId = p.id;
       _items[itemIndex].productName = p.name;
+      _items[itemIndex].baseUnit = p.baseUnit;
+      _items[itemIndex].packUnit = p.unitsPerPack > 1 ? p.packUnit : p.baseUnit;
+      _items[itemIndex].unitsPerPack = p.unitsPerPack;
       if (_items[itemIndex].priceController.text.isEmpty) {
         double price = p.costPrice;
         if (_selectedVendorId != null &&
@@ -173,7 +195,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.createPurchaseOrders)) {
+    if (user != null &&
+        !user.hasPermission(AppPermissions.createPurchaseOrders)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Create Purchase Order')),
         body: const Center(
@@ -184,7 +207,10 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
 
     final vendors = context.watch<VendorProvider>().activeVendors;
     final dateFormat = DateFormat('dd MMM yyyy');
-    final currencyFormat = NumberFormat.currency(symbol: AppTheme.currencySymbol, decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(
+      symbol: AppTheme.currencySymbol,
+      decimalDigits: 2,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
@@ -199,7 +225,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: Form(
               key: _formKey,
               child: ListView(
@@ -215,7 +243,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                         Text(
                           'Order Details',
                           style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                             color: AppTheme.textPri(context),
                           ),
                         ),
@@ -228,17 +257,28 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                               selectedValue: _selectedVendorId,
                               addNewLabel: 'Create new vendor',
                               addNewValue: '__create_new__',
-                              items: vendors.map((v) => PickerItem(
-                                value: v.id,
-                                label: v.name,
-                                icon: Icons.local_shipping_rounded,
-                                iconColor: AppTheme.primaryColor,
-                              )).toList(),
+                              items: vendors
+                                  .map(
+                                    (v) => PickerItem(
+                                      value: v.id,
+                                      label: v.name,
+                                      icon: Icons.local_shipping_rounded,
+                                      iconColor: AppTheme.primaryColor,
+                                    ),
+                                  )
+                                  .toList(),
                             );
                             if (result == '__create_new__') {
-                              final navResult = await Navigator.pushNamed(context, AppRoutes.addVendor);
-                              if (navResult is String && navResult.isNotEmpty && mounted) {
-                                final v = context.read<VendorProvider>().getVendorById(navResult);
+                              final navResult = await Navigator.pushNamed(
+                                context,
+                                AppRoutes.addVendor,
+                              );
+                              if (navResult is String &&
+                                  navResult.isNotEmpty &&
+                                  mounted) {
+                                final v = context
+                                    .read<VendorProvider>()
+                                    .getVendorById(navResult);
                                 setState(() {
                                   _selectedVendorId = navResult;
                                   _selectedVendorName = v?.name ?? '';
@@ -247,7 +287,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                               return;
                             }
                             if (result != null && mounted) {
-                              final v = context.read<VendorProvider>().getVendorById(result);
+                              final v = context
+                                  .read<VendorProvider>()
+                                  .getVendorById(result);
                               setState(() {
                                 _selectedVendorId = result;
                                 _selectedVendorName = v?.name ?? '';
@@ -260,9 +302,13 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                               prefixIcon: Icon(Icons.local_shipping_rounded),
                             ),
                             child: Text(
-                              _selectedVendorName.isEmpty ? 'Select vendor' : _selectedVendorName,
+                              _selectedVendorName.isEmpty
+                                  ? 'Select vendor'
+                                  : _selectedVendorName,
                               style: TextStyle(
-                                color: _selectedVendorName.isNotEmpty ? null : AppTheme.textSec(context),
+                                color: _selectedVendorName.isNotEmpty
+                                    ? null
+                                    : AppTheme.textSec(context),
                               ),
                             ),
                           ),
@@ -305,7 +351,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                               child: Text(
                                 'Items',
                                 style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                   color: AppTheme.textPri(context),
                                 ),
                               ),
@@ -327,7 +374,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                               decoration: BoxDecoration(
                                 color: AppTheme.inputFill(context),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.inputBorder(context)),
+                                border: Border.all(
+                                  color: AppTheme.inputBorder(context),
+                                ),
                               ),
                               child: Column(
                                 children: [
@@ -335,13 +384,21 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                     children: [
                                       Expanded(
                                         child: InkWell(
-                                          onTap: () => _showProductPicker(index),
+                                          onTap: () =>
+                                              _showProductPicker(index),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 14),
+                                              horizontal: 12,
+                                              vertical: 14,
+                                            ),
                                             decoration: BoxDecoration(
-                                              border: Border.all(color: AppTheme.inputBorder(context)),
-                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: AppTheme.inputBorder(
+                                                  context,
+                                                ),
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                               color: AppTheme.surface(context),
                                             ),
                                             child: Text(
@@ -349,10 +406,12 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                                   ? item.productName
                                                   : 'Select product...',
                                               style: TextStyle(
-                                                color: item.productName.isNotEmpty
+                                                color:
+                                                    item.productName.isNotEmpty
                                                     ? AppTheme.textPri(context)
                                                     : AppTheme.textSec(context),
-                                                fontWeight: item.productName.isNotEmpty
+                                                fontWeight:
+                                                    item.productName.isNotEmpty
                                                     ? FontWeight.w600
                                                     : FontWeight.normal,
                                               ),
@@ -363,8 +422,10 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                       if (_items.length > 1) ...[
                                         const SizedBox(width: 8),
                                         IconButton(
-                                          icon: const Icon(Icons.remove_circle_rounded,
-                                              color: AppTheme.dangerColor),
+                                          icon: const Icon(
+                                            Icons.remove_circle_rounded,
+                                            color: AppTheme.dangerColor,
+                                          ),
                                           onPressed: () => _removeItem(index),
                                         ),
                                       ],
@@ -377,19 +438,51 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                         child: TextFormField(
                                           controller: item.qtyController,
                                           decoration: const InputDecoration(
-                                            labelText: 'Qty *',
+                                            labelText: 'Pack Qty *',
                                             isDense: true,
                                           ),
                                           keyboardType: TextInputType.number,
-                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
                                           onChanged: (_) => setState(() {}),
                                           validator: (v) {
-                                            if (item.productId == null) return null;
-                                            if (v == null || v.isEmpty) return 'Required';
-                                            final qty = int.tryParse(v);
-                                            if (qty == null || qty <= 0) return 'Invalid';
+                                            if (item.productId == null)
+                                              return null;
+                                            final packs =
+                                                int.tryParse(v ?? '') ?? 0;
+                                            final pieces = int.tryParse(
+                                                  item.pieceController.text,
+                                                ) ??
+                                                0;
+                                            final baseQty = toBaseQuantity(
+                                              packs: packs,
+                                              pieces: pieces,
+                                              unitsPerPack:
+                                                  item.unitsPerPack,
+                                            );
+                                            if (baseQty <= 0)
+                                              return 'Required';
                                             return null;
                                           },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 90,
+                                        child: TextFormField(
+                                          controller: item.pieceController,
+                                          decoration: InputDecoration(
+                                            labelText: item.baseUnit,
+                                            isDense: true,
+                                          ),
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
+                                          onChanged: (_) => setState(() {}),
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -399,9 +492,13 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                           decoration: InputDecoration(
                                             labelText: 'Unit Price',
                                             isDense: true,
-                                            prefixText: '${AppTheme.currencySymbol} ',
+                                            prefixText:
+                                                '${AppTheme.currencySymbol} ',
                                           ),
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                              ),
                                           onChanged: (_) => setState(() {}),
                                         ),
                                       ),
@@ -418,18 +515,27 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                   const SizedBox(height: 16),
                   GlassPanel(
                     borderRadius: 16,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     useContentVariant: true,
                     child: Row(
                       children: [
-                        Text('Total Amount',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
-                                color: AppTheme.textPri(context))),
+                        Text(
+                          'Total Amount',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                         const Spacer(),
                         Text(
                           currencyFormat.format(_totalAmount),
                           style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
                             color: AppTheme.primaryColor,
                           ),
                         ),
@@ -441,7 +547,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _saveOrder(asDraft: true),
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOrder(asDraft: true),
                           icon: const Icon(Icons.save_outlined),
                           label: const Text('Save Draft'),
                         ),
@@ -449,11 +557,17 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : () => _saveOrder(asDraft: false),
+                          onPressed: _isLoading
+                              ? null
+                              : () => _saveOrder(asDraft: false),
                           icon: _isLoading
                               ? const SizedBox(
-                                  width: 20, height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : const Icon(Icons.send_rounded),
                           label: const Text('Send'),

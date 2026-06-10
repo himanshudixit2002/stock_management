@@ -61,9 +61,7 @@ class _NoPermissionScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(featureName ?? 'Access Denied'),
-      ),
+      appBar: AppBar(title: Text(featureName ?? 'Access Denied')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),

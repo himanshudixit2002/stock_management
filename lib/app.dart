@@ -38,14 +38,32 @@ import 'screens/home_screen.dart';
 import 'firebase_options.dart';
 import 'utils/html_splash.dart';
 
-class _WebScrollBehavior extends MaterialScrollBehavior {
+/// App-wide scroll behavior tuned for a soft, "cloudy" feel that is identical
+/// on every platform: iOS-style bouncy overscroll everywhere (mobile, web and
+/// desktop), drag support for all pointer kinds, and no Android glow (the
+/// bounce already conveys the edge, so the glow would feel inconsistent).
+class SoftScrollBehavior extends MaterialScrollBehavior {
+  const SoftScrollBehavior();
+
   @override
   Set<PointerDeviceKind> get dragDevices => {
     PointerDeviceKind.touch,
     PointerDeviceKind.mouse,
     PointerDeviceKind.stylus,
+    PointerDeviceKind.trackpad,
     PointerDeviceKind.unknown,
   };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }
 
 class StockManagementApp extends StatelessWidget {
@@ -85,7 +103,7 @@ class StockManagementApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
-          scrollBehavior: _WebScrollBehavior(),
+          scrollBehavior: const SoftScrollBehavior(),
           debugShowCheckedModeBanner: false,
           home: const AuthWrapper(),
           onGenerateRoute: (settings) =>
@@ -112,6 +130,7 @@ class _AuthWrapperState extends State<AuthWrapper>
   String? _initError;
   String? _providerInitError;
   String? _activeCompanyId;
+
   /// Last company id that completed [_initializeProviders] successfully; drives rebind vs auth.
   String? _providersBoundCompanyId;
   bool _companyRebindPending = false;
@@ -281,32 +300,39 @@ class _AuthWrapperState extends State<AuthWrapper>
       // Ensure RBAC roles exist and legacy users are migrated
       await authProvider.ensureRbacReady();
 
-      await settingsProvider.initialize(companyId).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          settingsProvider.setWarning('Settings loaded slowly — some data may be stale.');
-        },
-      );
+      await settingsProvider
+          .initialize(companyId)
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              settingsProvider.setWarning(
+                'Settings loaded slowly — some data may be stale.',
+              );
+            },
+          );
 
       if (!mounted) return;
 
-      await productProvider.initialize(companyId: companyId).timeout(
-        const Duration(seconds: 20),
-        onTimeout: () {
-          productProvider.setWarning('Products loaded slowly — pull to refresh for latest data.');
-        },
-      );
+      await productProvider
+          .initialize(companyId: companyId)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () {
+              productProvider.setWarning(
+                'Products loaded slowly — pull to refresh for latest data.',
+              );
+            },
+          );
 
       if (mounted) {
-        await context
-            .read<HomeCustomizationProvider>()
-            .setCompanyId(companyId);
+        await context.read<HomeCustomizationProvider>().setCompanyId(companyId);
       }
       if (mounted) {
         final uid = context.read<AuthProvider>().currentUser?.uid ?? '';
-        await context
-            .read<FavoritesProvider>()
-            .initialize(companyId: companyId, uid: uid);
+        await context.read<FavoritesProvider>().initialize(
+          companyId: companyId,
+          uid: uid,
+        );
       }
       if (mounted) {
         setState(() {

@@ -9,6 +9,7 @@ class RoleProvider extends ChangeNotifier {
 
   List<RoleModel> _roles = [];
   bool _isLoading = false;
+  bool _isBackfilling = false;
   String? _errorMessage;
   String _companyId = '';
   StreamSubscription? _subscription;
@@ -33,21 +34,73 @@ class RoleProvider extends ChangeNotifier {
       _roles = [];
     }
     _companyId = companyId;
-    _subscription = _rolesRef.orderBy('createdAt').snapshots().listen(
-      (snapshot) {
-        _roles = snapshot.docs
-            .map((doc) => RoleModel.fromMap(
-                  doc.data() as Map<String, dynamic>,
-                  id: doc.id,
-                ))
-            .toList();
-        notifyListeners();
-      },
-      onError: (e) {
-        _errorMessage = e.toString();
-        notifyListeners();
-      },
-    );
+    _backfillSystemRolePermissions();
+    _subscription = _rolesRef
+        .orderBy('createdAt')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            _roles = snapshot.docs
+                .map(
+                  (doc) => RoleModel.fromMap(
+                    doc.data() as Map<String, dynamic>,
+                    id: doc.id,
+                  ),
+                )
+                .toList();
+            notifyListeners();
+          },
+          onError: (e) {
+            _errorMessage = e.toString();
+            notifyListeners();
+          },
+        );
+  }
+
+  Future<void> _backfillSystemRolePermissions() async {
+    if (_companyId.isEmpty || _isBackfilling) return;
+    _isBackfilling = true;
+    try {
+      final defaults = {
+        for (final role in RoleModel.defaultRoles(_companyId)) role.id: role,
+      };
+      final roleIds = [
+        RoleModel.ownerRoleId,
+        RoleModel.adminRoleId,
+        RoleModel.managerRoleId,
+        RoleModel.staffRoleId,
+        RoleModel.viewerRoleId,
+      ];
+      for (final roleId in roleIds) {
+        final roleDoc = await _rolesRef.doc(roleId).get();
+        if (!roleDoc.exists) continue;
+        final data = roleDoc.data() as Map<String, dynamic>? ?? {};
+        final rawPerms = data['permissions'];
+        if (rawPerms is! Map) continue;
+        final currentPerms = rawPerms.map(
+          (k, v) => MapEntry(k.toString(), v == true),
+        );
+        final defaultPerms = defaults[roleId]?.permissions ?? const {};
+        var changed = false;
+        final merged = Map<String, bool>.from(currentPerms);
+        for (final key in AppPermissions.allKeys) {
+          if (!merged.containsKey(key)) {
+            merged[key] = defaultPerms[key] ?? false;
+            changed = true;
+          }
+        }
+        if (changed) {
+          await _rolesRef.doc(roleId).update({
+            'permissions': merged,
+            'updatedAt': Timestamp.now(),
+          });
+        }
+      }
+    } catch (_) {
+      // Best-effort backfill only; stream initialization should continue.
+    } finally {
+      _isBackfilling = false;
+    }
   }
 
   @override

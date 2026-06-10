@@ -90,10 +90,12 @@ class BatchProvider extends ChangeNotifier {
     final now = DateTime.now();
     final cutoff = now.add(Duration(days: days));
     return _batches
-        .where((b) =>
-            b.status == BatchStatus.active &&
-            b.expiryDate.isAfter(now) &&
-            b.expiryDate.isBefore(cutoff))
+        .where(
+          (b) =>
+              b.status == BatchStatus.active &&
+              b.expiryDate.isAfter(now) &&
+              b.expiryDate.isBefore(cutoff),
+        )
         .toList()
       ..sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
   }
@@ -101,23 +103,23 @@ class BatchProvider extends ChangeNotifier {
   List<BatchModel> get expiredBatches {
     final now = DateTime.now();
     return _batches
-        .where((b) =>
-            b.status == BatchStatus.active && b.expiryDate.isBefore(now))
+        .where(
+          (b) => b.status == BatchStatus.active && b.expiryDate.isBefore(now),
+        )
         .toList()
       ..sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
   }
 
   List<BatchModel> get recalledBatches {
-    return _batches
-        .where((b) => b.status == BatchStatus.recalled)
-        .toList();
+    return _batches.where((b) => b.status == BatchStatus.recalled).toList();
   }
 
   List<BatchModel> get activeBatches {
     final now = DateTime.now();
     return _batches
-        .where((b) =>
-            b.status == BatchStatus.active && b.expiryDate.isAfter(now))
+        .where(
+          (b) => b.status == BatchStatus.active && b.expiryDate.isAfter(now),
+        )
         .toList();
   }
 

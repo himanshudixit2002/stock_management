@@ -50,7 +50,9 @@ bool invoiceMatchesSearch(InvoiceModel inv, String query) {
   final party = inv.partyName.toLowerCase();
   if (party.contains(nq)) return true;
 
-  final phoneCompact = inv.customerPhone.replaceAll(RegExp(r'\s'), '').toLowerCase();
+  final phoneCompact = inv.customerPhone
+      .replaceAll(RegExp(r'\s'), '')
+      .toLowerCase();
   final qPhone = nq.replaceAll(RegExp(r'\s'), '');
   if (phoneCompact.isNotEmpty &&
       qPhone.isNotEmpty &&

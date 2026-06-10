@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../models/sales_order_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/sales_order_provider.dart';
+import '../../providers/stock_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -72,7 +73,14 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
     }
 
     final allOrders = context.watch<SalesOrderProvider>().orders;
+    final activeHolds = context.watch<StockProvider>().activeHolds;
     final isLoading = context.watch<SalesOrderProvider>().isLoading;
+    final holdCountByOrder = <String, int>{};
+    for (final hold in activeHolds) {
+      if (hold.sourceId.isEmpty) continue;
+      holdCountByOrder[hold.sourceId] =
+          (holdCountByOrder[hold.sourceId] ?? 0) + hold.remainingQuantity;
+    }
     final filtered = _filteredOrders(allOrders);
     final currencyFormat = NumberFormat.currency(
       symbol: AppTheme.currencySymbol,
@@ -206,6 +214,8 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                       context,
                                       order.status,
                                     );
+                                    final heldQty =
+                                        holdCountByOrder[order.id] ?? 0;
                                     return AnimatedListItem(
                                       index: index,
                                       child: Padding(
@@ -313,6 +323,37 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                                         ),
                                                       ),
                                                     ),
+                                                    if (heldQty > 0) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppTheme
+                                                              .warningColor
+                                                              .withValues(
+                                                                alpha: 0.12,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          'Hold $heldQty',
+                                                          style: const TextStyle(
+                                                            color: AppTheme
+                                                                .warningColor,
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ],
                                                 ),
                                                 const SizedBox(height: 12),
@@ -369,6 +410,8 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                       context,
                                       order.status,
                                     );
+                                    final heldQty =
+                                        holdCountByOrder[order.id] ?? 0;
                                     return AnimatedListItem(
                                       index: index,
                                       child: Padding(
@@ -476,6 +519,37 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                                         ),
                                                       ),
                                                     ),
+                                                    if (heldQty > 0) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: AppTheme
+                                                              .warningColor
+                                                              .withValues(
+                                                                alpha: 0.12,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          'Hold $heldQty',
+                                                          style: const TextStyle(
+                                                            color: AppTheme
+                                                                .warningColor,
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ],
                                                 ),
                                                 const SizedBox(height: 12),

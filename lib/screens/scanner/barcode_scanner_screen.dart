@@ -182,9 +182,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
     if (!mounted) return;
     if (matches.length == 1) {
-      context.pushAppRoute(AppRoutes.productDetail,
-        extra: matches.first,
-      );
+      context.pushAppRoute(AppRoutes.productDetail, extra: matches.first);
     }
   }
 
@@ -599,7 +597,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 (product) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: GlassCard(
-                    onTap: () => context.pushAppRoute(AppRoutes.productDetail,
+                    onTap: () => context.pushAppRoute(
+                      AppRoutes.productDetail,
                       extra: product,
                     ),
                     child: Padding(

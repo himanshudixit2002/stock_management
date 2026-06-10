@@ -67,8 +67,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
 
     final stockOutByProduct = <String, int>{};
     for (final t in transactions) {
-      if (t.type == TransactionType.stockOut &&
-          t.date.isAfter(thirtyDaysAgo)) {
+      if (t.type == TransactionType.stockOut && t.date.isAfter(thirtyDaysAgo)) {
         stockOutByProduct[t.productId] =
             (stockOutByProduct[t.productId] ?? 0) + t.quantity;
       }
@@ -81,15 +80,19 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
       final totalOut = stockOutByProduct[p.id] ?? 0;
       final avgDaily = totalOut / 30.0;
       final daysLeft = avgDaily > 0 ? (p.quantity / avgDaily).floor() : 999;
-      final suggestedQty =
-          (p.lowStockThreshold * 2 - p.quantity).clamp(1, 99999);
+      final suggestedQty = (p.lowStockThreshold * 2 - p.quantity).clamp(
+        1,
+        99999,
+      );
 
-      items.add(_ReorderItem(
-        product: p,
-        avgDailyUsage: avgDaily,
-        daysUntilStockout: daysLeft,
-        suggestedQty: suggestedQty,
-      ));
+      items.add(
+        _ReorderItem(
+          product: p,
+          avgDailyUsage: avgDaily,
+          daysUntilStockout: daysLeft,
+          suggestedQty: suggestedQty,
+        ),
+      );
     }
 
     items.sort((a, b) => a.daysUntilStockout.compareTo(b.daysUntilStockout));
@@ -100,13 +103,14 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
       _editedQty[item.product.id] ?? item.suggestedQty;
 
   void _showEditQtyDialog(_ReorderItem item) {
-    final controller =
-        TextEditingController(text: _getQty(item).toString());
+    final controller = TextEditingController(text: _getQty(item).toString());
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Reorder Qty: ${item.product.name}',
-            style: const TextStyle(fontSize: 16)),
+        title: Text(
+          'Reorder Qty: ${item.product.name}',
+          style: const TextStyle(fontSize: 16),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -165,7 +169,9 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     if (vendorResult == null || !mounted) return;
 
     final currencyFormat = NumberFormat.currency(
-        symbol: AppTheme.currencySymbol, decimalDigits: 2);
+      symbol: AppTheme.currencySymbol,
+      decimalDigits: 2,
+    );
     final totalAmount = selected.fold<double>(
       0,
       (sum, i) => sum + _getQty(i) * i.product.costPrice,
@@ -181,8 +187,10 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
         itemCount: selected.length,
         totalAmount: currencyFormat.format(totalAmount),
         items: selected
-            .map((i) =>
-                '${i.product.name}  x${_getQty(i)}  @ ${currencyFormat.format(i.product.costPrice)}')
+            .map(
+              (i) =>
+                  '${i.product.name}  x${_getQty(i)}  @ ${currencyFormat.format(i.product.costPrice)}',
+            )
             .toList(),
       ),
     );
@@ -193,13 +201,15 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     final user = context.read<AuthProvider>().currentUser;
     final now = DateTime.now();
     final poItems = selected
-        .map((item) => POItem(
-              productId: item.product.id,
-              productName: item.product.name,
-              quantity: _getQty(item),
-              receivedQuantity: 0,
-              unitPrice: item.product.costPrice,
-            ))
+        .map(
+          (item) => POItem(
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: _getQty(item),
+            receivedQuantity: 0,
+            unitPrice: item.product.costPrice,
+          ),
+        )
         .toList();
 
     final order = PurchaseOrderModel(
@@ -236,12 +246,14 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
       );
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) {
-        context.pushAppRoute(AppRoutes.purchaseOrderDetail,
-          extra: poId,
-        );
+        context.pushAppRoute(AppRoutes.purchaseOrderDetail, extra: poId);
       }
     } else {
-      showErrorSnackBar(context, context.read<PurchaseOrderProvider>().errorMessage ?? 'Failed to create PO');
+      showErrorSnackBar(
+        context,
+        context.read<PurchaseOrderProvider>().errorMessage ??
+            'Failed to create PO',
+      );
     }
   }
 
@@ -263,8 +275,8 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     final filtered = _categoryFilter == null
         ? items
         : items
-            .where((i) => i.product.categoryName == _categoryFilter)
-            .toList();
+              .where((i) => i.product.categoryName == _categoryFilter)
+              .toList();
 
     final categories = <String>{};
     for (final item in items) {
@@ -365,8 +377,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                   child: FilterChip(
                     label: const Text('All'),
                     selected: _categoryFilter == null,
-                    onSelected: (_) =>
-                        setState(() => _categoryFilter = null),
+                    onSelected: (_) => setState(() => _categoryFilter = null),
                     selectedColor: AppTheme.primaryColor,
                     labelStyle: TextStyle(
                       color: _categoryFilter == null
@@ -377,23 +388,24 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                     checkmarkColor: Colors.white,
                   ),
                 ),
-                ...sortedCategories.map((cat) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(cat),
-                        selected: _categoryFilter == cat,
-                        onSelected: (_) =>
-                            setState(() => _categoryFilter = cat),
-                        selectedColor: AppTheme.primaryColor,
-                        labelStyle: TextStyle(
-                          color: _categoryFilter == cat
-                              ? Colors.white
-                              : AppTheme.textPri(context),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        checkmarkColor: Colors.white,
+                ...sortedCategories.map(
+                  (cat) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(cat),
+                      selected: _categoryFilter == cat,
+                      onSelected: (_) => setState(() => _categoryFilter = cat),
+                      selectedColor: AppTheme.primaryColor,
+                      labelStyle: TextStyle(
+                        color: _categoryFilter == cat
+                            ? Colors.white
+                            : AppTheme.textPri(context),
+                        fontWeight: FontWeight.w500,
                       ),
-                    )),
+                      checkmarkColor: Colors.white,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -449,8 +461,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
               ? const EmptyStateWidget(
                   icon: Icons.check_circle_outline_rounded,
                   title: 'No Reorders Needed',
-                  subtitle:
-                      'All products are above their low stock threshold.',
+                  subtitle: 'All products are above their low stock threshold.',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
@@ -459,8 +470,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                     final item = filtered[index];
                     final color = _urgencyColor(item.daysUntilStockout);
                     final qty = _getQty(item);
-                    final isEdited =
-                        _editedQty.containsKey(item.product.id);
+                    final isEdited = _editedQty.containsKey(item.product.id);
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -490,8 +500,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                       if (v == true) {
                                         _selectedIds.add(item.product.id);
                                       } else {
-                                        _selectedIds
-                                            .remove(item.product.id);
+                                        _selectedIds.remove(item.product.id);
                                       }
                                     }),
                                     activeColor: AppTheme.primaryColor,
@@ -507,18 +516,18 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
-                                            color:
-                                                AppTheme.textPri(context),
+                                            color: AppTheme.textPri(context),
                                           ),
                                         ),
-                                        if (item.product.categoryName
+                                        if (item
+                                            .product
+                                            .categoryName
                                             .isNotEmpty)
                                           Text(
                                             item.product.categoryName,
                                             style: TextStyle(
                                               fontSize: 12,
-                                              color:
-                                                  AppTheme.textSec(context),
+                                              color: AppTheme.textSec(context),
                                             ),
                                           ),
                                       ],
@@ -530,10 +539,8 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          color.withValues(alpha: 0.12),
-                                      borderRadius:
-                                          BorderRadius.circular(8),
+                                      color: color.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
                                       item.daysUntilStockout >= 999
@@ -559,37 +566,35 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                   const SizedBox(width: 8),
                                   _StatChip(
                                     label: 'Threshold',
-                                    value:
-                                        '${item.product.lowStockThreshold}',
+                                    value: '${item.product.lowStockThreshold}',
                                     color: AppTheme.warningColor,
                                   ),
                                   const SizedBox(width: 8),
                                   _StatChip(
                                     label: 'Avg/Day',
-                                    value: item.avgDailyUsage
-                                        .toStringAsFixed(1),
+                                    value: item.avgDailyUsage.toStringAsFixed(
+                                      1,
+                                    ),
                                     color: AppTheme.infoColor,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: InkWell(
-                                      onTap: () =>
-                                          _showEditQtyDialog(item),
-                                      borderRadius:
-                                          BorderRadius.circular(8),
+                                      onTap: () => _showEditQtyDialog(item),
+                                      borderRadius: BorderRadius.circular(8),
                                       child: Container(
-                                        padding:
-                                            const EdgeInsets.symmetric(
+                                        padding: const EdgeInsets.symmetric(
                                           horizontal: 6,
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
                                           color: isEdited
                                               ? AppTheme.primaryColor
-                                                  .withValues(alpha: 0.1)
+                                                    .withValues(alpha: 0.1)
                                               : null,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           border: Border.all(
                                             color: AppTheme.primaryColor
                                                 .withValues(alpha: 0.3),
@@ -599,27 +604,23 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                           children: [
                                             Row(
                                               mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .center,
-                                              mainAxisSize:
-                                                  MainAxisSize.min,
+                                                  MainAxisAlignment.center,
+                                              mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
                                                   '$qty',
                                                   style: TextStyle(
                                                     fontSize: 15,
-                                                    fontWeight:
-                                                        FontWeight.w700,
-                                                    color: AppTheme
-                                                        .primaryColor,
+                                                    fontWeight: FontWeight.w700,
+                                                    color:
+                                                        AppTheme.primaryColor,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 2),
                                                 Icon(
                                                   Icons.edit_rounded,
                                                   size: 12,
-                                                  color: AppTheme
-                                                      .primaryColor,
+                                                  color: AppTheme.primaryColor,
                                                 ),
                                               ],
                                             ),
@@ -627,9 +628,9 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                               'Reorder',
                                               style: TextStyle(
                                                 fontSize: 10,
-                                                color:
-                                                    AppTheme.textSec(
-                                                        context),
+                                                color: AppTheme.textSec(
+                                                  context,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -691,10 +692,9 @@ class _ConfirmPOSheet extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Confirm Purchase Order',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           Divider(height: 1, color: AppTheme.dividerC(context)),
@@ -702,16 +702,27 @@ class _ConfirmPOSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
               children: [
-                Icon(Icons.local_shipping_rounded,
-                    size: 18, color: AppTheme.primaryColor),
+                Icon(
+                  Icons.local_shipping_rounded,
+                  size: 18,
+                  color: AppTheme.primaryColor,
+                ),
                 const SizedBox(width: 8),
-                Text('Vendor: ',
-                    style: TextStyle(
-                        color: AppTheme.textSec(context), fontSize: 13)),
+                Text(
+                  'Vendor: ',
+                  style: TextStyle(
+                    color: AppTheme.textSec(context),
+                    fontSize: 13,
+                  ),
+                ),
                 Expanded(
-                  child: Text(vendorName,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  child: Text(
+                    vendorName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -720,16 +731,27 @@ class _ConfirmPOSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Row(
               children: [
-                Icon(Icons.inventory_2_rounded,
-                    size: 18, color: AppTheme.infoColor),
+                Icon(
+                  Icons.inventory_2_rounded,
+                  size: 18,
+                  color: AppTheme.infoColor,
+                ),
                 const SizedBox(width: 8),
-                Text('$itemCount item${itemCount == 1 ? '' : 's'}',
-                    style: TextStyle(
-                        color: AppTheme.textSec(context), fontSize: 13)),
+                Text(
+                  '$itemCount item${itemCount == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: AppTheme.textSec(context),
+                    fontSize: 13,
+                  ),
+                ),
                 const Spacer(),
-                Text('Total: $totalAmount',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15)),
+                Text(
+                  'Total: $totalAmount',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
               ],
             ),
           ),
@@ -749,7 +771,9 @@ class _ConfirmPOSheet extends StatelessWidget {
                   child: Text(
                     items[i],
                     style: TextStyle(
-                        fontSize: 12, color: AppTheme.textSec(context)),
+                      fontSize: 12,
+                      color: AppTheme.textSec(context),
+                    ),
                   ),
                 ),
               ),
@@ -812,10 +836,9 @@ class _VendorPickerSheet extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Select Vendor for PO',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           Divider(height: 1, color: AppTheme.dividerC(context)),
@@ -830,8 +853,9 @@ class _VendorPickerSheet extends StatelessWidget {
                 final v = vendors[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor:
-                        AppTheme.primaryColor.withValues(alpha: 0.1),
+                    backgroundColor: AppTheme.primaryColor.withValues(
+                      alpha: 0.1,
+                    ),
                     child: Text(
                       v.name.isNotEmpty ? v.name[0].toUpperCase() : '?',
                       style: const TextStyle(
@@ -842,11 +866,13 @@ class _VendorPickerSheet extends StatelessWidget {
                   ),
                   title: Text(v.name),
                   subtitle: v.contactName.isNotEmpty
-                      ? Text(v.contactName,
+                      ? Text(
+                          v.contactName,
                           style: TextStyle(
                             fontSize: 13,
                             color: AppTheme.textSec(context),
-                          ))
+                          ),
+                        )
                       : null,
                   onTap: () => Navigator.pop<Map<String, String>>(
                     context,
@@ -892,10 +918,7 @@ class _StatChip extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSec(context),
-            ),
+            style: TextStyle(fontSize: 10, color: AppTheme.textSec(context)),
           ),
         ],
       ),

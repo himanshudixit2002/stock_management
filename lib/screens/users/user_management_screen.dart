@@ -66,390 +66,453 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       permission: AppPermissions.manageUsers,
       featureName: 'User Management',
       child: Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppBarTitleRow(
-              icon: Icons.people_rounded,
-              color: AppTheme.primaryColor,
-              title: 'User Management',
-            ),
-            if (companyName.isNotEmpty)
-              Text(
-                companyName,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textSec(context),
-                ),
-                overflow: TextOverflow.ellipsis,
+        backgroundColor: AppTheme.bg(context),
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppBarTitleRow(
+                icon: Icons.people_rounded,
+                color: AppTheme.primaryColor,
+                title: 'User Management',
               ),
-          ],
+              if (companyName.isNotEmpty)
+                Text(
+                  companyName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSec(context),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
         ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: StreamBuilder<List<UserModel>>(
-          key: ValueKey<String>('$companyId-$_usersStreamEpoch'),
-          stream: companyId.isEmpty
-              ? Stream.value(<UserModel>[])
-              : auth.getAllUsers(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return const ShimmerLoading(
-                itemCount: 4,
-                layout: ShimmerLayout.listTile,
-              );
-            }
+        body: Container(
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: StreamBuilder<List<UserModel>>(
+            key: ValueKey<String>('$companyId-$_usersStreamEpoch'),
+            stream: companyId.isEmpty
+                ? Stream.value(<UserModel>[])
+                : auth.getAllUsers(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
+                return const ShimmerLoading(
+                  itemCount: 4,
+                  layout: ShimmerLayout.listTile,
+                );
+              }
 
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.cloud_off_rounded,
+                          size: 48,
+                          color: AppTheme.dangerColor,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Could not load users',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () => setState(() => _usersStreamEpoch++),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final allUsers = snapshot.data ?? [];
+
+              if (allUsers.isEmpty) {
+                return Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.cloud_off_rounded,
-                        size: 48,
-                        color: AppTheme.dangerColor,
+                      Icon(
+                        Icons.people_outline_rounded,
+                        size: 56,
+                        color: AppTheme.emptyIcon(
+                          context,
+                        ).withValues(alpha: 0.4),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Could not load users',
+                        'No users yet',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPri(context),
+                          color: AppTheme.textSec(context),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => setState(() => _usersStreamEpoch++),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap the button below to add staff',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textSec(
+                            context,
+                          ).withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final filteredUsers = _filterUsers(allUsers);
+
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.contentMaxWidth(context),
+                  ),
+                  child: Column(
+                    children: [
+                      // Search bar
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          Responsive.horizontalPadding(context),
+                          12,
+                          Responsive.horizontalPadding(context),
+                          8,
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: _onSearchChanged,
+                          decoration: InputDecoration(
+                            hintText: 'Search by name, email, or role...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 20),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                      });
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: AppTheme.inputFill(context),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppTheme.inputBorder(context),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppTheme.inputBorder(context),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Results count
+                      if (_searchQuery.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 2,
+                          ),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${filteredUsers.length} of ${allUsers.length} users',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSec(context),
+                              ),
+                            ),
+                          ),
+                        ),
+                      // User list
+                      Expanded(
+                        child: filteredUsers.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.search_off_rounded,
+                                      size: 48,
+                                      color: AppTheme.iconMute(context),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No users match "$_searchQuery"',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: AppTheme.textTer(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: () async {
+                                  await Future.delayed(
+                                    const Duration(milliseconds: 300),
+                                  );
+                                  // Stream auto-refreshes; delay provides visual feedback
+                                },
+                                child: ListView.builder(
+                                  padding: EdgeInsets.all(
+                                    Responsive.horizontalPadding(context),
+                                  ),
+                                  itemCount: filteredUsers.length,
+                                  itemBuilder: (context, index) {
+                                    final user = filteredUsers[index];
+                                    final isCurrentUser =
+                                        user.uid ==
+                                        context
+                                            .read<AuthProvider>()
+                                            .currentUser
+                                            ?.uid;
+
+                                    return AnimatedListItem(
+                                      index: index,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        child: GlassCard(
+                                          borderRadius: 14,
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              backgroundColor: user.isAdmin
+                                                  ? AppTheme.primaryColor
+                                                        .withValues(alpha: 0.1)
+                                                  : AppTheme.accentColor
+                                                        .withValues(alpha: 0.1),
+                                              child: Icon(
+                                                user.isAdmin
+                                                    ? Icons.admin_panel_settings
+                                                    : Icons.person,
+                                                color: user.isAdmin
+                                                    ? AppTheme.primaryColor
+                                                    : AppTheme.accentColor,
+                                              ),
+                                            ),
+                                            title: Row(
+                                              children: [
+                                                Text(
+                                                  user.name,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                if (isCurrentUser) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 2,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          AppTheme.primaryColor,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      'You',
+                                                      style: TextStyle(
+                                                        color: AppTheme.surface(
+                                                          context,
+                                                        ),
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            subtitle: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(user.email),
+                                                Builder(
+                                                  builder: (_) {
+                                                    final roleProvider = context
+                                                        .watch<RoleProvider>();
+                                                    final role = roleProvider
+                                                        .getRoleById(
+                                                          user.roleId,
+                                                        );
+                                                    final roleName =
+                                                        role?.name ??
+                                                        user.role.toUpperCase();
+                                                    final isPrivileged =
+                                                        user.isAdmin ||
+                                                        user.roleId ==
+                                                            RoleModel
+                                                                .managerRoleId;
+                                                    return Container(
+                                                      margin:
+                                                          const EdgeInsets.only(
+                                                            top: 4,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: isPrivileged
+                                                            ? AppTheme
+                                                                  .primaryColor
+                                                                  .withValues(
+                                                                    alpha: 0.1,
+                                                                  )
+                                                            : AppTheme
+                                                                  .accentColor
+                                                                  .withValues(
+                                                                    alpha: 0.1,
+                                                                  ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                      ),
+                                                      child: Text(
+                                                        roleName.toUpperCase(),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: isPrivileged
+                                                              ? AppTheme
+                                                                    .primaryColor
+                                                              : AppTheme
+                                                                    .accentColor,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                            isThreeLine: true,
+                                            trailing: !isCurrentUser
+                                                ? PopupMenuButton<String>(
+                                                    onSelected: (value) {
+                                                      if (value == 'delete') {
+                                                        _confirmDeleteUser(
+                                                          context,
+                                                          user,
+                                                        );
+                                                      } else if (value ==
+                                                          'assign_role') {
+                                                        _showRoleAssignSheet(
+                                                          context,
+                                                          user,
+                                                        );
+                                                      }
+                                                    },
+                                                    itemBuilder: (context) => [
+                                                      const PopupMenuItem(
+                                                        value: 'assign_role',
+                                                        child: Row(
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .badge_rounded,
+                                                              size: 20,
+                                                            ),
+                                                            SizedBox(width: 8),
+                                                            Text('Assign Role'),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      if (!user.isOwner) ...[
+                                                        const PopupMenuDivider(),
+                                                        PopupMenuItem(
+                                                          value: 'delete',
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .delete_rounded,
+                                                                color: AppTheme
+                                                                    .dangerColor,
+                                                                size: 20,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                'Remove User',
+                                                                style: TextStyle(
+                                                                  color: AppTheme
+                                                                      .dangerColor,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  )
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                       ),
                     ],
                   ),
                 ),
               );
-            }
-
-            final allUsers = snapshot.data ?? [];
-
-            if (allUsers.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.people_outline_rounded,
-                      size: 56,
-                      color: AppTheme.emptyIcon(context).withValues(alpha: 0.4),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No users yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tap the button below to add staff',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSec(context).withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            final filteredUsers = _filterUsers(allUsers);
-
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.contentMaxWidth(context),
-                ),
-                child: Column(
-                  children: [
-                    // Search bar
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        Responsive.horizontalPadding(context),
-                        12,
-                        Responsive.horizontalPadding(context),
-                        8,
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: 'Search by name, email, or role...',
-                          prefixIcon: const Icon(Icons.search, size: 20),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 20),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {
-                                      _searchQuery = '';
-                                    });
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: AppTheme.inputFill(context),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: AppTheme.inputBorder(context),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: AppTheme.inputBorder(context),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Results count
-                    if (_searchQuery.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 2,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '${filteredUsers.length} of ${allUsers.length} users',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSec(context),
-                            ),
-                          ),
-                        ),
-                      ),
-                    // User list
-                    Expanded(
-                      child: filteredUsers.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.search_off_rounded,
-                                    size: 48,
-                                    color: AppTheme.iconMute(context),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No users match "$_searchQuery"',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: AppTheme.textTer(context),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: () async {
-                                await Future.delayed(
-                                  const Duration(milliseconds: 300),
-                                );
-                                // Stream auto-refreshes; delay provides visual feedback
-                              },
-                              child: ListView.builder(
-                                padding: EdgeInsets.all(
-                                  Responsive.horizontalPadding(context),
-                                ),
-                                itemCount: filteredUsers.length,
-                                itemBuilder: (context, index) {
-                                  final user = filteredUsers[index];
-                                  final isCurrentUser =
-                                      user.uid ==
-                                      context
-                                          .read<AuthProvider>()
-                                          .currentUser
-                                          ?.uid;
-
-                                  return AnimatedListItem(
-                                    index: index,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: GlassCard(
-                                        borderRadius: 14,
-                                        child: ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor: user.isAdmin
-                                                ? AppTheme.primaryColor
-                                                      .withValues(alpha: 0.1)
-                                                : AppTheme.accentColor
-                                                      .withValues(alpha: 0.1),
-                                            child: Icon(
-                                              user.isAdmin
-                                                  ? Icons.admin_panel_settings
-                                                  : Icons.person,
-                                              color: user.isAdmin
-                                                  ? AppTheme.primaryColor
-                                                  : AppTheme.accentColor,
-                                            ),
-                                          ),
-                                          title: Row(
-                                            children: [
-                                              Text(
-                                                user.name,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              if (isCurrentUser) ...[
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 2,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        AppTheme.primaryColor,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    'You',
-                                                    style: TextStyle(
-                                                      color:
-                                                          AppTheme.surface(context),
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(user.email),
-                                              Builder(
-                                                builder: (_) {
-                                                  final roleProvider = context.watch<RoleProvider>();
-                                                  final role = roleProvider.getRoleById(user.roleId);
-                                                  final roleName = role?.name ?? user.role.toUpperCase();
-                                                  final isPrivileged = user.isAdmin || user.roleId == RoleModel.managerRoleId;
-                                                  return Container(
-                                                    margin: const EdgeInsets.only(top: 4),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: isPrivileged
-                                                          ? AppTheme.primaryColor.withValues(alpha: 0.1)
-                                                          : AppTheme.accentColor.withValues(alpha: 0.1),
-                                                      borderRadius: BorderRadius.circular(10),
-                                                    ),
-                                                    child: Text(
-                                                      roleName.toUpperCase(),
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: isPrivileged
-                                                            ? AppTheme.primaryColor
-                                                            : AppTheme.accentColor,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                          isThreeLine: true,
-                                          trailing: !isCurrentUser
-                                              ? PopupMenuButton<String>(
-                                                  onSelected: (value) {
-                                                    if (value == 'delete') {
-                                                      _confirmDeleteUser(context, user);
-                                                    } else if (value == 'assign_role') {
-                                                      _showRoleAssignSheet(context, user);
-                                                    }
-                                                  },
-                                                  itemBuilder: (context) => [
-                                                    const PopupMenuItem(
-                                                      value: 'assign_role',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(Icons.badge_rounded, size: 20),
-                                                          SizedBox(width: 8),
-                                                          Text('Assign Role'),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    if (!user.isOwner) ...[
-                                                      const PopupMenuDivider(),
-                                                      PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(Icons.delete_rounded, color: AppTheme.dangerColor, size: 20),
-                                                            const SizedBox(width: 8),
-                                                            Text('Remove User', style: TextStyle(color: AppTheme.dangerColor)),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                )
-                                              : null,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+            },
+          ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _showAddUserDialog(context),
+          tooltip: 'Add Staff',
+          icon: const Icon(Icons.person_add),
+          label: const Text('Add Staff'),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddUserDialog(context),
-        tooltip: 'Add Staff',
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Staff'),
-      ),
-    ),
     );
   }
 
@@ -466,7 +529,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           builder: (sheetCtx, setSheetState) => Container(
             decoration: BoxDecoration(
               color: AppTheme.surface(context),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -474,7 +539,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 Center(
                   child: Container(
                     margin: const EdgeInsets.only(top: 10, bottom: 4),
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: AppTheme.dividerC(context),
                       borderRadius: BorderRadius.circular(2),
@@ -491,14 +557,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           color: AppTheme.accentColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.badge_rounded, color: AppTheme.accentColor, size: 22),
+                        child: const Icon(
+                          Icons.badge_rounded,
+                          color: AppTheme.accentColor,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 14),
-                      Text('Assign Role', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPri(context))),
+                      Text(
+                        'Assign Role',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
                       const Spacer(),
                       IconButton(
                         onPressed: () => Navigator.pop(sheetCtx),
-                        icon: Icon(Icons.close_rounded, size: 18, color: AppTheme.textSec(context)),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: AppTheme.textSec(context),
+                        ),
                       ),
                     ],
                   ),
@@ -507,18 +588,41 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: Text(
                     'Select a role for ${user.name}',
-                    style: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textTer(context),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
-                ...roles.map((role) => RadioListTile<String>(
-                  value: role.id,
-                  groupValue: selectedRoleId,
-                  title: Text(role.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(role.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppTheme.textTer(context))),
-                  secondary: Text('${role.enabledCount}/${role.totalCount}', style: TextStyle(fontSize: 11, color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
-                  onChanged: (v) => setSheetState(() => selectedRoleId = v),
-                )),
+                ...roles.map(
+                  (role) => RadioListTile<String>(
+                    value: role.id,
+                    groupValue: selectedRoleId,
+                    title: Text(
+                      role.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      role.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTer(context),
+                      ),
+                    ),
+                    secondary: Text(
+                      '${role.enabledCount}/${role.totalCount}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onChanged: (v) => setSheetState(() => selectedRoleId = v),
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   child: Row(
@@ -529,9 +633,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(color: AppTheme.dividerC(context)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          child: Text('Cancel', style: TextStyle(color: AppTheme.textSec(context), fontWeight: FontWeight.w600)),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: AppTheme.textSec(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -541,22 +653,47 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               ? null
                               : () async {
                                   setSheetState(() => isChanging = true);
-                                  await context.read<AuthProvider>().updateUserRoleId(user.uid, selectedRoleId!);
+                                  await context
+                                      .read<AuthProvider>()
+                                      .updateUserRoleId(
+                                        user.uid,
+                                        selectedRoleId!,
+                                      );
                                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                                   if (context.mounted) {
                                     setState(() => _usersStreamEpoch++);
-                                    final roleName = roles.firstWhere((r) => r.id == selectedRoleId, orElse: () => roles.first).name;
-                                    showSuccessOverlay(context, message: '${user.name} is now $roleName', popAfter: false);
+                                    final roleName = roles
+                                        .firstWhere(
+                                          (r) => r.id == selectedRoleId,
+                                          orElse: () => roles.first,
+                                        )
+                                        .name;
+                                    showSuccessOverlay(
+                                      context,
+                                      message: '${user.name} is now $roleName',
+                                      popAfter: false,
+                                    );
                                   }
                                 },
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             elevation: 0,
                           ),
                           child: isChanging
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Assign', style: TextStyle(fontWeight: FontWeight.w600)),
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Assign',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
                         ),
                       ),
                     ],
@@ -673,7 +810,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             onPressed: () => Navigator.pop(sheetCtx),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(color: AppTheme.dividerC(context)),
+                              side: BorderSide(
+                                color: AppTheme.dividerC(context),
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -711,7 +850,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           popAfter: false,
                                         );
                                       } else {
-                                        showErrorSnackBar(context, auth.errorMessage ?? 'Failed to remove user');
+                                        showErrorSnackBar(
+                                          context,
+                                          auth.errorMessage ??
+                                              'Failed to remove user',
+                                        );
                                         auth.clearError();
                                       }
                                     }
@@ -879,10 +1022,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 labelText: 'Role',
                                 prefixIcon: Icon(Icons.badge_rounded),
                               ),
-                              items: roles.map((r) => DropdownMenuItem(
-                                value: r.id,
-                                child: Text(r.name),
-                              )).toList(),
+                              items: roles
+                                  .map(
+                                    (r) => DropdownMenuItem(
+                                      value: r.id,
+                                      child: Text(r.name),
+                                    ),
+                                  )
+                                  .toList(),
                               onChanged: (v) {
                                 if (v != null) {
                                   setLocalState(() => selectedRoleId = v);
@@ -950,7 +1097,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
-                                  side: BorderSide(color: AppTheme.dividerC(context)),
+                                  side: BorderSide(
+                                    color: AppTheme.dividerC(context),
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -977,24 +1126,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                           }
                                           final success = await auth
                                               .addStaffUser(
-                                                name: nameController.text.trim(),
-                                                email: emailController.text.trim(),
-                                                password: passwordController.text,
-                                                adminPassword: adminPasswordController.text,
+                                                name: nameController.text
+                                                    .trim(),
+                                                email: emailController.text
+                                                    .trim(),
+                                                password:
+                                                    passwordController.text,
+                                                adminPassword:
+                                                    adminPasswordController
+                                                        .text,
                                                 roleId: selectedRoleId,
                                               );
 
                                           if (sheetCtx.mounted) {
                                             Navigator.pop(sheetCtx);
                                             if (success) {
-                                              setState(() => _usersStreamEpoch++);
+                                              setState(
+                                                () => _usersStreamEpoch++,
+                                              );
                                               showSuccessOverlay(
                                                 context,
                                                 message: 'Staff user created!',
                                                 popAfter: false,
                                               );
                                             } else {
-                                              showErrorSnackBar(context, auth.errorMessage ?? 'Failed to create user');
+                                              showErrorSnackBar(
+                                                context,
+                                                auth.errorMessage ??
+                                                    'Failed to create user',
+                                              );
                                             }
                                           }
                                         },

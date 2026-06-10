@@ -472,7 +472,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<({Map<String, String> joinCodes, Set<String> creatorCompanyIds})>
-      getCompanySwitcherMeta(Iterable<String> companyIds) {
+  getCompanySwitcherMeta(Iterable<String> companyIds) {
     return _authService.getCompanySwitcherMeta(
       companyIds,
       _currentUser?.uid ?? '',

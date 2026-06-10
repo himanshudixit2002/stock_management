@@ -39,8 +39,11 @@ SalesOrderModel applyInvoiceFulfillment(
     demand[line.productId] = need - add;
   }
 
-  final allFulfilled = newItems.isNotEmpty &&
-      newItems.every((l) => l.quantity > 0 && l.dispatchedQuantity >= l.quantity);
+  final allFulfilled =
+      newItems.isNotEmpty &&
+      newItems.every(
+        (l) => l.quantity > 0 && l.dispatchedQuantity >= l.quantity,
+      );
 
   var newStatus = so.status;
   if (allFulfilled) {
@@ -53,11 +56,7 @@ SalesOrderModel applyInvoiceFulfillment(
     }
   }
 
-  return so.copyWith(
-    items: newItems,
-    status: newStatus,
-    updatedAt: updatedAt,
-  );
+  return so.copyWith(items: newItems, status: newStatus, updatedAt: updatedAt);
 }
 
 /// Subtracts invoiced quantities from [SOItem.dispatchedQuantity] (by [InvoiceItem.productId]),
@@ -92,8 +91,11 @@ SalesOrderModel revertInvoiceFulfillment(
     toRemove[line.productId] = rem - sub;
   }
 
-  final allFulfilled = newItems.isNotEmpty &&
-      newItems.every((l) => l.quantity > 0 && l.dispatchedQuantity >= l.quantity);
+  final allFulfilled =
+      newItems.isNotEmpty &&
+      newItems.every(
+        (l) => l.quantity > 0 && l.dispatchedQuantity >= l.quantity,
+      );
 
   var newStatus = so.status;
   if (!allFulfilled) {
@@ -102,9 +104,5 @@ SalesOrderModel revertInvoiceFulfillment(
     }
   }
 
-  return so.copyWith(
-    items: newItems,
-    status: newStatus,
-    updatedAt: updatedAt,
-  );
+  return so.copyWith(items: newItems, status: newStatus, updatedAt: updatedAt);
 }

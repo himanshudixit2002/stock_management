@@ -104,7 +104,10 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
         showSuccessSnackBar(context, 'Batch added successfully');
         Navigator.pop(context);
       } else {
-        showErrorSnackBar(context, context.read<BatchProvider>().errorMessage ?? 'Failed to add batch');
+        showErrorSnackBar(
+          context,
+          context.read<BatchProvider>().errorMessage ?? 'Failed to add batch',
+        );
       }
     }
   }
@@ -135,9 +138,11 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     final filtered = _productSearch.isEmpty
         ? products
         : products
-            .where((p) =>
-                p.name.toLowerCase().contains(_productSearch.toLowerCase()))
-            .toList();
+              .where(
+                (p) =>
+                    p.name.toLowerCase().contains(_productSearch.toLowerCase()),
+              )
+              .toList();
 
     return Container(
       decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
@@ -152,201 +157,209 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
         ),
         body: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
             child: Form(
               key: _formKey,
               child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: Responsive.horizontalPadding(context), vertical: 16),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.horizontalPadding(context),
+                  vertical: 16,
+                ),
                 children: [
-              GlassPanel(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Product',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                  GlassPanel(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Product',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search product...',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: _selectedProduct != null
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded),
+                                    onPressed: () => setState(() {
+                                      _selectedProduct = null;
+                                      _productSearch = '';
+                                    }),
+                                  )
+                                : null,
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search product...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: _selectedProduct != null
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded),
-                                onPressed: () => setState(() {
-                                  _selectedProduct = null;
-                                  _productSearch = '';
-                                }),
-                              )
-                            : null,
-                      ),
-                      onChanged: (v) => setState(() => _productSearch = v),
-                    ),
-                    if (_selectedProduct != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          onChanged: (v) => setState(() => _productSearch = v),
                         ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppTheme.primaryColor,
-                              size: 18,
+                        if (_selectedProduct != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _selectedProduct!.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(
+                                alpha: 0.08,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_rounded,
                                   color: AppTheme.primaryColor,
+                                  size: 18,
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _selectedProduct!.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
+                        ],
+                        if (_selectedProduct == null &&
+                            _productSearch.isNotEmpty)
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 200),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: filtered.length,
+                              itemBuilder: (_, i) {
+                                final p = filtered[i];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(p.name),
+                                  subtitle: Text(
+                                    '${p.categoryName} • ${p.quantity} ${p.unit}',
+                                  ),
+                                  onTap: () => setState(() {
+                                    _selectedProduct = p;
+                                    _productSearch = '';
+                                  }),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GlassPanel(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Batch Details',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
-                      ),
-                    ],
-                    if (_selectedProduct == null && _productSearch.isNotEmpty)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 200),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: filtered.length,
-                          itemBuilder: (_, i) {
-                            final p = filtered[i];
-                            return ListTile(
-                              dense: true,
-                              title: Text(p.name),
-                              subtitle: Text(
-                                '${p.categoryName} • ${p.quantity} ${p.unit}',
-                              ),
-                              onTap: () => setState(() {
-                                _selectedProduct = p;
-                                _productSearch = '';
-                              }),
-                            );
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _batchNumberController,
+                          decoration: const InputDecoration(
+                            labelText: 'Batch Number *',
+                            prefixIcon: Icon(Icons.tag_rounded),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Required'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _quantityController,
+                          decoration: const InputDecoration(
+                            labelText: 'Quantity *',
+                            prefixIcon: Icon(Icons.inventory_2_outlined),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty)
+                              return 'Required';
+                            final n = int.tryParse(v.trim());
+                            if (n == null || n <= 0)
+                              return 'Enter a valid quantity';
+                            return null;
                           },
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassPanel(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Batch Details',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _locationController,
+                          decoration: const InputDecoration(
+                            labelText: 'Location',
+                            prefixIcon: Icon(Icons.location_on_outlined),
                           ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _batchNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Batch Number *',
-                        prefixIcon: Icon(Icons.tag_rounded),
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _quantityController,
-                      decoration: const InputDecoration(
-                        labelText: 'Quantity *',
-                        prefixIcon: Icon(Icons.inventory_2_outlined),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        final n = int.tryParse(v.trim());
-                        if (n == null || n <= 0) return 'Enter a valid quantity';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _locationController,
-                      decoration: const InputDecoration(
-                        labelText: 'Location',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassPanel(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dates',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    _DatePickerTile(
-                      label: 'Expiry Date *',
-                      icon: Icons.event_rounded,
-                      date: _expiryDate,
-                      onTap: () => _pickDate(isExpiry: true),
-                    ),
-                    const SizedBox(height: 12),
-                    _DatePickerTile(
-                      label: 'Manufacturing Date',
-                      icon: Icons.factory_outlined,
-                      date: _manufacturingDate,
-                      onTap: () => _pickDate(isExpiry: false),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassPanel(
-                padding: const EdgeInsets.all(16),
-                child: TextFormField(
-                  controller: _notesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes',
-                    prefixIcon: Icon(Icons.notes_rounded),
-                  ),
-                  maxLines: 3,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _save,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
                         ),
-                      )
-                    : const Text('Save Batch'),
-              ),
-              const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GlassPanel(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Dates',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 12),
+                        _DatePickerTile(
+                          label: 'Expiry Date *',
+                          icon: Icons.event_rounded,
+                          date: _expiryDate,
+                          onTap: () => _pickDate(isExpiry: true),
+                        ),
+                        const SizedBox(height: 12),
+                        _DatePickerTile(
+                          label: 'Manufacturing Date',
+                          icon: Icons.factory_outlined,
+                          date: _manufacturingDate,
+                          onTap: () => _pickDate(isExpiry: false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GlassPanel(
+                    padding: const EdgeInsets.all(16),
+                    child: TextFormField(
+                      controller: _notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
+                      maxLines: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isSaving ? null : _save,
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Save Batch'),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

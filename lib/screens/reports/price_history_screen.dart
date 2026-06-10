@@ -159,18 +159,20 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             final filtered = _productSearch.isEmpty
                 ? products
                 : products
-                    .where(
-                      (p) => p.name
-                          .toLowerCase()
-                          .contains(_productSearch.toLowerCase()),
-                    )
-                    .toList();
+                      .where(
+                        (p) => p.name.toLowerCase().contains(
+                          _productSearch.toLowerCase(),
+                        ),
+                      )
+                      .toList();
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.7,
               decoration: BoxDecoration(
                 color: AppTheme.surface(context),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: Column(
                 children: [
@@ -191,8 +193,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                         hintText: 'Search products...',
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
-                      onChanged: (v) =>
-                          setModalState(() => _productSearch = v),
+                      onChanged: (v) => setModalState(() => _productSearch = v),
                     ),
                   ),
                   Expanded(
@@ -208,8 +209,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                           leading: const Icon(Icons.inventory_2_rounded),
                           title: Text(
                             p.name,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(p.categoryName),
                         );
@@ -226,14 +226,11 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   }
 
   Widget _buildChart(List<PriceHistoryModel> history) {
-    final costEntries = history
-        .where((h) => h.field == 'costPrice')
-        .toList()
+    final costEntries = history.where((h) => h.field == 'costPrice').toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    final sellingEntries = history
-        .where((h) => h.field == 'sellingPrice')
-        .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final sellingEntries =
+        history.where((h) => h.field == 'sellingPrice').toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     if (costEntries.isEmpty && sellingEntries.isEmpty) {
       return const SizedBox.shrink();
@@ -259,35 +256,30 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
             children: [
               const Text(
                 'Price Trend',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
               ),
               const Spacer(),
               if (costSpots.isNotEmpty) ...[
-                Container(
-                  width: 12,
-                  height: 3,
-                  color: AppTheme.dangerColor,
-                ),
+                Container(width: 12, height: 3, color: AppTheme.dangerColor),
                 const SizedBox(width: 4),
                 Text(
                   'Cost',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSec(context),
+                  ),
                 ),
                 const SizedBox(width: 12),
               ],
               if (sellingSpots.isNotEmpty) ...[
-                Container(
-                  width: 12,
-                  height: 3,
-                  color: AppTheme.successColor,
-                ),
+                Container(width: 12, height: 3, color: AppTheme.successColor),
                 const SizedBox(width: 4),
                 Text(
                   'Selling',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSec(context),
+                  ),
                 ),
               ],
             ],
@@ -301,10 +293,8 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: _calcInterval(costSpots, sellingSpots),
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: AppTheme.dividerC(context),
-                    strokeWidth: 1,
-                  ),
+                  getDrawingHorizontalLine: (value) =>
+                      FlLine(color: AppTheme.dividerC(context), strokeWidth: 1),
                 ),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(

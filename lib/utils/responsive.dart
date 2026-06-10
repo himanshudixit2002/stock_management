@@ -260,10 +260,7 @@ class ResponsiveFormRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (Responsive.isMobile(context) || children.length < 2) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: children,
-      );
+      return Column(mainAxisSize: MainAxisSize.min, children: children);
     }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

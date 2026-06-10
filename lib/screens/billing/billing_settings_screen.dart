@@ -132,7 +132,8 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
       nextPurchaseNumber: int.tryParse(_nextPurchaseNumCtrl.text) ?? 1,
       defaultNotes: _defaultNotesCtrl.text.trim(),
       autoCreateSalesOrderForStandaloneSales: _autoCreateSoForStandaloneSales,
-      autoCreatePurchaseOrderForStandaloneBills: _autoCreatePoForStandaloneBills,
+      autoCreatePurchaseOrderForStandaloneBills:
+          _autoCreatePoForStandaloneBills,
     );
     final ok = await context.read<BillingSettingsProvider>().updateSettings(
       updated,
@@ -420,9 +421,8 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _autoCreateSoForStandaloneSales,
-                        onChanged: (v) => setState(
-                          () => _autoCreateSoForStandaloneSales = v,
-                        ),
+                        onChanged: (v) =>
+                            setState(() => _autoCreateSoForStandaloneSales = v),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -436,9 +436,8 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _autoCreatePoForStandaloneBills,
-                        onChanged: (v) => setState(
-                          () => _autoCreatePoForStandaloneBills = v,
-                        ),
+                        onChanged: (v) =>
+                            setState(() => _autoCreatePoForStandaloneBills = v),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),

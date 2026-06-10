@@ -15,7 +15,14 @@ import '../../widgets/shimmer_loading.dart';
 import '../../config/app_navigation.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
-enum _VendorSort { nameAsc, nameDesc, ratingHigh, ratingLow, leadShort, leadLong }
+enum _VendorSort {
+  nameAsc,
+  nameDesc,
+  ratingHigh,
+  ratingLow,
+  leadShort,
+  leadLong,
+}
 
 enum _StatusFilter { all, activeOnly, inactiveOnly }
 
@@ -65,20 +72,28 @@ class _VendorListScreenState extends State<VendorListScreen> {
           return false;
         }
       }
-      if (_statusFilter == _StatusFilter.activeOnly && !v.isActive) return false;
-      if (_statusFilter == _StatusFilter.inactiveOnly && v.isActive) return false;
+      if (_statusFilter == _StatusFilter.activeOnly && !v.isActive)
+        return false;
+      if (_statusFilter == _StatusFilter.inactiveOnly && v.isActive)
+        return false;
       if (_minRating > 0 && v.rating < _minRating) return false;
       return true;
     }).toList();
 
-    result.sort((a, b) => switch (_sort) {
-      _VendorSort.nameAsc => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      _VendorSort.nameDesc => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
-      _VendorSort.ratingHigh => b.rating.compareTo(a.rating),
-      _VendorSort.ratingLow => a.rating.compareTo(b.rating),
-      _VendorSort.leadShort => a.leadTimeDays.compareTo(b.leadTimeDays),
-      _VendorSort.leadLong => b.leadTimeDays.compareTo(a.leadTimeDays),
-    });
+    result.sort(
+      (a, b) => switch (_sort) {
+        _VendorSort.nameAsc => a.name.toLowerCase().compareTo(
+          b.name.toLowerCase(),
+        ),
+        _VendorSort.nameDesc => b.name.toLowerCase().compareTo(
+          a.name.toLowerCase(),
+        ),
+        _VendorSort.ratingHigh => b.rating.compareTo(a.rating),
+        _VendorSort.ratingLow => a.rating.compareTo(b.rating),
+        _VendorSort.leadShort => a.leadTimeDays.compareTo(b.leadTimeDays),
+        _VendorSort.leadLong => b.leadTimeDays.compareTo(a.leadTimeDays),
+      },
+    );
 
     return result;
   }
@@ -153,19 +168,25 @@ class _VendorListScreenState extends State<VendorListScreen> {
                         _FilterToggle(
                           label: 'All',
                           selected: tempStatus == _StatusFilter.all,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.all),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.all,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         _FilterToggle(
                           label: 'Active',
                           selected: tempStatus == _StatusFilter.activeOnly,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.activeOnly),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.activeOnly,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         _FilterToggle(
                           label: 'Inactive',
                           selected: tempStatus == _StatusFilter.inactiveOnly,
-                          onTap: () => setSheetState(() => tempStatus = _StatusFilter.inactiveOnly),
+                          onTap: () => setSheetState(
+                            () => tempStatus = _StatusFilter.inactiveOnly,
+                          ),
                         ),
                       ],
                     ),
@@ -193,7 +214,9 @@ class _VendorListScreenState extends State<VendorListScreen> {
                           child: Padding(
                             padding: const EdgeInsets.only(right: 6),
                             child: Icon(
-                              active ? Icons.star_rounded : Icons.star_outline_rounded,
+                              active
+                                  ? Icons.star_rounded
+                                  : Icons.star_outline_rounded,
                               size: 32,
                               color: active
                                   ? AppTheme.warningColor
@@ -337,9 +360,11 @@ class _VendorListScreenState extends State<VendorListScreen> {
                     statusFilter: _statusFilter,
                     minRating: _minRating,
                     sort: _sort,
-                    onClearStatus: () => setState(() => _statusFilter = _StatusFilter.all),
+                    onClearStatus: () =>
+                        setState(() => _statusFilter = _StatusFilter.all),
                     onClearRating: () => setState(() => _minRating = 0),
-                    onClearSort: () => setState(() => _sort = _VendorSort.nameAsc),
+                    onClearSort: () =>
+                        setState(() => _sort = _VendorSort.nameAsc),
                     onClearAll: () => setState(() {
                       _statusFilter = _StatusFilter.all;
                       _minRating = 0;
@@ -358,16 +383,23 @@ class _VendorListScreenState extends State<VendorListScreen> {
                           subtitle: _searchQuery.isEmpty && !_hasActiveFilters
                               ? 'Add your first vendor to get started'
                               : 'Try different search terms or filters',
-                          buttonText: _searchQuery.isEmpty &&
+                          buttonText:
+                              _searchQuery.isEmpty &&
                                   !_hasActiveFilters &&
-                                  (user?.hasPermission(AppPermissions.addVendors) ?? false)
+                                  (user?.hasPermission(
+                                        AppPermissions.addVendors,
+                                      ) ??
+                                      false)
                               ? 'Add Vendor'
                               : null,
-                          onButtonPressed: _searchQuery.isEmpty &&
+                          onButtonPressed:
+                              _searchQuery.isEmpty &&
                                   !_hasActiveFilters &&
-                                  (user?.hasPermission(AppPermissions.addVendors) ?? false)
-                              ? () => context.pushAppRoute(AppRoutes.addVendor,
-                                )
+                                  (user?.hasPermission(
+                                        AppPermissions.addVendors,
+                                      ) ??
+                                      false)
+                              ? () => context.pushAppRoute(AppRoutes.addVendor)
                               : null,
                         )
                       : RefreshIndicator(
@@ -385,12 +417,20 @@ class _VendorListScreenState extends State<VendorListScreen> {
                                   padding: EdgeInsets.all(
                                     Responsive.horizontalPadding(context),
                                   ),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: Responsive.listGridColumns(context),
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 0,
-                                    mainAxisExtent: Responsive.listGridColumns(context) >= 3 ? 110 : 100,
-                                  ),
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount:
+                                            Responsive.listGridColumns(context),
+                                        crossAxisSpacing: 12,
+                                        mainAxisSpacing: 0,
+                                        mainAxisExtent:
+                                            Responsive.listGridColumns(
+                                                  context,
+                                                ) >=
+                                                3
+                                            ? 110
+                                            : 100,
+                                      ),
                                   itemCount: filtered.length,
                                   itemBuilder: (context, index) {
                                     final vendor = filtered[index];
@@ -446,8 +486,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
           if (user?.hasPermission(AppPermissions.addVendors) ?? false) ...[
             const SizedBox(height: 8),
             FloatingActionButton.extended(
-              onPressed: () =>
-                  context.pushAppRoute(AppRoutes.addVendor),
+              onPressed: () => context.pushAppRoute(AppRoutes.addVendor),
               tooltip: 'Add Vendor',
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Vendor'),
@@ -468,7 +507,11 @@ class _VendorListScreenState extends State<VendorListScreen> {
           if (_sort == value)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: Icon(Icons.check_rounded, size: 18, color: AppTheme.primaryColor),
+              child: Icon(
+                Icons.check_rounded,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
             ),
           Text(label),
         ],
@@ -507,7 +550,13 @@ class _ActiveFilterChips extends StatelessWidget {
     }
 
     if (minRating > 0) {
-      chips.add(_chip(context, '≥ $minRating star${minRating > 1 ? 's' : ''}', onClearRating));
+      chips.add(
+        _chip(
+          context,
+          '≥ $minRating star${minRating > 1 ? 's' : ''}',
+          onClearRating,
+        ),
+      );
     }
 
     if (sort != _VendorSort.nameAsc) {
@@ -603,9 +652,7 @@ class _FilterToggle extends StatelessWidget {
                 : AppTheme.inputFill(context),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? AppTheme.primaryColor
-                  : Colors.transparent,
+              color: selected ? AppTheme.primaryColor : Colors.transparent,
               width: 1.5,
             ),
           ),
@@ -682,7 +729,9 @@ class _VendorCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.textMute(context).withValues(alpha: 0.15),
+                            color: AppTheme.textMute(
+                              context,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -736,7 +785,10 @@ class _VendorCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: AppTheme.iconMute(context)),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.iconMute(context),
+            ),
           ],
         ),
       ),

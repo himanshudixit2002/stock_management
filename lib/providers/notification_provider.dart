@@ -25,22 +25,24 @@ class NotificationProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    _subscription = _databaseService.getNotifications(limit: 100).listen(
-      (list) {
-        _notifications = list;
-        _isLoading = false;
-        _errorMessage = null;
-        notifyListeners();
-      },
-      onError: (error) {
-        _errorMessage = friendlyError(
-          error,
-          fallback: 'Could not load notifications.',
+    _subscription = _databaseService
+        .getNotifications(limit: 100)
+        .listen(
+          (list) {
+            _notifications = list;
+            _isLoading = false;
+            _errorMessage = null;
+            notifyListeners();
+          },
+          onError: (error) {
+            _errorMessage = friendlyError(
+              error,
+              fallback: 'Could not load notifications.',
+            );
+            _isLoading = false;
+            notifyListeners();
+          },
         );
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
   }
 
   void reset() {
@@ -65,10 +67,7 @@ class NotificationProvider extends ChangeNotifier {
     try {
       await _databaseService.markAllNotificationsRead();
     } catch (e) {
-      _errorMessage = friendlyError(
-        e,
-        fallback: 'Could not mark all as read.',
-      );
+      _errorMessage = friendlyError(e, fallback: 'Could not mark all as read.');
       notifyListeners();
     }
   }

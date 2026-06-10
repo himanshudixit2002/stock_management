@@ -8,6 +8,7 @@ import '../../models/stock_transaction_model.dart';
 class TransactionLineChart extends StatelessWidget {
   final Map<String, Map<TransactionType, int>> dataByDay;
   final int days;
+
   /// 'daily', 'weekly', or 'monthly' -- controls bottom axis labels.
   final String granularity;
 
@@ -86,9 +87,14 @@ class TransactionLineChart extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    horizontalInterval: (maxY / 4).ceilToDouble().clamp(1, 9999),
-                    getDrawingHorizontalLine: (value) =>
-                        FlLine(color: AppTheme.dividerC(context), strokeWidth: 1),
+                    horizontalInterval: (maxY / 4).ceilToDouble().clamp(
+                      1,
+                      9999,
+                    ),
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: AppTheme.dividerC(context),
+                      strokeWidth: 1,
+                    ),
                   ),
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(

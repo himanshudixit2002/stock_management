@@ -10,6 +10,7 @@ import '../../providers/stock_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
+import '../../utils/unit_conversion.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -28,6 +29,7 @@ class StockAdjustmentScreen extends StatefulWidget {
 
 class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _actualPackCtrl = TextEditingController();
   final _actualCountCtrl = TextEditingController();
   final _reasonCtrl = TextEditingController();
 
@@ -36,6 +38,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
   bool _saving = false;
 
   bool get _hasUnsavedChanges =>
+      _actualPackCtrl.text.trim().isNotEmpty ||
       _actualCountCtrl.text.trim().isNotEmpty ||
       _reasonCtrl.text.trim().isNotEmpty ||
       (_selectedProduct != null && widget.product == null) ||
@@ -57,7 +60,11 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
   }
 
   int get _difference {
-    final actual = int.tryParse(_actualCountCtrl.text) ?? 0;
+    final actual = toBaseQuantity(
+      packs: int.tryParse(_actualPackCtrl.text) ?? 0,
+      pieces: int.tryParse(_actualCountCtrl.text) ?? 0,
+      unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+    );
     return actual - _currentStock;
   }
 
@@ -67,6 +74,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     if (widget.product != null) {
       _selectedProduct = widget.product;
     }
+    _actualPackCtrl.addListener(_onChanged);
     _actualCountCtrl.addListener(_onChanged);
   }
 
@@ -76,7 +84,9 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
 
   @override
   void dispose() {
+    _actualPackCtrl.removeListener(_onChanged);
     _actualCountCtrl.removeListener(_onChanged);
+    _actualPackCtrl.dispose();
     _actualCountCtrl.dispose();
     _reasonCtrl.dispose();
     super.dispose();
@@ -181,7 +191,9 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     final locations = settings.locations;
 
     if (_selectedProduct != null) {
-      final fresh = products.where((p) => p.id == _selectedProduct!.id).firstOrNull;
+      final fresh = products
+          .where((p) => p.id == _selectedProduct!.id)
+          .firstOrNull;
       if (fresh != null) {
         _selectedProduct = fresh;
       } else {
@@ -210,7 +222,11 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
               subtitle: 'Add locations in Settings before adjusting stock.',
               buttonText: 'Go to Settings',
               onButtonPressed: () {
-                Navigator.pushNamed(context, AppRoutes.settings, arguments: 'locations');
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.settings,
+                  arguments: 'locations',
+                );
               },
             ),
           ),
@@ -284,17 +300,20 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                     child: InputDecorator(
                                       decoration: InputDecoration(
                                         labelText: 'Product *',
-                                        prefixIcon: const Icon(Icons.inventory_2_rounded),
+                                        prefixIcon: const Icon(
+                                          Icons.inventory_2_rounded,
+                                        ),
                                         suffixIcon: widget.product == null
                                             ? const Icon(Icons.arrow_drop_down)
                                             : null,
-                                        errorText: _selectedProduct == null &&
-                                                _saving
+                                        errorText:
+                                            _selectedProduct == null && _saving
                                             ? 'Select a product'
                                             : null,
                                       ),
                                       child: Text(
-                                        _selectedProduct?.name ?? 'Tap to select product',
+                                        _selectedProduct?.name ??
+                                            'Tap to select product',
                                         style: TextStyle(
                                           color: _selectedProduct != null
                                               ? AppTheme.textPri(context)
@@ -313,7 +332,10 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                     _StockSummary(product: _selectedProduct!),
                                     const SizedBox(height: 12),
                                     FormField<String>(
-                                      validator: (_) => _selectedLocation == null ? 'Select a location' : null,
+                                      validator: (_) =>
+                                          _selectedLocation == null
+                                          ? 'Select a location'
+                                          : null,
                                       builder: (field) => GestureDetector(
                                         onTap: () async {
                                           final result = await showSearchablePicker(
@@ -325,9 +347,12 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                               return PickerItem(
                                                 value: l,
                                                 label: l,
-                                                subtitle: qty != null ? '$qty ${_selectedProduct!.unit}' : null,
+                                                subtitle: qty != null
+                                                    ? '$qty ${_selectedProduct!.unit}'
+                                                    : null,
                                                 icon: Icons.place_rounded,
-                                                iconColor: AppTheme.primaryColor,
+                                                iconColor:
+                                                    AppTheme.primaryColor,
                                               );
                                             }).toList(),
                                           );
@@ -342,13 +367,18 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                         child: InputDecorator(
                                           decoration: InputDecoration(
                                             labelText: 'Location *',
-                                            prefixIcon: const Icon(Icons.place_rounded),
+                                            prefixIcon: const Icon(
+                                              Icons.place_rounded,
+                                            ),
                                             errorText: field.errorText,
                                           ),
                                           child: Text(
-                                            _selectedLocation ?? 'Tap to select',
+                                            _selectedLocation ??
+                                                'Tap to select',
                                             style: TextStyle(
-                                              color: _selectedLocation != null ? null : AppTheme.textSec(context),
+                                              color: _selectedLocation != null
+                                                  ? null
+                                                  : AppTheme.textSec(context),
                                             ),
                                           ),
                                         ),
@@ -376,7 +406,9 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                 'System Stock',
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  color: AppTheme.textSec(context),
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
@@ -385,14 +417,18 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                 style: TextStyle(
                                                   fontSize: 28,
                                                   fontWeight: FontWeight.bold,
-                                                  color: AppTheme.textPri(context),
+                                                  color: AppTheme.textPri(
+                                                    context,
+                                                  ),
                                                 ),
                                               ),
                                               Text(
                                                 _selectedProduct!.unit,
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  color: AppTheme.textSec(context),
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -400,16 +436,78 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                         ),
                                         Icon(
                                           Icons.arrow_forward_rounded,
-                                          color: AppTheme.textSec(context).withValues(alpha: 0.4),
+                                          color: AppTheme.textSec(
+                                            context,
+                                          ).withValues(alpha: 0.4),
                                         ),
                                         Expanded(
                                           child: Column(
                                             children: [
+                                              if ((_selectedProduct
+                                                          ?.unitsPerPack ??
+                                                      1) >
+                                                  1) ...[
+                                                Text(
+                                                  _selectedProduct?.packUnit ??
+                                                      'box',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppTheme.textSec(
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                SizedBox(
+                                                  width: 80,
+                                                  child: TextFormField(
+                                                    controller: _actualPackCtrl,
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    textAlign: TextAlign.center,
+                                                    decoration: InputDecoration(
+                                                      border:
+                                                          OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                        borderSide:
+                                                            BorderSide.none,
+                                                      ),
+                                                      filled: true,
+                                                      fillColor:
+                                                          AppTheme.inputFill(
+                                                        context,
+                                                      ),
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                        vertical: 8,
+                                                      ),
+                                                      hintText: '0',
+                                                    ),
+                                                    inputFormatters: [
+                                                      FilteringTextInputFormatter
+                                                          .digitsOnly,
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                              ],
                                               Text(
-                                                'Actual Count',
+                                                (_selectedProduct
+                                                            ?.unitsPerPack ??
+                                                        1) >
+                                                    1
+                                                    ? (_selectedProduct
+                                                            ?.baseUnit ??
+                                                        'pcs')
+                                                    : 'Actual Count',
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  color: AppTheme.textSec(context),
+                                                  color: AppTheme.textSec(
+                                                    context,
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
@@ -417,7 +515,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                 width: 100,
                                                 child: TextFormField(
                                                   controller: _actualCountCtrl,
-                                                  keyboardType: TextInputType.number,
+                                                  keyboardType:
+                                                      TextInputType.number,
                                                   textAlign: TextAlign.center,
                                                   style: const TextStyle(
                                                     fontSize: 28,
@@ -425,24 +524,36 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                   ),
                                                   decoration: InputDecoration(
                                                     border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius.circular(12),
-                                                      borderSide: BorderSide.none,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      borderSide:
+                                                          BorderSide.none,
                                                     ),
                                                     filled: true,
-                                                    fillColor: AppTheme.inputFill(context),
+                                                    fillColor:
+                                                        AppTheme.inputFill(
+                                                          context,
+                                                        ),
                                                     contentPadding:
-                                                        const EdgeInsets.symmetric(vertical: 8),
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 8,
+                                                        ),
                                                     hintText: '0',
                                                     hintStyle: TextStyle(
-                                                      color: AppTheme.textSec(context)
-                                                          .withValues(alpha: 0.4),
+                                                      color: AppTheme.textSec(
+                                                        context,
+                                                      ).withValues(alpha: 0.4),
                                                     ),
                                                   ),
                                                   inputFormatters: [
-                                                    FilteringTextInputFormatter.digitsOnly,
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly,
                                                   ],
                                                   validator: (v) {
-                                                    if (v == null || v.isEmpty) {
+                                                    if (v == null ||
+                                                        v.isEmpty) {
                                                       return 'Required';
                                                     }
                                                     return null;
@@ -477,7 +588,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                     isDense: true,
                                   ),
                                   maxLines: 1,
-                                  textCapitalization: TextCapitalization.sentences,
+                                  textCapitalization:
+                                      TextCapitalization.sentences,
                                 ),
                               ),
                               const SizedBox(height: 24),
@@ -499,14 +611,15 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                   _saving
                                       ? 'Saving...'
                                       : _difference == 0 &&
-                                              _actualCountCtrl.text.isNotEmpty
-                                          ? 'No Change Needed'
-                                          : 'Apply Adjustment',
+                                            _actualCountCtrl.text.isNotEmpty
+                                      ? 'No Change Needed'
+                                      : 'Apply Adjustment',
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.warningColor,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -539,8 +652,11 @@ class _StockSummary extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded,
-                size: 16, color: AppTheme.warningColor),
+            const Icon(
+              Icons.info_outline_rounded,
+              size: 16,
+              color: AppTheme.warningColor,
+            ),
             const SizedBox(width: 8),
             Text(
               'No stock in any location',
@@ -578,14 +694,14 @@ class _StockSummary extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.location_on_outlined,
-                      size: 14, color: AppTheme.primaryColor),
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: AppTheme.primaryColor,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      e.key,
-                      style: const TextStyle(fontSize: 13),
-                    ),
+                    child: Text(e.key, style: const TextStyle(fontSize: 13)),
                   ),
                   Text(
                     '${e.value} ${product.unit}',
@@ -603,8 +719,9 @@ class _StockSummary extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: AppTheme.primaryColor.withValues(alpha: 0.06),
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(10)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(10),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -644,13 +761,13 @@ class _DifferenceBadge extends StatelessWidget {
     final color = difference == 0
         ? AppTheme.textSec(context)
         : difference > 0
-            ? AppTheme.successColor
-            : AppTheme.dangerColor;
+        ? AppTheme.successColor
+        : AppTheme.dangerColor;
     final icon = difference == 0
         ? Icons.check_circle_rounded
         : difference > 0
-            ? Icons.trending_up_rounded
-            : Icons.trending_down_rounded;
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
     final label = difference == 0
         ? 'No difference'
         : '${difference > 0 ? '+' : ''}$difference $unit';

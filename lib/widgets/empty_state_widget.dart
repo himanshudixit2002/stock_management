@@ -104,16 +104,16 @@ class _IllustratedIcon extends StatelessWidget {
       i == Icons.local_shipping_rounded;
 
   List<Offset> _sparkleOffsets(double size) => [
-        Offset(-size * 0.4, -size * 0.35),
-        Offset(size * 0.35, -size * 0.4),
-        Offset(size * 0.4, size * 0.3),
-        Offset(-size * 0.35, size * 0.35),
-      ];
+    Offset(-size * 0.4, -size * 0.35),
+    Offset(size * 0.35, -size * 0.4),
+    Offset(size * 0.4, size * 0.3),
+    Offset(-size * 0.35, size * 0.35),
+  ];
 
   List<Offset> _arrowOffsets(double size) => [
-        Offset(-size * 0.32, size * 0.2),
-        Offset(size * 0.25, -size * 0.3),
-      ];
+    Offset(-size * 0.32, size * 0.2),
+    Offset(size * 0.25, -size * 0.3),
+  ];
 }
 
 class EmptyStateWidget extends StatelessWidget {
@@ -165,9 +165,9 @@ class EmptyStateWidget extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 subtitle!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSec(context)),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSec(context),
+                ),
                 textAlign: TextAlign.center,
               ),
             ],

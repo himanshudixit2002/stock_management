@@ -42,10 +42,7 @@ class ProviderErrorBanner extends StatelessWidget {
               ),
             ),
             if (onRetry != null)
-              TextButton(
-                onPressed: onRetry,
-                child: Text(retryLabel),
-              ),
+              TextButton(onPressed: onRetry, child: Text(retryLabel)),
             if (onDismiss != null)
               IconButton(
                 icon: const Icon(Icons.close_rounded, size: 20),

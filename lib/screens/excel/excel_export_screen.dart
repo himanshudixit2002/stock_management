@@ -158,7 +158,10 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
         await _excelService.saveAndShare(_exportResult!);
       } catch (e) {
         if (mounted) {
-          showErrorSnackBar(context, 'Could not share the file. Please try again.');
+          showErrorSnackBar(
+            context,
+            'Could not share the file. Please try again.',
+          );
         }
       }
     }
@@ -211,167 +214,167 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                  GlassPanel(
-                    borderRadius: 20,
-                    padding: const EdgeInsets.all(24),
-                    useContentVariant: true,
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.file_download_rounded,
-                          size: 56,
-                          color: AppTheme.successColor.withValues(alpha: 0.8),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Export Data',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Choose the report type and format to generate your export file.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.textSec(context),
+                    GlassPanel(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(24),
+                      useContentVariant: true,
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.file_download_rounded,
+                            size: 56,
+                            color: AppTheme.successColor.withValues(alpha: 0.8),
                           ),
-                          textAlign: TextAlign.center,
+                          const SizedBox(height: 12),
+                          Text(
+                            'Export Data',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Choose the report type and format to generate your export file.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSec(context),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    Text(
+                      'Report Type',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildReportTypeSelector(),
+                    const SizedBox(height: 20),
+
+                    Text(
+                      'File Format',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _FormatOption(
+                            label: 'CSV (.csv)',
+                            icon: Icons.description_outlined,
+                            isSelected: _format == 'csv',
+                            onTap: () => setState(() => _format = 'csv'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _FormatOption(
+                            label: 'Excel (.xlsx)',
+                            icon: Icons.table_chart_outlined,
+                            isSelected: _format == 'excel',
+                            onTap: () => setState(() => _format = 'excel'),
+                            enabled:
+                                _reportType == 'products' ||
+                                _reportType == 'full',
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Text(
-                    'Report Type',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildReportTypeSelector(),
-                  const SizedBox(height: 20),
-
-                  Text(
-                    'File Format',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _FormatOption(
-                          label: 'CSV (.csv)',
-                          icon: Icons.description_outlined,
-                          isSelected: _format == 'csv',
-                          onTap: () => setState(() => _format = 'csv'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _FormatOption(
-                          label: 'Excel (.xlsx)',
-                          icon: Icons.table_chart_outlined,
-                          isSelected: _format == 'excel',
-                          onTap: () => setState(() => _format = 'excel'),
-                          enabled:
-                              _reportType == 'products' ||
-                              _reportType == 'full',
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_format == 'excel' &&
-                      _reportType != 'products' &&
-                      _reportType != 'full')
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Excel format is available for Products and Full Report. Other reports will export as CSV.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.warningColor,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-
-                  if (_isExporting) ...[
-                    const LoadingWidget(message: 'Generating report...'),
-                  ] else ...[
-                    ElevatedButton.icon(
-                      onPressed: _export,
-                      icon: const Icon(Icons.download),
-                      label: Text(
-                        'Generate ${_reportType == 'full' ? 'Full ' : ''}Report',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.successColor,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ],
-
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.dangerColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: AppTheme.dangerColor),
-                      ),
-                    ),
-                  ],
-
-                  if (_exportResult != null) ...[
-                    const SizedBox(height: 20),
-                    GlassPanel(
-                      borderRadius: 16,
-                      padding: const EdgeInsets.all(16),
-                      useContentVariant: true,
-                      child: Container(
-                        color: AppTheme.successColor.withValues(alpha: 0.1),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: AppTheme.successColor,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'File Generated Successfully!',
-                                    style: TextStyle(
-                                      color: AppTheme.successColor,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              ElevatedButton.icon(
-                                onPressed: _shareFile,
-                                icon: const Icon(Icons.share),
-                                label: const Text('Download / Share File'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.primaryColor,
-                                ),
-                              ),
-                            ],
+                    if (_format == 'excel' &&
+                        _reportType != 'products' &&
+                        _reportType != 'full')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          'Excel format is available for Products and Full Report. Other reports will export as CSV.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.warningColor,
                           ),
                         ),
                       ),
-                    ),
+                    const SizedBox(height: 24),
+
+                    if (_isExporting) ...[
+                      const LoadingWidget(message: 'Generating report...'),
+                    ] else ...[
+                      ElevatedButton.icon(
+                        onPressed: _export,
+                        icon: const Icon(Icons.download),
+                        label: Text(
+                          'Generate ${_reportType == 'full' ? 'Full ' : ''}Report',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.successColor,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ],
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.dangerColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: AppTheme.dangerColor),
+                        ),
+                      ),
+                    ],
+
+                    if (_exportResult != null) ...[
+                      const SizedBox(height: 20),
+                      GlassPanel(
+                        borderRadius: 16,
+                        padding: const EdgeInsets.all(16),
+                        useContentVariant: true,
+                        child: Container(
+                          color: AppTheme.successColor.withValues(alpha: 0.1),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: AppTheme.successColor,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'File Generated Successfully!',
+                                      style: TextStyle(
+                                        color: AppTheme.successColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                ElevatedButton.icon(
+                                  onPressed: _shareFile,
+                                  icon: const Icon(Icons.share),
+                                  label: const Text('Download / Share File'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -464,7 +467,9 @@ class _ReportTypeOption extends StatelessWidget {
                 : AppTheme.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerC(context),
+              color: isSelected
+                  ? AppTheme.primaryColor
+                  : AppTheme.dividerC(context),
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -535,7 +540,9 @@ class _FormatOption extends StatelessWidget {
                 : AppTheme.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppTheme.primaryColor : AppTheme.dividerC(context),
+              color: isSelected
+                  ? AppTheme.primaryColor
+                  : AppTheme.dividerC(context),
               width: isSelected ? 2 : 1,
             ),
           ),

@@ -97,7 +97,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
     return showConfirmDialog(
       context,
       title: 'Confirm Damage Report',
-      message: 'Report $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" at $_selectedLocation as damaged?\n\n'
+      message:
+          'Report $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" at $_selectedLocation as damaged?\n\n'
           'This will reduce stock and cannot be undone.',
       confirmLabel: 'Report Damage',
       icon: Icons.report_problem_rounded,
@@ -109,7 +110,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
     return showConfirmDialog(
       context,
       title: 'Large Quantity',
-      message: 'Are you sure you want to report $qty items as damaged? Please confirm this is correct.',
+      message:
+          'Are you sure you want to report $qty items as damaged? Please confirm this is correct.',
       confirmLabel: 'Confirm',
     );
   }
@@ -188,10 +190,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       MaterialBanner(
         content: Text(
           '$productName is now low stock. Create PO?',
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
         ),
         backgroundColor: AppTheme.warningColor,
         leading: Icon(
@@ -202,10 +201,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
           TextButton(
             onPressed: () {
               ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-              Navigator.pushNamed(
-                context,
-                AppRoutes.createPurchaseOrder,
-              );
+              Navigator.pushNamed(context, AppRoutes.createPurchaseOrder);
             },
             child: Text(
               'Create PO',
@@ -221,9 +217,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
             },
             child: Text(
               'Dismiss',
-              style: TextStyle(
-                color: AppTheme.surface(context),
-              ),
+              style: TextStyle(color: AppTheme.surface(context)),
             ),
           ),
         ],
@@ -318,7 +312,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
           subtitle:
               'All products are out of stock. There is nothing to report as damaged.',
           buttonText: 'Go to Stock In',
-          onButtonPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.stockIn),
+          onButtonPressed: () =>
+              Navigator.pushReplacementNamed(context, AppRoutes.stockIn),
         ),
       );
     }
@@ -351,9 +346,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
             ),
           ),
           body: Container(
-            decoration: BoxDecoration(
-              gradient: AppTheme.scaffoldGrad(context),
-            ),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -425,7 +418,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                           : Text(
                                               'Tap to select a product...',
                                               style: TextStyle(
-                                                color: AppTheme.textSec(context),
+                                                color: AppTheme.textSec(
+                                                  context,
+                                                ),
                                                 fontSize: 15,
                                               ),
                                             ),
@@ -442,15 +437,21 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
 
                           // Stock by location breakdown
                           if (_selectedProduct != null &&
-                              _selectedProduct!.locationQuantities.isNotEmpty) ...[
+                              _selectedProduct!
+                                  .locationQuantities
+                                  .isNotEmpty) ...[
                             const SizedBox(height: 12),
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.06,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                                  color: AppTheme.primaryColor.withValues(
+                                    alpha: 0.15,
+                                  ),
                                 ),
                               ),
                               child: Column(
@@ -458,7 +459,11 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.warehouse_rounded, size: 16, color: AppTheme.primaryColor),
+                                      Icon(
+                                        Icons.warehouse_rounded,
+                                        size: 16,
+                                        color: AppTheme.primaryColor,
+                                      ),
                                       const SizedBox(width: 6),
                                       Text(
                                         'Stock by Location',
@@ -480,42 +485,53 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  ..._selectedProduct!.locationQuantities.entries.map(
-                                    (e) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.location_on_rounded,
-                                            size: 14,
-                                            color: e.value > 0
-                                                ? AppTheme.textSec(context)
-                                                : AppTheme.textTer(context),
+                                  ..._selectedProduct!
+                                      .locationQuantities
+                                      .entries
+                                      .map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4,
                                           ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              e.key,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: AppTheme.textPri(context),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.location_on_rounded,
+                                                size: 14,
+                                                color: e.value > 0
+                                                    ? AppTheme.textSec(context)
+                                                    : AppTheme.textTer(context),
                                               ),
-                                            ),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  e.key,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: AppTheme.textPri(
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Text(
+                                                '${e.value} ${_selectedProduct!.unit}',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: e.value > 0
+                                                      ? AppTheme.textPri(
+                                                          context,
+                                                        )
+                                                      : AppTheme.textTer(
+                                                          context,
+                                                        ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          Text(
-                                            '${e.value} ${_selectedProduct!.unit}',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: e.value > 0
-                                                  ? AppTheme.textPri(context)
-                                                  : AppTheme.textTer(context),
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -540,9 +556,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                     addNewValue: '__create_new__',
                                     items: productLocations.map((loc) {
                                       final qty =
-                                          _selectedProduct!.locationQuantities[
-                                                  loc] ??
-                                              0;
+                                          _selectedProduct!
+                                              .locationQuantities[loc] ??
+                                          0;
                                       return PickerItem(
                                         value: loc,
                                         label: loc,
@@ -555,8 +571,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                   );
                                   if (result == null || !mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider =
-                                        context.read<SettingsProvider>();
+                                    final settingsProvider = context
+                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',
@@ -566,7 +582,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                           settingsProvider.addLocation(name),
                                     );
                                     if (newName != null && mounted) {
-                                      setState(() => _selectedLocation = newName);
+                                      setState(
+                                        () => _selectedLocation = newName,
+                                      );
                                     }
                                   } else {
                                     setState(() => _selectedLocation = result);
@@ -575,21 +593,22 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                 child: InputDecorator(
                                   decoration: InputDecoration(
                                     labelText: 'Location *',
-                                    prefixIcon:
-                                        const Icon(Icons.location_on_rounded),
-                                    suffixIcon:
-                                        _selectedLocation.isNotEmpty
-                                            ? IconButton(
-                                                icon: const Icon(
-                                                    Icons.close_rounded,
-                                                    size: 18),
-                                                onPressed: () => setState(
-                                                    () => _selectedLocation =
-                                                        ''),
-                                              )
-                                            : const Icon(Icons.arrow_drop_down),
-                                    errorText: _submitted &&
-                                            _selectedLocation.isEmpty
+                                    prefixIcon: const Icon(
+                                      Icons.location_on_rounded,
+                                    ),
+                                    suffixIcon: _selectedLocation.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(
+                                              Icons.close_rounded,
+                                              size: 18,
+                                            ),
+                                            onPressed: () => setState(
+                                              () => _selectedLocation = '',
+                                            ),
+                                          )
+                                        : const Icon(Icons.arrow_drop_down),
+                                    errorText:
+                                        _submitted && _selectedLocation.isEmpty
                                         ? 'Please select a location'
                                         : null,
                                   ),
@@ -623,6 +642,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                           QuantityStepper(
                             controller: _quantityController,
                             label: 'Damaged Quantity *',
+                            unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+                            packUnit: _selectedProduct?.packUnit ?? 'box',
+                            baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Enter quantity';
@@ -670,7 +692,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                     }
                                   });
                                 },
-                                selectedColor: AppTheme.dangerColor.withValues(alpha: 0.15),
+                                selectedColor: AppTheme.dangerColor.withValues(
+                                  alpha: 0.15,
+                                ),
                                 labelStyle: TextStyle(
                                   fontSize: 13,
                                   color: selected

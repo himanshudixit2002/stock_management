@@ -44,6 +44,32 @@ List<ProductModel> productsMatchingBarcodeOrName(
       .toList();
 }
 
+/// Fast POS oriented candidate resolver:
+/// 1) exact barcode/name matches first
+/// 2) ranked fuzzy matches as fallback
+/// Returns unique products preserving this priority order.
+List<ProductModel> rankedProductsByBarcodeOrName(
+  List<ProductModel> products,
+  String query, {
+  int limit = 50,
+}) {
+  final trimmed = query.trim();
+  if (trimmed.isEmpty) return const [];
+  final exact = productsMatchingBarcodeOrName(products, trimmed);
+  final ranked = searchProductsRanked(products, trimmed, limit: limit)
+      .map((e) => e.product)
+      .toList();
+  final merged = <ProductModel>[];
+  final seen = <String>{};
+  for (final p in [...exact, ...ranked]) {
+    if (seen.add(p.id)) {
+      merged.add(p);
+      if (merged.length >= limit) break;
+    }
+  }
+  return merged;
+}
+
 class ProductSearchFilters {
   const ProductSearchFilters({
     this.stock,
@@ -254,10 +280,7 @@ int levenshteinDistance(String a, String b) {
     v1[0] = i + 1;
     for (var j = 0; j < n; j++) {
       final cost = a.codeUnitAt(i) == b.codeUnitAt(j) ? 0 : 1;
-      v1[j + 1] = math.min(
-        math.min(v1[j] + 1, v0[j + 1] + 1),
-        v0[j] + cost,
-      );
+      v1[j + 1] = math.min(math.min(v1[j] + 1, v0[j + 1] + 1), v0[j] + cost);
     }
     final t = v0;
     v0 = v1;
@@ -335,12 +358,7 @@ Iterable<String> _alphanumericTokens(String lower) sync* {
   if (bc.isNotEmpty && tokCompact.isNotEmpty) {
     if (bc.length >= 4 && tokCompact.length >= 4) {
       take(
-        _fuzzyAgainstCandidates(
-          tokCompact,
-          [bc],
-          _kFuzzyBarcode,
-          'Barcode',
-        ),
+        _fuzzyAgainstCandidates(tokCompact, [bc], _kFuzzyBarcode, 'Barcode'),
       );
     }
   }
@@ -396,12 +414,7 @@ Iterable<String> _alphanumericTokens(String lower) sync* {
   if (desc.isNotEmpty) {
     final words = _alphanumericTokens(desc).take(80).toList();
     take(
-      _fuzzyAgainstCandidates(
-        token,
-        words,
-        _kFuzzyDescription,
-        'Description',
-      ),
+      _fuzzyAgainstCandidates(token, words, _kFuzzyDescription, 'Description'),
     );
   }
 

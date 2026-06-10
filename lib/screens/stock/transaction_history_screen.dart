@@ -205,6 +205,23 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           () => _typeFilter = TransactionType.adjustment,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Hold',
+                        isSelected: _typeFilter == TransactionType.hold,
+                        color: AppTheme.warningColor,
+                        onTap: () =>
+                            setState(() => _typeFilter = TransactionType.hold),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Release',
+                        isSelected: _typeFilter == TransactionType.holdRelease,
+                        color: AppTheme.successColor,
+                        onTap: () => setState(
+                          () => _typeFilter = TransactionType.holdRelease,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -312,9 +329,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       itemBuilder: (context, index) {
         return AnimatedListItem(
           index: index,
-          child: _TransactionTile(
-            transaction: filtered[index],
-          ),
+          child: _TransactionTile(transaction: filtered[index]),
         );
       },
     );
@@ -390,6 +405,14 @@ class _TransactionTile extends StatelessWidget {
         AppTheme.indigoColor,
       ),
       TransactionType.adjustment => (Icons.tune_rounded, AppTheme.warningColor),
+      TransactionType.hold => (
+        Icons.pause_circle_rounded,
+        AppTheme.warningColor,
+      ),
+      TransactionType.holdRelease => (
+        Icons.play_circle_rounded,
+        AppTheme.successColor,
+      ),
     };
 
     final dateStr = DateFormat(
@@ -522,7 +545,7 @@ class _TransactionTile extends StatelessWidget {
                       '${switch (transaction.type) {
                         TransactionType.stockIn => '+',
                         TransactionType.stockOut || TransactionType.damage => '-',
-                        TransactionType.transfer || TransactionType.adjustment => '',
+                        TransactionType.transfer || TransactionType.adjustment || TransactionType.hold || TransactionType.holdRelease => '',
                       }}${transaction.quantity}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,

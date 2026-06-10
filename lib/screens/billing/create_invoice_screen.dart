@@ -15,8 +15,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/sales_order_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/purchase_order_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/invoice_totals.dart';
 import '../../utils/responsive.dart';
+import '../../utils/unit_conversion.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart'
     show showSearchablePicker, PickerItem;
@@ -24,14 +27,25 @@ import '../../widgets/searchable_picker.dart'
 class _LineItem {
   String? productId;
   String productName = '';
-  String unit = 'pcs';
-  final TextEditingController qtyCtrl = TextEditingController(text: '1');
+  String unit = 'box';
+  String baseUnit = 'pcs';
+  String packUnit = 'box';
+  int unitsPerPack = 1;
+  final TextEditingController qtyCtrl = TextEditingController(text: '1'); // packs
+  final TextEditingController pieceCtrl = TextEditingController(text: '0');
   final TextEditingController priceCtrl = TextEditingController();
   final TextEditingController discCtrl = TextEditingController(text: '0');
   final TextEditingController taxCtrl = TextEditingController();
 
+  int get baseQuantity => toBaseQuantity(
+    packs: int.tryParse(qtyCtrl.text) ?? 0,
+    pieces: int.tryParse(pieceCtrl.text) ?? 0,
+    unitsPerPack: unitsPerPack,
+  );
+
   void dispose() {
     qtyCtrl.dispose();
+    pieceCtrl.dispose();
     priceCtrl.dispose();
     discCtrl.dispose();
     taxCtrl.dispose();
@@ -82,6 +96,28 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   bool _isSaving = false;
   int _paymentTermDays = 0;
 
+  InvoiceTotals get _totals {
+    final bs = context.read<BillingSettingsProvider>().settings;
+    final lines = _items
+        .where((item) => item.productId != null)
+        .map(
+          (item) => InvoiceTotalsLineInput(
+            quantity: item.baseQuantity,
+            unitPrice: double.tryParse(item.priceCtrl.text) ?? 0,
+            lineDiscountPercent: double.tryParse(item.discCtrl.text) ?? 0,
+            lineTaxRate: double.tryParse(item.taxCtrl.text) ?? 0,
+          ),
+        )
+        .toList();
+    return calculateInvoiceTotals(
+      lines: lines,
+      invoiceDiscountPercent: double.tryParse(_discountPctCtrl.text) ?? 0,
+      invoiceDiscountAmount: double.tryParse(_discountAmtCtrl.text) ?? 0,
+      taxEnabled: bs.enableTax,
+      discountEnabled: bs.enableDiscounts,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -129,6 +165,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ..productId = soItem.productId
           ..productName = soItem.productName;
         li.qtyCtrl.text = soItem.quantity.toString();
+        li.pieceCtrl.text = '0';
         li.priceCtrl.text = soItem.unitPrice.toString();
         li.taxCtrl.text = bs.defaultTaxRate.toString();
         _items.add(li);
@@ -153,6 +190,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ..productId = poItem.productId
           ..productName = poItem.productName;
         li.qtyCtrl.text = poItem.quantity.toString();
+        li.pieceCtrl.text = '0';
         li.priceCtrl.text = poItem.unitPrice.toString();
         li.taxCtrl.text = bs.defaultTaxRate.toString();
         _items.add(li);
@@ -187,57 +225,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     });
   }
 
-  double get _subtotal {
-    double s = 0;
-    for (final item in _items) {
-      if (item.productId == null) continue;
-      final qty = int.tryParse(item.qtyCtrl.text) ?? 0;
-      final price = double.tryParse(item.priceCtrl.text) ?? 0;
-      s += qty * price;
-    }
-    return s;
-  }
+  double get _subtotal => _totals.subtotal;
 
-  double get _totalLineDiscount {
-    double d = 0;
-    for (final item in _items) {
-      if (item.productId == null) continue;
-      final qty = int.tryParse(item.qtyCtrl.text) ?? 0;
-      final price = double.tryParse(item.priceCtrl.text) ?? 0;
-      final disc = double.tryParse(item.discCtrl.text) ?? 0;
-      d += qty * price * disc / 100;
-    }
-    return d;
-  }
+  double get _totalDiscount => _totals.totalDiscount;
 
-  double get _invoiceDiscount {
-    final pct = double.tryParse(_discountPctCtrl.text) ?? 0;
-    final flat = double.tryParse(_discountAmtCtrl.text) ?? 0;
-    return (_subtotal - _totalLineDiscount) * pct / 100 + flat;
-  }
+  double get _totalTax => _totals.totalTax;
 
-  double get _totalDiscount => _totalLineDiscount + _invoiceDiscount;
-
-  double get _taxableAmount => _subtotal - _totalDiscount;
-
-  double get _totalTax {
-    double t = 0;
-    for (final item in _items) {
-      if (item.productId == null) continue;
-      final qty = int.tryParse(item.qtyCtrl.text) ?? 0;
-      final price = double.tryParse(item.priceCtrl.text) ?? 0;
-      final disc = double.tryParse(item.discCtrl.text) ?? 0;
-      final taxRate = double.tryParse(item.taxCtrl.text) ?? 0;
-      final lineSub = qty * price;
-      final lineDisc = lineSub * disc / 100;
-      t += (lineSub - lineDisc) * taxRate / 100;
-    }
-    final pct = double.tryParse(_discountPctCtrl.text) ?? 0;
-    if (pct > 0) t *= (1 - pct / 100);
-    return t;
-  }
-
-  double get _grandTotal => _taxableAmount + _totalTax;
+  double get _grandTotal => _totals.grandTotal;
 
   Future<void> _save({required bool asDraft}) async {
     if (!_formKey.currentState!.validate()) return;
@@ -283,8 +277,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           (li) => InvoiceItem(
             productId: li.productId!,
             productName: li.productName,
-            quantity: int.tryParse(li.qtyCtrl.text) ?? 0,
-            unit: li.unit,
+            quantity: li.baseQuantity,
+            unit: li.baseUnit,
             unitPrice: double.tryParse(li.priceCtrl.text) ?? 0,
             discountPercent: double.tryParse(li.discCtrl.text) ?? 0,
             taxRate: double.tryParse(li.taxCtrl.text) ?? 0,
@@ -336,10 +330,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       updatedAt: now,
     );
 
+    final locations = context.read<SettingsProvider>().locations;
+    final defaultLoc = locations.isNotEmpty ? locations.first : 'Main';
     final id = await billing.addInvoice(
       invoice,
       userId: user.uid,
       userName: user.name,
+      defaultLocation: defaultLoc,
       autoCreateStandaloneSalesOrder:
           _invoiceType == InvoiceType.sales &&
           (widget.salesOrderId ?? '').isEmpty &&
@@ -845,7 +842,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       setState(() {
                         item.productId = result.id;
                         item.productName = result.name;
-                        item.unit = result.unit;
+                        item.unit = result.unitsPerPack > 1
+                            ? result.packUnit
+                            : result.baseUnit;
+                        item.packUnit = result.unitsPerPack > 1
+                            ? result.packUnit
+                            : result.baseUnit;
+                        item.baseUnit = result.baseUnit;
+                        item.unitsPerPack = result.unitsPerPack;
                         final price = _invoiceType == InvoiceType.purchase
                             ? result.costPrice
                             : result.sellingPrice;
@@ -906,7 +910,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: item.qtyCtrl,
-                    decoration: _fieldDeco('Qty'),
+                    decoration: _fieldDeco(item.packUnit),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: item.pieceCtrl,
+                    decoration: _fieldDeco(item.baseUnit),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     onChanged: (_) => setState(() {}),

@@ -133,8 +133,7 @@ class StockTakeModel {
     'createdBy': createdBy,
     'createdByName': createdByName,
     'startedAt': Timestamp.fromDate(startedAt),
-    if (completedAt != null)
-      'completedAt': Timestamp.fromDate(completedAt!),
+    if (completedAt != null) 'completedAt': Timestamp.fromDate(completedAt!),
     'items': items.map((e) => e.toMap()).toList(),
   };
 

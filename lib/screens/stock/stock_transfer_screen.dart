@@ -77,7 +77,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     return showConfirmDialog(
       context,
       title: 'Confirm Transfer',
-      message: 'Transfer $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}"\n\n'
+      message:
+          'Transfer $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}"\n\n'
           'From: $_fromLocation\nTo: $toLocation',
       confirmLabel: 'Transfer',
       icon: Icons.swap_horiz_rounded,
@@ -168,7 +169,9 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       selectedProductId: _selectedProduct?.id,
     );
     if (p == null || !mounted) return;
-    final locs = p.locationQuantities.entries.where((e) => e.value > 0).toList();
+    final locs = p.locationQuantities.entries
+        .where((e) => e.value > 0)
+        .toList();
     setState(() {
       _selectedProduct = p;
       _fromLocation = locs.length == 1 ? locs.first.key : '';
@@ -234,7 +237,11 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
               'You need at least two locations to transfer stock. Add locations in Settings.',
           buttonText: 'Go to Settings',
           onButtonPressed: () {
-            Navigator.pushNamed(context, AppRoutes.settings, arguments: 'locations');
+            Navigator.pushNamed(
+              context,
+              AppRoutes.settings,
+              arguments: 'locations',
+            );
           },
         ),
       );
@@ -268,9 +275,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
             ),
           ),
           body: Container(
-            decoration: BoxDecoration(
-              gradient: AppTheme.scaffoldGrad(context),
-            ),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -342,7 +347,9 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                           : Text(
                                               'Tap to select a product...',
                                               style: TextStyle(
-                                                color: AppTheme.textSec(context),
+                                                color: AppTheme.textSec(
+                                                  context,
+                                                ),
                                                 fontSize: 15,
                                               ),
                                             ),
@@ -369,10 +376,9 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                   final result = await showSearchablePicker(
                                     context: context,
                                     title: 'From Location',
-                                    selectedValue:
-                                        _fromLocation.isEmpty
-                                            ? null
-                                            : _fromLocation,
+                                    selectedValue: _fromLocation.isEmpty
+                                        ? null
+                                        : _fromLocation,
                                     addNewLabel: 'Add new location',
                                     addNewValue: '__create_new__',
                                     items: productLocations.map((e) {
@@ -381,7 +387,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       return PickerItem(
                                         value: loc,
                                         label: loc,
-                                        subtitle: '$qty ${_selectedProduct!.unit}',
+                                        subtitle:
+                                            '$qty ${_selectedProduct!.unit}',
                                         icon: Icons.location_on_rounded,
                                         iconColor: AppTheme.primaryColor,
                                       );
@@ -389,8 +396,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                   );
                                   if (result == null || !mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider =
-                                        context.read<SettingsProvider>();
+                                    final settingsProvider = context
+                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',
@@ -402,13 +409,15 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                     if (newName != null && mounted) {
                                       setState(() {
                                         _fromLocation = newName;
-                                        if (_toLocation == newName) _toLocation = null;
+                                        if (_toLocation == newName)
+                                          _toLocation = null;
                                       });
                                     }
                                   } else {
                                     setState(() {
                                       _fromLocation = result;
-                                      if (_toLocation == result) _toLocation = null;
+                                      if (_toLocation == result)
+                                        _toLocation = null;
                                     });
                                   }
                                 },
@@ -416,16 +425,21 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'From Location *',
                                     prefixIcon: const Icon(
-                                        Icons.location_on_rounded),
+                                      Icons.location_on_rounded,
+                                    ),
                                     suffixIcon: _fromLocation.isNotEmpty
                                         ? IconButton(
                                             icon: const Icon(
-                                                Icons.close_rounded, size: 18),
+                                              Icons.close_rounded,
+                                              size: 18,
+                                            ),
                                             onPressed: () => setState(
-                                                () => _fromLocation = ''),
+                                              () => _fromLocation = '',
+                                            ),
                                           )
                                         : const Icon(Icons.arrow_drop_down),
-                                    errorText: _submitted && _fromLocation.isEmpty
+                                    errorText:
+                                        _submitted && _fromLocation.isEmpty
                                         ? 'Select from location'
                                         : null,
                                   ),
@@ -464,12 +478,14 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 onTap: () async {
                                   final toItems = settingsLocations
                                       .where((l) => l != _fromLocation)
-                                      .map((loc) => PickerItem(
-                                            value: loc,
-                                            label: loc,
-                                            icon: Icons.location_on_rounded,
-                                            iconColor: AppTheme.warningColor,
-                                          ))
+                                      .map(
+                                        (loc) => PickerItem(
+                                          value: loc,
+                                          label: loc,
+                                          icon: Icons.location_on_rounded,
+                                          iconColor: AppTheme.warningColor,
+                                        ),
+                                      )
                                       .toList();
                                   final result = await showSearchablePicker(
                                     context: context,
@@ -481,8 +497,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                   );
                                   if (result == null || !mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider =
-                                        context.read<SettingsProvider>();
+                                    final settingsProvider = context
+                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',
@@ -502,13 +518,17 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'To Location *',
                                     prefixIcon: const Icon(
-                                        Icons.location_on_rounded),
+                                      Icons.location_on_rounded,
+                                    ),
                                     suffixIcon: _toLocation != null
                                         ? IconButton(
                                             icon: const Icon(
-                                                Icons.close_rounded, size: 18),
+                                              Icons.close_rounded,
+                                              size: 18,
+                                            ),
                                             onPressed: () => setState(
-                                                () => _toLocation = null),
+                                              () => _toLocation = null,
+                                            ),
                                           )
                                         : const Icon(Icons.arrow_drop_down),
                                     errorText: _submitted && _toLocation == null
@@ -544,6 +564,9 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                             QuantityStepper(
                               controller: _quantityController,
                               label: 'Quantity to Transfer *',
+                              unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+                              packUnit: _selectedProduct?.packUnit ?? 'box',
+                              baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Enter quantity';

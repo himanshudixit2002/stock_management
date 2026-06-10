@@ -77,8 +77,7 @@ class StockTakeListScreen extends StatelessWidget {
           ),
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: () =>
-              context.pushAppRoute(AppRoutes.createStockTake),
+          onPressed: () => context.pushAppRoute(AppRoutes.createStockTake),
           child: const Icon(Icons.add_rounded),
         ),
         body: Center(
@@ -123,7 +122,8 @@ class StockTakeListScreen extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: GlassCard(
                             onTap: st.status != StockTakeStatus.completed
-                                ? () => context.pushAppRoute(AppRoutes.stockTakeCount,
+                                ? () => context.pushAppRoute(
+                                    AppRoutes.stockTakeCount,
                                     extra: st,
                                   )
                                 : null,

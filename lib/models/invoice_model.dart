@@ -21,6 +21,7 @@ class InvoiceItem {
   final double unitPrice;
   final double discountPercent;
   final double taxRate;
+  final String location;
 
   InvoiceItem({
     required this.productId,
@@ -30,6 +31,7 @@ class InvoiceItem {
     this.unitPrice = 0,
     this.discountPercent = 0,
     this.taxRate = 0,
+    this.location = '',
   });
 
   double get lineSubtotal => quantity * unitPrice;
@@ -47,6 +49,7 @@ class InvoiceItem {
       unitPrice: safeDouble(map['unitPrice']),
       discountPercent: safeDouble(map['discountPercent']),
       taxRate: safeDouble(map['taxRate']),
+      location: safeString(map['location']),
     );
   }
 
@@ -58,6 +61,7 @@ class InvoiceItem {
     'unitPrice': unitPrice,
     'discountPercent': discountPercent,
     'taxRate': taxRate,
+    'location': location,
   };
 
   InvoiceItem copyWith({
@@ -68,6 +72,7 @@ class InvoiceItem {
     double? unitPrice,
     double? discountPercent,
     double? taxRate,
+    String? location,
   }) {
     return InvoiceItem(
       productId: productId ?? this.productId,
@@ -77,6 +82,7 @@ class InvoiceItem {
       unitPrice: unitPrice ?? this.unitPrice,
       discountPercent: discountPercent ?? this.discountPercent,
       taxRate: taxRate ?? this.taxRate,
+      location: location ?? this.location,
     );
   }
 }
@@ -157,6 +163,7 @@ class InvoiceModel {
   final String linkedSalesOrderId;
   final String linkedPurchaseOrderId;
   final String linkedCreditNoteId;
+
   /// True after inventory was adjusted for this document: sales stock removed or purchase stock added.
   final bool stockDeducted;
   final String createdBy;
@@ -222,8 +229,9 @@ class InvoiceModel {
   bool get isCancelled => status == InvoiceStatus.cancelled;
 
   int get overdueDays {
-    if (status == InvoiceStatus.paid || status == InvoiceStatus.cancelled)
+    if (status == InvoiceStatus.paid || status == InvoiceStatus.cancelled) {
       return 0;
+    }
     final now = DateTime.now();
     if (now.isAfter(dueDate)) return now.difference(dueDate).inDays;
     return 0;

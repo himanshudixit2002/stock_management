@@ -32,13 +32,12 @@ PurchaseOrderModel applyBillReceipt(
     final cap = line.quantity - line.receivedQuantity;
     if (cap <= 0) continue;
     final add = need < cap ? need : cap;
-    newItems[i] = line.copyWith(
-      receivedQuantity: line.receivedQuantity + add,
-    );
+    newItems[i] = line.copyWith(receivedQuantity: line.receivedQuantity + add);
     supply[line.productId] = need - add;
   }
 
-  final allFulfilled = newItems.isNotEmpty &&
+  final allFulfilled =
+      newItems.isNotEmpty &&
       newItems.every((l) => l.quantity > 0 && l.receivedQuantity >= l.quantity);
 
   var newStatus = po.status;
@@ -63,9 +62,7 @@ PurchaseOrderModel applyBillReceipt(
     }
   }
 
-  final newReceivedDate = allFulfilled
-      ? (po.receivedDate ?? updatedAt)
-      : null;
+  final newReceivedDate = allFulfilled ? (po.receivedDate ?? updatedAt) : null;
   final clearReceived = !allFulfilled && po.receivedDate != null;
 
   return po.copyWith(
@@ -104,13 +101,12 @@ PurchaseOrderModel revertBillReceipt(
     if (rem <= 0) continue;
     final sub = rem < line.receivedQuantity ? rem : line.receivedQuantity;
     if (sub <= 0) continue;
-    newItems[i] = line.copyWith(
-      receivedQuantity: line.receivedQuantity - sub,
-    );
+    newItems[i] = line.copyWith(receivedQuantity: line.receivedQuantity - sub);
     toRemove[line.productId] = rem - sub;
   }
 
-  final allFulfilled = newItems.isNotEmpty &&
+  final allFulfilled =
+      newItems.isNotEmpty &&
       newItems.every((l) => l.quantity > 0 && l.receivedQuantity >= l.quantity);
 
   var newStatus = po.status;

@@ -60,7 +60,8 @@ class HelpScreen extends StatelessWidget {
           'and set prefixes, tax labels, and default terms in billing settings.',
     ),
     _FaqItem(
-      question: 'What is the difference between scanning a barcode and capturing one on a product?',
+      question:
+          'What is the difference between scanning a barcode and capturing one on a product?',
       answer:
           'From search or stock flows, scanning looks up an existing product by '
           'barcode. When adding or editing a product, the barcode action captures '
@@ -101,17 +102,19 @@ class HelpScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Help & Support')),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
           child: ListView(
             padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
             physics: Responsive.scrollPhysics(context),
             children: [
-          _buildQuickStartSection(context),
-          const SizedBox(height: 24),
-          _buildFaqSection(context),
-          const SizedBox(height: 24),
-          _buildContactSection(context),
-          const SizedBox(height: 32),
+              _buildQuickStartSection(context),
+              const SizedBox(height: 24),
+              _buildFaqSection(context),
+              const SizedBox(height: 24),
+              _buildContactSection(context),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -128,7 +131,8 @@ class HelpScreen extends StatelessWidget {
           _QuickStartStep(
             step: '1',
             title: 'Add your products',
-            subtitle: 'Create your product catalog with names, SKUs, and categories.',
+            subtitle:
+                'Create your product catalog with names, SKUs, and categories.',
             icon: Icons.inventory_2_outlined,
           ),
           _QuickStartStep(
@@ -140,13 +144,15 @@ class HelpScreen extends StatelessWidget {
           _QuickStartStep(
             step: '3',
             title: 'Record stock movements',
-            subtitle: 'Use Stock In, Stock Out, and Transfer to track inventory.',
+            subtitle:
+                'Use Stock In, Stock Out, and Transfer to track inventory.',
             icon: Icons.swap_vert_rounded,
           ),
           _QuickStartStep(
             step: '4',
             title: 'Monitor with reports',
-            subtitle: 'View dashboards and reports to stay on top of your stock.',
+            subtitle:
+                'View dashboards and reports to stay on top of your stock.',
             icon: Icons.bar_chart_rounded,
             isLast: true,
           ),

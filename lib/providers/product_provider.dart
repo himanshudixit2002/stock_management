@@ -357,9 +357,9 @@ class ProductProvider extends ChangeNotifier {
     _isLoadingAnalytics = true;
     notifyListeners();
     try {
-      final products = await _databaseService
-          .getAllProductsOnce()
-          .timeout(const Duration(seconds: 15));
+      final products = await _databaseService.getAllProductsOnce().timeout(
+        const Duration(seconds: 15),
+      );
       if (_databaseService.companyId != loadForCompany) return;
       _products = products;
       _analyticsProducts = products;
@@ -403,11 +403,7 @@ class ProductProvider extends ChangeNotifier {
         if (_searchGeneration != generation) return;
 
         final catalog = analyticsProducts;
-        final ranked = searchProductsRanked(
-          catalog,
-          _searchQuery,
-          limit: 150,
-        );
+        final ranked = searchProductsRanked(catalog, _searchQuery, limit: 150);
         if (_searchGeneration != generation) return;
 
         final results = ranked.map((r) => r.product).toList();
@@ -437,9 +433,7 @@ class ProductProvider extends ChangeNotifier {
     }
     if (_selectedCompany != null) {
       final companyLower = _selectedCompany!.toLowerCase();
-      result = result.where(
-        (p) => p.company.toLowerCase() == companyLower,
-      );
+      result = result.where((p) => p.company.toLowerCase() == companyLower);
     }
     if (_selectedSize != null) {
       final sizeLower = _selectedSize!.toLowerCase();
@@ -615,9 +609,7 @@ class ProductProvider extends ChangeNotifier {
 
     if (_selectedCompany != null) {
       final companyLower = _selectedCompany!.toLowerCase();
-      result = result.where(
-        (p) => p.company.toLowerCase() == companyLower,
-      );
+      result = result.where((p) => p.company.toLowerCase() == companyLower);
     }
 
     if (_selectedSize != null) {
@@ -757,19 +749,21 @@ class ProductProvider extends ChangeNotifier {
     try {
       final now = DateTime.now();
       final productsWithAudit = products
-          .map((p) => p.copyWith(
-                updatedBy: userId,
-                updatedByName: userName,
-                updatedAt: now,
-              ))
+          .map(
+            (p) => p.copyWith(
+              updatedBy: userId,
+              updatedByName: userName,
+              updatedAt: now,
+            ),
+          )
           .toList();
-      final count =
-          await _databaseService.bulkUpdateProducts(productsWithAudit);
+      final count = await _databaseService.bulkUpdateProducts(
+        productsWithAudit,
+      );
       await refreshProducts();
       return count;
     } catch (e) {
-      _errorMessage =
-          friendlyError(e, fallback: 'Failed to update products.');
+      _errorMessage = friendlyError(e, fallback: 'Failed to update products.');
       notifyListeners();
       rethrow;
     }

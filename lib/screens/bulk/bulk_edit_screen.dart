@@ -159,8 +159,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           title: 'No Products',
           subtitle: 'Add products first to use bulk edit.',
           buttonText: 'Add Product',
-          onButtonPressed: () =>
-              context.pushAppRoute(AppRoutes.addProduct),
+          onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
         ),
       );
     }

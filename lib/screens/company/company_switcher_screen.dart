@@ -58,7 +58,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
   }
 
   Future<void> _switchCompany(
-      BuildContext context, CompanyMembership membership) async {
+    BuildContext context,
+    CompanyMembership membership,
+  ) async {
     final auth = context.read<AuthProvider>();
     if (membership.companyId == auth.currentUser?.companyId) return;
 
@@ -68,8 +70,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
     setState(() => _isSwitching = false);
 
     if (ok) {
-      showSuccessSnackBar(
-          context, 'Switched to ${membership.companyName}');
+      showSuccessSnackBar(context, 'Switched to ${membership.companyName}');
       Navigator.pop(context);
     } else {
       showErrorSnackBar(context, auth.errorMessage ?? 'Failed to switch');
@@ -109,7 +110,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                 await _loadSwitcherMeta();
               } else {
                 showErrorSnackBar(
-                    context, auth.errorMessage ?? 'Failed to create company');
+                  context,
+                  auth.errorMessage ?? 'Failed to create company',
+                );
               }
             },
             child: const Text('Create'),
@@ -132,10 +135,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
             children: [
               Text(
                 'Enter a 6-character code. You can use either:',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textSec(ctx),
-                ),
+                style: TextStyle(fontSize: 13, color: AppTheme.textSec(ctx)),
               ),
               const SizedBox(height: 10),
               Text(
@@ -180,7 +180,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                 await _loadSwitcherMeta();
               } else {
                 showErrorSnackBar(
-                    context, auth.errorMessage ?? 'Failed to join');
+                  context,
+                  auth.errorMessage ?? 'Failed to join',
+                );
               }
             },
             child: const Text('Join'),
@@ -196,7 +198,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
     if (!mounted) return;
     if (code == null) {
       showErrorSnackBar(
-          context, auth.errorMessage ?? 'Failed to generate code');
+        context,
+        auth.errorMessage ?? 'Failed to generate code',
+      );
       return;
     }
     showDialog(
@@ -217,13 +221,16 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                 showSuccessSnackBar(ctx, 'Code copied to clipboard');
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -238,8 +245,11 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Icon(Icons.copy_rounded,
-                        size: 20, color: AppTheme.primaryColor),
+                    const Icon(
+                      Icons.copy_rounded,
+                      size: 20,
+                      color: AppTheme.primaryColor,
+                    ),
                   ],
                 ),
               ),
@@ -257,7 +267,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
   }
 
   Future<void> _ensureCodeForCompany(
-      BuildContext context, String companyId) async {
+    BuildContext context,
+    String companyId,
+  ) async {
     final auth = context.read<AuthProvider>();
     final code = await auth.ensurePermanentJoinCodeForCompany(companyId);
     if (!mounted) return;
@@ -266,7 +278,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
       await _loadSwitcherMeta();
     } else {
       showErrorSnackBar(
-          context, auth.errorMessage ?? 'Could not create company code');
+        context,
+        auth.errorMessage ?? 'Could not create company code',
+      );
     }
   }
 
@@ -300,7 +314,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
       await _loadSwitcherMeta();
     } else {
       showErrorSnackBar(
-          context, auth.errorMessage ?? 'Could not regenerate code');
+        context,
+        auth.errorMessage ?? 'Could not regenerate code',
+      );
     }
   }
 
@@ -320,7 +336,8 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.dangerColor),
+              backgroundColor: AppTheme.dangerColor,
+            ),
             onPressed: () async {
               Navigator.pop(ctx);
               final auth = context.read<AuthProvider>();
@@ -328,11 +345,15 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
               if (!mounted) return;
               if (ok) {
                 showSuccessSnackBar(
-                    context, 'Left "${membership.companyName}"');
+                  context,
+                  'Left "${membership.companyName}"',
+                );
                 await _loadSwitcherMeta();
               } else {
                 showErrorSnackBar(
-                    context, auth.errorMessage ?? 'Failed to leave');
+                  context,
+                  auth.errorMessage ?? 'Failed to leave',
+                );
               }
             },
             child: const Text('Leave'),
@@ -375,8 +396,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
       body: Stack(
         children: [
           Container(
-            decoration:
-                BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -384,7 +404,8 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                 ),
                 child: ListView(
                   padding: EdgeInsets.all(
-                      Responsive.horizontalPadding(context)),
+                    Responsive.horizontalPadding(context),
+                  ),
                   children: [
                     const SizedBox(height: 8),
                     Text(
@@ -408,31 +429,34 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                           name: companyName,
                           role: user.role,
                           isActive: true,
-                          isCreator:
-                              _creatorCompanyIds.contains(user.companyId),
+                          isCreator: _creatorCompanyIds.contains(
+                            user.companyId,
+                          ),
                           permanentCode: _joinCodes[user.companyId],
                           onTap: null,
                           onLeave: null,
                         ),
                       ),
-                    ...memberships.map((m) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _buildCompanyCard(
-                            context,
-                            companyId: m.companyId,
-                            name: m.companyName,
-                            role: m.role,
-                            isActive: m.companyId == activeId,
-                            isCreator: _creatorCompanyIds.contains(m.companyId),
-                            permanentCode: _joinCodes[m.companyId],
-                            onTap: m.companyId == activeId
-                                ? null
-                                : () => _switchCompany(context, m),
-                            onLeave: m.companyId == activeId
-                                ? null
-                                : () => _confirmLeave(context, m),
-                          ),
-                        )),
+                    ...memberships.map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildCompanyCard(
+                          context,
+                          companyId: m.companyId,
+                          name: m.companyName,
+                          role: m.role,
+                          isActive: m.companyId == activeId,
+                          isCreator: _creatorCompanyIds.contains(m.companyId),
+                          permanentCode: _joinCodes[m.companyId],
+                          onTap: m.companyId == activeId
+                              ? null
+                              : () => _switchCompany(context, m),
+                          onLeave: m.companyId == activeId
+                              ? null
+                              : () => _confirmLeave(context, m),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     OutlinedButton.icon(
                       onPressed: () => _showCreateCompanyDialog(context),
@@ -503,9 +527,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      gradient: isActive
-                          ? AppTheme.primaryGradient
-                          : null,
+                      gradient: isActive ? AppTheme.primaryGradient : null,
                       color: isActive
                           ? null
                           : AppTheme.textSec(context).withValues(alpha: 0.15),
@@ -569,13 +591,17 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                             ],
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: role == 'admin'
-                                    ? AppTheme.primaryColor
-                                        .withValues(alpha: 0.1)
-                                    : AppTheme.textSec(context)
-                                        .withValues(alpha: 0.1),
+                                    ? AppTheme.primaryColor.withValues(
+                                        alpha: 0.1,
+                                      )
+                                    : AppTheme.textSec(
+                                        context,
+                                      ).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -621,8 +647,11 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                     ),
                   if (onLeave != null)
                     IconButton(
-                      icon: Icon(Icons.logout_rounded,
-                          size: 20, color: AppTheme.textSec(context)),
+                      icon: Icon(
+                        Icons.logout_rounded,
+                        size: 20,
+                        color: AppTheme.textSec(context),
+                      ),
                       tooltip: 'Leave company',
                       onPressed: onLeave,
                     ),
@@ -636,7 +665,9 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                       'Support ID: ${_shortDocId(companyId)}',
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textSec(context).withValues(alpha: 0.85),
+                        color: AppTheme.textSec(
+                          context,
+                        ).withValues(alpha: 0.85),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -691,8 +722,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
-                    onPressed: () =>
-                        _ensureCodeForCompany(context, companyId),
+                    onPressed: () => _ensureCodeForCompany(context, companyId),
                     icon: const Icon(Icons.vpn_key_rounded, size: 18),
                     label: const Text('Generate company code'),
                   ),

@@ -47,8 +47,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
   }
 
   void _loadMore() {
-    final total =
-        context.read<StockProvider>().allTransactions.length;
+    final total = context.read<StockProvider>().allTransactions.length;
     if (_visibleCount >= total) return;
     setState(() => _loadingMore = true);
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -104,6 +103,8 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.damage => Icons.warning_amber_rounded,
       TransactionType.transfer => Icons.swap_horiz_rounded,
       TransactionType.adjustment => Icons.tune_rounded,
+      TransactionType.hold => Icons.pause_circle_rounded,
+      TransactionType.holdRelease => Icons.play_circle_rounded,
     };
   }
 
@@ -114,6 +115,8 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.damage => AppTheme.dangerColor,
       TransactionType.transfer => AppTheme.indigoColor,
       TransactionType.adjustment => AppTheme.warningColor,
+      TransactionType.hold => AppTheme.warningColor,
+      TransactionType.holdRelease => AppTheme.successColor,
     };
   }
 
@@ -124,13 +127,16 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.damage => '-',
       TransactionType.transfer => '',
       TransactionType.adjustment => '',
+      TransactionType.hold => '',
+      TransactionType.holdRelease => '',
     };
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewActivityTimeline)) {
+    if (user != null &&
+        !user.hasPermission(AppPermissions.viewActivityTimeline)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Activity Timeline')),
         body: const Center(
@@ -148,26 +154,28 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       appBar: AppBar(title: const Text('Activity Timeline')),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: Responsive.contentMaxWidth(context)),
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
           child: isLoading && allTx.isEmpty
-              ? const ShimmerLoading(itemCount: 8, layout: ShimmerLayout.listTile)
+              ? const ShimmerLoading(
+                  itemCount: 8,
+                  layout: ShimmerLayout.listTile,
+                )
               : allTx.isEmpty
-                  ? const EmptyStateWidget(
-                      icon: Icons.timeline_rounded,
-                      title: 'No Activity Yet',
-                      subtitle:
-                          'Stock transactions will appear here as a timeline.',
-                    )
-                  : _buildTimeline(allTx, hPad),
+              ? const EmptyStateWidget(
+                  icon: Icons.timeline_rounded,
+                  title: 'No Activity Yet',
+                  subtitle:
+                      'Stock transactions will appear here as a timeline.',
+                )
+              : _buildTimeline(allTx, hPad),
         ),
       ),
     );
   }
 
-  Widget _buildTimeline(
-    List<StockTransactionModel> allTx,
-    double hPad,
-  ) {
+  Widget _buildTimeline(List<StockTransactionModel> allTx, double hPad) {
     final sorted = List<StockTransactionModel>.from(allTx)
       ..sort((a, b) => b.date.compareTo(a.date));
     final visible = sorted.take(_visibleCount).toList();
@@ -236,8 +244,10 @@ class _DaySection extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -420,7 +430,9 @@ class _TransactionTileState extends State<_TransactionTile> {
     final details = <_DetailRow>[];
 
     if (tx.location.isNotEmpty) {
-      details.add(_DetailRow('Location', tx.location, Icons.location_on_outlined));
+      details.add(
+        _DetailRow('Location', tx.location, Icons.location_on_outlined),
+      );
     }
     if (tx.reason.isNotEmpty) {
       details.add(_DetailRow('Reason', tx.reason, Icons.info_outline_rounded));
@@ -428,11 +440,13 @@ class _TransactionTileState extends State<_TransactionTile> {
     if (tx.vendorName.isNotEmpty) {
       details.add(_DetailRow('Vendor', tx.vendorName, Icons.store_outlined));
     }
-    details.add(_DetailRow(
-      'Date & Time',
-      DateFormat('MMM d, yyyy · h:mm a').format(tx.date),
-      Icons.schedule_rounded,
-    ));
+    details.add(
+      _DetailRow(
+        'Date & Time',
+        DateFormat('MMM d, yyyy · h:mm a').format(tx.date),
+        Icons.schedule_rounded,
+      ),
+    );
 
     if (details.isEmpty) return const SizedBox.shrink();
 

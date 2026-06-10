@@ -91,10 +91,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       );
       Navigator.pop(context);
     } else {
-      showErrorSnackBar(
-        context,
-        billing.errorMessage ?? 'Payment failed',
-      );
+      showErrorSnackBar(context, billing.errorMessage ?? 'Payment failed');
     }
   }
 

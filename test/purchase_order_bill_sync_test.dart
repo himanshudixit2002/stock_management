@@ -24,12 +24,8 @@ PurchaseOrderModel _po({
   );
 }
 
-InvoiceItem _line(String pid, int q) => InvoiceItem(
-      productId: pid,
-      productName: pid,
-      quantity: q,
-      unitPrice: 10,
-    );
+InvoiceItem _line(String pid, int q) =>
+    InvoiceItem(productId: pid, productName: pid, quantity: q, unitPrice: 10);
 
 void main() {
   group('applyBillReceipt', () {
@@ -48,9 +44,7 @@ void main() {
 
     test('full receipt sets received', () {
       final po = _po(
-        items: [
-          POItem(productId: 'a', quantity: 10, receivedQuantity: 0),
-        ],
+        items: [POItem(productId: 'a', quantity: 10, receivedQuantity: 0)],
       );
       final out = applyBillReceipt(po, [_line('a', 10)], _t);
       expect(out.status, POStatus.received);
@@ -62,11 +56,7 @@ void main() {
       final po = _po(
         items: [POItem(productId: 'a', quantity: 10, receivedQuantity: 0)],
       );
-      final out = applyBillReceipt(
-        po,
-        [_line('a', 4), _line('a', 6)],
-        _t,
-      );
+      final out = applyBillReceipt(po, [_line('a', 4), _line('a', 6)], _t);
       expect(out.items[0].receivedQuantity, 10);
       expect(out.status, POStatus.received);
     });
@@ -83,9 +73,7 @@ void main() {
     test('no-op for fully received', () {
       final po = _po(
         status: POStatus.received,
-        items: [
-          POItem(productId: 'a', quantity: 5, receivedQuantity: 5),
-        ],
+        items: [POItem(productId: 'a', quantity: 5, receivedQuantity: 5)],
       );
       final out = applyBillReceipt(po, [_line('a', 1)], _t);
       expect(out.items[0].receivedQuantity, 5);
@@ -98,9 +86,7 @@ void main() {
       final po = _po(
         status: POStatus.received,
         receivedDate: _t,
-        items: [
-          POItem(productId: 'a', quantity: 10, receivedQuantity: 10),
-        ],
+        items: [POItem(productId: 'a', quantity: 10, receivedQuantity: 10)],
       );
       final out = revertBillReceipt(po, [_line('a', 10)], _t);
       expect(out.items[0].receivedQuantity, 0);
@@ -111,9 +97,7 @@ void main() {
     test('partial revert leaves partial', () {
       final po = _po(
         status: POStatus.received,
-        items: [
-          POItem(productId: 'a', quantity: 10, receivedQuantity: 10),
-        ],
+        items: [POItem(productId: 'a', quantity: 10, receivedQuantity: 10)],
       );
       final out = revertBillReceipt(po, [_line('a', 3)], _t);
       expect(out.items[0].receivedQuantity, 7);
