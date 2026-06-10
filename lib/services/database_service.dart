@@ -1138,18 +1138,21 @@ class DatabaseService {
       return;
     }
 
+    // Reserve only the undispatched remainder of each line so a partially
+    // dispatched order keeps holds for what is still to ship (and never
+    // re-reserves units that were already dispatched).
     final prevQtyByProduct = <String, int>{};
     if (previousOrder != null) {
       for (final item in previousOrder.items) {
         prevQtyByProduct[item.productId] =
-            (prevQtyByProduct[item.productId] ?? 0) + item.quantity;
+            (prevQtyByProduct[item.productId] ?? 0) + item.remainingToDispatch;
       }
     }
 
     final nextQtyByProduct = <String, int>{};
     for (final item in order.items) {
       nextQtyByProduct[item.productId] =
-          (nextQtyByProduct[item.productId] ?? 0) + item.quantity;
+          (nextQtyByProduct[item.productId] ?? 0) + item.remainingToDispatch;
     }
 
     final productNames = <String, String>{};

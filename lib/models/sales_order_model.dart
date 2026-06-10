@@ -42,6 +42,12 @@ class SOItem {
     'unitPrice': unitPrice,
   };
 
+  /// Units of this line still awaiting dispatch (never negative).
+  int get remainingToDispatch {
+    final r = quantity - dispatchedQuantity;
+    return r < 0 ? 0 : r;
+  }
+
   SOItem copyWith({
     String? productId,
     String? productName,
@@ -93,6 +99,24 @@ class SalesOrderModel {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Total ordered units across all lines.
+  int get totalUnits => items.fold<int>(0, (s, i) => s + i.quantity);
+
+  /// Total units already dispatched across all lines.
+  int get dispatchedUnits =>
+      items.fold<int>(0, (s, i) => s + i.dispatchedQuantity);
+
+  /// Units still awaiting dispatch across all lines.
+  int get remainingUnits => items.fold<int>(0, (s, i) => s + i.remainingToDispatch);
+
+  /// True when every line has been fully dispatched.
+  bool get isFullyDispatched =>
+      items.isNotEmpty && items.every((i) => i.remainingToDispatch <= 0);
+
+  /// True when some but not all units have been dispatched.
+  bool get isPartiallyDispatched =>
+      dispatchedUnits > 0 && !isFullyDispatched;
 
   String get statusLabel => switch (status) {
     SOStatus.draft => 'Draft',

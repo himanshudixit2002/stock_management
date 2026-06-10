@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -40,6 +41,10 @@ class HomeScreenState extends State<HomeScreen>
   DateTime? _lastBackPress;
   bool _showTour = false;
 
+  // Visited-tab stack so the back gesture/button returns to the previously
+  // viewed tab (natural in-app navigation) instead of jumping straight out.
+  final List<int> _tabHistory = [];
+
   // Drives a gentle fade + rise when switching tabs. The IndexedStack keeps its
   // identity (so each tab's state/scroll position is preserved) while this
   // controller animates only the opacity/offset for a soft, cloudy settle.
@@ -64,6 +69,8 @@ class HomeScreenState extends State<HomeScreen>
   );
 
   void switchToTab(int index) {
+    if (index == _currentIndex) return;
+    _tabHistory.add(_currentIndex);
     setState(() => _currentIndex = index);
     _playTabTransition();
     _loadAnalyticsIfNeeded(index);
@@ -82,9 +89,42 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   void _onTabSelected(int index) {
+    if (index == _currentIndex) return;
+    _tabHistory.add(_currentIndex);
     setState(() => _currentIndex = index);
     _playTabTransition();
     _loadAnalyticsIfNeeded(index);
+  }
+
+  /// Handles a back gesture/button at the home shell. Returns to the previous
+  /// tab when there is in-app tab history, otherwise falls back to the Home
+  /// tab. Only the native platforms attempt to exit the app — on web we never
+  /// call [SystemNavigator.pop] because it pops the browser out of the SPA and
+  /// navigates away from the whole site.
+  void _handleHomeBack() {
+    if (_tabHistory.isNotEmpty) {
+      final previous = _tabHistory.removeLast();
+      setState(() => _currentIndex = previous);
+      _playTabTransition();
+      _loadAnalyticsIfNeeded(previous);
+      return;
+    }
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+      _playTabTransition();
+      _loadAnalyticsIfNeeded(0);
+      return;
+    }
+    // At the root Home tab with no history to unwind.
+    if (kIsWeb) return; // Stay on the page; do not leave the website.
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackPress = now;
+    showInfoSnackBar(context, 'Press back again to exit');
   }
 
   Future<void> _checkFeatureTour() async {
@@ -279,19 +319,7 @@ class HomeScreenState extends State<HomeScreen>
               canPop: false,
               onPopInvokedWithResult: (didPop, _) {
                 if (didPop) return;
-                if (_currentIndex != 0) {
-                  setState(() => _currentIndex = 0);
-                  return;
-                }
-                final now = DateTime.now();
-                if (_lastBackPress != null &&
-                    now.difference(_lastBackPress!) <
-                        const Duration(seconds: 2)) {
-                  SystemNavigator.pop();
-                  return;
-                }
-                _lastBackPress = now;
-                showInfoSnackBar(context, 'Press back again to exit');
+                _handleHomeBack();
               },
               child: Stack(
                 children: [

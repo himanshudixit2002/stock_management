@@ -159,8 +159,39 @@ class SalesOrderProvider extends ChangeNotifier {
     }
   }
 
+  /// Dispatch the entire remaining quantity of every line. Asks the caller for
+  /// a single source location (used when the held location can't fully cover a
+  /// line). Convenience wrapper around [dispatchOrderItems].
   Future<bool> dispatchOrder({
     required SalesOrderModel order,
+    required String userId,
+    required String userName,
+    required String location,
+    required DatabaseService db,
+  }) async {
+    final dispatchByIndex = <int, int>{};
+    for (var i = 0; i < order.items.length; i++) {
+      final remaining = order.items[i].remainingToDispatch;
+      if (remaining > 0) dispatchByIndex[i] = remaining;
+    }
+    return dispatchOrderItems(
+      order: order,
+      dispatchByItemIndex: dispatchByIndex,
+      userId: userId,
+      userName: userName,
+      location: location,
+      db: db,
+    );
+  }
+
+  /// Partially (or fully) dispatch a sales order. [dispatchByItemIndex] maps an
+  /// item index to the number of units to dispatch now (capped at that line's
+  /// remaining). Lines not present (or mapped to 0) are left untouched and stay
+  /// reserved. The order becomes [SOStatus.dispatched] only once every line is
+  /// fully dispatched; otherwise it stays [SOStatus.confirmed] (partial).
+  Future<bool> dispatchOrderItems({
+    required SalesOrderModel order,
+    required Map<int, int> dispatchByItemIndex,
     required String userId,
     required String userName,
     required String location,
@@ -171,13 +202,22 @@ class SalesOrderProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      for (final item in order.items) {
-        final qty = item.quantity - item.dispatchedQuantity;
+      final shortId = order.id.length >= 6 ? order.id.substring(0, 6) : order.id;
+      final newItems = List<SOItem>.from(order.items);
+      var anyDispatched = false;
+
+      for (final entry in dispatchByItemIndex.entries) {
+        final index = entry.key;
+        if (index < 0 || index >= newItems.length) continue;
+        final item = newItems[index];
+        var qty = entry.value;
+        if (qty <= 0) continue;
+        if (qty > item.remainingToDispatch) qty = item.remainingToDispatch;
         if (qty <= 0) continue;
 
-        // Despatch this order's reserved units from the exact locations they
+        // Consume this order's reserved units from the exact locations they
         // were held at first (avoids leaving phantom held/on-hand when the
-        // dispatch location differs from the hold location).
+        // dispatch location differs from the hold location), bounded by qty.
         final holds = await db.getActiveHoldsForSource(
           sourceType: 'sales_order',
           sourceId: order.id,
@@ -191,49 +231,71 @@ class SalesOrderProvider extends ChangeNotifier {
         }
 
         var remainingQty = qty;
-        for (final entry in heldByLocation.entries) {
+        for (final loc in heldByLocation.entries) {
           if (remainingQty <= 0) break;
-          final take = entry.value < remainingQty ? entry.value : remainingQty;
+          final take =
+              loc.value < remainingQty ? loc.value : remainingQty;
           final consumed = await db.consumeHeldStockForOutbound(
             productId: item.productId,
             productName: item.productName,
             quantity: take,
-            location: entry.key,
+            location: loc.key,
             userId: userId,
             userName: userName,
             sourceType: 'sales_order',
             sourceId: order.id,
-            reason: 'SO #${order.id.substring(0, 6)} hold consumed',
+            reason: 'SO #$shortId hold consumed',
           );
           remainingQty -= consumed;
         }
 
-        if (remainingQty <= 0) continue;
-        await db.removeStock(
-          productId: item.productId,
-          productName: item.productName,
-          quantity: remainingQty,
-          location: location,
-          userId: userId,
-          userName: userName,
-          reason: 'SO #${order.id.substring(0, 6)}',
+        if (remainingQty > 0) {
+          await db.removeStock(
+            productId: item.productId,
+            productName: item.productName,
+            quantity: remainingQty,
+            location: location,
+            userId: userId,
+            userName: userName,
+            reason: 'SO #$shortId',
+          );
+        }
+
+        newItems[index] = item.copyWith(
+          dispatchedQuantity: item.dispatchedQuantity + qty,
         );
+        anyDispatched = true;
       }
+
+      if (!anyDispatched) {
+        _errorMessage = 'Select at least one item and quantity to dispatch.';
+        _isMutating = false;
+        notifyListeners();
+        return false;
+      }
+
+      final fullyDispatched =
+          newItems.isNotEmpty && newItems.every((i) => i.remainingToDispatch <= 0);
       final updated = order.copyWith(
-        status: SOStatus.dispatched,
-        items: order.items
-            .map((i) => i.copyWith(dispatchedQuantity: i.quantity))
-            .toList(),
+        status: fullyDispatched ? SOStatus.dispatched : SOStatus.confirmed,
+        items: newItems,
         updatedAt: DateTime.now(),
       );
       await _databaseService.updateSalesOrder(updated);
-      await _databaseService.syncSalesOrderHoldsOnConfirmOrEdit(
-        order: updated,
-        previousOrder: order,
-        userId: userId,
-        userName: userName,
-        defaultLocation: location,
-      );
+
+      // On full dispatch the order no longer needs holds, so let the sync
+      // release any leftover reservations. On a partial dispatch the holds were
+      // already reduced precisely by consumeHeldStockForOutbound, so re-syncing
+      // would double-count; skip it.
+      if (fullyDispatched) {
+        await _databaseService.syncSalesOrderHoldsOnConfirmOrEdit(
+          order: updated,
+          previousOrder: order,
+          userId: userId,
+          userName: userName,
+          defaultLocation: location,
+        );
+      }
       _isMutating = false;
       notifyListeners();
       return true;

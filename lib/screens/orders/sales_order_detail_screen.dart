@@ -156,6 +156,28 @@ class SalesOrderDetailScreen extends StatelessWidget {
                               ),
                             ],
                           ),
+                          if (order.isPartiallyDispatched) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.local_shipping_outlined,
+                                  size: 16,
+                                  color: AppTheme.indigoColor,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Partially dispatched: '
+                                  '${order.dispatchedUnits}/${order.totalUnits} units',
+                                  style: const TextStyle(
+                                    color: AppTheme.indigoColor,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 16),
                           _detailRow(
                             context,
@@ -315,6 +337,7 @@ class SalesOrderDetailScreen extends StatelessWidget {
                                           ),
                                           Text(
                                             'Qty: ${item.quantity} \u2022 Dispatched: ${item.dispatchedQuantity}'
+                                            '${item.remainingToDispatch > 0 && item.dispatchedQuantity > 0 ? ' \u2022 Remaining: ${item.remainingToDispatch}' : ''}'
                                             '${item.returnedQuantity > 0 ? ' \u2022 Returned: ${item.returnedQuantity}' : ''}',
                                             style: TextStyle(
                                               fontSize: 12,
@@ -522,54 +545,139 @@ class SalesOrderDetailScreen extends StatelessWidget {
       return;
     }
 
-    String? selectedLocation;
-    final result = await showDialog<String>(
+    // Lines that still have units to ship. Quantities default to the full
+    // remaining so dispatching is "all by default" but each line can be reduced
+    // for a partial dispatch.
+    final pending = <int>[];
+    for (var i = 0; i < order.items.length; i++) {
+      if (order.items[i].remainingToDispatch > 0) pending.add(i);
+    }
+    if (pending.isEmpty) {
+      showInfoSnackBar(context, 'Nothing left to dispatch.');
+      return;
+    }
+
+    final controllers = <int, TextEditingController>{
+      for (final i in pending)
+        i: TextEditingController(
+          text: '${order.items[i].remainingToDispatch}',
+        ),
+    };
+    String? selectedLocation = locations.length == 1 ? locations.first : null;
+
+    final result = await showDialog<(String, Map<int, int>)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Dispatch Items'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select the location to dispatch items from:'),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () async {
-                  final result = await showSearchablePicker(
-                    context: context,
-                    title: 'Location',
-                    selectedValue: selectedLocation,
-                    items: locations
-                        .map(
-                          (l) => PickerItem(
-                            value: l,
-                            label: l,
-                            icon: Icons.location_on_rounded,
-                            iconColor: AppTheme.primaryColor,
-                          ),
-                        )
-                        .toList(),
-                  );
-                  if (result != null) {
-                    setDialogState(() => selectedLocation = result);
-                  }
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Location',
-                    prefixIcon: Icon(Icons.location_on_rounded),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose the source location, then set how many of each '
+                  'item to dispatch now. Leftover quantity stays reserved.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSec(context),
                   ),
-                  child: Text(
-                    selectedLocation ?? 'Tap to select',
-                    style: TextStyle(
-                      color: selectedLocation != null
-                          ? null
-                          : AppTheme.textSec(context),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showSearchablePicker(
+                      context: context,
+                      title: 'Location',
+                      selectedValue: selectedLocation,
+                      items: locations
+                          .map(
+                            (l) => PickerItem(
+                              value: l,
+                              label: l,
+                              icon: Icons.location_on_rounded,
+                              iconColor: AppTheme.primaryColor,
+                            ),
+                          )
+                          .toList(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedLocation = picked);
+                    }
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Location',
+                      prefixIcon: Icon(Icons.location_on_rounded),
+                    ),
+                    child: Text(
+                      selectedLocation ?? 'Tap to select',
+                      style: TextStyle(
+                        color: selectedLocation != null
+                            ? null
+                            : AppTheme.textSec(context),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final i in pending)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        order.items[i].productName.isEmpty
+                                            ? order.items[i].productId
+                                            : order.items[i].productName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'of ${order.items[i].remainingToDispatch} left',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppTheme.textSec(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                SizedBox(
+                                  width: 80,
+                                  child: TextField(
+                                    controller: controllers[i],
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Qty',
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -577,9 +685,28 @@ class SalesOrderDetailScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: selectedLocation != null
-                  ? () => Navigator.pop(ctx, selectedLocation)
-                  : null,
+              onPressed: selectedLocation == null
+                  ? null
+                  : () {
+                      final map = <int, int>{};
+                      for (final i in pending) {
+                        final raw =
+                            int.tryParse(controllers[i]!.text.trim()) ?? 0;
+                        final capped = raw.clamp(
+                          0,
+                          order.items[i].remainingToDispatch,
+                        );
+                        if (capped > 0) map[i] = capped;
+                      }
+                      if (map.isEmpty) {
+                        showErrorSnackBar(
+                          ctx,
+                          'Enter a quantity for at least one item.',
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx, (selectedLocation!, map));
+                    },
               child: const Text('Dispatch'),
             ),
           ],
@@ -587,23 +714,36 @@ class SalesOrderDetailScreen extends StatelessWidget {
       ),
     );
 
+    for (final c in controllers.values) {
+      c.dispose();
+    }
+
     if (result == null || !context.mounted) return;
     final user = context.read<AuthProvider>().currentUser;
     if (user == null) return;
 
-    final success = await context.read<SalesOrderProvider>().dispatchOrder(
-      order: order,
-      userId: user.uid,
-      userName: user.name,
-      location: result,
-      db: DatabaseService()
-        ..setCompanyId(context.read<SettingsProvider>().companyId),
-    );
+    final success =
+        await context.read<SalesOrderProvider>().dispatchOrderItems(
+              order: order,
+              dispatchByItemIndex: result.$2,
+              userId: user.uid,
+              userName: user.name,
+              location: result.$1,
+              db: DatabaseService()
+                ..setCompanyId(context.read<SettingsProvider>().companyId),
+            );
 
     if (context.mounted && success) {
       context.read<ProductProvider>().invalidateAnalytics();
       HapticFeedback.mediumImpact();
-      showSuccessOverlay(context, message: 'Order dispatched');
+      final updated =
+          context.read<SalesOrderProvider>().getOrderById(order.id);
+      showSuccessOverlay(
+        context,
+        message: (updated?.isFullyDispatched ?? true)
+            ? 'Order dispatched'
+            : 'Items dispatched',
+      );
     } else if (context.mounted) {
       showErrorSnackBar(
         context,

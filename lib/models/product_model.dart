@@ -6,7 +6,12 @@ import '../utils/unit_conversion.dart';
 /// reservations from location-less (manual, product-level) stock holds. Keeping
 /// the reservation in the same map means `heldQuantity` stays consistent and the
 /// units are blocked from being sold elsewhere until despatched or unheld.
-const String kUnassignedHoldLocation = '__unassigned__';
+///
+/// NOTE: This must NOT match Firestore's reserved field-name pattern `__.*__`
+/// (names beginning and ending with double underscores are rejected as map
+/// keys). The parentheses also guarantee it can never collide with a real
+/// user-entered location name.
+const String kUnassignedHoldLocation = '(unassigned)';
 
 class ProductModel {
   final String id;

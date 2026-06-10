@@ -296,24 +296,52 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 10),
-                                    if (needsDispatch)
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          onPressed: _isLoading
-                                              ? null
-                                              : () => _dispatchSalesOrderForHold(
-                                                  hold, order!),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                AppTheme.indigoColor,
+                                    if (needsDispatch) ...[
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 96,
+                                            child: TextField(
+                                              controller: _qtyCtrl(hold),
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Qty',
+                                                isDense: true,
+                                              ),
+                                            ),
                                           ),
-                                          icon: const Icon(
-                                            Icons.local_shipping_rounded,
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: ElevatedButton.icon(
+                                              onPressed: _isLoading
+                                                  ? null
+                                                  : () =>
+                                                      _dispatchSalesOrderForHold(
+                                                          hold, order!),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    AppTheme.indigoColor,
+                                              ),
+                                              icon: const Icon(
+                                                Icons.local_shipping_rounded,
+                                                size: 16,
+                                              ),
+                                              label: const Text('Dispatch'),
+                                            ),
                                           ),
-                                          label: const Text('Dispatch Order'),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Dispatches only this product line. '
+                                        'Other items on the order stay reserved.',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppTheme.textSec(context),
                                         ),
-                                      )
+                                      ),
+                                    ]
                                     else if (hold.isManual) ...[
                                       Row(
                                         children: [
@@ -548,6 +576,39 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
       return;
     }
 
+    // How many units of this product line to dispatch now (capped at held).
+    final qty = int.tryParse(_qtyCtrl(hold).text.trim());
+    if (qty == null || qty <= 0) {
+      showErrorSnackBar(context, 'Enter a valid quantity.');
+      return;
+    }
+    if (qty > hold.remainingQuantity) {
+      showErrorSnackBar(
+        context,
+        'Cannot exceed held qty (${hold.remainingQuantity}).',
+      );
+      return;
+    }
+
+    // Map this product's hold qty onto the matching order line(s).
+    final dispatchByIndex = <int, int>{};
+    var toDispatch = qty;
+    for (var i = 0; i < order.items.length; i++) {
+      if (toDispatch <= 0) break;
+      final item = order.items[i];
+      if (item.productId != hold.productId) continue;
+      final take = item.remainingToDispatch < toDispatch
+          ? item.remainingToDispatch
+          : toDispatch;
+      if (take <= 0) continue;
+      dispatchByIndex[i] = take;
+      toDispatch -= take;
+    }
+    if (dispatchByIndex.isEmpty) {
+      showErrorSnackBar(context, 'Nothing left to dispatch on this order line.');
+      return;
+    }
+
     final locations = context.read<SettingsProvider>().locations;
     if (locations.isEmpty) {
       showErrorSnackBar(context, 'Configure locations in Settings first.');
@@ -624,8 +685,9 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
     if (!mounted || pickedLocation == null) return;
     setState(() => _isLoading = true);
     final settings = context.read<SettingsProvider>();
-    final ok = await context.read<SalesOrderProvider>().dispatchOrder(
+    final ok = await context.read<SalesOrderProvider>().dispatchOrderItems(
       order: order,
+      dispatchByItemIndex: dispatchByIndex,
       userId: user.uid,
       userName: user.name,
       location: pickedLocation,
@@ -634,10 +696,11 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (ok) {
+      _qtyControllers.remove(hold.id)?.dispose();
       context.read<ProductProvider>().invalidateAnalytics();
       showSuccessSnackBar(
         context,
-        'Order dispatched. Hold consumed automatically.',
+        'Dispatched $qty ${hold.productName}. Hold consumed automatically.',
       );
       return;
     }
