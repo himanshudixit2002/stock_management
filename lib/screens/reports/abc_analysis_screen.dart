@@ -10,6 +10,8 @@ import '../../models/product_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
+import '../../config/motion.dart';
 import '../../utils/responsive.dart';
 
 class AbcAnalysisScreen extends StatefulWidget {
@@ -170,59 +172,80 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
           child: _buildDateRangeBar(),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: items.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.analytics_rounded,
-                  title: 'No Sales Data',
-                  subtitle:
-                      'No stock-out transactions found for ABC classification.',
-                )
-              : SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.horizontalPadding(context),
-                    vertical: 16,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GlassPanel(
-                        useContentVariant: true,
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.lightbulb_outline_rounded,
-                              color: AppTheme.warningColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                '$aCount products ($totalPct%) generate 80% of revenue',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPri(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppTheme.scaffoldGrad(context),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: items.isEmpty
+                ? const EmptyStateWidget(
+                    icon: Icons.analytics_rounded,
+                    title: 'No Sales Data',
+                    subtitle:
+                        'No stock-out transactions found for ABC classification.',
+                  )
+                : SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.horizontalPadding(context),
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FadeSlideIn(
+                          child: GlassPanel(
+                            useContentVariant: true,
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.lightbulb_outline_rounded,
+                                  color: AppTheme.warningColor,
+                                  size: 20,
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '$aCount products ($totalPct%) generate 80% of revenue',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textPri(context),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildPieChart(aRevenue, bRevenue, cRevenue),
-                      const SizedBox(height: 16),
-                      _buildClassSummary(aCount, bCount, cCount, items.length),
-                      const SizedBox(height: 20),
-                      _buildProductTable(items),
-                    ],
+                        const SizedBox(height: 20),
+                        FadeSlideIn(
+                          index: 1,
+                          child: _buildPieChart(aRevenue, bRevenue, cRevenue),
+                        ),
+                        const SizedBox(height: 16),
+                        FadeSlideIn(
+                          index: 2,
+                          child: _buildClassSummary(
+                            aCount,
+                            bCount,
+                            cCount,
+                            items.length,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        FadeSlideIn(
+                          index: 3,
+                          child: _buildProductTable(items),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
@@ -282,6 +305,10 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
       child: SizedBox(
         height: 200,
         child: PieChart(
+          duration: reduceMotion(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 650),
+          curve: Curves.easeOutCubic,
           PieChartData(
             pieTouchData: PieTouchData(
               touchCallback: (event, response) {
@@ -377,8 +404,9 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            '$count items',
+          CountUpText(
+            count,
+            formatter: (v) => '${v.round()} items',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,

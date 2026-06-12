@@ -11,6 +11,8 @@ import '../../providers/settings_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/searchable_picker.dart';
@@ -87,11 +89,10 @@ class _CreateStockTakeScreenState extends State<CreateStockTakeScreen> {
     if (mounted) {
       setState(() => _isSaving = false);
       if (success) {
-        showSuccessSnackBar(
+        showSuccessOverlay(
           context,
-          'Stock take created with ${items.length} items',
+          message: 'Stock take created with ${items.length} items',
         );
-        Navigator.pop(context);
       } else {
         showErrorSnackBar(
           context,
@@ -286,19 +287,24 @@ class _CreateStockTakeScreenState extends State<CreateStockTakeScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _isSaving ? null : _create,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                  _isSaving
+                      ? SizedBox(
+                          height: 52,
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.primaryColor,
+                              ),
                             ),
-                          )
-                        : const Text('Create & Start Counting'),
-                  ),
+                          ),
+                        )
+                      : ShimmerButton(
+                          label: 'Create & Start Counting',
+                          onPressed: _create,
+                        ),
                   const SizedBox(height: 24),
                 ],
               ),

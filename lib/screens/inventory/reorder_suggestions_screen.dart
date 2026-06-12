@@ -17,6 +17,8 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../config/app_navigation.dart';
@@ -352,16 +354,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     required bool allVisibleSelected,
   }) {
     if (isLoading && items.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(strokeWidth: 2.5),
-            SizedBox(height: 16),
-            Text('Loading product data...'),
-          ],
-        ),
-      );
+      return const ShimmerLoading(layout: ShimmerLayout.card);
     }
 
     return Column(
@@ -474,7 +467,9 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: GlassCard(
+                      child: AnimatedListItem(
+                        index: index,
+                        child: GlassCard(
                         onTap: () => setState(() {
                           if (_selectedIds.contains(item.product.id)) {
                             _selectedIds.remove(item.product.id);
@@ -644,6 +639,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                           ),
                         ),
                       ),
+                    ),
                     );
                   },
                 ),

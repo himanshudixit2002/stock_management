@@ -5,8 +5,11 @@ import '../../config/theme.dart';
 import '../../models/role_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/role_provider.dart';
-import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/permission_gate.dart';
+import '../../widgets/success_overlay.dart';
 
 class RoleEditorScreen extends StatefulWidget {
   final RoleModel? role;
@@ -48,46 +51,59 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Role' : 'New Role'),
-        actions: [
-          if (!_isReadOnly)
-            TextButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check_rounded),
-              label: const Text('Save'),
+    return PermissionGate(
+      permission: AppPermissions.manageRoles,
+      featureName: 'Role Management',
+      child: AppScreenScaffold(
+        icon: _isEditing ? Icons.edit_rounded : Icons.add_moderator_rounded,
+        iconColor: AppTheme.primaryColor,
+        title: _isEditing ? 'Edit Role' : 'New Role',
+        subtitle: _isReadOnly ? 'Read-only system role' : null,
+        constrainWidth: false,
+        bottomNavigationBar: _isReadOnly ? null : _buildSaveBar(),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
             ),
-        ],
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                  Responsive.horizontalPadding(context),
+                  8,
+                  Responsive.horizontalPadding(context),
+                  100,
+                ),
+                children: [
+                  FadeSlideIn(index: 0, child: _buildNameSection()),
+                  const SizedBox(height: 16),
+                  FadeSlideIn(index: 1, child: _buildCopyFromRole()),
+                  const SizedBox(height: 16),
+                  FadeSlideIn(index: 2, child: _buildPermissionSections()),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      body: Center(
+    );
+  }
+
+  Widget _buildSaveBar() {
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.formMaxWidth(context),
           ),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                Responsive.horizontalPadding(context),
-                8,
-                Responsive.horizontalPadding(context),
-                100,
-              ),
-              children: [
-                _buildNameSection(),
-                const SizedBox(height: 16),
-                _buildCopyFromRole(),
-                const SizedBox(height: 16),
-                _buildPermissionSections(),
-              ],
-            ),
+          child: ShimmerButton(
+            label: _saving
+                ? 'Saving...'
+                : (_isEditing ? 'Save Changes' : 'Create Role'),
+            icon: Icons.check_rounded,
+            onPressed: _saving ? null : _save,
           ),
         ),
       ),
@@ -270,10 +286,9 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
     }
 
     if (mounted) {
-      Navigator.pop(context);
-      showSuccessSnackBar(
+      await showSuccessOverlay(
         context,
-        _isEditing ? 'Role updated' : 'Role created',
+        message: _isEditing ? 'Role updated' : 'Role created',
       );
     }
   }

@@ -16,8 +16,10 @@ import '../../config/routes.dart';
 import '../../models/invoice_model.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 
@@ -41,7 +43,14 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
     if (order == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Purchase Order')),
-        body: const Center(child: Text('Order not found')),
+        body: NotFoundState(
+          icon: Icons.shopping_cart_rounded,
+          title: 'Order not found',
+          message:
+              'This purchase order may have been deleted or is no longer '
+              'available.',
+          onGoBack: () => Navigator.of(context).pop(),
+        ),
       );
     }
 
@@ -100,7 +109,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
-                Builder(
+                ScaleFadeIn(
+                  child: Builder(
                   builder: (context) {
                     final section1 = GlassPanel(
                       borderRadius: 20,
@@ -344,6 +354,7 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
                       ],
                     );
                   },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _buildActions(context, order, user),

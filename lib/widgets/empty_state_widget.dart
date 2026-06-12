@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 import 'animations.dart';
 
@@ -124,6 +126,11 @@ class EmptyStateWidget extends StatelessWidget {
   final String? buttonText;
   final VoidCallback? onButtonPressed;
 
+  /// Optional Lottie animation asset (e.g. 'assets/lottie/empty.json'). When
+  /// provided it replaces the illustrated icon; if the asset is missing/fails
+  /// to load it silently falls back to the icon illustration.
+  final String? lottieAsset;
+
   const EmptyStateWidget({
     super.key,
     required this.icon,
@@ -131,6 +138,7 @@ class EmptyStateWidget extends StatelessWidget {
     this.subtitle,
     this.buttonText,
     this.onButtonPressed,
+    this.lottieAsset,
   });
 
   @override
@@ -141,20 +149,7 @@ class EmptyStateWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ScaleFadeIn(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: _IllustratedIcon(
-                  icon: icon,
-                  size: 56,
-                  color: AppTheme.emptyIcon(context),
-                ),
-              ),
-            ),
+            ScaleFadeIn(child: _buildVisual(context)),
             const SizedBox(height: 16),
             FadeSlideIn(
               delay: const Duration(milliseconds: 120),
@@ -184,21 +179,42 @@ class EmptyStateWidget extends StatelessWidget {
               const SizedBox(height: 20),
               FadeSlideIn(
                 delay: const Duration(milliseconds: 240),
-                child: ElevatedButton.icon(
+                child: ShimmerButton(
+                  label: buttonText!,
                   onPressed: onButtonPressed,
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: Text(buttonText!),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 28,
-                      vertical: 16,
-                    ),
-                  ),
+                  icon: Icons.add_rounded,
+                  fullWidth: false,
                 ),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildVisual(BuildContext context) {
+    final illustration = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.08),
+        shape: BoxShape.circle,
+      ),
+      child: _IllustratedIcon(
+        icon: icon,
+        size: 56,
+        color: AppTheme.emptyIcon(context),
+      ),
+    );
+
+    if (lottieAsset == null) return illustration;
+    return SizedBox(
+      height: 140,
+      child: Lottie.asset(
+        lottieAsset!,
+        fit: BoxFit.contain,
+        animate: !reduceMotion(context),
+        errorBuilder: (context, error, stackTrace) => illustration,
       ),
     );
   }

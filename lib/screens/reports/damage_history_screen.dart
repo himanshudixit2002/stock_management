@@ -10,6 +10,9 @@ import '../../utils/dialogs.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
 
 class DamageHistoryScreen extends StatefulWidget {
@@ -185,9 +188,12 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
                           delegate: SliverChildBuilderDelegate(
                             (context, index) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: _DamageTile(
-                                txn: damage[index],
-                                dateFormat: dateFormat,
+                              child: AnimatedListItem(
+                                index: index,
+                                child: _DamageTile(
+                                  txn: damage[index],
+                                  dateFormat: dateFormat,
+                                ),
                               ),
                             ),
                             childCount: damage.length,
@@ -258,33 +264,12 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            size: 64,
-            color: AppTheme.successColor.withValues(alpha: 0.6),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No Damage Reported',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPri(context),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _startDate != null
-                ? 'No damage entries in the selected date range'
-                : 'No damage entries found',
-            style: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
-          ),
-        ],
-      ),
+    return EmptyStateWidget(
+      icon: Icons.check_circle_outline_rounded,
+      title: 'No Damage Reported',
+      subtitle: _startDate != null
+          ? 'No damage entries in the selected date range'
+          : 'No damage entries found',
     );
   }
 
@@ -483,8 +468,8 @@ class _SummaryCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   )
-                : Text(
-                    value,
+                : CountUpText(
+                    int.tryParse(value) ?? 0,
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,

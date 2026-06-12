@@ -7,6 +7,8 @@ import '../../config/theme.dart';
 import '../../models/invoice_model.dart';
 import '../../providers/billing_provider.dart';
 import '../../utils/dialogs.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 
 class RecordPaymentSheet extends StatefulWidget {
   final String invoiceId;
@@ -85,11 +87,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
     setState(() => _isSaving = false);
 
     if (ok) {
-      showSuccessSnackBar(
+      await showSuccessOverlay(
         context,
-        'Payment of ${widget.currencySymbol}${_amountCtrl.text} recorded',
+        message:
+            'Payment of ${widget.currencySymbol}${_amountCtrl.text} recorded',
       );
-      Navigator.pop(context);
     } else {
       showErrorSnackBar(context, billing.errorMessage ?? 'Payment failed');
     }
@@ -98,36 +100,21 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
   @override
   Widget build(BuildContext context) {
     final sym = widget.currencySymbol.isNotEmpty ? widget.currencySymbol : '₹';
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
+    return SlideUpSheet(
+      title: 'Record Payment',
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.dividerC(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Record Payment',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
               if (widget.invoiceNumber != null &&
                   widget.invoiceNumber!.trim().isNotEmpty)
                 Padding(
@@ -292,35 +279,10 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.successColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Record Payment',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                ),
+              ShimmerButton(
+                label: _isSaving ? 'Recording…' : 'Record Payment',
+                icon: Icons.check_circle_rounded,
+                onPressed: _isSaving ? null : _save,
               ),
             ],
           ),

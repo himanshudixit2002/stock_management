@@ -11,6 +11,8 @@ import '../../models/product_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
+import '../../config/motion.dart';
 import '../../utils/responsive.dart';
 
 class ProfitLossScreen extends StatefulWidget {
@@ -166,37 +168,51 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
           child: _buildDateRangeBar(),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppTheme.scaffoldGrad(context),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: stockOuts.isEmpty
+                ? const EmptyStateWidget(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'No Sales Data',
+                    subtitle: 'No stock-out transactions found in this period.',
+                  )
+                : SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Responsive.horizontalPadding(context),
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      children: [
+                        FadeSlideIn(
+                          child: _buildSummaryCards(
+                            totalRevenue,
+                            totalCost,
+                            grossProfit,
+                            margin,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        FadeSlideIn(index: 1, child: _buildTrendChart(byDay)),
+                        const SizedBox(height: 20),
+                        FadeSlideIn(
+                          index: 2,
+                          child: _buildBreakdownTabs(
+                            byCategory,
+                            byProduct,
+                            byDay,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
-          child: stockOuts.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.receipt_long_rounded,
-                  title: 'No Sales Data',
-                  subtitle: 'No stock-out transactions found in this period.',
-                )
-              : SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.horizontalPadding(context),
-                    vertical: 16,
-                  ),
-                  child: Column(
-                    children: [
-                      _buildSummaryCards(
-                        totalRevenue,
-                        totalCost,
-                        grossProfit,
-                        margin,
-                      ),
-                      const SizedBox(height: 20),
-                      _buildTrendChart(byDay),
-                      const SizedBox(height: 20),
-                      _buildBreakdownTabs(byCategory, byProduct, byDay),
-                    ],
-                  ),
-                ),
         ),
       ),
     );
@@ -264,7 +280,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               width: cardWidth,
               child: _SummaryCard(
                 label: 'Total Revenue',
-                value: _fmtCurrency(revenue),
+                value: revenue,
+                formatter: (v) => _fmtCurrency(v.toDouble()),
                 icon: Icons.trending_up_rounded,
                 color: AppTheme.successColor,
               ),
@@ -273,7 +290,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               width: cardWidth,
               child: _SummaryCard(
                 label: 'Total Cost',
-                value: _fmtCurrency(cost),
+                value: cost,
+                formatter: (v) => _fmtCurrency(v.toDouble()),
                 icon: Icons.trending_down_rounded,
                 color: AppTheme.dangerColor,
               ),
@@ -282,7 +300,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               width: cardWidth,
               child: _SummaryCard(
                 label: 'Gross Profit',
-                value: _fmtCurrency(profit),
+                value: profit,
+                formatter: (v) => _fmtCurrency(v.toDouble()),
                 icon: Icons.account_balance_wallet_rounded,
                 color: profit >= 0
                     ? AppTheme.primaryColor
@@ -293,7 +312,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               width: cardWidth,
               child: _SummaryCard(
                 label: 'Margin %',
-                value: '${margin.toStringAsFixed(1)}%',
+                value: margin,
+                formatter: (v) => '${v.toStringAsFixed(1)}%',
                 icon: Icons.percent_rounded,
                 color: margin >= 20
                     ? AppTheme.successColor
@@ -334,6 +354,10 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
           SizedBox(
             height: 220,
             child: LineChart(
+              duration: reduceMotion(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
               LineChartData(
                 gridData: FlGridData(
                   show: true,
@@ -712,13 +736,15 @@ class _RangeChip extends StatelessWidget {
 
 class _SummaryCard extends StatelessWidget {
   final String label;
-  final String value;
+  final num value;
+  final String Function(num) formatter;
   final IconData icon;
   final Color color;
 
   const _SummaryCard({
     required this.label,
     required this.value,
+    required this.formatter,
     required this.icon,
     required this.color,
   });
@@ -756,8 +782,9 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          CountUpText(
             value,
+            formatter: formatter,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,

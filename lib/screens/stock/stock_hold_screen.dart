@@ -12,6 +12,7 @@ import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
@@ -220,8 +221,8 @@ class _StockHoldScreenState extends State<StockHoldScreen> {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -253,7 +254,12 @@ class _StockHoldScreenState extends State<StockHoldScreen> {
                   if (_lines.isEmpty)
                     _emptyItemsHint()
                   else
-                    ..._lines.map(_buildLineCard),
+                    ..._lines.asMap().entries.map(
+                      (e) => FadeSlideIn(
+                        index: e.key,
+                        child: _buildLineCard(e.value),
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _reasonController,

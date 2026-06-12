@@ -5,11 +5,14 @@ import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../providers/stock_provider.dart';
+import '../../providers/product_provider.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/animated_list_item.dart';
 
 class ActivityTimelineScreen extends StatefulWidget {
   const ActivityTimelineScreen({super.key});
@@ -141,34 +144,34 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Future<void> _onRefresh() async {
+    final cid = context.read<ProductProvider>().companyId;
+    if (cid.isEmpty) return;
+    context.read<StockProvider>().initialize(companyId: cid);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+  }
 
+  Widget _buildContent(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
     final allTx = stockProvider.allTransactions;
     final isLoading = stockProvider.isLoading;
     final hPad = Responsive.horizontalPadding(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Activity Timeline')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: isLoading && allTx.isEmpty
-              ? const ShimmerLoading(
-                  itemCount: 8,
-                  layout: ShimmerLayout.listTile,
-                )
-              : allTx.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.timeline_rounded,
-                  title: 'No Activity Yet',
-                  subtitle:
-                      'Stock transactions will appear here as a timeline.',
-                )
-              : _buildTimeline(allTx, hPad),
-        ),
+    return AppScreenScaffold(
+      icon: Icons.timeline_rounded,
+      title: 'Activity Timeline',
+      isLoading: isLoading && allTx.isEmpty,
+      shimmerLayout: ShimmerLayout.listTile,
+      isEmpty: !isLoading && allTx.isEmpty,
+      emptyState: const EmptyStateWidget(
+        icon: Icons.timeline_rounded,
+        title: 'No Activity Yet',
+        subtitle: 'Stock transactions will appear here as a timeline.',
+      ),
+      body: RefreshIndicator(
+        color: AppTheme.primaryColor,
+        onRefresh: _onRefresh,
+        child: _buildTimeline(allTx, hPad),
       ),
     );
   }
@@ -183,7 +186,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
     return ListView.builder(
       controller: _scrollController,
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 12),
-      physics: Responsive.scrollPhysics(context),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: dayKeys.length + (_visibleCount < allTx.length ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == dayKeys.length) {
@@ -200,10 +203,12 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
         }
         final dayKey = dayKeys[index];
         final transactions = grouped[dayKey]!;
-        return _DaySection(
-          label: _dayLabel(dayKey),
-          isFirst: index == 0,
-          children: transactions
+        return AnimatedListItem(
+          index: index,
+          child: _DaySection(
+            label: _dayLabel(dayKey),
+            isFirst: index == 0,
+            children: transactions
               .map(
                 (tx) => _TransactionTile(
                   transaction: tx,
@@ -214,6 +219,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
                 ),
               )
               .toList(),
+          ),
         );
       },
     );

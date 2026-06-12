@@ -8,9 +8,10 @@ import '../../providers/audit_log_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/audit_log_model.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/glass_panel.dart';
-import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 
 class AuditLogScreen extends StatefulWidget {
@@ -127,21 +128,11 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     final provider = context.watch<AuditLogProvider>();
     final logs = _filteredLogs(provider.logs);
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.history_edu_rounded,
-          color: AppTheme.indigoColor,
-          title: 'Audit Log',
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: Column(
+    return AppScreenScaffold(
+      icon: Icons.history_edu_rounded,
+      iconColor: AppTheme.indigoColor,
+      title: 'Audit Log',
+      body: Column(
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -227,6 +218,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                         subtitle: 'No audit log entries match your filters.',
                       )
                     : RefreshIndicator(
+                        color: AppTheme.primaryColor,
                         onRefresh: () async {
                           final companyId = context
                               .read<AuthProvider>()
@@ -238,25 +230,27 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                         },
                         child: ListView.builder(
                           controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: EdgeInsets.symmetric(
                             horizontal: Responsive.horizontalPadding(context),
                             vertical: 8,
                           ),
                           itemCount: logs.length,
-                          itemBuilder: (_, i) => _AuditLogTile(
-                            log: logs[i],
-                            icon: _actionIcon(logs[i].action),
-                            color: _actionColor(logs[i].action),
-                            relativeTime: _relativeTime(logs[i].timestamp),
-                            isLast: i == logs.length - 1,
+                          itemBuilder: (_, i) => AnimatedListItem(
+                            index: i,
+                            child: _AuditLogTile(
+                              log: logs[i],
+                              icon: _actionIcon(logs[i].action),
+                              color: _actionColor(logs[i].action),
+                              relativeTime: _relativeTime(logs[i].timestamp),
+                              isLast: i == logs.length - 1,
+                            ),
                           ),
                         ),
                       ),
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

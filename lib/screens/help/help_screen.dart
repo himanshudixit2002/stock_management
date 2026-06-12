@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/app_navigation.dart';
 
@@ -100,8 +101,10 @@ class HelpScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Help & Support')),
-      body: Center(
-        child: ConstrainedBox(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
+          child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
@@ -109,14 +112,15 @@ class HelpScreen extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
             physics: Responsive.scrollPhysics(context),
             children: [
-              _buildQuickStartSection(context),
+              FadeSlideIn(child: _buildQuickStartSection(context)),
               const SizedBox(height: 24),
-              _buildFaqSection(context),
+              FadeSlideIn(index: 1, child: _buildFaqSection(context)),
               const SizedBox(height: 24),
-              _buildContactSection(context),
+              FadeSlideIn(index: 2, child: _buildContactSection(context)),
               const SizedBox(height: 32),
             ],
           ),
+        ),
         ),
       ),
     );

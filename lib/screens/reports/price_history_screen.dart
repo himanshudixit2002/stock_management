@@ -11,6 +11,9 @@ import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animations.dart';
+import '../../config/motion.dart';
 
 class PriceHistoryScreen extends StatefulWidget {
   const PriceHistoryScreen({super.key});
@@ -53,7 +56,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                 _buildProductSelector(),
                 if (isLoading)
                   const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
+                    child: ShimmerLoading(layout: ShimmerLayout.detail),
                   )
                 else if (_selectedProduct == null)
                   const Expanded(
@@ -79,9 +82,12 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                         Responsive.horizontalPadding(context),
                       ),
                       children: [
-                        _buildChart(filteredHistory),
+                        FadeSlideIn(child: _buildChart(filteredHistory)),
                         const SizedBox(height: 20),
-                        _buildHistoryTable(filteredHistory),
+                        FadeSlideIn(
+                          index: 1,
+                          child: _buildHistoryTable(filteredHistory),
+                        ),
                       ],
                     ),
                   ),
@@ -288,6 +294,10 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
           SizedBox(
             height: Responsive.chartHeight(context),
             child: LineChart(
+              duration: reduceMotion(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
               LineChartData(
                 gridData: FlGridData(
                   show: true,

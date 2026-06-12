@@ -14,8 +14,11 @@ import '../../providers/theme_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
+import '../../config/motion.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/floating_nav_padding.dart';
+import '../../widgets/tab_context_header.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String? initialSection;
@@ -33,6 +36,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   double _settingsSectionGap(BuildContext context) =>
       _settingsWebLux(context) ? 16 : 12;
+
+  Widget _buildSettingsContextHeader(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: TabContextHeader(
+        icon: Icons.settings_rounded,
+        title: 'Settings & Account',
+        subtitle: 'Preferences, features, data and your team',
+        padding: EdgeInsets.zero,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,13 +87,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : '?';
 
     final viewPadding = MediaQuery.paddingOf(context);
+    // Only reserve space for the floating nav when this screen is the Settings
+    // tab in the shell (no pushed AppBar). When opened as a sub-route
+    // (initialSection != null) there is no floating nav.
+    final isTabShell = widget.initialSection == null;
+    final navInset = isTabShell ? floatingNavContentInset(context) : 0.0;
     final padding = EdgeInsets.fromLTRB(
       Responsive.horizontalPadding(context),
       _settingsWebLux(context) ? 20 : 12,
       Responsive.horizontalPadding(context),
-      _settingsWebLux(context)
-          ? (viewPadding.bottom > 0 ? viewPadding.bottom + 4 : 8)
-          : 40,
+      (_settingsWebLux(context)
+              ? (viewPadding.bottom > 0 ? viewPadding.bottom + 4 : 8)
+              : 40) +
+          navInset,
     );
     final webGrid = _settingsWebLux(context);
     final sectionBlocks = _buildSettingsSectionBlocks(context, user);
@@ -97,6 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (isTabShell) _buildSettingsContextHeader(context),
                       _buildSettingsProfileCard(context, user, initials),
                       SizedBox(height: _settingsSectionGap(context)),
                       LayoutBuilder(
@@ -119,6 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : ListView(
                   padding: padding,
                   children: [
+                    if (isTabShell) _buildSettingsContextHeader(context),
                     _buildSettingsProfileCard(context, user, initials),
                     SizedBox(height: _settingsSectionGap(context)),
                     ..._interleaveSettingsSectionGaps(context, sectionBlocks),
@@ -134,7 +157,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return Scaffold(
         backgroundColor: AppTheme.bg(context),
         appBar: AppBar(title: const Text('Settings')),
-        body: body,
+        body: Container(
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: body,
+        ),
       );
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2356,25 +2382,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SettingsSectionBlock extends StatelessWidget {
+class _SettingsSectionBlock extends StatefulWidget {
   final String title;
   final Color accentColor;
   final List<Widget> children;
+  final bool initiallyExpanded;
 
   const _SettingsSectionBlock({
     required this.title,
     required this.accentColor,
     required this.children,
+    this.initiallyExpanded = true,
   });
 
   @override
+  State<_SettingsSectionBlock> createState() => _SettingsSectionBlockState();
+}
+
+class _SettingsSectionBlockState extends State<_SettingsSectionBlock> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final reduce = reduceMotion(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _SectionHeader(title: title, color: accentColor),
-        _SettingsCard(children: children),
+        Semantics(
+          button: true,
+          expanded: _expanded,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: _toggle,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _SectionHeader(
+                      title: widget.title,
+                      color: widget.accentColor,
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.0 : -0.25,
+                    duration: reduce
+                        ? Duration.zero
+                        : const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 6, top: 2, bottom: 6),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: AppTheme.iconMute(context),
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: _SettingsCard(children: widget.children),
+          secondChild: const SizedBox(width: double.infinity, height: 0),
+          crossFadeState: _expanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
+          duration: reduce
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          sizeCurve: Curves.easeOutCubic,
+        ),
       ],
     );
   }

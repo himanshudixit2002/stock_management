@@ -18,6 +18,8 @@ import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/not_found_state.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 import 'record_payment_sheet.dart';
 
 class InvoiceDetailScreen extends StatelessWidget {
@@ -170,7 +172,9 @@ class InvoiceDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.formMaxWidth(context),
@@ -215,6 +219,7 @@ class InvoiceDetailScreen extends StatelessWidget {
             ],
           ),
         ),
+        ),
       ),
       bottomNavigationBar:
           (!invoice.isPaid &&
@@ -229,20 +234,11 @@ class InvoiceDetailScreen extends StatelessWidget {
                   Responsive.horizontalPadding(context),
                   8,
                 ),
-                child: ElevatedButton.icon(
+                child: ShimmerButton(
+                  label:
+                      'Record Payment (${sym}${_numFormat.format(invoice.amountDue)} due)',
+                  icon: Icons.payment_rounded,
                   onPressed: () => _showPaymentSheet(context, invoice),
-                  icon: const Icon(Icons.payment_rounded),
-                  label: Text(
-                    'Record Payment (${sym}${_numFormat.format(invoice.amountDue)} due)',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
                 ),
               ),
             )
@@ -871,6 +867,13 @@ class InvoiceDetailScreen extends StatelessWidget {
     switch (action) {
       case 'send':
         await billing.markAsSent(invoice.id);
+        if (context.mounted) {
+          await showSuccessOverlay(
+            context,
+            message: 'Marked as sent',
+            popAfter: false,
+          );
+        }
         break;
       case 'payment':
         _showPaymentSheet(context, invoice);
@@ -957,6 +960,13 @@ class InvoiceDetailScreen extends StatelessWidget {
             userId: user?.uid ?? '',
             userName: user?.name ?? '',
           );
+          if (context.mounted) {
+            await showSuccessOverlay(
+              context,
+              message: 'Invoice cancelled',
+              popAfter: false,
+            );
+          }
         }
         break;
       case 'delete':
@@ -984,7 +994,9 @@ class InvoiceDetailScreen extends StatelessWidget {
         );
         if (confirm == true) {
           await billing.deleteInvoice(invoice.id);
-          if (context.mounted) Navigator.pop(context);
+          if (context.mounted) {
+            await showSuccessOverlay(context, message: 'Invoice deleted');
+          }
         }
         break;
     }

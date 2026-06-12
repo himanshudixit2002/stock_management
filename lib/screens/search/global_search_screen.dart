@@ -20,6 +20,7 @@ import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 
 enum _SearchCategory { all, products, vendors, customers, invoices }
 
@@ -445,52 +446,125 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         (_selectedCategory == _SearchCategory.all ||
             _selectedCategory == _SearchCategory.invoices);
 
-    return ListView(
-      padding: EdgeInsets.symmetric(
-        horizontal: Responsive.horizontalPadding(context),
-        vertical: 16,
-      ),
-      children: [
-        if (showProducts && _productResults.isNotEmpty) ...[
+    // Build results with a running stagger index so every tile (across all
+    // sections) fades + slides in sequentially.
+    var staggerIndex = 0;
+    Widget staggered(Widget child) =>
+        FadeSlideIn(index: staggerIndex++, child: child);
+
+    final children = <Widget>[];
+    if (showProducts && _productResults.isNotEmpty) {
+      children.add(
+        staggered(
           _sectionHeader(
             Icons.inventory_2_rounded,
             'Products',
             _productResults.length,
           ),
-          const SizedBox(height: 8),
-          ..._productResults.map(_buildProductTile),
-          const SizedBox(height: 16),
-        ],
-        if (showVendors && _vendorResults.isNotEmpty) ...[
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.addAll(_productResults.map((p) => staggered(_buildProductTile(p))));
+      children.add(const SizedBox(height: 16));
+    }
+    if (showVendors && _vendorResults.isNotEmpty) {
+      children.add(
+        staggered(
           _sectionHeader(
             Icons.local_shipping_rounded,
             'Vendors',
             _vendorResults.length,
           ),
-          const SizedBox(height: 8),
-          ..._vendorResults.map(_buildVendorTile),
-          const SizedBox(height: 16),
-        ],
-        if (showCustomers && _customerResults.isNotEmpty) ...[
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.addAll(_vendorResults.map((v) => staggered(_buildVendorTile(v))));
+      children.add(const SizedBox(height: 16));
+    }
+    if (showCustomers && _customerResults.isNotEmpty) {
+      children.add(
+        staggered(
           _sectionHeader(
             Icons.people_rounded,
             'Customers',
             _customerResults.length,
           ),
-          const SizedBox(height: 8),
-          ..._customerResults.map(_buildCustomerTile),
-          const SizedBox(height: 16),
-        ],
-        if (showInvoices && _invoiceResults.isNotEmpty) ...[
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.addAll(
+        _customerResults.map((c) => staggered(_buildCustomerTile(c))),
+      );
+      children.add(const SizedBox(height: 16));
+    }
+    if (showInvoices && _invoiceResults.isNotEmpty) {
+      children.add(
+        staggered(
           _sectionHeader(
             Icons.receipt_long_rounded,
             'Invoices',
             _invoiceResults.length,
           ),
-          const SizedBox(height: 8),
-          ..._invoiceResults.map(_buildInvoiceTile),
-        ],
-      ],
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.addAll(_invoiceResults.map((i) => staggered(_buildInvoiceTile(i))));
+    }
+
+    return ListView(
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.horizontalPadding(context),
+        vertical: 16,
+      ),
+      children: children,
+    );
+  }
+
+  /// Builds a [Text.rich] that highlights every case-insensitive occurrence of
+  /// [query] within [text] using [AppTheme.primaryColor]. Falls back to a plain
+  /// [Text] when there is no match.
+  Widget _highlightedText(
+    String text,
+    String query, {
+    required TextStyle baseStyle,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) {
+    if (query.isEmpty) {
+      return Text(text, style: baseStyle, maxLines: maxLines, overflow: overflow);
+    }
+    final lowerText = text.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    var idx = lowerText.indexOf(lowerQuery);
+    if (idx < 0) {
+      return Text(text, style: baseStyle, maxLines: maxLines, overflow: overflow);
+    }
+    final highlightStyle = baseStyle.copyWith(
+      color: AppTheme.primaryColor,
+      fontWeight: FontWeight.w700,
+    );
+    final spans = <TextSpan>[];
+    var start = 0;
+    while (idx >= 0) {
+      if (idx > start) {
+        spans.add(TextSpan(text: text.substring(start, idx), style: baseStyle));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(idx, idx + lowerQuery.length),
+          style: highlightStyle,
+        ),
+      );
+      start = idx + lowerQuery.length;
+      idx = lowerText.indexOf(lowerQuery, start);
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start), style: baseStyle));
+    }
+    return Text.rich(
+      TextSpan(children: spans),
+      maxLines: maxLines,
+      overflow: overflow,
     );
   }
 
@@ -545,13 +619,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             ),
             child: Icon(Icons.inventory_2_rounded, color: stockColor, size: 20),
           ),
-          title: Text(
+          title: _highlightedText(
             product.name,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            _query,
+            baseStyle: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: AppTheme.textPri(context),
+            ),
           ),
-          subtitle: Text(
+          subtitle: _highlightedText(
             subtitle,
-            style: const TextStyle(fontSize: 12),
+            _query,
+            baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -592,13 +672,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               size: 20,
             ),
           ),
-          title: Text(
+          title: _highlightedText(
             vendor.name,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            _query,
+            baseStyle: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: AppTheme.textPri(context),
+            ),
           ),
-          subtitle: Text(
+          subtitle: _highlightedText(
             vendor.phone.isNotEmpty ? vendor.phone : vendor.email,
-            style: const TextStyle(fontSize: 12),
+            _query,
+            baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
           trailing: Icon(
             Icons.chevron_right_rounded,
@@ -643,13 +729,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               size: 20,
             ),
           ),
-          title: Text(
+          title: _highlightedText(
             invoice.invoiceNumber,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            _query,
+            baseStyle: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: AppTheme.textPri(context),
+            ),
           ),
-          subtitle: Text(
+          subtitle: _highlightedText(
             '${invoice.partyName.isNotEmpty ? invoice.partyName : "—"} • ${dateFmt.format(invoice.invoiceDate)} • $symUse${numFmt.format(invoice.grandTotal)}',
-            style: const TextStyle(fontSize: 12),
+            _query,
+            baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -690,13 +782,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               size: 20,
             ),
           ),
-          title: Text(
+          title: _highlightedText(
             customer.name,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            _query,
+            baseStyle: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: AppTheme.textPri(context),
+            ),
           ),
-          subtitle: Text(
+          subtitle: _highlightedText(
             customer.phone.isNotEmpty ? customer.phone : customer.email,
-            style: const TextStyle(fontSize: 12),
+            _query,
+            baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
           trailing: Icon(
             Icons.chevron_right_rounded,

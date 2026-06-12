@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
 import '../../utils/url_helper.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/glass_panel.dart';
+import 'legal_widgets.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -9,14 +12,11 @@ class SupportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Support'),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: AppTheme.surface(context),
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
+      appBar: AppBar(title: const Text('Support')),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
+          child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
@@ -25,135 +25,104 @@ class SupportScreen extends StatelessWidget {
               horizontal: Responsive.horizontalPadding(context),
               vertical: 20,
             ),
+            physics: Responsive.scrollPhysics(context),
             children: [
-              Text(
-                'SmartShelfKart App',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.primaryColor.withValues(alpha: 0.85),
-                  fontWeight: FontWeight.w500,
+              FadeSlideIn(
+                child: legalHero(
+                  context,
+                  icon: Icons.support_agent_rounded,
+                  title: 'Support',
+                  subtitle: 'SmartShelfKart App',
                 ),
-              ),
-              const SizedBox(height: 24),
-              _card(
-                context,
-                children: [
-                  const Text(
-                    'Contact Us',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'We\'re here to help! If you have any questions, issues, or '
-                    'feedback about SmartShelfKart, please reach out to us.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textSec(context),
-                      height: 1.6,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Email us at',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textSec(context),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        GestureDetector(
-                          onTap: () => openUrl(
-                            context,
-                            'mailto:support@smartshelfkart.com',
-                          ),
-                          child: const Text(
-                            'support@smartshelfkart.com',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'We typically respond within 24-48 hours',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSec(
-                              context,
-                            ).withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 16),
-              _card(
-                context,
-                children: [
-                  const Text(
-                    'Frequently Asked Questions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ..._faqItems.map((faq) => _faqTile(context, faq.$1, faq.$2)),
-                ],
-              ),
-              const SizedBox(height: 32),
-              Center(
-                child: Text(
-                  '\u00A9 2026 SmartShelfKart. All rights reserved.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSec(context).withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
+              FadeSlideIn(index: 1, child: _buildContactSection(context)),
+              const SizedBox(height: 16),
+              FadeSlideIn(index: 2, child: _buildFaqSection(context)),
+              const SizedBox(height: 24),
+              FadeSlideIn(index: 3, child: legalFooter(context)),
+              const SizedBox(height: 12),
             ],
           ),
+        ),
         ),
       ),
     );
   }
 
-  Widget _card(BuildContext context, {required List<Widget> children}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildContactSection(BuildContext context) {
+    return GlassSectionCard(
+      title: 'Contact Us',
+      icon: Icons.headset_mic_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'We\'re here to help! If you have any questions, issues, or '
+            'feedback about SmartShelfKart, please reach out to us.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSec(context),
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 16),
+          PlayfulPressable(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => openUrl(context, 'mailto:support@smartshelfkart.com'),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Email us at',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textSec(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'support@smartshelfkart.com',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'We typically respond within 24-48 hours',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSec(context).withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFaqSection(BuildContext context) {
+    return GlassSectionCard(
+      title: 'Frequently Asked Questions',
+      icon: Icons.help_outline_rounded,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+        children: _faqItems
+            .map((faq) => _SupportFaqTile(question: faq.$1, answer: faq.$2))
+            .toList(),
       ),
     );
   }
@@ -202,18 +171,33 @@ class SupportScreen extends StatelessWidget {
   ];
 }
 
-Widget _faqTile(BuildContext context, String question, String answer) {
-  return Container(
-    decoration: BoxDecoration(
-      border: Border(
-        bottom: BorderSide(color: AppTheme.dividerC(context), width: 1),
-      ),
-    ),
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
+class _SupportFaqTile extends StatelessWidget {
+  final String question;
+  final String answer;
+
+  const _SupportFaqTile({required this.question, required this.answer});
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 12),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.question_mark_rounded,
+            size: 18,
+            color: AppTheme.primaryColor,
+          ),
+        ),
+        title: Text(
           question,
           style: TextStyle(
             fontSize: 14,
@@ -221,16 +205,20 @@ Widget _faqTile(BuildContext context, String question, String answer) {
             color: AppTheme.textPri(context),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          answer,
-          style: TextStyle(
-            fontSize: 13,
-            color: AppTheme.textSec(context),
-            height: 1.5,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 48),
+            child: Text(
+              answer,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: AppTheme.textSec(context),
+              ),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

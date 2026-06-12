@@ -11,6 +11,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/routes.dart';
@@ -529,7 +530,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             appBar: AppBar(
               title: Text(isEditing ? 'Edit Product' : 'Add Product'),
             ),
-            body: Center(
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: AppTheme.scaffoldGrad(context),
+              ),
+              child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: Responsive.formMaxWidth(context),
@@ -1327,26 +1332,30 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
                         const SizedBox(height: 8),
 
-                        ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _saveProduct,
-                          icon: _isLoading
-                              ? const SizedBox(
+                        _isLoading
+                            ? ElevatedButton.icon(
+                                onPressed: null,
+                                icon: const SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
-                                )
-                              : Icon(
-                                  isEditing
-                                      ? Icons.save_rounded
-                                      : Icons.add_rounded,
                                 ),
-                          label: Text(
-                            isEditing ? 'Update Product' : 'Add Product',
-                          ),
-                        ),
+                                label: Text(
+                                  isEditing ? 'Update Product' : 'Add Product',
+                                ),
+                              )
+                            : ShimmerButton(
+                                label: isEditing
+                                    ? 'Update Product'
+                                    : 'Add Product',
+                                icon: isEditing
+                                    ? Icons.save_rounded
+                                    : Icons.add_rounded,
+                                onPressed: _saveProduct,
+                              ),
 
                         const SizedBox(height: 12),
                       ],
@@ -1354,6 +1363,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   ),
                 ),
               ),
+            ),
             ),
           ),
         ),

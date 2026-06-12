@@ -95,6 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: RefreshIndicator(
+          color: AppTheme.primaryColor,
           onRefresh: () async {
             final companyId = context.read<ProductProvider>().companyId;
             context.read<ProductProvider>().initialize(companyId: companyId);
@@ -126,20 +127,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Greeting
-                      Selector<AuthProvider, String>(
-                        selector: (_, auth) => auth.currentUser?.name ?? 'User',
-                        builder: (context, name, _) => Text(
-                          'Hi, $name',
-                          style: Theme.of(context).textTheme.headlineMedium,
+                      // Greeting hero header
+                      ScaleFadeIn(
+                        child: GlassPanel(
+                          padding: const EdgeInsets.all(16),
+                          useContentVariant: true,
+                          child: Row(
+                            children: [
+                              const AnimatedIconBadge(
+                                icon: Icons.waving_hand_rounded,
+                                color: AppTheme.primaryColor,
+                                size: 44,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Selector<AuthProvider, String>(
+                                      selector: (_, auth) =>
+                                          auth.currentUser?.name ?? 'User',
+                                      builder: (context, name, _) => Text(
+                                        'Hi, $name',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.headlineSmall?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      today,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        today,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
 
                       Consumer<SettingsProvider>(
                         builder: (context, settings, _) {
@@ -237,14 +272,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
 
                       // Stats Cards
-                      const _StatsRow(),
+                      const FadeSlideIn(index: 1, child: _StatsRow()),
 
                       const SizedBox(height: 20),
 
                       // Quick Actions
-                      Text(
-                        'Quick Actions',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      FadeSlideIn(
+                        index: 2,
+                        child: Text(
+                          'Quick Actions',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Selector<AuthProvider, bool>(
@@ -355,28 +393,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 28),
 
                       // Charts & Insights
-                      _ChartsSection(
-                        chartDays: _chartDays,
-                        onDaysChanged: (d) => setState(() => _chartDays = d),
+                      FadeSlideIn(
+                        index: 3,
+                        child: _ChartsSection(
+                          chartDays: _chartDays,
+                          onDaysChanged: (d) => setState(() => _chartDays = d),
+                        ),
                       ),
 
                       const SizedBox(height: 28),
 
                       // Recent Activity
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Recent Activity',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          TextButton.icon(
-                            onPressed: () =>
-                                Navigator.pushNamed(context, AppRoutes.reports),
-                            icon: const Icon(Icons.arrow_forward, size: 16),
-                            label: const Text('View All'),
-                          ),
-                        ],
+                      FadeSlideIn(
+                        index: 4,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Recent Activity',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            TextButton.icon(
+                              onPressed: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.reports,
+                              ),
+                              icon: const Icon(Icons.arrow_forward, size: 16),
+                              label: const Text('View All'),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 8),
 
@@ -769,30 +815,16 @@ class _StatCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.3),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
+              CountUpText(
+                int.tryParse(value) ?? 0,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  letterSpacing: -0.5,
                 ),
-                child: Text(
-                  value,
-                  key: ValueKey(value),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: -0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(

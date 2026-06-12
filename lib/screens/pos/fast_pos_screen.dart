@@ -21,6 +21,7 @@ import '../../utils/fast_pos_checkout.dart';
 import '../../utils/product_search.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -1115,17 +1116,21 @@ class _FastPosScreenState extends State<FastPosScreen> {
       itemCount: _cartLines.length,
       itemBuilder: (context, index) {
         final line = _cartLines[index];
-        return _CartItemCard(
-          line: line,
-          symbol: symbol,
-          numFmt: _numFmt,
-          isMobile: compact,
-          onDecrement: () => _changeQty(line, -1),
-          onIncrement: () => _changeQty(line, 1),
-          onEditQty: () => _openQtyEditor(line),
-          onEditPrice: () => _openPriceEditor(line),
-          onChangeLocation: () => _changeLineLocation(line),
-          onCommitPrice: (value) => _setUnitPrice(line, value, notify: true),
+        return AnimatedListItem(
+          key: ValueKey(_key(line.product.id, line.location)),
+          index: index,
+          child: _CartItemCard(
+            line: line,
+            symbol: symbol,
+            numFmt: _numFmt,
+            isMobile: compact,
+            onDecrement: () => _changeQty(line, -1),
+            onIncrement: () => _changeQty(line, 1),
+            onEditQty: () => _openQtyEditor(line),
+            onEditPrice: () => _openPriceEditor(line),
+            onChangeLocation: () => _changeLineLocation(line),
+            onCommitPrice: (value) => _setUnitPrice(line, value, notify: true),
+          ),
         );
       },
     );
@@ -1164,6 +1169,8 @@ class _FastPosScreenState extends State<FastPosScreen> {
           label: 'Grand Total',
           value: '$symbol${_numFmt.format(grandTotal)}',
           bold: true,
+          countValue: grandTotal,
+          countFormatter: (v) => '$symbol${_numFmt.format(v)}',
         ),
       ],
     );
@@ -1175,24 +1182,12 @@ class _FastPosScreenState extends State<FastPosScreen> {
     required double grandTotal,
   }) {
     final enabled = _cart.isNotEmpty;
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: FilledButton.icon(
-        onPressed: enabled ? _openCheckoutSheet : null,
-        style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        icon: const Icon(Icons.point_of_sale_rounded),
-        label: Text(
-          enabled
-              ? 'Checkout  •  $symbol${_numFmt.format(grandTotal)}'
-              : 'Checkout',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-      ),
+    return ShimmerButton(
+      label: enabled
+          ? 'Checkout  •  $symbol${_numFmt.format(grandTotal)}'
+          : 'Checkout',
+      onPressed: enabled ? _openCheckoutSheet : null,
+      icon: Icons.point_of_sale_rounded,
     );
   }
 
@@ -1553,15 +1548,12 @@ class _CartBar extends StatelessWidget {
                         color: AppTheme.textSec(context),
                       ),
                     ),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        '$symbol${numFmt.format(grandTotal)}',
-                        key: ValueKey(grandTotal),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    CountUpText(
+                      grandTotal,
+                      formatter: (v) => '$symbol${numFmt.format(v)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -2062,14 +2054,25 @@ class _CheckoutRow extends StatelessWidget {
   final String value;
   final bool bold;
 
+  /// When provided, the value animates with a [CountUpText] (using
+  /// [countFormatter]) instead of rendering [value] as static text.
+  final num? countValue;
+  final String Function(num value)? countFormatter;
+
   const _CheckoutRow({
     required this.label,
     required this.value,
     this.bold = false,
+    this.countValue,
+    this.countFormatter,
   });
 
   @override
   Widget build(BuildContext context) {
+    final valueStyle = TextStyle(
+      fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+      fontSize: bold ? 18 : 14,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -2079,13 +2082,13 @@ class _CheckoutRow extends StatelessWidget {
             label,
             style: TextStyle(fontWeight: bold ? FontWeight.w700 : FontWeight.w500),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-              fontSize: bold ? 18 : 14,
-            ),
-          ),
+          countValue != null
+              ? CountUpText(
+                  countValue!,
+                  style: valueStyle,
+                  formatter: countFormatter,
+                )
+              : Text(value, style: valueStyle),
         ],
       ),
     );

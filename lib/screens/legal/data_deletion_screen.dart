@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/glass_panel.dart';
 import 'legal_widgets.dart';
 
 class DataDeletionScreen extends StatelessWidget {
@@ -9,14 +11,11 @@ class DataDeletionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Data Deletion'),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: AppTheme.surface(context),
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
+      appBar: AppBar(title: const Text('Data Deletion')),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
+          child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
@@ -25,66 +24,92 @@ class DataDeletionScreen extends StatelessWidget {
               horizontal: Responsive.horizontalPadding(context),
               vertical: 20,
             ),
+            physics: Responsive.scrollPhysics(context),
             children: [
-              legalHeader('SmartShelfKart'),
-              const SizedBox(height: 24),
-              legalSection('How to Delete Your Data'),
-              legalBody(
-                context,
-                'We respect your right to control your data. You can request '
-                'deletion of your account and all associated data at any time.',
+              FadeSlideIn(
+                child: legalHero(
+                  context,
+                  icon: Icons.delete_sweep_rounded,
+                  title: 'Data Deletion',
+                  subtitle: 'SmartShelfKart',
+                ),
               ),
               const SizedBox(height: 16),
-              _stepCard(context, 'Option 1: Delete from within the App', const [
-                'Open SmartShelfKart and go to Settings',
-                'Under the Account section, tap "Delete Account"',
-                'Enter your password to confirm the deletion',
-                'Your account and all associated data will be permanently deleted',
-              ]),
+              FadeSlideIn(
+                index: 1,
+                child: GlassPanel(
+                  useContentVariant: true,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      legalSection('How to Delete Your Data'),
+                      legalBody(
+                        context,
+                        'We respect your right to control your data. You can request '
+                        'deletion of your account and all associated data at any time.',
+                      ),
+                      const SizedBox(height: 16),
+                      _stepCard(
+                        context,
+                        'Option 1: Delete from within the App',
+                        const [
+                          'Open SmartShelfKart and go to Settings',
+                          'Under the Account section, tap "Delete Account"',
+                          'Enter your password to confirm the deletion',
+                          'Your account and all associated data will be permanently deleted',
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _stepCard(context, 'Option 2: Request via Email', const [
+                        'Send an email to support@smartshelfkart.com with the subject line: "Account Deletion Request"',
+                        'Include the email address associated with your account. We will process your request within 7 business days.',
+                      ]),
+                      const SizedBox(height: 20),
+                      legalSection('What Data Gets Deleted'),
+                      legalBody(
+                        context,
+                        'When you delete your account, the following data is permanently removed:',
+                      ),
+                      legalBulletList(context, const [
+                        'Your account information (email, name, password hash)',
+                        'All product and inventory records',
+                        'All stock transaction history (stock in, stock out, damage reports, transfers)',
+                        'Category data',
+                        'Location data',
+                        'Export/import history',
+                      ]),
+                      const SizedBox(height: 12),
+                      _warningBox(
+                        context,
+                        'Data deletion is permanent and cannot be undone. We recommend '
+                        'exporting your data before requesting deletion. You can export '
+                        'your data to Excel or CSV format using the Export feature in the App.',
+                      ),
+                      const SizedBox(height: 20),
+                      legalSection('Data Deletion Timeline'),
+                      legalBulletList(context, const [
+                        'Immediate: Account access is revoked',
+                        'Within 24 hours: Active data is removed from our systems',
+                        'Within 30 days: All backup copies are purged',
+                      ]),
+                      const SizedBox(height: 20),
+                      legalSection('Contact Us'),
+                      legalBody(
+                        context,
+                        'If you have questions about data deletion, please contact us at: '
+                        'support@smartshelfkart.com',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              FadeSlideIn(index: 2, child: legalFooter(context)),
               const SizedBox(height: 12),
-              _stepCard(context, 'Option 2: Request via Email', const [
-                'Send an email to support@smartshelfkart.com with the subject line: "Account Deletion Request"',
-                'Include the email address associated with your account. We will process your request within 7 business days.',
-              ]),
-              const SizedBox(height: 20),
-              legalSection('What Data Gets Deleted'),
-              legalBody(
-                context,
-                'When you delete your account, the following data is permanently removed:',
-              ),
-              legalBulletList(context, const [
-                'Your account information (email, name, password hash)',
-                'All product and inventory records',
-                'All stock transaction history (stock in, stock out, damage reports, transfers)',
-                'Category data',
-                'Location data',
-                'Export/import history',
-              ]),
-              const SizedBox(height: 12),
-              _warningBox(
-                context,
-                'Data deletion is permanent and cannot be undone. We recommend '
-                'exporting your data before requesting deletion. You can export '
-                'your data to Excel or CSV format using the Export feature in the App.',
-              ),
-              const SizedBox(height: 20),
-              legalSection('Data Deletion Timeline'),
-              legalBulletList(context, const [
-                'Immediate: Account access is revoked',
-                'Within 24 hours: Active data is removed from our systems',
-                'Within 30 days: All backup copies are purged',
-              ]),
-              const SizedBox(height: 20),
-              legalSection('Contact Us'),
-              legalBody(
-                context,
-                'If you have questions about data deletion, please contact us at: '
-                'support@smartshelfkart.com',
-              ),
-              const SizedBox(height: 32),
-              legalFooter(context),
             ],
           ),
+        ),
         ),
       ),
     );

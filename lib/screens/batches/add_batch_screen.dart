@@ -11,6 +11,8 @@ import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 
@@ -102,8 +104,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     if (mounted) {
       setState(() => _isSaving = false);
       if (success) {
-        showSuccessSnackBar(context, 'Batch added successfully');
-        Navigator.pop(context);
+        showSuccessOverlay(context, message: 'Batch added successfully');
       } else {
         showErrorSnackBar(
           context,
@@ -336,19 +337,24 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _isSaving ? null : _save,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                  _isSaving
+                      ? SizedBox(
+                          height: 52,
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.primaryColor,
+                              ),
                             ),
-                          )
-                        : const Text('Save Batch'),
-                  ),
+                          ),
+                        )
+                      : ShimmerButton(
+                          label: 'Save Batch',
+                          onPressed: _save,
+                        ),
                   const SizedBox(height: 24),
                 ],
               ),

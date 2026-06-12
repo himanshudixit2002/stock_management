@@ -15,6 +15,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 
@@ -71,7 +72,8 @@ class ReturnDetailScreen extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
-                GlassPanel(
+                ScaleFadeIn(
+                  child: GlassPanel(
                   borderRadius: 20,
                   padding: const EdgeInsets.all(20),
                   useContentVariant: true,
@@ -154,6 +156,7 @@ class ReturnDetailScreen extends StatelessWidget {
                           ).format(ret.refundAmount),
                         ),
                     ],
+                  ),
                   ),
                 ),
                 const SizedBox(height: 16),

@@ -234,6 +234,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
       );
     }
     return RefreshIndicator(
+      color: AppTheme.primaryColor,
       onRefresh: () async {
         final companyId = context.read<AuthProvider>().currentUser!.companyId;
         context.read<ReturnProvider>().initialize(companyId: companyId);

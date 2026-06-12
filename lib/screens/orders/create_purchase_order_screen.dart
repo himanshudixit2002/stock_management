@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../utils/unit_conversion.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
@@ -542,37 +543,24 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isLoading
-                              ? null
-                              : () => _saveOrder(asDraft: true),
-                          icon: const Icon(Icons.save_outlined),
-                          label: const Text('Save Draft'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading
-                              ? null
-                              : () => _saveOrder(asDraft: false),
-                          icon: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.send_rounded),
-                          label: const Text('Send'),
-                        ),
-                      ),
-                    ],
+                  ShimmerButton(
+                    label: _isLoading ? 'Sending…' : 'Send',
+                    icon: Icons.send_rounded,
+                    onPressed: _isLoading
+                        ? null
+                        : () => _saveOrder(asDraft: false),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () => _saveOrder(asDraft: true),
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Save Draft'),
+                    ),
                   ),
                   const SizedBox(height: 32),
                 ],

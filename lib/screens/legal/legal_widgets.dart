@@ -1,37 +1,100 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../widgets/glass_panel.dart';
 
-Widget legalHeader(String subtitle) {
-  return Text(
-    subtitle,
-    style: TextStyle(
-      fontSize: 14,
-      color: AppTheme.primaryColor.withValues(alpha: 0.85),
-      fontWeight: FontWeight.w500,
-    ),
-  );
-}
-
-Widget legalMeta(BuildContext context, String text) {
-  return Padding(
-    padding: const EdgeInsets.only(top: 2),
-    child: Text(
-      text,
-      style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
+/// A glass hero card for legal/info documents: gradient icon badge, document
+/// title, a short subtitle and any number of metadata lines (dates, etc.).
+Widget legalHero(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  List<String> meta = const [],
+}) {
+  return GlassPanel(
+    useContentVariant: true,
+    padding: const EdgeInsets.all(20),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            gradient: AppTheme.primaryGradient,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(child: Icon(icon, color: Colors.white, size: 26)),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPri(context),
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.primaryColor.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              ...meta.map(
+                (text) => Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: AppTheme.textSec(context),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
   );
 }
 
 Widget legalSection(String title) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        color: AppTheme.primaryColor,
-      ),
+    padding: const EdgeInsets.only(top: 4, bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          margin: const EdgeInsets.only(top: 2, right: 10),
+          decoration: BoxDecoration(
+            gradient: AppTheme.primaryGradient,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }

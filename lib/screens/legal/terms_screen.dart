@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/glass_panel.dart';
 import 'legal_widgets.dart';
 
 class TermsScreen extends StatelessWidget {
@@ -9,14 +11,11 @@ class TermsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Terms of Service'),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: AppTheme.surface(context),
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
+      appBar: AppBar(title: const Text('Terms of Service')),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
+          child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
@@ -25,12 +24,27 @@ class TermsScreen extends StatelessWidget {
               horizontal: Responsive.horizontalPadding(context),
               vertical: 20,
             ),
+            physics: Responsive.scrollPhysics(context),
             children: [
-              legalHeader('SmartShelfKart App'),
-              const SizedBox(height: 8),
-              legalMeta(context, 'Effective Date: February 19, 2026'),
-              const SizedBox(height: 24),
-              legalSection('1. Acceptance of Terms'),
+              FadeSlideIn(
+                child: legalHero(
+                  context,
+                  icon: Icons.gavel_rounded,
+                  title: 'Terms of Service',
+                  subtitle: 'SmartShelfKart App',
+                  meta: const ['Effective Date: February 19, 2026'],
+                ),
+              ),
+              const SizedBox(height: 16),
+              FadeSlideIn(
+                index: 1,
+                child: GlassPanel(
+                  useContentVariant: true,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      legalSection('1. Acceptance of Terms'),
               legalBody(
                 context,
                 'By downloading, installing, or using SmartShelfKart ("the App"), '
@@ -109,14 +123,20 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               legalSection('10. Contact'),
-              legalBody(
-                context,
-                'For questions about these Terms, contact us at: support@smartshelfkart.com',
+                      legalBody(
+                        context,
+                        'For questions about these Terms, contact us at: support@smartshelfkart.com',
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 32),
-              legalFooter(context),
+              const SizedBox(height: 20),
+              FadeSlideIn(index: 2, child: legalFooter(context)),
+              const SizedBox(height: 12),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 
 const String _prefKey = 'feature_tour_completed';
@@ -29,15 +31,24 @@ class _FeatureTourState extends State<FeatureTour>
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
+  late final Animation<double> _scaleAnim;
 
   static const _steps = <_TourStep>[
     _TourStep(
-      icon: Icons.flash_on_rounded,
+      icon: Icons.add_rounded,
       title: 'Quick Actions',
       description:
-          'Use the action cards at the top to quickly perform Stock In, '
-          'Stock Out, Transfers, and more.',
-      alignment: Alignment(0, -0.25),
+          'Tap the raised + button in the centre of the floating bar to open '
+          'your daily actions — Stock In, Stock Out, Transfers, and more.',
+      alignment: Alignment(0, 0.35),
+    ),
+    _TourStep(
+      icon: Icons.dashboard_customize_rounded,
+      title: 'Find Everything',
+      description:
+          'The Home screen groups every feature by category — Orders, Billing '
+          'and Smart Inventory — so you always know where to look.',
+      alignment: Alignment(0, -0.1),
     ),
     _TourStep(
       icon: Icons.bar_chart_rounded,
@@ -45,21 +56,21 @@ class _FeatureTourState extends State<FeatureTour>
       description:
           'See your inventory health at a glance — total products, low stock '
           'alerts, and today\'s transactions.',
-      alignment: Alignment(0, 0),
+      alignment: Alignment(0, -0.1),
     ),
     _TourStep(
       icon: Icons.navigation_rounded,
-      title: 'Navigation',
+      title: 'Floating Navigation',
       description:
-          'Switch between Home, Products, Reports, and Settings using '
-          'the bottom navigation bar.',
+          'Switch between Home, Products, Reports, and Settings using the '
+          'floating pill bar. Badges flag low or out-of-stock items.',
       alignment: Alignment(0, 0.35),
     ),
     _TourStep(
       icon: Icons.search_rounded,
       title: 'Search',
       description:
-          'Tap the search icon in the top-right to find any product, '
+          'Tap the search bar at the top of Home to find any product, '
           'vendor, or transaction instantly.',
       alignment: Alignment(0, -0.35),
     ),
@@ -81,6 +92,7 @@ class _FeatureTourState extends State<FeatureTour>
       duration: const Duration(milliseconds: 350),
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _scaleAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutBack);
     _fadeCtrl.forward();
   }
 
@@ -125,7 +137,11 @@ class _FeatureTourState extends State<FeatureTour>
             alignment: step.alignment,
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: Container(
+              child: ScaleTransition(
+                scale: reduceMotion(context)
+                    ? const AlwaysStoppedAnimation<double>(1.0)
+                    : Tween<double>(begin: 0.9, end: 1.0).animate(_scaleAnim),
+                child: Container(
                 width: size.width * 0.85,
                 constraints: const BoxConstraints(maxWidth: 380),
                 margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -144,14 +160,7 @@ class _FeatureTourState extends State<FeatureTour>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.heroGradient,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(step.icon, color: Colors.white, size: 28),
-                    ),
+                    _buildSpotlight(context, step),
                     const SizedBox(height: 16),
                     Text(
                       step.title,
@@ -232,11 +241,39 @@ class _FeatureTourState extends State<FeatureTour>
                   ],
                 ),
               ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildSpotlight(BuildContext context, _TourStep step) {
+    final badge = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: AppTheme.heroGradient,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withValues(alpha: 0.35),
+            blurRadius: 18,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Icon(step.icon, color: Colors.white, size: 28),
+    );
+    if (reduceMotion(context)) return badge;
+    return badge
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .scaleXY(
+          begin: 1.0,
+          end: 1.08,
+          duration: kPulseDuration,
+          curve: Curves.easeInOut,
+        );
   }
 }
 

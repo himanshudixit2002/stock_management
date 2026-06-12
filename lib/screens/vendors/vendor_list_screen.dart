@@ -396,6 +396,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
                               : null,
                         )
                       : RefreshIndicator(
+                          color: AppTheme.primaryColor,
                           onRefresh: () async {
                             context.read<VendorProvider>().initialize(
                               companyId: context

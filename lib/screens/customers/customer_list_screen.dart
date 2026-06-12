@@ -385,6 +385,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                               : null,
                         )
                       : RefreshIndicator(
+                          color: AppTheme.primaryColor,
                           onRefresh: () async {
                             context.read<CustomerProvider>().initialize(
                               companyId: context

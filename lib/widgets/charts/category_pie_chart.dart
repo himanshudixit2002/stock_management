@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../animations.dart';
 import '../chart_empty_state.dart';
 import '../../config/theme.dart';
 
@@ -52,7 +53,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final chartH = (constraints.maxWidth * 0.5).clamp(180.0, 300.0);
-        return Column(
+        return FadeSlideIn(
+          child: Column(
           children: [
             SizedBox(
               height: chartH,
@@ -151,6 +153,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
               }),
             ),
           ],
+          ),
         );
       },
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 import 'animations.dart';
 import 'glass_panel.dart';
@@ -31,12 +32,17 @@ class StockSummaryCard extends StatelessWidget {
       color: color,
     );
 
-    return FadeSlideIn(
-      index: index,
-      child: GlassCard(
-        onTap: onTap,
-        borderRadius: 20,
-        child: Padding(
+    return ScaleFadeIn(
+      delay: staggerDelay(index),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: AppTheme.coloredShadow(color),
+        ),
+        child: GlassCard(
+          onTap: onTap,
+          borderRadius: 20,
+          child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,6 +71,7 @@ class StockSummaryCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(title, style: Theme.of(context).textTheme.bodyMedium),
             ],
+          ),
           ),
         ),
       ),

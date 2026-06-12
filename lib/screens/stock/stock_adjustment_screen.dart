@@ -13,6 +13,7 @@ import '../../utils/responsive.dart';
 import '../../utils/unit_conversion.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/product_picker.dart';
@@ -171,8 +172,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
             title: 'Stock Adjustment',
           ),
         ),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        body: AnimatedGradientBackground(
+          colors: AppTheme.scaffoldGrad(context).colors,
           child: const Center(
             child: EmptyStateWidget(
               icon: Icons.lock_outline_rounded,
@@ -213,8 +214,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
             title: 'Stock Adjustment',
           ),
         ),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        body: AnimatedGradientBackground(
+          colors: AppTheme.scaffoldGrad(context).colors,
           child: Center(
             child: EmptyStateWidget(
               icon: Icons.location_off_rounded,
@@ -261,8 +262,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
             title: 'Stock Adjustment',
           ),
         ),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        body: AnimatedGradientBackground(
+          colors: AppTheme.scaffoldGrad(context).colors,
           child: products.isEmpty
               ? EmptyStateWidget(
                   icon: Icons.inventory_2_outlined,
@@ -276,7 +277,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
-                  child: Center(
+                  child: FadeSlideIn(
+                    child: Center(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxWidth: Responsive.formMaxWidth(context),
@@ -628,6 +630,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                         ),
                       ),
                     ),
+                  ),
                   ),
                 ),
         ),

@@ -12,6 +12,8 @@ import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/quantity_stepper.dart';
 import '../../widgets/searchable_picker.dart';
@@ -511,8 +513,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
               title: 'Stock Out',
             ),
           ),
-          body: Container(
-            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          body: AnimatedGradientBackground(
+            colors: AppTheme.scaffoldGrad(context).colors,
             child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -524,7 +526,12 @@ class _StockOutScreenState extends State<StockOutScreen> {
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
-                  child: Form(
+                  child: FadeSlideIn(
+                    child: GlassPanel(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(20),
+                      useContentVariant: true,
+                      child: Form(
                     key: _formKey,
                     autovalidateMode: _submitted
                         ? AutovalidateMode.onUserInteraction
@@ -1017,6 +1024,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  ),
                   ),
                 ),
               ),

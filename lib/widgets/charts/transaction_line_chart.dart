@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import '../animations.dart';
 import '../chart_empty_state.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
@@ -77,7 +78,8 @@ class TransactionLineChart extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final chartH = (constraints.maxWidth * 0.5).clamp(180.0, 300.0);
-        return Column(
+        return FadeSlideIn(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
@@ -192,6 +194,7 @@ class TransactionLineChart extends StatelessWidget {
               ],
             ),
           ],
+          ),
         );
       },
     );

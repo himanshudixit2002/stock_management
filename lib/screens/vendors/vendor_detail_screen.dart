@@ -9,6 +9,8 @@ import '../../providers/auth_provider.dart';
 import '../../services/file_helper.dart' as file_helper;
 import '../../models/vendor_model.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../models/product_model.dart';
 import '../../providers/vendor_provider.dart';
@@ -88,16 +90,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
               maxWidth: Responsive.contentMaxWidth(context),
             ),
             child: isLoadingProducts && allProducts.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(strokeWidth: 2.5),
-                        SizedBox(height: 16),
-                        Text('Loading product data...'),
-                      ],
-                    ),
-                  )
+                ? const ShimmerLoading(layout: ShimmerLayout.detail)
                 : ListView(
                     padding: EdgeInsets.all(
                       Responsive.horizontalPadding(context),
@@ -109,7 +102,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _buildInfoCard(vendor),
+                              ScaleFadeIn(child: _buildInfoCard(vendor)),
                               const SizedBox(height: 16),
                               _buildScorecardSection(scorecard),
                             ],
@@ -886,10 +879,11 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
             ),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(),
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: ShimmerLoading(
+                    itemCount: 3,
+                    layout: ShimmerLayout.listTile,
                   ),
                 );
               }

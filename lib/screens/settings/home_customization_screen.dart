@@ -10,8 +10,11 @@ import '../../providers/home_customization_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/success_overlay.dart';
 
 class HomeCustomizationScreen extends StatefulWidget {
   const HomeCustomizationScreen({super.key});
@@ -62,8 +65,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
     }
     await context.read<HomeCustomizationProvider>().saveActions(_selected);
     if (mounted) {
-      showSuccessSnackBar(context, 'Home actions updated');
-      Navigator.pop(context);
+      showSuccessOverlay(context, message: 'Home actions updated');
     }
   }
 
@@ -147,57 +149,44 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
         ? Responsive.contentMaxWidth(context)
         : Responsive.formMaxWidth(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Customize Home'),
-        actions: [
-          TextButton.icon(
-            onPressed: _reset,
-            icon: const Icon(Icons.restart_alt_rounded, size: 18),
-            label: const Text('Reset'),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: !homeCustomization.isLoaded
-            ? Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxContentWidth),
-                  child: const ShimmerLoading(layout: ShimmerLayout.listTile),
-                ),
-              )
-            : Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxContentWidth),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: ListView(
-                          padding: EdgeInsets.fromLTRB(
-                            Responsive.horizontalPadding(context),
-                            12,
-                            Responsive.horizontalPadding(context),
-                            24,
-                          ),
-                          children: [
-                            _buildSelectedSection(),
-                            const SizedBox(height: 20),
-                            _buildAvailableSection(
-                              perms,
-                              billingEnabled: billingOn,
-                              barcodeEnabled: settings.barcodeEnabled,
-                              vendorsEnabled: settings.vendorsEnabled,
-                              pricingEnabled: settings.pricingEnabled,
-                              isAdmin: isAdmin,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _buildBottomBar(),
-                    ],
-                  ),
-                ),
+    return AppScreenScaffold(
+      icon: Icons.dashboard_customize_rounded,
+      title: 'Customize Home',
+      constrainWidth: false,
+      isLoading: !homeCustomization.isLoaded,
+      shimmerLayout: ShimmerLayout.listTile,
+      actions: [
+        TextButton.icon(
+          onPressed: _reset,
+          icon: const Icon(Icons.restart_alt_rounded, size: 18),
+          label: const Text('Reset'),
+        ),
+      ],
+      bottomNavigationBar: homeCustomization.isLoaded ? _buildBottomBar() : null,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              Responsive.horizontalPadding(context),
+              12,
+              Responsive.horizontalPadding(context),
+              24,
+            ),
+            children: [
+              _buildSelectedSection(),
+              const SizedBox(height: 20),
+              _buildAvailableSection(
+                perms,
+                billingEnabled: billingOn,
+                barcodeEnabled: settings.barcodeEnabled,
+                vendorsEnabled: settings.vendorsEnabled,
+                pricingEnabled: settings.pricingEnabled,
+                isAdmin: isAdmin,
               ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -375,7 +364,10 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
             return Wrap(
               spacing: spacing,
               runSpacing: spacing,
-              children: HomeActionsRegistry.allActions.map((action) {
+              children: HomeActionsRegistry.allActions.asMap().entries.map((
+                entry,
+              ) {
+                final action = entry.value;
                 final isSelected = _selected.contains(action.id);
                 final hasPermission =
                     action.permissionKey == null ||
@@ -403,19 +395,22 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
                     isSelected || (hasPermission && featuresOk && !isFull);
                 return SizedBox(
                   width: itemWidth,
-                  child: _AvailableActionCard(
-                    action: action,
-                    isSelected: isSelected,
-                    hasPermission: hasPermission,
-                    featuresOk: featuresOk,
-                    blockedGate: blockedGate,
-                    isAdmin: isAdmin,
-                    isDisabled: !isSelected && isFull,
-                    gateDisplayName: _gateDisplayName,
-                    onTap: canToggle ? () => _toggle(action.id) : null,
-                    onEnableFeature: blockedGate != null && isAdmin
-                        ? () => _enableFeature(blockedGate)
-                        : null,
+                  child: FadeSlideIn(
+                    index: entry.key,
+                    child: _AvailableActionCard(
+                      action: action,
+                      isSelected: isSelected,
+                      hasPermission: hasPermission,
+                      featuresOk: featuresOk,
+                      blockedGate: blockedGate,
+                      isAdmin: isAdmin,
+                      isDisabled: !isSelected && isFull,
+                      gateDisplayName: _gateDisplayName,
+                      onTap: canToggle ? () => _toggle(action.id) : null,
+                      onEnableFeature: blockedGate != null && isAdmin
+                          ? () => _enableFeature(blockedGate)
+                          : null,
+                    ),
                   ),
                 );
               }).toList(),
@@ -442,28 +437,10 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: _hasChanges ? _save : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: AppTheme.primaryColor.withValues(
-                alpha: 0.4,
-              ),
-              disabledForegroundColor: Colors.white70,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              elevation: _hasChanges ? 2 : 0,
-            ),
-            child: const Text(
-              'Save Changes',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-          ),
+        child: ShimmerButton(
+          label: 'Save Changes',
+          icon: Icons.check_rounded,
+          onPressed: _hasChanges ? _save : null,
         ),
       ),
     );

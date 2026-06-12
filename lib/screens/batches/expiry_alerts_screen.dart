@@ -9,6 +9,9 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class ExpiryAlertsScreen extends StatelessWidget {
   const ExpiryAlertsScreen({super.key});
@@ -124,7 +127,9 @@ class _ExpiryTab extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: combined.isEmpty
+              child: provider.isLoading && combined.isEmpty
+                  ? const ShimmerLoading(layout: ShimmerLayout.listTile)
+                  : combined.isEmpty
                   ? const EmptyStateWidget(
                       icon: Icons.check_circle_outline_rounded,
                       title: 'All Clear',
@@ -148,7 +153,9 @@ class _ExpiryTab extends StatelessWidget {
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: GlassCard(
+                          child: AnimatedListItem(
+                            index: index,
+                            child: GlassCard(
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border(
@@ -251,6 +258,7 @@ class _ExpiryTab extends StatelessWidget {
                               ),
                             ),
                           ),
+                          ),
                         );
                       },
                     ),
@@ -278,8 +286,8 @@ class _SummaryItem extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            '$count',
+          CountUpText(
+            count,
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,

@@ -16,6 +16,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/routes.dart';
 import '../../config/app_navigation.dart';
@@ -106,7 +107,8 @@ class CustomerDetailScreen extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        GlassPanel(
+                        ScaleFadeIn(
+                          child: GlassPanel(
                           borderRadius: 20,
                           padding: const EdgeInsets.all(20),
                           useContentVariant: true,
@@ -220,6 +222,7 @@ class CustomerDetailScreen extends StatelessWidget {
                                 ),
                               ],
                             ],
+                          ),
                           ),
                         ),
                         const SizedBox(height: 16),

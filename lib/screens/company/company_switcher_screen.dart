@@ -6,8 +6,10 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/success_overlay.dart';
 
 class CompanySwitcherScreen extends StatefulWidget {
   const CompanySwitcherScreen({super.key});
@@ -70,8 +72,10 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
     setState(() => _isSwitching = false);
 
     if (ok) {
-      showSuccessSnackBar(context, 'Switched to ${membership.companyName}');
-      Navigator.pop(context);
+      showSuccessOverlay(
+        context,
+        message: 'Switched to ${membership.companyName}',
+      );
     } else {
       showErrorSnackBar(context, auth.errorMessage ?? 'Failed to switch');
     }
@@ -371,38 +375,36 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
     final memberships = user?.companyMemberships ?? [];
     final activeId = user?.companyId ?? '';
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.business_rounded,
-          color: AppTheme.indigoColor,
-          title: 'Company',
+    return AppScreenScaffold(
+      icon: Icons.business_rounded,
+      iconColor: AppTheme.indigoColor,
+      title: 'Company',
+      constrainWidth: false,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          tooltip: 'Refresh codes',
+          onPressed: _loadingMeta ? null : () => _loadSwitcherMeta(),
         ),
-        actions: [
+        if (user?.isAdmin == true)
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh codes',
-            onPressed: _loadingMeta ? null : () => _loadSwitcherMeta(),
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Invite code (7 days)',
+            onPressed: () => _showInviteCodeDialog(context),
           ),
-          if (user?.isAdmin == true)
-            IconButton(
-              icon: const Icon(Icons.share_rounded),
-              tooltip: 'Invite code (7 days)',
-              onPressed: () => _showInviteCodeDialog(context),
-            ),
-        ],
-      ),
+      ],
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.formMaxWidth(context),
-                ),
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: Responsive.formMaxWidth(context),
+              ),
+              child: RefreshIndicator(
+                color: AppTheme.primaryColor,
+                onRefresh: _loadSwitcherMeta,
                 child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
@@ -421,39 +423,47 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (memberships.isEmpty && user != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _buildCompanyCard(
-                          context,
-                          companyId: user.companyId,
-                          name: companyName,
-                          role: user.role,
-                          isActive: true,
-                          isCreator: _creatorCompanyIds.contains(
-                            user.companyId,
+                      AnimatedListItem(
+                        index: 0,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildCompanyCard(
+                            context,
+                            companyId: user.companyId,
+                            name: companyName,
+                            role: user.role,
+                            isActive: true,
+                            isCreator: _creatorCompanyIds.contains(
+                              user.companyId,
+                            ),
+                            permanentCode: _joinCodes[user.companyId],
+                            onTap: null,
+                            onLeave: null,
                           ),
-                          permanentCode: _joinCodes[user.companyId],
-                          onTap: null,
-                          onLeave: null,
                         ),
                       ),
-                    ...memberships.map(
-                      (m) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _buildCompanyCard(
-                          context,
-                          companyId: m.companyId,
-                          name: m.companyName,
-                          role: m.role,
-                          isActive: m.companyId == activeId,
-                          isCreator: _creatorCompanyIds.contains(m.companyId),
-                          permanentCode: _joinCodes[m.companyId],
-                          onTap: m.companyId == activeId
-                              ? null
-                              : () => _switchCompany(context, m),
-                          onLeave: m.companyId == activeId
-                              ? null
-                              : () => _confirmLeave(context, m),
+                    ...memberships.asMap().entries.map(
+                      (entry) => AnimatedListItem(
+                        index: entry.key,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildCompanyCard(
+                            context,
+                            companyId: entry.value.companyId,
+                            name: entry.value.companyName,
+                            role: entry.value.role,
+                            isActive: entry.value.companyId == activeId,
+                            isCreator: _creatorCompanyIds.contains(
+                              entry.value.companyId,
+                            ),
+                            permanentCode: _joinCodes[entry.value.companyId],
+                            onTap: entry.value.companyId == activeId
+                                ? null
+                                : () => _switchCompany(context, entry.value),
+                            onLeave: entry.value.companyId == activeId
+                                ? null
+                                : () => _confirmLeave(context, entry.value),
+                          ),
                         ),
                       ),
                     ),
@@ -485,9 +495,37 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
             ),
           ),
           if (_isSwitching || auth.isLoading)
-            Container(
-              color: Colors.black26,
-              child: const Center(child: CircularProgressIndicator()),
+            Positioned.fill(
+              child: ColoredBox(
+                color: AppTheme.textPri(context).withValues(alpha: 0.18),
+                child: Center(
+                  child: GlassPanel(
+                    borderRadius: 16,
+                    useContentVariant: true,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 24,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          color: AppTheme.primaryColor,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Switching workspace…',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

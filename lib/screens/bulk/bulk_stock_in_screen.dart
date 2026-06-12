@@ -12,11 +12,12 @@ import '../../providers/stock_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/product_picker.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
 
 class _BulkRow {
@@ -161,64 +162,40 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-
     final products = context.watch<ProductProvider>().allProducts;
     final locations = context.watch<SettingsProvider>().locations;
 
-    if (products.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.playlist_add_rounded,
-            color: AppTheme.successColor,
-            title: 'Bulk Stock In',
-          ),
-        ),
-        body: EmptyStateWidget(
-          icon: Icons.inventory_2_rounded,
-          title: 'No Products Yet',
-          subtitle: 'Add products before using bulk stock in.',
-          buttonText: 'Add Product',
-          onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
-        ),
-      );
-    }
+    final bool isEmpty = products.isEmpty;
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.playlist_add_rounded,
-          color: AppTheme.successColor,
-          title: 'Bulk Stock In',
-        ),
+    return AppScreenScaffold(
+      icon: Icons.playlist_add_rounded,
+      title: 'Bulk Stock In',
+      iconColor: AppTheme.successColor,
+      isEmpty: isEmpty,
+      emptyState: EmptyStateWidget(
+        icon: Icons.inventory_2_rounded,
+        title: 'No Products Yet',
+        subtitle: 'Add products before using bulk stock in.',
+        buttonText: 'Add Product',
+        onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.formMaxWidth(context),
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      padding: EdgeInsets.all(
-                        Responsive.horizontalPadding(context),
-                      ),
-                      itemCount: _rows.length,
-                      itemBuilder: (context, index) {
-                        final row = _rows[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: GlassPanel(
-                            useContentVariant: true,
-                            borderRadius: 16,
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
+      bottomNavigationBar: isEmpty ? null : _buildActionBar(),
+      body: Form(
+        key: _formKey,
+        child: ListView.builder(
+          padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+          itemCount: _rows.length,
+          itemBuilder: (context, index) {
+            final row = _rows[index];
+            return AnimatedListItem(
+              index: index,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GlassPanel(
+                  useContentVariant: true,
+                  borderRadius: 16,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
@@ -349,48 +326,61 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    ],
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(
-                      Responsive.horizontalPadding(context),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _addRow,
-                          icon: const Icon(Icons.add_rounded, size: 20),
-                          label: const Text('Add Another Item'),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: _isSubmitting ? null : _submitAll,
-                          icon: _isSubmitting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.check_rounded),
-                          label: Text('Submit All (${_rows.length} items)'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.successColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionBar() {
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: _addRow,
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: const Text('Add Another Item'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSubmitting ? null : _submitAll,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded),
+                    label: Text('Submit All (${_rows.length} items)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.successColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

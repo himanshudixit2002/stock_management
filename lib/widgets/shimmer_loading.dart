@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 
 enum ShimmerLayout { card, stat, listTile, detail }
@@ -28,8 +29,19 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat();
+    );
     _curved = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Static placeholder under reduce-motion; smooth looping wave otherwise.
+    if (reduceMotion(context)) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -143,7 +155,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     required double height,
     required double borderRadius,
   }) {
-    final value = _curved.value;
+    final value = reduceMotion(context) ? 0.5 : _curved.value;
     return Container(
       width: width,
       height: height,

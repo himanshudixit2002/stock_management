@@ -15,6 +15,7 @@ import '../../providers/stock_provider.dart';
 import '../../services/database_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
@@ -95,7 +96,9 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
           title: 'Unhold / Dispatch',
         ),
       ),
-      body: Center(
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
@@ -200,7 +203,9 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                       StockHoldSourceType.salesOrder &&
                                   (order == null ||
                                       order.status == SOStatus.cancelled);
-                          return Padding(
+                          return FadeSlideIn(
+                            index: index,
+                            child: Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: GlassCard(
                               borderRadius: 14,
@@ -460,6 +465,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                 ),
                               ),
                             ),
+                          ),
                           );
                         },
                       ),
@@ -467,6 +473,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

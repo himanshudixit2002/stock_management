@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 
 class CustomTextField extends StatefulWidget {
@@ -47,6 +48,7 @@ class CustomTextField extends StatefulWidget {
 class _CustomTextFieldState extends State<CustomTextField> {
   final _focusNode = FocusNode();
   bool? _validationResult; // null = not validated, true = valid, false = error
+  bool _hasFocus = false;
 
   @override
   void initState() {
@@ -62,7 +64,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
   }
 
   void _onFocusChange() {
-    if (!_focusNode.hasFocus) {
+    final focused = _focusNode.hasFocus;
+    if (focused != _hasFocus && mounted) {
+      setState(() => _hasFocus = focused);
+    }
+    if (!focused) {
       _runValidation();
     }
   }
@@ -94,6 +100,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
   Widget build(BuildContext context) {
     final decoration = InputDecoration(
       labelText: widget.label,
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
       hintText: widget.hint,
       hintStyle: TextStyle(fontSize: 14, color: AppTheme.textSec(context)),
       helperText: widget.helperText,
@@ -119,7 +126,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
       child: ListenableBuilder(
         listenable: widget.controller,
         builder: (_, _) {
-          return TextFormField(
+          final field = TextFormField(
             key: widget.formFieldKey,
             controller: widget.controller,
             focusNode: _focusNode,
@@ -152,6 +159,29 @@ class _CustomTextFieldState extends State<CustomTextField> {
             autofillHints: widget.autofillHints,
             style: TextStyle(fontSize: 16, color: AppTheme.textPri(context)),
             decoration: decoration,
+          );
+
+          if (reduceMotion(context)) return field;
+
+          // Subtle primary-color glow that animates in while the field is
+          // focused (skipped when the field is showing a validation error).
+          final showGlow = _hasFocus && _validationResult != false;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: showGlow
+                  ? [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.18),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : const [],
+            ),
+            child: field,
           );
         },
       ),

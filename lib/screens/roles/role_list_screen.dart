@@ -4,9 +4,14 @@ import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/role_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/role_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/empty_state_widget.dart';
 import '../../widgets/permission_gate.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -33,99 +38,80 @@ class _RoleListBody extends StatelessWidget {
     final systemRoles = roles.where((r) => r.isSystem).toList();
     final customRoles = roles.where((r) => !r.isSystem).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Roles & Permissions'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline_rounded),
-            tooltip: 'About Roles',
-            onPressed: () => _showInfoSheet(context),
-          ),
-        ],
-      ),
+    return AppScreenScaffold(
+      icon: Icons.admin_panel_settings_rounded,
+      title: 'Roles & Permissions',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.info_outline_rounded),
+          tooltip: 'About Roles',
+          onPressed: () => _showInfoSheet(context),
+        ),
+      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamed(context, AppRoutes.roleEditor),
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Role'),
       ),
-      body: roleProvider.isLoading && roles.isEmpty
-          ? Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.contentMaxWidth(context),
-                ),
-                child: const ShimmerLoading(layout: ShimmerLayout.listTile),
-              ),
-            )
-          : roles.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.admin_panel_settings_rounded,
-                    size: 64,
-                    color: AppTheme.emptyIcon(context),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No roles found',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPri(context),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Roles will appear here once created.',
-                    style: TextStyle(color: AppTheme.textTer(context)),
-                  ),
-                ],
-              ),
-            )
-          : Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: Responsive.contentMaxWidth(context),
-                ),
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    Responsive.horizontalPadding(context),
-                    8,
-                    Responsive.horizontalPadding(context),
-                    100,
-                  ),
-                  children: [
-                    if (systemRoles.isNotEmpty) ...[
-                      _sectionHeader(context, 'System Roles'),
-                      const SizedBox(height: 8),
-                      ...systemRoles.map((r) => _RoleCard(role: r)),
-                      const SizedBox(height: 16),
-                    ],
-                    if (customRoles.isNotEmpty) ...[
-                      _sectionHeader(context, 'Custom Roles'),
-                      const SizedBox(height: 8),
-                      ...customRoles.map((r) => _RoleCard(role: r)),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+      isLoading: roleProvider.isLoading && roles.isEmpty,
+      shimmerLayout: ShimmerLayout.listTile,
+      isEmpty: roles.isEmpty,
+      emptyState: const EmptyStateWidget(
+        icon: Icons.admin_panel_settings_rounded,
+        title: 'No roles found',
+        subtitle: 'Roles will appear here once created.',
+      ),
+      body: RefreshIndicator(
+        color: AppTheme.primaryColor,
+        onRefresh: () => _refresh(context),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            Responsive.horizontalPadding(context),
+            8,
+            Responsive.horizontalPadding(context),
+            100,
+          ),
+          children: _buildRoleSections(systemRoles, customRoles),
+        ),
+      ),
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: AppTheme.textTer(context),
-        letterSpacing: 0.5,
-      ),
-    );
+  List<Widget> _buildRoleSections(
+    List<RoleModel> systemRoles,
+    List<RoleModel> customRoles,
+  ) {
+    final children = <Widget>[];
+    var index = 0;
+    if (systemRoles.isNotEmpty) {
+      children.add(const SectionHeader(title: 'System Roles'));
+      children.add(const SizedBox(height: 4));
+      for (final r in systemRoles) {
+        children.add(
+          AnimatedListItem(index: index++, child: _RoleCard(role: r)),
+        );
+      }
+      children.add(const SizedBox(height: 12));
+    }
+    if (customRoles.isNotEmpty) {
+      children.add(const SectionHeader(title: 'Custom Roles'));
+      children.add(const SizedBox(height: 4));
+      for (final r in customRoles) {
+        children.add(
+          AnimatedListItem(index: index++, child: _RoleCard(role: r)),
+        );
+      }
+    }
+    return children;
+  }
+
+  Future<void> _refresh(BuildContext context) async {
+    final companyId = context.read<AuthProvider>().currentUser?.companyId;
+    if (companyId != null) {
+      context.read<RoleProvider>().initialize(companyId: companyId);
+    }
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 
   void _showInfoSheet(BuildContext context) {

@@ -12,6 +12,8 @@ import '../../services/billing_pdf_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/searchable_picker.dart'
     show showSearchablePicker, PickerItem;
 import 'package:printing/printing.dart';
@@ -93,7 +95,9 @@ class _VendorStatementScreenState extends State<VendorStatementScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Vendor Statement')),
-      body: Center(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.formMaxWidth(context),
@@ -229,20 +233,22 @@ class _VendorStatementScreenState extends State<VendorStatementScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (invoices.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(
-                        'No bills in this period',
-                        style: TextStyle(color: AppTheme.textTer(context)),
-                      ),
-                    ),
+                  const EmptyStateWidget(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'No bills in this period',
+                    subtitle: 'Try widening the date range above',
                   )
                 else
-                  ...invoices.map((inv) => _BillRow(invoice: inv, sym: sym)),
+                  ...invoices.asMap().entries.map(
+                    (e) => FadeSlideIn(
+                      index: e.key,
+                      child: _BillRow(invoice: e.value, sym: sym),
+                    ),
+                  ),
               ],
             ],
           ),
+        ),
         ),
       ),
       floatingActionButton: _selectedVendorId != null && invoices.isNotEmpty

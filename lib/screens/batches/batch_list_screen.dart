@@ -160,6 +160,7 @@ class _BatchListScreenState extends State<BatchListScreen> {
                           maxWidth: Responsive.contentMaxWidth(context),
                         ),
                         child: RefreshIndicator(
+                          color: AppTheme.primaryColor,
                           onRefresh: () async {
                             final companyId = context
                                 .read<AuthProvider>()

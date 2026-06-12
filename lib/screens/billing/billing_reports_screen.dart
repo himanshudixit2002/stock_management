@@ -8,6 +8,8 @@ import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/chart_empty_state.dart';
+import '../../widgets/animations.dart';
 
 class BillingReportsScreen extends StatefulWidget {
   const BillingReportsScreen({super.key});
@@ -51,7 +53,9 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
           ),
         ],
       ),
-      body: Center(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
@@ -66,24 +70,40 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
             children: [
               _buildTypeToggle(context),
               const SizedBox(height: 12),
-              _buildRevenueSection(
-                context,
-                billing,
-                sym,
-                startOfDay,
-                startOfWeek,
-                startOfMonth,
+              FadeSlideIn(
+                index: 0,
+                child: _buildRevenueSection(
+                  context,
+                  billing,
+                  sym,
+                  startOfDay,
+                  startOfWeek,
+                  startOfMonth,
+                ),
               ),
               const SizedBox(height: 16),
-              _buildAgingReport(context, invoices, sym),
+              FadeSlideIn(
+                index: 1,
+                child: _buildAgingReport(context, invoices, sym),
+              ),
               const SizedBox(height: 16),
-              _buildPaymentMethodBreakdown(context, invoices, sym),
+              FadeSlideIn(
+                index: 2,
+                child: _buildPaymentMethodBreakdown(context, invoices, sym),
+              ),
               const SizedBox(height: 16),
-              _buildTaxCollected(context, invoices, bs, sym),
+              FadeSlideIn(
+                index: 3,
+                child: _buildTaxCollected(context, invoices, bs, sym),
+              ),
               const SizedBox(height: 16),
-              _buildTopParties(context, invoices, sym),
+              FadeSlideIn(
+                index: 4,
+                child: _buildTopParties(context, invoices, sym),
+              ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -421,14 +441,9 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
           useContentVariant: true,
           padding: const EdgeInsets.all(14),
           child: sorted.isEmpty
-              ? Center(
-                  child: Text(
-                    'No payments yet',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textTer(context),
-                    ),
-                  ),
+              ? const ChartEmptyState(
+                  message: 'No payments yet',
+                  icon: Icons.payments_rounded,
                 )
               : Column(
                   children: sorted.map((e) {
@@ -511,14 +526,9 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
           useContentVariant: true,
           padding: const EdgeInsets.all(14),
           child: sorted.isEmpty
-              ? Center(
-                  child: Text(
-                    'No tax collected',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textTer(context),
-                    ),
-                  ),
+              ? const ChartEmptyState(
+                  message: 'No tax collected',
+                  icon: Icons.receipt_long_rounded,
                 )
               : Column(
                   children: [
@@ -603,14 +613,9 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
           useContentVariant: true,
           padding: const EdgeInsets.all(14),
           child: top.isEmpty
-              ? Center(
-                  child: Text(
-                    'No data',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textTer(context),
-                    ),
-                  ),
+              ? const ChartEmptyState(
+                  message: 'No data',
+                  icon: Icons.people_alt_rounded,
                 )
               : Column(
                   children: top.asMap().entries.map((e) {

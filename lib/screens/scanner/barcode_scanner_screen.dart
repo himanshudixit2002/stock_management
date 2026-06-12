@@ -8,14 +8,17 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/motion.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../utils/product_search.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/success_check_animation.dart';
 import '../../config/app_navigation.dart';
 
 const _kRecentScansKey = 'barcode_recent_scans';
@@ -45,6 +48,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   String? _lastScannedValue;
   DateTime? _lastScannedTime;
   Timer? _debounce;
+
+  /// Brief visual success pulse shown over the reticle after a detection.
+  bool _detected = false;
+  Timer? _pulseTimer;
 
   @override
   void initState() {
@@ -174,6 +181,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       return;
     }
 
+    _triggerDetectPulse();
+
     final products = context.read<ProductProvider>().analyticsProducts;
     final matches = productsMatchingBarcodeOrName(products, rawValue);
 
@@ -191,6 +200,18 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     setState(() => _torchOn = !_torchOn);
   }
 
+  /// Shows a short-lived success checkmark over the reticle as purely visual
+  /// feedback. Does not affect detection/return behavior. Skipped under
+  /// reduce-motion (the haptic still fires).
+  void _triggerDetectPulse() {
+    if (!mounted || reduceMotion(context)) return;
+    setState(() => _detected = true);
+    _pulseTimer?.cancel();
+    _pulseTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => _detected = false);
+    });
+  }
+
   void _onRecentScanTap(String query) {
     _controller.text = query;
     _controller.selection = TextSelection.collapsed(offset: query.length);
@@ -200,6 +221,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _pulseTimer?.cancel();
     _scannerController?.dispose();
     _scannerController = null;
     _controller.dispose();
@@ -357,6 +379,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               },
             ),
             const _ViewfinderOverlay(),
+            if (_detected)
+              Center(
+                child: SuccessCheckAnimation(
+                  size: 76,
+                  color: AppTheme.primaryLight,
+                ),
+              ),
             SafeArea(
               child: Column(
                 children: [
@@ -413,15 +442,29 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 8,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
                   ),
-                  child: const Text(
-                    'Point camera at a barcode',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.qr_code_scanner_rounded,
+                        size: 16,
+                        color: AppTheme.primaryLight,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Point camera at a barcode',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -593,8 +636,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                   ),
                 ),
               ),
-              ..._results.map(
-                (product) => Padding(
+              ..._results.asMap().entries.map((entry) {
+                final product = entry.value;
+                return FadeSlideIn(
+                  index: entry.key,
+                  child: Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: GlassCard(
                     onTap: () => context.pushAppRoute(
@@ -682,7 +728,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                     ),
                   ),
                 ),
-              ),
+                );
+              }),
             ],
           ],
         ),
@@ -701,15 +748,24 @@ class _ViewfinderOverlay extends StatefulWidget {
 
 class _ViewfinderOverlayState extends State<_ViewfinderOverlay>
     with SingleTickerProviderStateMixin {
-  late AnimationController _anim;
+  late final AnimationController _anim;
 
   @override
   void initState() {
     super.initState();
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 1800),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Static reticle under reduce-motion; gentle sweep otherwise.
+    if (!reduceMotion(context) && !_anim.isAnimating) {
+      _anim.repeat(reverse: true);
+    }
   }
 
   @override
@@ -722,14 +778,26 @@ class _ViewfinderOverlayState extends State<_ViewfinderOverlay>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final scanArea = math.min(size.width, size.height) * 0.65;
+
+    if (reduceMotion(context)) {
+      return Center(
+        child: CustomPaint(
+          size: Size(scanArea, scanArea),
+          painter: _ViewfinderPainter(cornerOpacity: 0.85, scanPos: 0.5),
+        ),
+      );
+    }
+
     return Center(
       child: AnimatedBuilder(
         animation: _anim,
         builder: (context, child) {
-          final opacity = 0.4 + (_anim.value * 0.4);
           return CustomPaint(
             size: Size(scanArea, scanArea),
-            painter: _ViewfinderPainter(opacity: opacity),
+            painter: _ViewfinderPainter(
+              cornerOpacity: 0.5 + (_anim.value * 0.45),
+              scanPos: _anim.value,
+            ),
           );
         },
       ),
@@ -738,19 +806,42 @@ class _ViewfinderOverlayState extends State<_ViewfinderOverlay>
 }
 
 class _ViewfinderPainter extends CustomPainter {
-  final double opacity;
-  _ViewfinderPainter({required this.opacity});
+  final double cornerOpacity;
+
+  /// Vertical position of the scan line within the reticle (0 = top, 1 = bottom).
+  final double scanPos;
+
+  _ViewfinderPainter({required this.cornerOpacity, required this.scanPos});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: opacity)
+      ..color = Colors.white.withValues(alpha: cornerOpacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
 
     const cornerLen = 28.0;
-    const r = 12.0;
+    const r = 14.0;
+
+    // Sweeping scan line with a soft teal glow that fades at the edges.
+    const inset = 8.0;
+    final y = scanPos.clamp(0.0, 1.0) * size.height;
+    final glowPaint = Paint()
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..shader = LinearGradient(
+        colors: [
+          AppTheme.primaryLight.withValues(alpha: 0.0),
+          AppTheme.primaryLight.withValues(alpha: 0.95),
+          AppTheme.primaryLight.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(inset, y - 2, size.width - inset * 2, 4));
+    canvas.drawLine(
+      Offset(inset, y),
+      Offset(size.width - inset, y),
+      glowPaint,
+    );
 
     // Top-left corner
     canvas.drawPath(
@@ -799,5 +890,6 @@ class _ViewfinderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ViewfinderPainter old) => old.opacity != opacity;
+  bool shouldRepaint(_ViewfinderPainter old) =>
+      old.cornerOpacity != cornerOpacity || old.scanPos != scanPos;
 }

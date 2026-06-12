@@ -159,7 +159,6 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
     if (id != null) {
       HapticFeedback.mediumImpact();
       showSuccessOverlay(context, message: 'Return created');
-      Navigator.pop(context);
     } else {
       showErrorSnackBar(
         context,
@@ -890,6 +889,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                     label: const Text('Submit Return'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.warningColor,
+                      minimumSize: const Size(double.infinity, 52),
                     ),
                   ),
                   const SizedBox(height: 32),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import 'animations.dart';
 
 /// Wraps a child widget and only shows it when the user has the required permission.
 /// Shows a fallback (or a default "no permission" scaffold) otherwise.
@@ -62,25 +63,24 @@ class _NoPermissionScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(featureName ?? 'Access Denied')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.dangerColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.lock_rounded,
-                  size: 48,
+      backgroundColor: Colors.transparent,
+      body: AnimatedGradientBackground(
+        colors: [
+          AppTheme.dangerColor.withValues(alpha: 0.06),
+          AppTheme.bg(context),
+        ],
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const AnimatedIconBadge(
+                  icon: Icons.lock_rounded,
                   color: AppTheme.dangerColor,
+                  size: 88,
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
               Text(
                 'No Permission',
                 style: TextStyle(
@@ -109,6 +109,7 @@ class _NoPermissionScaffold extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'motion.dart';
 import 'routes.dart';
 import 'theme.dart';
 import '../models/product_model.dart';
@@ -104,26 +105,38 @@ import '../screens/billing/vendor_statement_screen.dart'
 import '../screens/bulk/bulk_stock_in_screen.dart' deferred as bulk_in;
 import '../screens/bulk/bulk_edit_screen.dart' deferred as bulk_edit;
 
-/// A single, simple page transition shared by every pushed route: the incoming
-/// page just fades in (with a barely-there settle from 0.99 scale). It is kept
-/// deliberately minimal because each screen's own content already animates in
-/// (FadeSlideIn / AnimatedListItem). A heavier slide here on top of that read
-/// as two competing movements — a "double"/"fumbling" feel — so the transition
-/// stays out of the way and lets the content provide the motion.
+/// A single, shared page transition for every pushed route: the incoming page
+/// fades in while gently settling from a slight scale-down (0.96 -> 1) and a
+/// small upward slide (12px -> 0). Kept subtle so it complements — rather than
+/// competes with — each screen's own content entrance (FadeSlideIn /
+/// AnimatedListItem). Honors reduce-motion by rendering the page instantly.
 PageRouteBuilder _slideRoute(Widget page) {
   return PageRouteBuilder(
     pageBuilder: (context, animation, secondaryAnimation) => page,
-    transitionDuration: const Duration(milliseconds: 240),
-    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionDuration: kSlideTransitionDuration,
+    reverseTransitionDuration: const Duration(milliseconds: 220),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
-      final scale = Tween<double>(
-        begin: 0.99,
-        end: 1,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      if (reduceMotion(context)) return child;
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: kSlideTransitionCurve,
+      );
       return FadeTransition(
-        opacity: fade,
-        child: ScaleTransition(scale: scale, child: child),
+        opacity: curved,
+        child: AnimatedBuilder(
+          animation: curved,
+          builder: (context, inner) {
+            final t = curved.value;
+            return Transform.translate(
+              offset: Offset(0, (1 - t) * 12),
+              child: Transform.scale(
+                scale: 0.96 + 0.04 * t,
+                child: inner,
+              ),
+            );
+          },
+          child: child,
+        ),
       );
     },
   );

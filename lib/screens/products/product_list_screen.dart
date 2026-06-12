@@ -12,9 +12,13 @@ import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/floating_nav_padding.dart';
+import '../../widgets/tab_context_header.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../config/feature_map.dart';
+import '../../models/user_model.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/permission_gate.dart';
 
@@ -158,8 +162,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
       featureName: 'Products',
       child: Scaffold(
         backgroundColor: AppTheme.bg(context),
-        body: Center(
-          child: ConstrainedBox(
+        body: Container(
+          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: Center(
+            child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: Responsive.contentMaxWidth(context),
             ),
@@ -225,6 +231,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       ),
                     ),
                   ),
+                  SliverToBoxAdapter(
+                    child: TabContextHeader(
+                      icon: Icons.inventory_2_rounded,
+                      title: 'Products',
+                      subtitle: 'Browse, filter and manage your catalog',
+                      shortcuts: FeatureMap.entriesByCategory(
+                        FeatureCategory.inventory,
+                        user?.effectivePermissions ??
+                            UserModel.defaultPermissions,
+                        placement: FeaturePlacement.tabShortcut,
+                      ),
+                    ),
+                  ),
                   if (productProvider.errorMessage != null &&
                       productProvider.products.isNotEmpty)
                     SliverToBoxAdapter(
@@ -261,6 +280,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 ];
               },
               body: RefreshIndicator(
+                color: AppTheme.primaryColor,
                 onRefresh: () async {
                   await productProvider.refreshProducts();
                   if (mounted) {
@@ -441,6 +461,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
             ),
           ),
+        ),
         ),
         floatingActionButton: Column(
           mainAxisSize: MainAxisSize.min,
@@ -718,7 +739,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         controller: _scrollController,
         physics: Responsive.scrollPhysics(context),
         addAutomaticKeepAlives: false,
-        padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 90),
+        padding: EdgeInsets.fromLTRB(hPad, 4, hPad, floatingNavContentInset(context)),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: gridColumns,
           crossAxisSpacing: 10,
@@ -738,7 +759,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
       controller: _scrollController,
       physics: Responsive.scrollPhysics(context),
       addAutomaticKeepAlives: false,
-      padding: const EdgeInsets.only(top: 4, bottom: 90),
+      padding: EdgeInsets.only(top: 4, bottom: floatingNavContentInset(context)),
       itemCount: itemCount,
       itemBuilder: (context, index) {
         final loadMore = buildLoadMore(index);

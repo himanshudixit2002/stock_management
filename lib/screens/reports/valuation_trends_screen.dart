@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../config/motion.dart';
 import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
@@ -10,6 +11,7 @@ import '../../models/product_model.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/animations.dart';
 import '../../utils/responsive.dart';
 
 class ValuationTrendsScreen extends StatelessWidget {
@@ -109,37 +111,60 @@ class ValuationTrendsScreen extends StatelessWidget {
           title: 'Inventory Valuation',
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: Responsive.horizontalPadding(context),
-              vertical: 16,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppTheme.scaffoldGrad(context),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSummaryCards(totalCost, totalSelling, potentialProfit),
-                const SizedBox(height: 20),
-                _buildPeriodComparison(
-                  context,
-                  thisMonthRev,
-                  lastMonthRev,
-                  revChange,
-                  now,
-                  lastMonthStart,
-                  lastMonthEnd,
-                ),
-                const SizedBox(height: 20),
-                _buildCategoryChart(context, byCategoryVal),
-                const SizedBox(height: 20),
-                _buildLocationChart(byLocation),
-                const SizedBox(height: 20),
-                _buildTop10List(context, top10),
-              ],
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: Responsive.horizontalPadding(context),
+                vertical: 16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FadeSlideIn(
+                    child: _buildSummaryCards(
+                      totalCost,
+                      totalSelling,
+                      potentialProfit,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FadeSlideIn(
+                    index: 1,
+                    child: _buildPeriodComparison(
+                      context,
+                      thisMonthRev,
+                      lastMonthRev,
+                      revChange,
+                      now,
+                      lastMonthStart,
+                      lastMonthEnd,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FadeSlideIn(
+                    index: 2,
+                    child: _buildCategoryChart(context, byCategoryVal),
+                  ),
+                  const SizedBox(height: 20),
+                  FadeSlideIn(
+                    index: 3,
+                    child: _buildLocationChart(byLocation),
+                  ),
+                  const SizedBox(height: 20),
+                  FadeSlideIn(
+                    index: 4,
+                    child: _buildTop10List(context, top10),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -148,6 +173,7 @@ class ValuationTrendsScreen extends StatelessWidget {
   }
 
   Widget _buildSummaryCards(double cost, double selling, double profit) {
+    final marginVal = selling > 0 ? (selling - cost) / selling * 100 : 0.0;
     return LayoutBuilder(
       builder: (context, constraints) {
         final cardWidth = (constraints.maxWidth - 12) / 2;
@@ -158,30 +184,32 @@ class ValuationTrendsScreen extends StatelessWidget {
             _ValCard(
               width: cardWidth,
               label: 'Total Cost Value',
-              value: _fmtCompact(cost),
+              value: cost,
+              formatter: (v) => _fmtCompact(v.toDouble()),
               icon: Icons.account_balance_rounded,
               color: AppTheme.primaryColor,
             ),
             _ValCard(
               width: cardWidth,
               label: 'Total Selling Value',
-              value: _fmtCompact(selling),
+              value: selling,
+              formatter: (v) => _fmtCompact(v.toDouble()),
               icon: Icons.sell_rounded,
               color: AppTheme.infoColor,
             ),
             _ValCard(
               width: cardWidth,
               label: 'Potential Profit',
-              value: _fmtCompact(profit),
+              value: profit,
+              formatter: (v) => _fmtCompact(v.toDouble()),
               icon: Icons.trending_up_rounded,
               color: profit >= 0 ? AppTheme.successColor : AppTheme.dangerColor,
             ),
             _ValCard(
               width: cardWidth,
               label: 'Margin',
-              value: selling > 0
-                  ? '${((selling - cost) / selling * 100).toStringAsFixed(1)}%'
-                  : '0%',
+              value: marginVal,
+              formatter: (v) => '${v.toStringAsFixed(1)}%',
               icon: Icons.percent_rounded,
               color: AppTheme.indigoColor,
             ),
@@ -329,6 +357,10 @@ class ValuationTrendsScreen extends StatelessWidget {
       child: SizedBox(
         height: max(sorted.length * 50.0, 120),
         child: BarChart(
+          duration: reduceMotion(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
           BarChartData(
             alignment: BarChartAlignment.spaceAround,
             barTouchData: BarTouchData(
@@ -405,7 +437,6 @@ class ValuationTrendsScreen extends StatelessWidget {
               );
             }),
           ),
-          swapAnimationDuration: const Duration(milliseconds: 250),
         ),
       ),
     );
@@ -555,7 +586,8 @@ class _ValEntry {
 class _ValCard extends StatelessWidget {
   final double width;
   final String label;
-  final String value;
+  final num value;
+  final String Function(num) formatter;
   final IconData icon;
   final Color color;
 
@@ -563,6 +595,7 @@ class _ValCard extends StatelessWidget {
     required this.width,
     required this.label,
     required this.value,
+    required this.formatter,
     required this.icon,
     required this.color,
   });
@@ -602,8 +635,9 @@ class _ValCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
+            CountUpText(
               value,
+              formatter: formatter,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,

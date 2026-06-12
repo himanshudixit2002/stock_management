@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
 import '../../providers/billing_settings_provider.dart';
-import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 
 class BillingSettingsScreen extends StatefulWidget {
   const BillingSettingsScreen({super.key});
@@ -140,8 +142,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
     );
     setState(() => _isSaving = false);
     if (ok && mounted) {
-      showSuccessSnackBar(context, 'Billing settings saved');
-      Navigator.pop(context);
+      await showSuccessOverlay(context, message: 'Billing settings saved');
     }
   }
 
@@ -166,12 +167,33 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!_loaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Billing Settings')),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                Responsive.horizontalPadding(context),
+                12,
+                Responsive.horizontalPadding(context),
+                24,
+              ),
+              children: const [ShimmerLoading(layout: ShimmerLayout.detail)],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Billing Settings')),
-      body: Center(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.formMaxWidth(context),
@@ -449,6 +471,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -533,32 +556,10 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton(
-            onPressed: _isSaving ? null : _save,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text(
-                    'Save Settings',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
-          ),
+        child: ShimmerButton(
+          label: _isSaving ? 'Saving…' : 'Save Settings',
+          icon: Icons.save_rounded,
+          onPressed: _isSaving ? null : _save,
         ),
       ),
     );

@@ -8,7 +8,7 @@ import '../../models/purchase_order_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/purchase_order_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
@@ -82,23 +82,11 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
       decimalDigits: 2,
     );
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.shopping_cart_rounded,
-          color: AppTheme.primaryColor,
-          title: 'Purchase Orders',
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
+    return AppScreenScaffold(
+      icon: Icons.shopping_cart_rounded,
+      iconColor: AppTheme.primaryColor,
+      title: 'Purchase Orders',
+      body: Column(
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -176,6 +164,7 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
                               : null,
                         )
                       : RefreshIndicator(
+                          color: AppTheme.primaryColor,
                           onRefresh: () async {
                             final companyId = context
                                 .read<AuthProvider>()
@@ -524,9 +513,6 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
       floatingActionButton:
           (user?.hasPermission(AppPermissions.createPurchaseOrders) ?? false)
           ? FloatingActionButton.extended(

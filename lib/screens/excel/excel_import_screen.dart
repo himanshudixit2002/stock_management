@@ -14,10 +14,13 @@ import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
-import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/success_overlay.dart';
 
 class ExcelImportScreen extends StatefulWidget {
   const ExcelImportScreen({super.key});
@@ -292,8 +295,10 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         final parts = <String>[];
         if (updatedCount > 0) parts.add('$updatedCount updated');
         if (createdCount > 0) parts.add('$createdCount created');
-        showSuccessSnackBar(context, 'Import complete: ${parts.join(', ')}');
-        Navigator.pop(context);
+        showSuccessOverlay(
+          context,
+          message: 'Import complete: ${parts.join(', ')}',
+        );
       }
     } catch (e) {
       setState(() {
@@ -343,8 +348,8 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           title: 'Import Data',
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
         child: RefreshIndicator(
           onRefresh: _onPullRefreshCatalog,
           child: SingleChildScrollView(
@@ -358,29 +363,38 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildStepSection(
-                      stepNumber: 1,
-                      title: 'Prepare Your File',
-                      isActive: true,
-                      isCompleted: _currentStep > 1,
-                      hasConnector: true,
-                      child: _buildStep1Content(),
+                    FadeSlideIn(
+                      index: 0,
+                      child: _buildStepSection(
+                        stepNumber: 1,
+                        title: 'Prepare Your File',
+                        isActive: true,
+                        isCompleted: _currentStep > 1,
+                        hasConnector: true,
+                        child: _buildStep1Content(),
+                      ),
                     ),
-                    _buildStepSection(
-                      stepNumber: 2,
-                      title: 'Select & Upload File',
-                      isActive: _currentStep >= 2,
-                      isCompleted: _currentStep > 2,
-                      hasConnector: true,
-                      child: _buildStep2Content(),
+                    FadeSlideIn(
+                      index: 1,
+                      child: _buildStepSection(
+                        stepNumber: 2,
+                        title: 'Select & Upload File',
+                        isActive: _currentStep >= 2,
+                        isCompleted: _currentStep > 2,
+                        hasConnector: true,
+                        child: _buildStep2Content(),
+                      ),
                     ),
-                    _buildStepSection(
-                      stepNumber: 3,
-                      title: 'Preview & Import',
-                      isActive: _currentStep >= 3,
-                      isCompleted: false,
-                      hasConnector: false,
-                      child: _buildStep3Content(),
+                    FadeSlideIn(
+                      index: 2,
+                      child: _buildStepSection(
+                        stepNumber: 3,
+                        title: 'Preview & Import',
+                        isActive: _currentStep >= 3,
+                        isCompleted: false,
+                        hasConnector: false,
+                        child: _buildStep3Content(),
+                      ),
                     ),
                     const SizedBox(height: 32),
                   ],
@@ -771,7 +785,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         ),
         if (_isLoading) ...[
           const SizedBox(height: 16),
-          const LoadingWidget(message: 'Reading file...'),
+          const ShimmerLoading(itemCount: 3, layout: ShimmerLayout.listTile),
         ],
         if (_error != null) ...[
           const SizedBox(height: 12),
@@ -855,31 +869,10 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
 
   Widget _buildStep3Content() {
     if (_parsedData == null || _parsedData!.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.inputFill(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.dividerC(context)),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              Icons.table_chart_outlined,
-              size: 36,
-              color: AppTheme.textSec(context).withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Data preview will appear here after you select a file.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppTheme.textSec(context).withValues(alpha: 0.7),
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
+      return const EmptyStateWidget(
+        icon: Icons.table_chart_outlined,
+        title: 'No preview yet',
+        subtitle: 'Data preview will appear here after you select a file.',
       );
     }
 
@@ -1116,6 +1109,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.successColor,
+            minimumSize: const Size(double.infinity, 52),
           ),
         ),
       ],

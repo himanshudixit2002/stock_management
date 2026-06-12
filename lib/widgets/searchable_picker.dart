@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../utils/responsive.dart';
+import 'animations.dart';
 
 class PickerItem {
   final String value;
@@ -179,7 +180,9 @@ Future<String?> showSearchablePicker({
                             itemBuilder: (_, i) {
                               final item = filtered[i];
                               final isSelected = item.value == selectedValue;
-                              return ListTile(
+                              return FadeSlideIn(
+                                index: i,
+                                child: ListTile(
                                 dense: true,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
@@ -222,6 +225,7 @@ Future<String?> showSearchablePicker({
                                   HapticFeedback.selectionClick();
                                   Navigator.pop(ctx, item.value);
                                 },
+                                ),
                               );
                             },
                           ),

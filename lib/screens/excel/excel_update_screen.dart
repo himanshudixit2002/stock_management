@@ -16,6 +16,11 @@ import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/success_overlay.dart';
 
 class ExcelUpdateScreen extends StatefulWidget {
   const ExcelUpdateScreen({super.key});
@@ -365,7 +370,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         final parts = <String>[];
         if (updatedCount > 0) parts.add('$updatedCount updated');
         if (addedCount > 0) parts.add('$addedCount added');
-        showSuccessSnackBar(context, 'Done! ${parts.join(', ')}');
+        showSuccessOverlay(
+          context,
+          message: 'Done! ${parts.join(', ')}',
+          popAfter: false,
+        );
         setState(() {
           _diffs = null;
           _parsedData = null;
@@ -433,8 +442,8 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -762,13 +771,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           children: [
             if (_isParsing)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 28),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Column(
                   children: [
-                    const SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    const ShimmerLoading(
+                      itemCount: 3,
+                      layout: ShimmerLayout.listTile,
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -820,40 +828,46 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            _summaryCard(
-              'Modified',
-              _modifiedCount,
-              Icons.edit_rounded,
-              AppTheme.primaryColor,
-            ),
-            const SizedBox(width: 8),
-            _summaryCard(
-              'New',
-              _newCount,
-              Icons.add_circle_outline,
-              AppTheme.successColor,
-            ),
-          ],
+        FadeSlideIn(
+          index: 0,
+          child: Row(
+            children: [
+              _summaryCard(
+                'Modified',
+                _modifiedCount,
+                Icons.edit_rounded,
+                AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              _summaryCard(
+                'New',
+                _newCount,
+                Icons.add_circle_outline,
+                AppTheme.successColor,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            _summaryCard(
-              'Unchanged',
-              _unchangedCount,
-              Icons.check_circle_outline,
-              AppTheme.textTer(context),
-            ),
-            const SizedBox(width: 8),
-            _summaryCard(
-              'Errors',
-              _errorCount,
-              Icons.warning_amber_rounded,
-              AppTheme.dangerColor,
-            ),
-          ],
+        FadeSlideIn(
+          index: 1,
+          child: Row(
+            children: [
+              _summaryCard(
+                'Unchanged',
+                _unchangedCount,
+                Icons.check_circle_outline,
+                AppTheme.textTer(context),
+              ),
+              const SizedBox(width: 8),
+              _summaryCard(
+                'Errors',
+                _errorCount,
+                Icons.warning_amber_rounded,
+                AppTheme.dangerColor,
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: 16),
@@ -864,7 +878,15 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           const SizedBox(height: 8),
           ..._diffs!
               .where((d) => d.status == UpdateStatus.modified)
-              .map((d) => _ModifiedProductCard(diff: d)),
+              .toList()
+              .asMap()
+              .entries
+              .map(
+                (e) => AnimatedListItem(
+                  index: e.key,
+                  child: _ModifiedProductCard(diff: e.value),
+                ),
+              ),
           const SizedBox(height: 16),
         ],
 
@@ -874,7 +896,15 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           const SizedBox(height: 8),
           ..._diffs!
               .where((d) => d.status == UpdateStatus.newProduct)
-              .map((d) => _NewProductCard(diff: d)),
+              .toList()
+              .asMap()
+              .entries
+              .map(
+                (e) => AnimatedListItem(
+                  index: e.key,
+                  child: _NewProductCard(diff: e.value),
+                ),
+              ),
           const SizedBox(height: 16),
         ],
 
@@ -884,14 +914,22 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           const SizedBox(height: 8),
           ..._diffs!
               .where((d) => d.status == UpdateStatus.error)
-              .map((d) => _ErrorCard(diff: d)),
+              .toList()
+              .asMap()
+              .entries
+              .map(
+                (e) => AnimatedListItem(
+                  index: e.key,
+                  child: _ErrorCard(diff: e.value),
+                ),
+              ),
           const SizedBox(height: 16),
         ],
 
         if (_modifiedCount > 0 || _newCount > 0) ...[
           const SizedBox(height: 4),
           SizedBox(
-            height: 44,
+            height: 52,
             child: ElevatedButton.icon(
               onPressed: _isApplying ? null : _applyChanges,
               icon: _isApplying
@@ -937,38 +975,10 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
         if (_modifiedCount == 0 && _newCount == 0) ...[
           const SizedBox(height: 12),
-          GlassCard(
-            borderRadius: 12,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 36,
-                    color: AppTheme.successColor,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No changes detected',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPri(context),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'All products in the file match your current data.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSec(context),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+          const EmptyStateWidget(
+            icon: Icons.check_circle_outline,
+            title: 'No changes detected',
+            subtitle: 'All products in the file match your current data.',
           ),
         ],
       ],

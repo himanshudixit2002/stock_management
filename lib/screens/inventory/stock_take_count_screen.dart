@@ -8,6 +8,8 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 import '../../utils/dialogs.dart';
 
 class StockTakeCountScreen extends StatefulWidget {
@@ -162,11 +164,10 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
     if (!context.mounted) return;
     setState(() => _isSubmitting = false);
     if (success) {
-      showSuccessSnackBar(
+      showSuccessOverlay(
         context,
-        'Stock take completed and adjustments recorded',
+        message: 'Stock take completed and adjustments recorded',
       );
-      Navigator.pop(context);
     } else {
       showErrorSnackBar(
         context,
@@ -253,19 +254,24 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submit,
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                      _isSubmitting
+                          ? SizedBox(
+                              height: 52,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppTheme.primaryColor,
+                                  ),
                                 ),
-                              )
-                            : const Text('Submit & Finalize'),
-                      ),
+                              ),
+                            )
+                          : ShimmerButton(
+                              label: 'Submit & Finalize',
+                              onPressed: _submit,
+                            ),
                     ],
                   ),
                 ),

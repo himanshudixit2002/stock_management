@@ -171,6 +171,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                               : null,
                         )
                       : RefreshIndicator(
+                          color: AppTheme.primaryColor,
                           onRefresh: () async {
                             final companyId = context
                                 .read<AuthProvider>()

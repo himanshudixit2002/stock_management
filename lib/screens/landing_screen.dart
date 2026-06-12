@@ -6,6 +6,7 @@ import '../utils/url_helper.dart';
 import '../config/routes.dart';
 import '../config/theme.dart';
 import '../widgets/animated_list_item.dart';
+import '../widgets/animations.dart';
 import '../utils/responsive.dart';
 import '../config/app_navigation.dart';
 
@@ -83,55 +84,63 @@ class LandingScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface(context),
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.12),
-                    blurRadius: 28,
-                    offset: const Offset(0, 6),
+            ScaleFadeIn(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface(context),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      blurRadius: 28,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
                   ),
-                ],
-                border: Border.all(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
                 ),
+                child: Image.asset('logo.png', width: 44, height: 44),
               ),
-              child: Image.asset('logo.png', width: 44, height: 44),
             ),
             const SizedBox(height: 20),
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFF0F766E),
-                  Color(0xFF0D9488),
-                  Color(0xFF0891B2),
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ).createShader(bounds),
-              child: const Text(
-                'SmartShelfKart',
-                style: TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: -1.2,
-                  height: 1.1,
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 120),
+              child: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [
+                    Color(0xFF0F766E),
+                    Color(0xFF0D9488),
+                    Color(0xFF0891B2),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ).createShader(bounds),
+                child: const Text(
+                  'SmartShelfKart',
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -1.2,
+                    height: 1.1,
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              'All-in-one inventory management\nfor modern businesses',
-              style: TextStyle(
-                fontSize: 15,
-                color: AppTheme.textSec(context),
-                height: 1.5,
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 180),
+              child: Text(
+                'All-in-one inventory management\nfor modern businesses',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: AppTheme.textSec(context),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
             if (kIsWeb) ...[
               const SizedBox(height: 16),
@@ -147,42 +156,10 @@ class LandingScreen extends StatelessWidget {
             Center(
               child: SizedBox(
                 width: isWide ? 320 : double.infinity,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
-                  ),
-                  child: ElevatedButton(
-                    onPressed: () => context.pushAppRoute(AppRoutes.register),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Get Started Free',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.surface(context),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 20,
-                          color: AppTheme.surface(context),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: ShimmerButton(
+                  label: 'Get Started Free',
+                  icon: Icons.arrow_forward_rounded,
+                  onPressed: () => context.pushAppRoute(AppRoutes.register),
                 ),
               ),
             ),

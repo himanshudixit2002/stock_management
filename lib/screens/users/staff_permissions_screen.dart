@@ -8,10 +8,14 @@ import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/permission_gate.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/success_overlay.dart';
 
 class StaffPermissionsScreen extends StatelessWidget {
   const StaffPermissionsScreen({super.key});
@@ -21,92 +25,82 @@ class StaffPermissionsScreen extends StatelessWidget {
     return PermissionGate(
       permission: AppPermissions.manageUsers,
       featureName: 'Permission Overrides',
-      child: Scaffold(
-        backgroundColor: AppTheme.bg(context),
-        appBar: AppBar(
-          title: AppBarTitleRow(
-            icon: Icons.shield_rounded,
-            color: AppTheme.warningColor,
-            title: 'User Permission Overrides',
-          ),
-        ),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-          child: StreamBuilder<List<UserModel>>(
-            stream: context.read<AuthProvider>().getAllUsers(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const ShimmerLoading(layout: ShimmerLayout.listTile);
-              }
-              final currentUid = context.read<AuthProvider>().currentUser?.uid;
-              final users = (snapshot.data ?? [])
-                  .where((u) => u.uid != currentUid)
-                  .toList();
+      child: AppScreenScaffold(
+        icon: Icons.shield_rounded,
+        title: 'User Permission Overrides',
+        iconColor: AppTheme.warningColor,
+        constrainWidth: false,
+        body: StreamBuilder<List<UserModel>>(
+          stream: context.read<AuthProvider>().getAllUsers(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const ShimmerLoading(layout: ShimmerLayout.listTile);
+            }
+            final currentUid = context.read<AuthProvider>().currentUser?.uid;
+            final users = (snapshot.data ?? [])
+                .where((u) => u.uid != currentUid)
+                .toList();
 
-              if (users.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: AppTheme.emptyIcon(context),
+            if (users.isEmpty) {
+              return const EmptyStateWidget(
+                icon: Icons.people_outline,
+                title: 'No other users yet',
+                subtitle:
+                    'Staff you add will appear here so you can override their permissions.',
+              );
+            }
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.formMaxWidth(context),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        Responsive.horizontalPadding(context),
+                        16,
+                        Responsive.horizontalPadding(context),
+                        8,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No other users yet',
+                      child: Text(
+                        'Override permissions for individual users on top of their role.',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 13,
                           color: AppTheme.textTer(context),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              }
-
-              return Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: Responsive.formMaxWidth(context),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          Responsive.horizontalPadding(context),
-                          16,
-                          Responsive.horizontalPadding(context),
-                          8,
-                        ),
-                        child: Text(
-                          'Override permissions for individual users on top of their role.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.textTer(context),
-                          ),
-                        ),
-                      ),
-                      Expanded(
+                    ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: AppTheme.primaryColor,
+                        onRefresh: () async {
+                          await Future.delayed(
+                            const Duration(milliseconds: 300),
+                          );
+                        },
                         child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: EdgeInsets.all(
                             Responsive.horizontalPadding(context),
                           ),
                           itemCount: users.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 12),
-                          itemBuilder: (context, i) =>
-                              _UserOverrideCard(user: users[i]),
+                          itemBuilder: (context, i) => AnimatedListItem(
+                            index: i,
+                            child: _UserOverrideCard(user: users[i]),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -262,10 +256,10 @@ class _OverrideEditorState extends State<_OverrideEditor> {
       _overrides,
     );
     if (mounted) {
-      Navigator.pop(context);
       if (ok) {
-        showSuccessSnackBar(context, 'Permission overrides saved');
+        showSuccessOverlay(context, message: 'Permission overrides saved');
       } else {
+        Navigator.pop(context);
         showErrorSnackBar(context, 'Failed to save');
       }
     }
@@ -426,18 +420,10 @@ class _OverrideEditorState extends State<_OverrideEditor> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              child: ElevatedButton(
+              child: ShimmerButton(
+                label: _saving ? 'Saving...' : 'Save Overrides',
+                icon: _saving ? null : Icons.save_rounded,
                 onPressed: _saving ? null : _save,
-                child: _saving
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.surface(context),
-                        ),
-                      )
-                    : const Text('Save Overrides'),
               ),
             ),
           ],

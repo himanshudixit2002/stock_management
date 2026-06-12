@@ -14,6 +14,8 @@ import '../../widgets/empty_state_widget.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 
 class WarehouseZonesScreen extends StatelessWidget {
   const WarehouseZonesScreen({super.key});
@@ -75,12 +77,16 @@ class WarehouseZonesScreen extends StatelessWidget {
                     padding: EdgeInsets.all(
                       Responsive.horizontalPadding(context),
                     ),
-                    children: grouped.entries.map((entry) {
-                      return _buildLocationSection(
-                        context,
-                        entry.key,
-                        entry.value,
-                        locations,
+                    children: grouped.entries.toList().asMap().entries.map((e) {
+                      final entry = e.value;
+                      return FadeSlideIn(
+                        index: e.key,
+                        child: _buildLocationSection(
+                          context,
+                          entry.key,
+                          entry.value,
+                          locations,
+                        ),
                       );
                     }).toList(),
                   ),
@@ -438,7 +444,10 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
     setState(() => _isSubmitting = false);
 
     if (success) {
-      Navigator.pop(context);
+      showSuccessOverlay(
+        context,
+        message: _isEditing ? 'Zone updated' : 'Zone added',
+      );
     } else {
       showErrorSnackBar(context, provider.errorMessage ?? 'Operation failed');
     }
@@ -567,20 +576,25 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _save,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+              _isSubmitting
+                  ? SizedBox(
+                      height: 52,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.primaryColor,
+                          ),
                         ),
-                      )
-                    : const Icon(Icons.check_rounded),
-                label: Text(_isEditing ? 'Update Zone' : 'Add Zone'),
-              ),
+                      ),
+                    )
+                  : ShimmerButton(
+                      label: _isEditing ? 'Update Zone' : 'Add Zone',
+                      icon: Icons.check_rounded,
+                      onPressed: _save,
+                    ),
               const SizedBox(height: 8),
             ],
           ),

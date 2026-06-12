@@ -14,6 +14,7 @@ import '../../utils/invoice_search.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -99,8 +100,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
-          child: Container(
-            decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+          child: AnimatedGradientBackground(
+            colors: AppTheme.scaffoldGrad(context).colors,
             child: Column(
               children: [
                 if (stockProvider.errorMessage != null)
@@ -248,6 +249,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
                 Expanded(
                   child: RefreshIndicator(
+                    color: AppTheme.primaryColor,
                     onRefresh: _onRefreshTransactions,
                     child: _buildTransactionListBody(
                       context,

@@ -6,9 +6,10 @@ import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
 
 class FavoritesScreen extends StatefulWidget {
@@ -27,50 +28,42 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         .where((p) => favoriteIds.contains(p.id))
         .toList();
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.star_rounded,
-          color: AppTheme.warningColor,
-          title: 'Favorites',
-        ),
+    return AppScreenScaffold(
+      icon: Icons.star_rounded,
+      title: 'Favorites',
+      iconColor: AppTheme.warningColor,
+      isEmpty: favorites.isEmpty,
+      emptyState: const EmptyStateWidget(
+        icon: Icons.star_outline_rounded,
+        title: 'No Favorites Yet',
+        subtitle: 'Star products for quick access. They will appear here.',
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: favorites.isEmpty
-            ? const EmptyStateWidget(
-                icon: Icons.star_outline_rounded,
-                title: 'No Favorites Yet',
-                subtitle:
-                    'Star products for quick access. They will appear here.',
-              )
-            : Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: Responsive.contentMaxWidth(context),
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.all(
-                      Responsive.horizontalPadding(context),
-                    ),
-                    itemCount: favorites.length,
-                    itemBuilder: (context, index) {
-                      final product = favorites[index];
-                      return _FavoriteProductCard(
-                        product: product,
-                        onUnfavorite: () {
-                          context.read<FavoritesProvider>().toggle(product.id);
-                        },
-                        onTap: () => context.pushAppRoute(
-                          AppRoutes.productDetail,
-                          extra: product,
-                        ),
-                      );
-                    },
-                  ),
+      body: RefreshIndicator(
+        color: AppTheme.primaryColor,
+        onRefresh: () async {
+          final companyId = context.read<ProductProvider>().companyId;
+          context.read<ProductProvider>().initialize(companyId: companyId);
+        },
+        child: ListView.builder(
+          padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+          itemCount: favorites.length,
+          itemBuilder: (context, index) {
+            final product = favorites[index];
+            return AnimatedListItem(
+              index: index,
+              child: _FavoriteProductCard(
+                product: product,
+                onUnfavorite: () {
+                  context.read<FavoritesProvider>().toggle(product.id);
+                },
+                onTap: () => context.pushAppRoute(
+                  AppRoutes.productDetail,
+                  extra: product,
                 ),
               ),
+            );
+          },
+        ),
       ),
     );
   }

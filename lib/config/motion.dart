@@ -12,6 +12,25 @@ const Curve kSlideTransitionCurve = Curves.easeOutCubic;
 const Duration kEntranceDuration = Duration(milliseconds: 420);
 const Curve kEntranceCurve = Curves.easeOutCubic;
 
+// --- Playful Professional tokens ---
+/// Duration for bottom-sheet content slide-up reveals.
+const Duration kSheetDuration = Duration(milliseconds: 320);
+
+/// Duration for hover lift / shimmer sweep interactions (web).
+const Duration kHoverDuration = Duration(milliseconds: 200);
+
+/// Duration of one cycle of a gentle live-indicator pulse.
+const Duration kPulseDuration = Duration(milliseconds: 1200);
+
+/// Spring-like overshoot curve for playful entrances and sheets.
+const Curve kSpringCurve = Curves.easeOutBack;
+
+/// Vertical lift (logical px) applied to cards/buttons on hover (web).
+const double kHoverLiftOffset = 2.0;
+
+/// Scale applied to cards/buttons while pressed.
+const double kCardPressScale = 0.97;
+
 /// Delay between successive items in a staggered list/grid reveal.
 const Duration kStaggerInterval = Duration(milliseconds: 55);
 

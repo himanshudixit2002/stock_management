@@ -11,11 +11,13 @@ import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/animations.dart';
 import '../../config/app_navigation.dart';
 
 class BulkEditScreen extends StatefulWidget {
@@ -136,61 +138,32 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-
     final products = context.watch<ProductProvider>().allProducts;
 
-    if (products.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.edit_note_rounded,
-            color: AppTheme.indigoColor,
-            title: 'Bulk Edit',
-          ),
-        ),
-        body: EmptyStateWidget(
-          icon: Icons.edit_note_rounded,
-          title: 'No Products',
-          subtitle: 'Add products first to use bulk edit.',
-          buttonText: 'Add Product',
-          onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
-        ),
-      );
-    }
+    final bool isEmpty = products.isEmpty;
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.edit_note_rounded,
-          color: AppTheme.indigoColor,
-          title: 'Bulk Edit',
-        ),
+    return AppScreenScaffold(
+      icon: Icons.edit_note_rounded,
+      title: 'Bulk Edit',
+      iconColor: AppTheme.indigoColor,
+      isEmpty: isEmpty,
+      emptyState: EmptyStateWidget(
+        icon: Icons.edit_note_rounded,
+        title: 'No Products',
+        subtitle: 'Add products first to use bulk edit.',
+        buttonText: 'Add Product',
+        onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.formMaxWidth(context),
-            ),
-            child: Column(
-              children: [
-                _buildStepIndicator(),
-                Expanded(child: _buildStepContent(products)),
-                _buildBottomBar(),
-              ],
-            ),
-          ),
-        ),
-      ),
+      header: isEmpty ? null : _buildStepIndicator(),
+      bottomNavigationBar: isEmpty ? null : _buildBottomBar(),
+      body: _buildStepContent(products),
     );
   }
 
   Widget _buildStepIndicator() {
     final steps = ['Select', 'Fields', 'Values', 'Preview'];
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: List.generate(steps.length, (i) {
           final isActive = i == _currentStep;
@@ -333,32 +306,35 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
             itemBuilder: (context, index) {
               final p = filtered[index];
               final selected = _selectedProductIds.contains(p.id);
-              return CheckboxListTile(
-                value: selected,
-                onChanged: (v) {
-                  setState(() {
-                    if (v == true) {
-                      _selectedProductIds.add(p.id);
-                    } else {
-                      _selectedProductIds.remove(p.id);
-                    }
-                  });
-                },
-                title: Text(
-                  p.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+              return AnimatedListItem(
+                index: index,
+                child: CheckboxListTile(
+                  value: selected,
+                  onChanged: (v) {
+                    setState(() {
+                      if (v == true) {
+                        _selectedProductIds.add(p.id);
+                      } else {
+                        _selectedProductIds.remove(p.id);
+                      }
+                    });
+                  },
+                  title: Text(
+                    p.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  '${p.categoryName} • ${p.quantity} ${p.unit}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                activeColor: AppTheme.primaryColor,
-                dense: true,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  subtitle: Text(
+                    '${p.categoryName} • ${p.quantity} ${p.unit}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  activeColor: AppTheme.primaryColor,
+                  dense: true,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               );
             },
@@ -384,11 +360,15 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
         const SizedBox(height: 12),
-        ...fields.map((f) {
+        ...fields.indexed.map((entry) {
+          final i = entry.$1;
+          final f = entry.$2;
           final selected = _selectedFields.contains(f.$1);
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: GlassPanel(
+            child: FadeSlideIn(
+              index: i,
+              child: GlassPanel(
               useContentVariant: true,
               borderRadius: 14,
               child: CheckboxListTile(
@@ -413,6 +393,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
                   ],
                 ),
                 activeColor: AppTheme.primaryColor,
+              ),
               ),
             ),
           );
@@ -591,21 +572,24 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        ...selected.map(
-          (p) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.inventory_2_rounded, size: 18),
-              title: Text(p.name, style: const TextStyle(fontSize: 13)),
-              subtitle: Text(
-                '${p.categoryName} • ${p.quantity} ${p.unit}',
-                style: const TextStyle(fontSize: 11),
+        ...selected.indexed.map(
+          (entry) => AnimatedListItem(
+            index: entry.$1,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.inventory_2_rounded, size: 18),
+                title: Text(entry.$2.name, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                  '${entry.$2.categoryName} • ${entry.$2.quantity} ${entry.$2.unit}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                tileColor: AppTheme.inputFill(context),
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              tileColor: AppTheme.inputFill(context),
             ),
           ),
         ),
@@ -632,46 +616,63 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   }
 
   Widget _buildBottomBar() {
-    return Padding(
-      padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-      child: Row(
-        children: [
-          if (_currentStep > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _prevStep,
-                child: const Text('Back'),
-              ),
-            ),
-          if (_currentStep > 0) const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: _currentStep < 3
-                ? ElevatedButton(
-                    onPressed: _nextStep,
-                    child: const Text('Next'),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: _isApplying ? null : _apply,
-                    icon: _isApplying
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check_rounded),
-                    label: Text(
-                      'Apply to ${_selectedProductIds.length} Products',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: Responsive.contentMaxWidth(context),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+            child: Row(
+              children: [
+                if (_currentStep > 0)
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: _prevStep,
+                        child: const Text('Back'),
+                      ),
                     ),
                   ),
+                if (_currentStep > 0) const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: _currentStep < 3
+                      ? ShimmerButton(
+                          label: 'Next',
+                          icon: Icons.arrow_forward_rounded,
+                          onPressed: _nextStep,
+                        )
+                      : SizedBox(
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: _isApplying ? null : _apply,
+                            icon: _isApplying
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_rounded),
+                            label: Text(
+                              'Apply to ${_selectedProductIds.length} Products',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

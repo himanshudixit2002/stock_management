@@ -14,6 +14,8 @@ import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/success_overlay.dart';
 
 class ExcelExportScreen extends StatefulWidget {
   const ExcelExportScreen({super.key});
@@ -68,7 +70,11 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
 
       {
         HapticFeedback.mediumImpact();
-        showSuccessSnackBar(context, 'Report generated successfully!');
+        showSuccessOverlay(
+          context,
+          message: 'Report ready!',
+          popAfter: false,
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -199,8 +205,8 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
           title: 'Export Data',
         ),
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
         child: RefreshIndicator(
           onRefresh: _onPullRefreshCatalog,
           child: SingleChildScrollView(
@@ -214,32 +220,35 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    GlassPanel(
-                      borderRadius: 20,
-                      padding: const EdgeInsets.all(24),
-                      useContentVariant: true,
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.file_download_rounded,
-                            size: 56,
-                            color: AppTheme.successColor.withValues(alpha: 0.8),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Export Data',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Choose the report type and format to generate your export file.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.textSec(context),
+                    FadeSlideIn(
+                      index: 0,
+                      child: GlassPanel(
+                        borderRadius: 20,
+                        padding: const EdgeInsets.all(24),
+                        useContentVariant: true,
+                        child: Column(
+                          children: [
+                            AnimatedIconBadge(
+                              icon: Icons.file_download_rounded,
+                              color: AppTheme.successColor,
+                              size: 64,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            Text(
+                              'Export Data',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Choose the report type and format to generate your export file.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSec(context),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -307,6 +316,7 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.successColor,
+                          minimumSize: const Size(double.infinity, 52),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
@@ -329,42 +339,48 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
 
                     if (_exportResult != null) ...[
                       const SizedBox(height: 20),
-                      GlassPanel(
-                        borderRadius: 16,
-                        padding: const EdgeInsets.all(16),
-                        useContentVariant: true,
-                        child: Container(
-                          color: AppTheme.successColor.withValues(alpha: 0.1),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: AppTheme.successColor,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'File Generated Successfully!',
-                                      style: TextStyle(
+                      FadeSlideIn(
+                        child: GlassPanel(
+                          borderRadius: 16,
+                          padding: const EdgeInsets.all(16),
+                          useContentVariant: true,
+                          child: Container(
+                            color: AppTheme.successColor.withValues(alpha: 0.1),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
                                         color: AppTheme.successColor,
-                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'File Generated Successfully!',
+                                        style: TextStyle(
+                                          color: AppTheme.successColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  ElevatedButton.icon(
+                                    onPressed: _shareFile,
+                                    icon: const Icon(Icons.share),
+                                    label: const Text('Download / Share File'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryColor,
+                                      minimumSize: const Size(
+                                        double.infinity,
+                                        52,
                                       ),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                ElevatedButton.icon(
-                                  onPressed: _shareFile,
-                                  icon: const Icon(Icons.share),
-                                  label: const Text('Download / Share File'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryColor,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

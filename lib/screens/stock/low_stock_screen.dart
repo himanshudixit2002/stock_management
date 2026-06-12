@@ -70,6 +70,7 @@ class LowStockScreen extends StatelessWidget {
                 ),
                 Expanded(
                   child: RefreshIndicator(
+                    color: AppTheme.primaryColor,
                     onRefresh: () => productProvider.loadAnalytics(),
                     child: ListView.builder(
                       padding: EdgeInsets.symmetric(

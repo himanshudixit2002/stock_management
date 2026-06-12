@@ -10,6 +10,7 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/animated_list_item.dart';
+import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/responsive.dart';
@@ -142,38 +143,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               final allUsers = snapshot.data ?? [];
 
               if (allUsers.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.people_outline_rounded,
-                        size: 56,
-                        color: AppTheme.emptyIcon(
-                          context,
-                        ).withValues(alpha: 0.4),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No users yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textSec(context),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap the button below to add staff',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.textSec(
-                            context,
-                          ).withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ),
+                return EmptyStateWidget(
+                  icon: Icons.people_outline_rounded,
+                  title: 'No users yet',
+                  subtitle: 'Add your first staff member to get started.',
+                  buttonText: 'Add Staff',
+                  onButtonPressed: () => _showAddUserDialog(context),
                 );
               }
 
@@ -259,27 +234,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       // User list
                       Expanded(
                         child: filteredUsers.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.search_off_rounded,
-                                      size: 48,
-                                      color: AppTheme.iconMute(context),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'No users match "$_searchQuery"',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: AppTheme.textTer(context),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            ? EmptyStateWidget(
+                                icon: Icons.search_off_rounded,
+                                title: 'No matches',
+                                subtitle: 'No users match "$_searchQuery"',
                               )
                             : RefreshIndicator(
+                                color: AppTheme.primaryColor,
                                 onRefresh: () async {
                                   await Future.delayed(
                                     const Duration(milliseconds: 300),

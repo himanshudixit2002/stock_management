@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../config/motion.dart';
+
 class AnimatedListItem extends StatefulWidget {
   final int index;
   final Widget child;
@@ -31,10 +33,15 @@ class _AnimatedListItemState extends State<AnimatedListItem>
 
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
 
+    // The first few items get a slightly springy overshoot (easeOutBack) for a
+    // more playful reveal; deeper items use standard easing to stay calm.
+    final slideCurve = widget.index < 5
+        ? Curves.easeOutBack
+        : Curves.easeOutCubic;
     _slide = Tween<Offset>(
       begin: const Offset(0, 0.15),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(parent: _controller, curve: slideCurve));
 
     final delay = widget.staggerDelay * widget.index;
     // Cap the max delay so deep items don't wait too long
@@ -55,6 +62,7 @@ class _AnimatedListItemState extends State<AnimatedListItem>
 
   @override
   Widget build(BuildContext context) {
+    if (reduceMotion(context)) return widget.child;
     return FadeTransition(
       opacity: _opacity,
       child: SlideTransition(position: _slide, child: widget.child),

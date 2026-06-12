@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../config/theme.dart';
 import '../utils/responsive.dart';
+import 'animations.dart';
 import 'app_bar_title_row.dart';
+import 'glass_panel.dart';
 import 'shimmer_loading.dart';
 
 /// Standardized scaffold for list and form screens.
@@ -30,6 +32,20 @@ class AppScreenScaffold extends StatelessWidget {
   /// max width. Set to false for bodies that manage their own width.
   final bool constrainWidth;
 
+  /// Optional hero header zone rendered in a [GlassPanel] just below the app
+  /// bar (e.g. a summary banner or key stats). Spans the constrained width.
+  final Widget? header;
+
+  /// When true (and not loading), [emptyState] is rendered instead of [body].
+  /// Lets screens surface a consistent empty/error slot without restructuring.
+  final bool isEmpty;
+  final Widget? emptyState;
+
+  /// When true (default), a subtle drifting gradient background is used (falls
+  /// back to a static gradient under reduce-motion). Set false for a flat
+  /// [AppTheme.scaffoldGrad] background.
+  final bool animatedBackground;
+
   final Widget body;
 
   const AppScreenScaffold({
@@ -46,6 +62,10 @@ class AppScreenScaffold extends StatelessWidget {
     this.isLoading = false,
     this.shimmerLayout = ShimmerLayout.card,
     this.constrainWidth = true,
+    this.header,
+    this.isEmpty = false,
+    this.emptyState,
+    this.animatedBackground = true,
     required this.body,
   });
 
@@ -89,36 +109,75 @@ class AppScreenScaffold extends StatelessWidget {
             ],
           );
 
-    Widget content = isLoading
-        ? ShimmerLoading(layout: shimmerLayout)
-        : body;
+    final Widget content;
+    if (isLoading) {
+      content = ShimmerLoading(layout: shimmerLayout);
+    } else if (isEmpty && emptyState != null) {
+      content = FadeSlideIn(child: emptyState!);
+    } else {
+      content = FadeSlideIn(child: body);
+    }
+
+    Widget inner = content;
+    if (header != null) {
+      inner = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: ScaleFadeIn(
+              child: GlassPanel(
+                padding: const EdgeInsets.all(16),
+                useContentVariant: true,
+                child: header!,
+              ),
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      );
+    }
 
     if (constrainWidth) {
-      content = Center(
+      inner = Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
           ),
-          child: content,
+          child: inner,
         ),
+      );
+    }
+
+    final Widget? fab = floatingActionButton == null
+        ? null
+        : ScaleFadeIn(child: floatingActionButton!);
+
+    final scaffold = Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        leading: leading,
+        title: titleWidget,
+        actions: actions,
+      ),
+      floatingActionButton: fab,
+      floatingActionButtonLocation: floatingActionButtonLocation,
+      bottomNavigationBar: bottomNavigationBar,
+      body: SafeArea(child: inner),
+    );
+
+    if (animatedBackground) {
+      // AnimatedGradientBackground renders a static gradient under reduce-motion.
+      return AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
+        child: scaffold,
       );
     }
 
     return Container(
       decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          leading: leading,
-          title: titleWidget,
-          actions: actions,
-        ),
-        floatingActionButton: floatingActionButton,
-        floatingActionButtonLocation: floatingActionButtonLocation,
-        bottomNavigationBar: bottomNavigationBar,
-        body: SafeArea(child: content),
-      ),
+      child: scaffold,
     );
   }
 }

@@ -255,6 +255,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                       const SizedBox(height: 28),
                       ElevatedButton.icon(
                         onPressed: _isLoading ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 52),
+                        ),
                         icon: _isLoading
                             ? const SizedBox(
                                 width: 20,

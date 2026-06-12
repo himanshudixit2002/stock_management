@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/app_navigation.dart';
 
@@ -34,7 +35,9 @@ class _AboutScreenState extends State<AboutScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
       appBar: AppBar(title: const Text('About')),
-      body: SafeArea(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: SafeArea(
         bottom: false,
         child: Center(
           child: ConstrainedBox(
@@ -44,18 +47,19 @@ class _AboutScreenState extends State<AboutScreen> {
             child: ListView(
               padding: EdgeInsets.fromLTRB(hPad, 24, hPad, 40),
               children: [
-                _buildLogoSection(context),
+                FadeSlideIn(child: _buildLogoSection(context)),
                 const SizedBox(height: 28),
-                _buildAppInfoSection(context),
+                FadeSlideIn(index: 1, child: _buildAppInfoSection(context)),
                 const SizedBox(height: 16),
-                _buildLinksSection(context),
+                FadeSlideIn(index: 2, child: _buildLinksSection(context)),
                 const SizedBox(height: 16),
-                _buildRateSection(context),
+                FadeSlideIn(index: 3, child: _buildRateSection(context)),
                 const SizedBox(height: 32),
-                _buildFlutterBadge(context),
+                FadeSlideIn(index: 4, child: _buildFlutterBadge(context)),
               ],
             ),
           ),
+        ),
         ),
       ),
     );
@@ -64,19 +68,21 @@ class _AboutScreenState extends State<AboutScreen> {
   Widget _buildLogoSection(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 88,
-          height: 88,
-          decoration: BoxDecoration(
-            gradient: AppTheme.heroGradient,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.inventory_2_rounded,
-              size: 44,
-              color: Colors.white,
+        ScaleFadeIn(
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              gradient: AppTheme.heroGradient,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.inventory_2_rounded,
+                size: 44,
+                color: Colors.white,
+              ),
             ),
           ),
         ),

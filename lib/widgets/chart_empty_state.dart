@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import 'animations.dart';
 
 class ChartEmptyState extends StatelessWidget {
   final String message;
@@ -22,7 +23,13 @@ class ChartEmptyState extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 40, color: AppTheme.emptyIcon(context)),
+                ScaleFadeIn(
+                  child: Icon(
+                    icon,
+                    size: 40,
+                    color: AppTheme.emptyIcon(context),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Text(
                   message,

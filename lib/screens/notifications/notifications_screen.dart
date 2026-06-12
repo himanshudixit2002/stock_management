@@ -7,8 +7,10 @@ import '../../utils/responsive.dart';
 import '../../providers/notification_provider.dart';
 import '../../models/app_notification_model.dart';
 import '../../widgets/shimmer_loading.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/animations.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -73,78 +75,66 @@ class NotificationsScreen extends StatelessWidget {
     final provider = context.watch<NotificationProvider>();
     final notifications = provider.notifications;
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.notifications_rounded,
-          color: AppTheme.primaryColor,
-          title: 'Notifications',
-        ),
-        actions: [
-          if (provider.unreadCount > 0)
-            TextButton.icon(
-              onPressed: () => provider.markAllRead(),
-              icon: const Icon(Icons.done_all_rounded, size: 18),
-              label: const Text(
-                'Mark all read',
-                style: TextStyle(fontSize: 12),
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primaryColor,
-              ),
-            ),
-        ],
+    return AppScreenScaffold(
+      icon: Icons.notifications_rounded,
+      title: 'Notifications',
+      isLoading: provider.isLoading,
+      shimmerLayout: ShimmerLayout.listTile,
+      isEmpty: notifications.isEmpty,
+      emptyState: const EmptyStateWidget(
+        icon: Icons.notifications_off_rounded,
+        title: 'No Notifications Yet',
+        subtitle:
+            'Notifications appear when stock runs low, orders change status, '
+            'returns are filed, or batch items near expiry. '
+            'Start adding products and stock to receive alerts.',
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
+      actions: [
+        if (provider.unreadCount > 0)
+          TextButton.icon(
+            onPressed: () => provider.markAllRead(),
+            icon: const Icon(Icons.done_all_rounded, size: 18),
+            label: const Text(
+              'Mark all read',
+              style: TextStyle(fontSize: 12),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.primaryColor,
+            ),
           ),
-          child: provider.isLoading
-              ? const ShimmerLoading(layout: ShimmerLayout.listTile)
-              : notifications.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.notifications_off_rounded,
-                  title: 'No Notifications Yet',
-                  subtitle:
-                      'Notifications appear when stock runs low, orders change status, '
-                      'returns are filed, or batch items near expiry. '
-                      'Start adding products and stock to receive alerts.',
-                )
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    final companyId = context
-                        .read<AuthProvider>()
-                        .currentUser!
-                        .companyId;
-                    context.read<NotificationProvider>().initialize(
-                      companyId: companyId,
-                    );
-                  },
-                  child: ListView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Responsive.horizontalPadding(context),
-                      vertical: 8,
-                    ),
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final n = notifications[index];
-                      return _NotificationCard(
-                        notification: n,
-                        icon: _typeIcon(n.type),
-                        color: _typeColor(n.type),
-                        relativeTime: _relativeTime(n.timestamp),
-                        onTap: () {
-                          if (!n.isRead) {
-                            provider.markRead(n.id);
-                          }
-                        },
-                        onDismissed: () => provider.delete(n.id),
-                      );
-                    },
-                  ),
-                ),
+      ],
+      body: RefreshIndicator(
+        color: AppTheme.primaryColor,
+        onRefresh: () async {
+          final companyId = context.read<AuthProvider>().currentUser!.companyId;
+          context.read<NotificationProvider>().initialize(
+            companyId: companyId,
+          );
+        },
+        child: ListView.builder(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.horizontalPadding(context),
+            vertical: 8,
+          ),
+          itemCount: notifications.length,
+          itemBuilder: (context, index) {
+            final n = notifications[index];
+            return AnimatedListItem(
+              index: index,
+              child: _NotificationCard(
+                notification: n,
+                icon: _typeIcon(n.type),
+                color: _typeColor(n.type),
+                relativeTime: _relativeTime(n.timestamp),
+                onTap: () {
+                  if (!n.isRead) {
+                    provider.markRead(n.id);
+                  }
+                },
+                onDismissed: () => provider.delete(n.id),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -279,14 +269,9 @@ class _NotificationCard extends StatelessWidget {
                               ),
                             ),
                             if (isUnread)
-                              Container(
-                                width: 8,
-                                height: 8,
-                                margin: const EdgeInsets.only(top: 4),
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: PulsingDot(color: color, size: 8),
                               ),
                           ],
                         ),

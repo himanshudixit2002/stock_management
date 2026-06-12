@@ -15,6 +15,7 @@ import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../config/motion.dart';
 
 class StockForecastScreen extends StatefulWidget {
   const StockForecastScreen({super.key});
@@ -477,6 +478,10 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                               SizedBox(
                                 height: 220,
                                 child: LineChart(
+                                  duration: reduceMotion(context)
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 700),
+                                  curve: Curves.easeOutCubic,
                                   LineChartData(
                                     gridData: FlGridData(
                                       show: true,

@@ -7,7 +7,9 @@ import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/animations.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/success_overlay.dart';
 import '../../config/app_navigation.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -57,33 +59,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final hPad = Responsive.horizontalPadding(context);
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(title: const Text('Profile')),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 40),
-              children: [
-                FadeSlideIn(index: 0, child: _buildAvatarHeader(context, user)),
-                const SizedBox(height: 24),
-                FadeSlideIn(
-                  index: 1,
-                  child: _buildAccountInfoSection(context, user),
-                ),
-                const SizedBox(height: 16),
-                FadeSlideIn(index: 2, child: _buildSecuritySection(context)),
-                const SizedBox(height: 16),
-                FadeSlideIn(index: 3, child: _buildDangerZone(context)),
-              ],
-            ),
+    return AppScreenScaffold(
+      icon: Icons.person_rounded,
+      title: 'Profile',
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 40),
+        children: [
+          FadeSlideIn(index: 0, child: _buildAvatarHeader(context, user)),
+          const SizedBox(height: 24),
+          FadeSlideIn(
+            index: 1,
+            child: _buildAccountInfoSection(context, user),
           ),
-        ),
+          const SizedBox(height: 16),
+          FadeSlideIn(index: 2, child: _buildSecuritySection(context)),
+          const SizedBox(height: 16),
+          FadeSlideIn(index: 3, child: _buildDangerZone(context)),
+        ],
       ),
     );
   }
@@ -229,7 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _isEditingName = false);
       HapticFeedback.mediumImpact();
       if (ok) {
-        showSuccessSnackBar(context, 'Name updated!');
+        showSuccessOverlay(context, message: 'Name updated!', popAfter: false);
       } else {
         showErrorSnackBar(
           context,

@@ -6,7 +6,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../models/category_model.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -61,264 +61,234 @@ class _CategoryScreenState extends State<CategoryScreen> {
               .where((c) => c.name.toLowerCase().contains(_searchQuery))
               .toList();
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: AppBarTitleRow(
-          icon: Icons.category_rounded,
-          color: AppTheme.primaryColor,
-          title: 'Categories (${categories.length})',
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: categoryProvider.isLoading
-            ? const ShimmerLoading(itemCount: 5, layout: ShimmerLayout.listTile)
-            : categories.isEmpty
-            ? EmptyStateWidget(
-                icon: Icons.category_outlined,
-                title: 'No Categories',
-                subtitle: 'Create categories to organize your products',
-                buttonText: canManageCategories ? 'Add Category' : null,
-                onButtonPressed: canManageCategories
-                    ? () => _showAddEditDialog(context)
-                    : null,
-              )
-            : Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: Responsive.contentMaxWidth(context),
-                  ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          Responsive.horizontalPadding(context),
-                          12,
-                          Responsive.horizontalPadding(context),
-                          8,
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _onSearchChanged,
-                          decoration: InputDecoration(
-                            hintText: 'Search categories...',
-                            prefixIcon: const Icon(Icons.search, size: 20),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 20),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            filled: true,
-                            fillColor: AppTheme.inputFill(context),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: AppTheme.inputBorder(context),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: AppTheme.inputBorder(context),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.search_off_rounded,
-                                      size: 48,
-                                      color: AppTheme.iconMute(context),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'No categories match "$_searchQuery"',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: AppTheme.textTer(context),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : RefreshIndicator(
-                                onRefresh: () async {
-                                  categoryProvider.initialize(
-                                    companyId: user?.companyId ?? '',
-                                  );
-                                  await Future.delayed(
-                                    const Duration(milliseconds: 500),
-                                  );
-                                },
-                                child: ListView.builder(
-                                  padding: EdgeInsets.all(
-                                    Responsive.horizontalPadding(context),
-                                  ),
-                                  itemCount: filtered.length,
-                                  itemBuilder: (context, index) {
-                                    final cat = filtered[index];
-                                    final count = productCounts[cat.name] ?? 0;
-
-                                    return AnimatedListItem(
-                                      index: index,
-                                      child: GlassCard(
-                                        borderRadius: 14,
-                                        child: Container(
-                                          decoration: const BoxDecoration(
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: AppTheme.primaryColor,
-                                                width: 4,
-                                              ),
-                                            ),
-                                          ),
-                                          child: ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor: AppTheme
-                                                  .primaryColor
-                                                  .withValues(alpha: 0.1),
-                                              child: const Icon(
-                                                Icons.category,
-                                                color: AppTheme.primaryColor,
-                                              ),
-                                            ),
-                                            title: Text(
-                                              cat.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            subtitle: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (cat.description.isNotEmpty)
-                                                  Text(cat.description),
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .inventory_2_outlined,
-                                                      size: 13,
-                                                      color: AppTheme.textSec(
-                                                        context,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      '$count product${count == 1 ? '' : 's'}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: AppTheme.textSec(
-                                                          context,
-                                                        ),
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                            trailing: canManageCategories
-                                                ? PopupMenuButton<String>(
-                                                    onSelected: (value) {
-                                                      if (value == 'edit') {
-                                                        _showAddEditDialog(
-                                                          context,
-                                                          category: cat,
-                                                        );
-                                                      } else if (value ==
-                                                          'delete') {
-                                                        _confirmDelete(
-                                                          context,
-                                                          cat,
-                                                        );
-                                                      }
-                                                    },
-                                                    itemBuilder: (_) => [
-                                                      const PopupMenuItem(
-                                                        value: 'edit',
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(
-                                                              Icons.edit,
-                                                              size: 20,
-                                                            ),
-                                                            SizedBox(width: 8),
-                                                            Text('Edit'),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(
-                                                              Icons.delete,
-                                                              size: 20,
-                                                              color: AppTheme
-                                                                  .dangerColor,
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            Text(
-                                                              'Delete',
-                                                              style: TextStyle(
-                                                                color: AppTheme
-                                                                    .dangerColor,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  )
-                                                : null,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+    return AppScreenScaffold(
+      icon: Icons.category_rounded,
+      title: 'Categories (${categories.length})',
+      shimmerLayout: ShimmerLayout.listTile,
+      isLoading: categoryProvider.isLoading,
+      isEmpty: categories.isEmpty,
+      emptyState: EmptyStateWidget(
+        icon: Icons.category_outlined,
+        title: 'No Categories',
+        subtitle: 'Create categories to organize your products',
+        buttonText: canManageCategories ? 'Add Category' : null,
+        onButtonPressed: canManageCategories
+            ? () => _showAddEditDialog(context)
+            : null,
       ),
       floatingActionButton: canManageCategories
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: () => _showAddEditDialog(context),
               tooltip: 'Add Category',
-              child: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add'),
             )
           : null,
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              Responsive.horizontalPadding(context),
+              12,
+              Responsive.horizontalPadding(context),
+              8,
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search categories...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: AppTheme.inputFill(context),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppTheme.inputBorder(context),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppTheme.inputBorder(context),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.primaryColor),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 48,
+                          color: AppTheme.iconMute(context),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No categories match "$_searchQuery"',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: AppTheme.textTer(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    color: AppTheme.primaryColor,
+                    onRefresh: () async {
+                      categoryProvider.initialize(
+                        companyId: user?.companyId ?? '',
+                      );
+                      await Future.delayed(
+                        const Duration(milliseconds: 500),
+                      );
+                    },
+                    child: ListView.builder(
+                      padding: EdgeInsets.all(
+                        Responsive.horizontalPadding(context),
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final cat = filtered[index];
+                        final count = productCounts[cat.name] ?? 0;
+
+                        return AnimatedListItem(
+                          index: index,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: GlassCard(
+                              borderRadius: 14,
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: AppTheme.primaryColor,
+                                      width: 4,
+                                    ),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppTheme.primaryColor
+                                        .withValues(alpha: 0.1),
+                                    child: const Icon(
+                                      Icons.category,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    cat.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (cat.description.isNotEmpty)
+                                        Text(cat.description),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 13,
+                                            color: AppTheme.textSec(context),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$count product${count == 1 ? '' : 's'}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppTheme.textSec(context),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: canManageCategories
+                                      ? PopupMenuButton<String>(
+                                          onSelected: (value) {
+                                            if (value == 'edit') {
+                                              _showAddEditDialog(
+                                                context,
+                                                category: cat,
+                                              );
+                                            } else if (value == 'delete') {
+                                              _confirmDelete(context, cat);
+                                            }
+                                          },
+                                          itemBuilder: (_) => [
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.edit, size: 20),
+                                                  SizedBox(width: 8),
+                                                  Text('Edit'),
+                                                ],
+                                              ),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.delete,
+                                                    size: 20,
+                                                    color: AppTheme.dangerColor,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Delete',
+                                                    style: TextStyle(
+                                                      color:
+                                                          AppTheme.dangerColor,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

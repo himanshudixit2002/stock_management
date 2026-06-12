@@ -24,6 +24,7 @@ import '../../utils/unit_conversion.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart'
     show showSearchablePicker, PickerItem;
+import '../../widgets/success_overlay.dart';
 
 class _LineItem {
   String? productId;
@@ -352,8 +353,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     if (id != null) {
       final label = _invoiceType == InvoiceType.purchase ? 'Bill' : 'Invoice';
-      showSuccessSnackBar(context, '$label $invoiceNumber created');
-      Navigator.pop(context);
+      await showSuccessOverlay(context, message: '$label $invoiceNumber created');
     } else {
       showErrorSnackBar(
         context,
@@ -388,7 +388,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(appBarTitle)),
-      body: Form(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Form(
         key: _formKey,
         child: Center(
           child: ConstrainedBox(
@@ -442,6 +444,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

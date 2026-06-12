@@ -18,6 +18,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/database_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
@@ -121,7 +122,8 @@ class SalesOrderDetailScreen extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
               children: [
-                Builder(
+                ScaleFadeIn(
+                  child: Builder(
                   builder: (context) {
                     final section1 = GlassPanel(
                       borderRadius: 20,
@@ -412,6 +414,7 @@ class SalesOrderDetailScreen extends StatelessWidget {
                       ],
                     );
                   },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 _buildActions(context, order, user),

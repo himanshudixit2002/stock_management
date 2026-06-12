@@ -19,6 +19,9 @@ import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/not_found_state.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animations.dart';
 import '../../config/permissions.dart';
 import '../../config/app_navigation.dart';
 
@@ -42,12 +45,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final canManageProducts = canEditProduct || canDeleteProduct;
     final perms = user?.effectivePermissions ?? {};
     final productProvider = context.watch<ProductProvider>();
-    final product =
-        productProvider.allProducts.cast<ProductModel?>().firstWhere(
-          (p) => p!.id == widget.product.id,
-          orElse: () => null,
-        ) ??
-        widget.product;
+    final match = productProvider.allProducts.cast<ProductModel?>().firstWhere(
+      (p) => p!.id == widget.product.id,
+      orElse: () => null,
+    );
+    final product = match ?? widget.product;
+
+    // The product was loaded but is no longer present (e.g. deleted elsewhere).
+    final isMissing =
+        match == null &&
+        widget.product.id.isNotEmpty &&
+        productProvider.allProducts.isNotEmpty &&
+        !productProvider.isLoading;
+    if (isMissing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Product Details')),
+        body: NotFoundState(
+          title: 'Product Not Found',
+          message:
+              'This product may have been deleted or is no longer available.',
+          icon: Icons.inventory_2_outlined,
+          onGoBack: () => Navigator.of(context).pop(),
+        ),
+      );
+    }
     final stockColor = AppTheme.getStockColor(
       product.quantity,
       threshold: product.lowStockThreshold,
@@ -107,7 +128,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ],
         ],
       ),
-      body: RefreshIndicator(
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: RefreshIndicator(
+        color: AppTheme.primaryColor,
         onRefresh: () async {
           final companyId = context.read<ProductProvider>().companyId;
           context.read<ProductProvider>().initialize(companyId: companyId);
@@ -740,11 +764,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         .getProductTransactions(product.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: CircularProgressIndicator(),
-                          ),
+                        return const ShimmerLoading(
+                          itemCount: 3,
+                          layout: ShimmerLayout.listTile,
                         );
                       }
 
@@ -776,7 +798,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }
 
                       return Column(
-                        children: transactions.map((t) {
+                        children: transactions.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final t = entry.value;
                           Color typeColor;
                           IconData typeIcon;
 
@@ -811,7 +835,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               break;
                           }
 
-                          return Padding(
+                          return FadeSlideIn(
+                            index: index,
+                            child: Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: GlassCard(
                               borderRadius: 14,
@@ -906,6 +932,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 ),
                               ),
                             ),
+                            ),
                           );
                         }).toList(),
                       );
@@ -946,6 +973,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -1260,8 +1288,9 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PlayfulPressable(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(

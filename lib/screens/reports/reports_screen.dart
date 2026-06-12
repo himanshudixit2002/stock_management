@@ -9,8 +9,10 @@ import '../../providers/auth_provider.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
+import '../../config/feature_map.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../models/user_model.dart';
 import '../../utils/dialogs.dart';
 import '../../services/excel_service.dart';
 import '../../widgets/charts/transaction_line_chart.dart';
@@ -19,6 +21,12 @@ import '../../widgets/charts/stock_bar_chart.dart';
 import '../../widgets/charts/top_products_chart.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/animated_list_item.dart';
+import '../../widgets/shimmer_loading.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/floating_nav_padding.dart';
+import '../../widgets/tab_context_header.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -402,15 +410,42 @@ class _ReportsScreenState extends State<ReportsScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildTransactionTab(),
-          _buildCategoryAnalyticsTab(),
-          _buildChartsTab(),
-          _buildSummaryTab(),
-        ],
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: Column(
+          children: [
+            _buildContextHeader(context),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTransactionTab(),
+                  _buildCategoryAnalyticsTab(),
+                  _buildChartsTab(),
+                  _buildSummaryTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildContextHeader(BuildContext context) {
+    final perms =
+        context.watch<AuthProvider>().currentUser?.effectivePermissions ??
+        UserModel.defaultPermissions;
+    final shortcuts = FeatureMap.entriesByCategory(
+      FeatureCategory.reports,
+      perms,
+      placement: FeaturePlacement.tabShortcut,
+    );
+    return TabContextHeader(
+      icon: Icons.analytics_rounded,
+      title: 'Reports & Insights',
+      subtitle: 'Analyze movements, categories and trends',
+      shortcuts: shortcuts,
     );
   }
 
@@ -682,31 +717,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                   final transactions = _getFilteredTransactions(stockProvider);
 
                   if (transactions.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.history_rounded,
-                            size: 56,
-                            color: AppTheme.iconMute(context),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No transactions found',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: AppTheme.textTer(context),
-                            ),
-                          ),
-                        ],
-                      ),
+                    return const EmptyStateWidget(
+                      icon: Icons.history_rounded,
+                      title: 'No transactions found',
+                      subtitle: 'Try adjusting your filters or date range.',
                     );
                   }
 
                   if (Responsive.isDesktop(context)) {
                     return GridView.builder(
-                      padding: EdgeInsets.symmetric(horizontal: hPad),
+                      padding: EdgeInsets.fromLTRB(
+                        hPad,
+                        0,
+                        hPad,
+                        floatingNavContentInset(context),
+                      ),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
@@ -717,9 +742,12 @@ class _ReportsScreenState extends State<ReportsScreen>
                       itemCount: transactions.length,
                       itemBuilder: (context, index) {
                         final t = transactions[index];
-                        return _TransactionTile(
-                          transaction: t,
-                          dateFormat: dateFormat,
+                        return AnimatedListItem(
+                          index: index,
+                          child: _TransactionTile(
+                            transaction: t,
+                            dateFormat: dateFormat,
+                          ),
                         );
                       },
                     );
@@ -727,13 +755,21 @@ class _ReportsScreenState extends State<ReportsScreen>
 
                   return ListView.builder(
                     addAutomaticKeepAlives: false,
-                    padding: EdgeInsets.symmetric(horizontal: hPad),
+                    padding: EdgeInsets.fromLTRB(
+                      hPad,
+                      0,
+                      hPad,
+                      floatingNavContentInset(context),
+                    ),
                     itemCount: transactions.length,
                     itemBuilder: (context, index) {
                       final t = transactions[index];
-                      return _TransactionTile(
-                        transaction: t,
-                        dateFormat: dateFormat,
+                      return AnimatedListItem(
+                        index: index,
+                        child: _TransactionTile(
+                          transaction: t,
+                          dateFormat: dateFormat,
+                        ),
                       );
                     },
                   );
@@ -810,22 +846,7 @@ class _ReportsScreenState extends State<ReportsScreen>
         (productProvider.isLoadingAnalytics && hasNoData);
 
     if (isStillLoading && hasNoData) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(strokeWidth: 2),
-              const SizedBox(height: 16),
-              Text(
-                'Loading analytics...',
-                style: TextStyle(color: AppTheme.textTer(context)),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const ShimmerLoading(layout: ShimmerLayout.card);
     }
 
     final countByCategory = productProvider.productCountByCategory;
@@ -838,7 +859,9 @@ class _ReportsScreenState extends State<ReportsScreen>
       onRefresh: () => productProvider.loadAnalytics(),
       child: SingleChildScrollView(
         physics: Responsive.scrollPhysics(context),
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+        padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
+          EdgeInsets.only(bottom: floatingNavContentInset(context)),
+        ),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -1173,7 +1196,9 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+      padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
+        EdgeInsets.only(bottom: floatingNavContentInset(context)),
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -1256,22 +1281,7 @@ class _ReportsScreenState extends State<ReportsScreen>
         (productProvider.isLoadingAnalytics && hasNoData);
 
     if (isStillLoading && hasNoData) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(strokeWidth: 2),
-              const SizedBox(height: 16),
-              Text(
-                'Loading analytics...',
-                style: TextStyle(color: AppTheme.textTer(context)),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const ShimmerLoading(layout: ShimmerLayout.card);
     }
 
     final healthScore = productProvider.inventoryHealthScore;
@@ -1296,7 +1306,9 @@ class _ReportsScreenState extends State<ReportsScreen>
       onRefresh: () => productProvider.loadAnalytics(),
       child: SingleChildScrollView(
         physics: Responsive.scrollPhysics(context),
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+        padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
+          EdgeInsets.only(bottom: floatingNavContentInset(context)),
+        ),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -1606,18 +1618,11 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
                 const SizedBox(height: 16),
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, AppRoutes.excelExport),
-                    icon: const Icon(Icons.download_rounded),
-                    label: const Text('Export Full Report'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
+                ShimmerButton(
+                  label: 'Export Full Report',
+                  icon: Icons.download_rounded,
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.excelExport),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -2460,6 +2465,27 @@ class _KpiCard extends StatelessWidget {
     this.changePercent,
   });
 
+  /// Counts up plain integer KPI values (handling an optional leading +/-),
+  /// leaving formatted strings untouched.
+  Widget _buildValue() {
+    final style = TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w800,
+      color: color,
+    );
+    final hasPlusPrefix = value.startsWith('+');
+    final cleaned = hasPlusPrefix ? value.substring(1) : value;
+    final intVal = int.tryParse(cleaned);
+    if (intVal == null) {
+      return Text(value, style: style);
+    }
+    return CountUpText(
+      intVal,
+      style: style,
+      formatter: (v) => '${hasPlusPrefix ? '+' : ''}${v.round()}',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2498,14 +2524,7 @@ class _KpiCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
+          _buildValue(),
           if (changePercent != null) ...[
             const SizedBox(height: 2),
             Row(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../config/motion.dart';
 import '../config/theme.dart';
 import '../utils/unit_conversion.dart';
+import 'animations.dart';
 
 class QuantityStepper extends StatefulWidget {
   final TextEditingController controller;
@@ -29,7 +31,18 @@ class _QuantityStepperState extends State<QuantityStepper> {
   late final TextEditingController _packController;
   late final TextEditingController _pieceController;
 
+  /// Drives a brief scale bounce on the value field when changed via controls.
+  bool _bump = false;
+
   bool get _isMixed => widget.unitsPerPack > 1;
+
+  void _triggerBump() {
+    if (!mounted) return;
+    setState(() => _bump = true);
+    Future.delayed(const Duration(milliseconds: 130), () {
+      if (mounted) setState(() => _bump = false);
+    });
+  }
 
   void _increment(int amount) {
     final current = int.tryParse(widget.controller.text) ?? 0;
@@ -37,7 +50,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
     if (newVal >= 0) {
       widget.controller.text = '$newVal';
       _syncFromTotal();
-      HapticFeedback.selectionClick();
+      _triggerBump();
     }
   }
 
@@ -96,6 +109,18 @@ class _QuantityStepperState extends State<QuantityStepper> {
     if (widget.controller.text != total.toString()) {
       widget.controller.text = '$total';
     }
+  }
+
+  /// Wraps [child] in a quick scale bounce when the value changes via the
+  /// controls. Honors reduce-motion (no scaling).
+  Widget _bounce(BuildContext context, Widget child) {
+    if (reduceMotion(context)) return child;
+    return AnimatedScale(
+      scale: _bump ? 1.06 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: child,
+    );
   }
 
   @override
@@ -182,51 +207,61 @@ class _QuantityStepperState extends State<QuantityStepper> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
-                          controller: widget.controller,
-                          readOnly: true,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSec(context),
-                          ),
-                          decoration: InputDecoration(
-                            labelText: 'Total (${widget.baseUnit})',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                        _bounce(
+                          context,
+                          TextFormField(
+                            controller: widget.controller,
+                            readOnly: true,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSec(context),
                             ),
-                            filled: true,
-                            fillColor: AppTheme.inputFill(context),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 12,
+                            decoration: InputDecoration(
+                              labelText: 'Total (${widget.baseUnit})',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor: AppTheme.inputFill(context),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
+                              ),
                             ),
+                            validator: widget.validator,
                           ),
-                          validator: widget.validator,
                         ),
                       ],
                     )
-                  : TextFormField(
-                      controller: widget.controller,
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+                  : _bounce(
+                      context,
+                      TextFormField(
+                        controller: widget.controller,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
                         ),
-                        filled: true,
-                        fillColor: AppTheme.inputFill(context),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.inputFill(context),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                          ),
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        validator: widget.validator,
                       ),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: widget.validator,
                     ),
             ),
             const SizedBox(width: 12),
@@ -248,7 +283,10 @@ class _QuantityStepperState extends State<QuantityStepper> {
               .map(
                 (v) => ActionChip(
                   label: Text('+$v'),
-                  onPressed: () => _increment(v),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    _increment(v);
+                  },
                   backgroundColor: AppTheme.primaryColor.withValues(
                     alpha: 0.08,
                   ),
@@ -284,18 +322,29 @@ class _StepperButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Icon(icon, color: color, size: 24),
+    );
+
+    // PlayfulPressable owns the tap (press scale + haptic). A wrapping
+    // GestureDetector keeps the existing long-press bulk increment; tap and
+    // long-press still compete correctly in the shared pointer arena.
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Icon(icon, color: color, size: 24),
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        onLongPress();
+      },
+      child: PlayfulPressable(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: visual,
       ),
     );
   }

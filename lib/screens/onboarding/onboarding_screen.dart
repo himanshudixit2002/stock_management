@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
+import '../../config/motion.dart';
 import '../../config/routes.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/category_provider.dart';
@@ -212,6 +213,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Widget _buildAnimatedPage(int index, Widget child) {
+    if (reduceMotion(context)) return child;
     return AnimatedBuilder(
       animation: _pageController,
       builder: (context, child) {

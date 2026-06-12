@@ -95,7 +95,9 @@ class _HoldListScreenState extends State<HoldListScreen> {
           ),
         ],
       ),
-      body: Center(
+      body: AnimatedGradientBackground(
+        colors: AppTheme.scaffoldGrad(context).colors,
+        child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: Responsive.contentMaxWidth(context),
@@ -300,6 +302,7 @@ class _HoldListScreenState extends State<HoldListScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

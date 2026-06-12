@@ -7,6 +7,7 @@ import '../providers/favorites_provider.dart';
 import '../config/motion.dart';
 import '../config/routes.dart';
 import '../config/theme.dart';
+import 'animations.dart';
 import 'glass_panel.dart';
 import 'stock_badge.dart';
 import '../config/app_navigation.dart';
@@ -18,6 +19,11 @@ class ProductCard extends StatefulWidget {
   final VoidCallback? onStockOut;
   final bool useGridPadding;
 
+  /// When non-null, the card fades + slides in with a stagger based on this
+  /// list index. Leave null (default) to render with no entrance animation,
+  /// preserving the existing behavior for screens that don't opt in.
+  final int? animationIndex;
+
   const ProductCard({
     super.key,
     required this.product,
@@ -25,6 +31,7 @@ class ProductCard extends StatefulWidget {
     this.onStockIn,
     this.onStockOut,
     this.useGridPadding = false,
+    this.animationIndex,
   });
 
   @override
@@ -133,7 +140,7 @@ class _ProductCardState extends State<ProductCard> {
       threshold: product.lowStockThreshold,
     );
 
-    return Dismissible(
+    final Widget card = Dismissible(
       key: ValueKey(product.id),
       direction: DismissDirection.horizontal,
       background: Container(
@@ -238,6 +245,9 @@ class _ProductCardState extends State<ProductCard> {
         ),
       ),
     );
+
+    if (widget.animationIndex == null) return card;
+    return FadeSlideIn(index: widget.animationIndex!, child: card);
   }
 
   Widget _buildGridContent(

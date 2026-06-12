@@ -12,6 +12,7 @@ import '../../widgets/glass_panel.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/animated_list_item.dart';
 import '../../config/routes.dart';
 import '../../config/app_navigation.dart';
 
@@ -87,6 +88,7 @@ class StockTakeListScreen extends StatelessWidget {
                         context.pushAppRoute(AppRoutes.createStockTake),
                   )
                 : RefreshIndicator(
+                    color: AppTheme.primaryColor,
                     onRefresh: () async {
                       final companyId = context
                           .read<AuthProvider>()
@@ -110,7 +112,9 @@ class StockTakeListScreen extends StatelessWidget {
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: GlassCard(
+                          child: AnimatedListItem(
+                            index: index,
+                            child: GlassCard(
                             onTap: st.status != StockTakeStatus.completed
                                 ? () => context.pushAppRoute(
                                     AppRoutes.stockTakeCount,
@@ -239,6 +243,7 @@ class StockTakeListScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
+                          ),
                           ),
                         );
                       },
