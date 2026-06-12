@@ -18,6 +18,7 @@ import '../../widgets/success_overlay.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class DamageReportScreen extends StatefulWidget {
   final ProductModel? product;
@@ -239,15 +240,14 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.damage)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Damage Report')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.damage,
+      featureName: 'Damage Report',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final allProducts = context.watch<ProductProvider>().allProducts;
 

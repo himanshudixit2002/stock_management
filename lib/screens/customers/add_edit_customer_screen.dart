@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/customer_model.dart';
 import '../../providers/customer_provider.dart';
@@ -128,20 +129,16 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    final canAccess = _isEditing
-        ? (user?.hasPermission(AppPermissions.editCustomers) ?? false)
-        : (user?.hasPermission(AppPermissions.addCustomers) ?? false);
-    if (user != null && !canAccess) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(_isEditing ? 'Edit Customer' : 'Add Customer'),
-        ),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: _isEditing
+          ? AppPermissions.editCustomers
+          : AppPermissions.addCustomers,
+      featureName: _isEditing ? 'Edit Customer' : 'Add Customer',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),

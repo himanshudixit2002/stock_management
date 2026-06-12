@@ -13,6 +13,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class ExcelExportScreen extends StatefulWidget {
   const ExcelExportScreen({super.key});
@@ -180,15 +181,14 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission(AppPermissions.exportData)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Export Data')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.exportData,
+      featureName: 'Export Data',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),

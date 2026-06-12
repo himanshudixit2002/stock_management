@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/batch_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../utils/responsive.dart';
@@ -15,25 +15,14 @@ class ExpiryAlertsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewExpiryAlerts)) {
-      return Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const AppBarTitleRow(
-              icon: Icons.warning_amber_rounded,
-              color: AppTheme.warningColor,
-              title: 'Expiry Alerts',
-            ),
-          ),
-          body: const Center(
-            child: Text('You do not have permission to access this feature.'),
-          ),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewExpiryAlerts,
+      featureName: 'Expiry Alerts',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return Container(
       decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),

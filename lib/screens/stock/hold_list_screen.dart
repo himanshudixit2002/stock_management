@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_hold_model.dart';
@@ -38,15 +39,14 @@ class _HoldListScreenState extends State<HoldListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewStockHolds)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Stock Holds')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewStockHolds,
+      featureName: 'Stock Holds',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final stockProvider = context.watch<StockProvider>();
     final all = stockProvider.stockHolds;

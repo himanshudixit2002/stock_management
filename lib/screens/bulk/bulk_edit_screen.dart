@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
@@ -127,21 +128,14 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.bulkEdit)) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.edit_note_rounded,
-            color: AppTheme.indigoColor,
-            title: 'Bulk Edit',
-          ),
-        ),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.bulkEdit,
+      featureName: 'Bulk Edit',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final products = context.watch<ProductProvider>().allProducts;
 

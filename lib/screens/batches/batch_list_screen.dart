@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/batch_model.dart';
 import '../../providers/auth_provider.dart';
@@ -81,25 +82,14 @@ class _BatchListScreenState extends State<BatchListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.manageBatches)) {
-      return Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const AppBarTitleRow(
-              icon: Icons.layers_rounded,
-              color: AppTheme.primaryColor,
-              title: 'Batch Tracking',
-            ),
-          ),
-          body: const Center(
-            child: Text('You do not have permission to access this feature.'),
-          ),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.manageBatches,
+      featureName: 'Batch Tracking',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final provider = context.watch<BatchProvider>();
     final batches = _filtered(provider.batches);

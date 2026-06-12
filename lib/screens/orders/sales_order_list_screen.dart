@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/sales_order_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/sales_order_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
@@ -62,15 +63,15 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewSalesOrders,
+      featureName: 'Sales Orders',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewSalesOrders)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Sales Orders')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final allOrders = context.watch<SalesOrderProvider>().orders;
     final activeHolds = context.watch<StockProvider>().activeHolds;
@@ -88,23 +89,11 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
     );
     final dateFormat = DateFormat('dd MMM yyyy');
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.receipt_long_rounded,
-          color: AppTheme.indigoColor,
-          title: 'Sales Orders',
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
+    return AppScreenScaffold(
+      icon: Icons.receipt_long_rounded,
+      iconColor: AppTheme.indigoColor,
+      title: 'Sales Orders',
+      body: Column(
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -596,9 +585,6 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
       floatingActionButton:
           (user?.hasPermission(AppPermissions.createSalesOrders) ?? false)
           ? FloatingActionButton.extended(

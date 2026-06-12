@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
@@ -12,6 +13,7 @@ import '../../providers/product_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/invoice_search.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -77,39 +79,33 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewInvoices,
+      featureName: 'Invoices',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewInvoices)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Billing')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
     final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
     final invoices = _filteredInvoices(billing.invoices);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Billing'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart_rounded),
-            tooltip: 'Billing Reports',
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.billingReports),
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: Column(
+    return AppScreenScaffold(
+      icon: Icons.receipt_long_rounded,
+      title: 'Billing',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.bar_chart_rounded),
+          tooltip: 'Billing Reports',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.billingReports),
+        ),
+      ],
+      body: Column(
             children: [
               if (billing.errorMessage != null)
                 Padding(
@@ -150,8 +146,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               ),
             ],
           ),
-        ),
-      ),
       floatingActionButton:
           (user?.hasPermission(AppPermissions.createInvoices) ?? false)
           ? Semantics(

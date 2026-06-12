@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/sales_order_model.dart';
@@ -194,15 +195,14 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.createSalesOrders)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Create Sales Order')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.createSalesOrders,
+      featureName: 'Create Sales Order',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final customers = context.watch<CustomerProvider>().activeCustomers;
     final currencyFormat = NumberFormat.currency(

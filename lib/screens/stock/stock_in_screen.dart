@@ -19,6 +19,7 @@ import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../config/routes.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class StockInScreen extends StatefulWidget {
   final ProductModel? product;
@@ -220,15 +221,14 @@ class _StockInScreenState extends State<StockInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.stockIn)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Stock In')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.stockIn,
+      featureName: 'Stock In',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final products = context.watch<ProductProvider>().allProducts;
     final settingsLocations = context.watch<SettingsProvider>().locations;

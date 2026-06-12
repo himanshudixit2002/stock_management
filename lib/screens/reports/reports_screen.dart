@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -348,15 +349,14 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewReports)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Reports')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewReports,
+      featureName: 'Reports',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),

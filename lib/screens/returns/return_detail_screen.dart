@@ -13,6 +13,7 @@ import '../../services/database_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
@@ -35,7 +36,13 @@ class ReturnDetailScreen extends StatelessWidget {
     if (ret == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Return')),
-        body: const Center(child: Text('Return not found')),
+        body: NotFoundState(
+          icon: Icons.assignment_return_rounded,
+          title: 'Return not found',
+          message:
+              'This return may have been deleted or is no longer available.',
+          onGoBack: () => Navigator.of(context).pop(),
+        ),
       );
     }
 

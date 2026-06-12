@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
@@ -152,21 +153,14 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.bulkStockIn)) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.playlist_add_rounded,
-            color: AppTheme.successColor,
-            title: 'Bulk Stock In',
-          ),
-        ),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.bulkStockIn,
+      featureName: 'Bulk Stock In',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final products = context.watch<ProductProvider>().allProducts;
     final locations = context.watch<SettingsProvider>().locations;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/batch_model.dart';
 import '../../models/product_model.dart';
@@ -114,25 +115,14 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.manageBatches)) {
-      return Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const AppBarTitleRow(
-              icon: Icons.add_rounded,
-              color: AppTheme.primaryColor,
-              title: 'Add Batch',
-            ),
-          ),
-          body: const Center(
-            child: Text('You do not have permission to access this feature.'),
-          ),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.manageBatches,
+      featureName: 'Add Batch',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final products = context.watch<ProductProvider>().allProducts;
     final filtered = _productSearch.isEmpty

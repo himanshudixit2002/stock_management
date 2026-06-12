@@ -3,13 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/customer_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
@@ -253,15 +254,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewCustomers,
+      featureName: 'Customers',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewCustomers)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Customers')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final customerProvider = context.watch<CustomerProvider>();
     final allCustomers = customerProvider.customers;
@@ -271,49 +272,36 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       decimalDigits: 0,
     );
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: AppBarTitleRow(
-          icon: Icons.people_rounded,
-          color: AppTheme.primaryColor,
-          title: 'Customers (${allCustomers.length})',
+    return AppScreenScaffold(
+      icon: Icons.people_rounded,
+      title: 'Customers (${allCustomers.length})',
+      actions: [
+        PopupMenuButton<_CustomerSort>(
+          icon: const Icon(Icons.sort_rounded),
+          tooltip: 'Sort',
+          onSelected: (v) => setState(() => _sort = v),
+          itemBuilder: (_) => [
+            _sortMenuItem(_CustomerSort.nameAsc, 'Name A–Z'),
+            _sortMenuItem(_CustomerSort.nameDesc, 'Name Z–A'),
+            const PopupMenuDivider(),
+            _sortMenuItem(_CustomerSort.ordersHigh, 'Orders: High to Low'),
+            _sortMenuItem(_CustomerSort.ordersLow, 'Orders: Low to High'),
+            const PopupMenuDivider(),
+            _sortMenuItem(_CustomerSort.spentHigh, 'Spent: High to Low'),
+            _sortMenuItem(_CustomerSort.spentLow, 'Spent: Low to High'),
+          ],
         ),
-        actions: [
-          PopupMenuButton<_CustomerSort>(
-            icon: const Icon(Icons.sort_rounded),
-            tooltip: 'Sort',
-            onSelected: (v) => setState(() => _sort = v),
-            itemBuilder: (_) => [
-              _sortMenuItem(_CustomerSort.nameAsc, 'Name A–Z'),
-              _sortMenuItem(_CustomerSort.nameDesc, 'Name Z–A'),
-              const PopupMenuDivider(),
-              _sortMenuItem(_CustomerSort.ordersHigh, 'Orders: High to Low'),
-              _sortMenuItem(_CustomerSort.ordersLow, 'Orders: Low to High'),
-              const PopupMenuDivider(),
-              _sortMenuItem(_CustomerSort.spentHigh, 'Spent: High to Low'),
-              _sortMenuItem(_CustomerSort.spentLow, 'Spent: Low to High'),
-            ],
+        IconButton(
+          icon: Badge(
+            isLabelVisible: _hasActiveFilters,
+            smallSize: 8,
+            child: const Icon(Icons.filter_list_rounded),
           ),
-          IconButton(
-            icon: Badge(
-              isLabelVisible: _hasActiveFilters,
-              smallSize: 8,
-              child: const Icon(Icons.filter_list_rounded),
-            ),
-            tooltip: 'Filter',
-            onPressed: _showFilterSheet,
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
+          tooltip: 'Filter',
+          onPressed: _showFilterSheet,
+        ),
+      ],
+      body: Column(
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -462,9 +450,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

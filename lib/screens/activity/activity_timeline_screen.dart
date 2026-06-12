@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../utils/responsive.dart';
@@ -134,16 +134,14 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null &&
-        !user.hasPermission(AppPermissions.viewActivityTimeline)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Activity Timeline')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewActivityTimeline,
+      featureName: 'Activity Timeline',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final stockProvider = context.watch<StockProvider>();
     final allTx = stockProvider.allTransactions;

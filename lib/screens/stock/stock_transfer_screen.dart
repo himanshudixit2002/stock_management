@@ -18,6 +18,7 @@ import '../../widgets/success_overlay.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class StockTransferScreen extends StatefulWidget {
   final ProductModel? product;
@@ -181,15 +182,14 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.transfer)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Stock Transfer')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.transfer,
+      featureName: 'Stock Transfer',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final products = context.watch<ProductProvider>().allProducts;
     final settingsLocations = context.watch<SettingsProvider>().locations;

@@ -21,7 +21,13 @@ import '../../utils/fast_pos_checkout.dart';
 import '../../utils/product_search.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animations.dart';
+import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/glass_panel.dart';
+import '../../widgets/permission_gate.dart';
+import '../../widgets/product_card.dart';
 import '../../widgets/searchable_picker.dart' show PickerItem, showSearchablePicker;
+import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 
 class FastPosScreen extends StatefulWidget {
@@ -890,18 +896,18 @@ class _FastPosScreenState extends State<FastPosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null &&
-        (!user.hasPermission(AppPermissions.useFastPos) ||
-            !user.hasPermission(AppPermissions.createInvoices))) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Fast POS')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.useFastPos,
+      featureName: 'Fast POS',
+      child: PermissionGate(
+        permission: AppPermissions.createInvoices,
+        featureName: 'Fast POS',
+        child: Builder(builder: _buildContent),
+      ),
+    );
+  }
 
+  Widget _buildContent(BuildContext context) {
     final bs = context.watch<BillingSettingsProvider>().settings;
     final billing = context.watch<BillingProvider>();
     final productProvider = context.watch<ProductProvider>();
@@ -937,12 +943,21 @@ class _FastPosScreenState extends State<FastPosScreen> {
     final customerDue = _selectedCustomer == null
         ? 0.0
         : billing.customerOutstanding(_selectedCustomer!.id);
+    final isWide = Responsive.isWide(context);
     final isMobile = Responsive.isMobile(context);
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final productsLoading =
+        productProvider.isLoadingAnalytics && products.isEmpty;
 
     return Scaffold(
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
-        title: const Text('Fast POS'),
+        backgroundColor: Colors.transparent,
+        title: const AppBarTitleRow(
+          icon: Icons.point_of_sale_rounded,
+          color: AppTheme.primaryColor,
+          title: 'Fast POS',
+        ),
         actions: [
           IconButton(
             tooltip: 'Scan barcode',
@@ -956,177 +971,452 @@ class _FastPosScreenState extends State<FastPosScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Column(
-                children: [
-                  _SearchEntryCard(
-                    busy: _isResolvingAdd,
-                    enabled:
-                        !(productProvider.isLoadingAnalytics && products.isEmpty),
-                    onTap: _pickProduct,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickCustomer,
-                          icon: const Icon(Icons.person_outline_rounded),
-                          label: Text(
-                            _selectedCustomer == null
-                                ? 'Walk-in'
-                                : _selectedCustomer!.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: _scanAndAdd,
-                        icon: const Icon(Icons.qr_code_scanner_rounded),
-                        label: Text(isMobile ? 'Scan' : 'Scan Barcode'),
-                      ),
-                    ],
-                  ),
-                  if (productProvider.isLoadingAnalytics && products.isEmpty)
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('Syncing products...'),
-                      ),
-                    ),
-                  if (!productProvider.isLoadingAnalytics && products.isEmpty)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'No products loaded yet. Refresh product sync.',
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                context.read<ProductProvider>().loadAnalytics();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (_selectedCustomer != null && customerDue > 0)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          'Outstanding: $symbol${_numFmt.format(customerDue)}',
-                          style: TextStyle(
-                            color: AppTheme.warningColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (favoriteProducts.isNotEmpty && !(isMobile && isKeyboardOpen))
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface(context),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.dividerC(context)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick picks',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        height: 40,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          itemBuilder: (context, index) {
-                            final product = favoriteProducts[index];
-                            return ActionChip(
-                              avatar:
-                                  const Icon(Icons.favorite_rounded, size: 16),
-                              label: Text(product.name),
-                              onPressed: () => _addProduct(product),
-                            );
-                          },
-                          separatorBuilder: (_, idx) => const SizedBox(width: 8),
-                          itemCount: favoriteProducts.length,
-                        ),
-                      ),
-                    ],
-                  ),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: SafeArea(
+          top: false,
+          child: isWide
+              ? _buildWideLayout(
+                  context,
+                  products: products,
+                  favoriteProducts: favoriteProducts,
+                  productsLoading: productsLoading,
+                  symbol: symbol,
+                  customerDue: customerDue,
+                  subtotal: payload.totals.subtotal,
+                  totalTax: payload.totals.totalTax,
+                  taxLabel: bs.taxLabel,
+                  grandTotal: payload.totals.grandTotal,
+                )
+              : _buildMobileLayout(
+                  context,
+                  products: products,
+                  favoriteProducts: favoriteProducts,
+                  productProvider: productProvider,
+                  productsLoading: productsLoading,
+                  symbol: symbol,
+                  customerDue: customerDue,
+                  grandTotal: payload.totals.grandTotal,
+                  isMobile: isMobile,
+                  isKeyboardOpen: isKeyboardOpen,
                 ),
-              ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _cart.isEmpty
-                  ? const EmptyStateWidget(
-                      icon: Icons.point_of_sale_rounded,
-                      title: 'Cart is empty',
-                      subtitle:
-                          'Scan barcode or add products to start a fast sale.',
-                    )
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      itemCount: _cartLines.length,
-                      itemBuilder: (context, index) {
-                        final line = _cartLines[index];
-                        return _CartItemCard(
-                          line: line,
-                          symbol: symbol,
-                          numFmt: _numFmt,
-                          isMobile: isMobile,
-                          onDecrement: () => _changeQty(line, -1),
-                          onIncrement: () => _changeQty(line, 1),
-                          onEditQty: () => _openQtyEditor(line),
-                          onEditPrice: () => _openPriceEditor(line),
-                          onChangeLocation: () => _changeLineLocation(line),
-                          onCommitPrice: (value) =>
-                              _setUnitPrice(line, value, notify: true),
-                        );
-                      },
-                    ),
+        ),
+      ),
+    );
+  }
+
+  Widget _customerButton(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _pickCustomer,
+      icon: const Icon(Icons.person_outline_rounded),
+      label: Text(
+        _selectedCustomer == null ? 'Walk-in' : _selectedCustomer!.name,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _quickPicks(
+    BuildContext context,
+    List<ProductModel> favoriteProducts,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: AppTheme.surface(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.dividerC(context)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick picks',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
-            if (_cart.isNotEmpty)
-              _CartBar(
-                symbol: symbol,
-                itemCount: _cartItemCount,
-                grandTotal: payload.totals.grandTotal,
-                numFmt: _numFmt,
-                onCheckout: _openCheckoutSheet,
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final product = favoriteProducts[index];
+                  return ActionChip(
+                    avatar: const Icon(Icons.favorite_rounded, size: 16),
+                    label: Text(product.name),
+                    onPressed: () => _addProduct(product),
+                  );
+                },
+                separatorBuilder: (_, idx) => const SizedBox(width: 8),
+                itemCount: favoriteProducts.length,
               ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _productGrid(
+    BuildContext context, {
+    required List<ProductModel> products,
+    required bool productsLoading,
+  }) {
+    if (productsLoading) {
+      return const ShimmerLoading(itemCount: 8, layout: ShimmerLayout.card);
+    }
+    if (products.isEmpty) {
+      return EmptyStateWidget(
+        icon: Icons.inventory_2_outlined,
+        title: 'No products to sell',
+        subtitle: 'Products are still syncing. Refresh to try again.',
+        buttonText: 'Refresh',
+        onButtonPressed: () => context.read<ProductProvider>().loadAnalytics(),
+      );
+    }
+    return GridView.builder(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 300,
+        mainAxisExtent: 86,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        final card = ProductCard(
+          product: product,
+          useGridPadding: true,
+          onTap: () => _addProduct(product),
+        );
+        return index < 15 ? FadeSlideIn(index: index, child: card) : card;
+      },
+    );
+  }
+
+  Widget _cartListView(
+    BuildContext context, {
+    required String symbol,
+    required bool compact,
+  }) {
+    return ListView.builder(
+      controller: _scrollCtrl,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      itemCount: _cartLines.length,
+      itemBuilder: (context, index) {
+        final line = _cartLines[index];
+        return _CartItemCard(
+          line: line,
+          symbol: symbol,
+          numFmt: _numFmt,
+          isMobile: compact,
+          onDecrement: () => _changeQty(line, -1),
+          onIncrement: () => _changeQty(line, 1),
+          onEditQty: () => _openQtyEditor(line),
+          onEditPrice: () => _openPriceEditor(line),
+          onChangeLocation: () => _changeLineLocation(line),
+          onCommitPrice: (value) => _setUnitPrice(line, value, notify: true),
+        );
+      },
+    );
+  }
+
+  Widget _emptyCart(BuildContext context) {
+    return const EmptyStateWidget(
+      icon: Icons.point_of_sale_rounded,
+      title: 'Cart is empty',
+      subtitle: 'Scan barcode or add products to start a fast sale.',
+    );
+  }
+
+  Widget _totalsBlock(
+    BuildContext context, {
+    required String symbol,
+    required double subtotal,
+    required double totalTax,
+    required String taxLabel,
+    required double grandTotal,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _CheckoutRow(
+          label: 'Subtotal',
+          value: '$symbol${_numFmt.format(subtotal)}',
+        ),
+        if (totalTax > 0)
+          _CheckoutRow(
+            label: taxLabel,
+            value: '$symbol${_numFmt.format(totalTax)}',
+          ),
+        const Divider(height: 16),
+        _CheckoutRow(
+          label: 'Grand Total',
+          value: '$symbol${_numFmt.format(grandTotal)}',
+          bold: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _checkoutButton(
+    BuildContext context, {
+    required String symbol,
+    required double grandTotal,
+  }) {
+    final enabled = _cart.isNotEmpty;
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton.icon(
+        onPressed: enabled ? _openCheckoutSheet : null,
+        style: FilledButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: const Icon(Icons.point_of_sale_rounded),
+        label: Text(
+          enabled
+              ? 'Checkout  •  $symbol${_numFmt.format(grandTotal)}'
+              : 'Checkout',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideLayout(
+    BuildContext context, {
+    required List<ProductModel> products,
+    required List<ProductModel> favoriteProducts,
+    required bool productsLoading,
+    required String symbol,
+    required double customerDue,
+    required double subtotal,
+    required double totalTax,
+    required String taxLabel,
+    required double grandTotal,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                _SearchEntryCard(
+                  busy: _isResolvingAdd,
+                  enabled: !productsLoading,
+                  onTap: _pickProduct,
+                ),
+                if (favoriteProducts.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _quickPicks(context, favoriteProducts),
+                ],
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _productGrid(
+                    context,
+                    products: products,
+                    productsLoading: productsLoading,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 360,
+            child: FadeSlideIn(
+              direction: Axis.horizontal,
+              child: GlassPanel(
+                borderRadius: 20,
+                padding: const EdgeInsets.all(14),
+                useContentVariant: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.shopping_cart_rounded, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cart',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '$_cartItemCount item${_cartItemCount == 1 ? '' : 's'}',
+                          style: TextStyle(color: AppTheme.textSec(context)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _customerButton(context),
+                    if (_selectedCustomer != null && customerDue > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Outstanding: $symbol${_numFmt.format(customerDue)}',
+                            style: TextStyle(
+                              color: AppTheme.warningColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const Divider(height: 20),
+                    Expanded(
+                      child: _cart.isEmpty
+                          ? _emptyCart(context)
+                          : _cartListView(
+                              context,
+                              symbol: symbol,
+                              compact: true,
+                            ),
+                    ),
+                    const Divider(height: 20),
+                    _totalsBlock(
+                      context,
+                      symbol: symbol,
+                      subtotal: subtotal,
+                      totalTax: totalTax,
+                      taxLabel: taxLabel,
+                      grandTotal: grandTotal,
+                    ),
+                    const SizedBox(height: 12),
+                    _checkoutButton(
+                      context,
+                      symbol: symbol,
+                      grandTotal: grandTotal,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(
+    BuildContext context, {
+    required List<ProductModel> products,
+    required List<ProductModel> favoriteProducts,
+    required ProductProvider productProvider,
+    required bool productsLoading,
+    required String symbol,
+    required double customerDue,
+    required double grandTotal,
+    required bool isMobile,
+    required bool isKeyboardOpen,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Column(
+            children: [
+              _SearchEntryCard(
+                busy: _isResolvingAdd,
+                enabled: !productsLoading,
+                onTap: _pickProduct,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _customerButton(context)),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: _scanAndAdd,
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: Text(isMobile ? 'Scan' : 'Scan Barcode'),
+                  ),
+                ],
+              ),
+              if (productsLoading)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('Syncing products...'),
+                  ),
+                ),
+              if (!productProvider.isLoadingAnalytics && products.isEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'No products loaded yet. Refresh product sync.',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            context.read<ProductProvider>().loadAnalytics();
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_selectedCustomer != null && customerDue > 0)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Outstanding: $symbol${_numFmt.format(customerDue)}',
+                      style: TextStyle(
+                        color: AppTheme.warningColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (favoriteProducts.isNotEmpty && !(isMobile && isKeyboardOpen))
+          _quickPicks(context, favoriteProducts),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _cart.isEmpty
+              ? _emptyCart(context)
+              : _cartListView(context, symbol: symbol, compact: isMobile),
+        ),
+        if (_cart.isNotEmpty)
+          _CartBar(
+            symbol: symbol,
+            itemCount: _cartItemCount,
+            grandTotal: grandTotal,
+            numFmt: _numFmt,
+            onCheckout: _openCheckoutSheet,
+          ),
+      ],
     );
   }
 }

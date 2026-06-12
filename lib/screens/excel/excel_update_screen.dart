@@ -15,6 +15,7 @@ import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class ExcelUpdateScreen extends StatefulWidget {
   const ExcelUpdateScreen({super.key});
@@ -405,15 +406,14 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission(AppPermissions.importData)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Update from Excel')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.importData,
+      featureName: 'Update from Excel',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final hPad = Responsive.horizontalPadding(context);
 

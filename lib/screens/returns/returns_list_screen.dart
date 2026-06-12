@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/return_model.dart';
@@ -75,15 +76,15 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewReturns,
+      featureName: 'Returns',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewReturns)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Returns')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final allReturns = context.watch<ReturnProvider>().returns;
     final isLoading = context.watch<ReturnProvider>().isLoading;

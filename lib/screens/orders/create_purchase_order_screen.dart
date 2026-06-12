@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/purchase_order_model.dart';
@@ -194,16 +195,14 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null &&
-        !user.hasPermission(AppPermissions.createPurchaseOrders)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Create Purchase Order')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.createPurchaseOrders,
+      featureName: 'Create Purchase Order',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final vendors = context.watch<VendorProvider>().activeVendors;
     final dateFormat = DateFormat('dd MMM yyyy');

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/warehouse_zone_model.dart';
 import '../../providers/warehouse_zone_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -20,22 +20,14 @@ class WarehouseZonesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null &&
-        !user.hasPermission(AppPermissions.manageWarehouseZones)) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.warehouse_rounded,
-            color: AppTheme.indigoColor,
-            title: 'Warehouse Zones',
-          ),
-        ),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.manageWarehouseZones,
+      featureName: 'Warehouse Zones',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final zones = context.watch<WarehouseZoneProvider>().zones;
     final isLoading = context.watch<WarehouseZoneProvider>().isLoading;

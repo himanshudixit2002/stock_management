@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/stock_take_model.dart';
 import '../../providers/stock_take_provider.dart';
@@ -103,25 +104,14 @@ class _CreateStockTakeScreenState extends State<CreateStockTakeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.manageStockTakes)) {
-      return Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const AppBarTitleRow(
-              icon: Icons.add_task_rounded,
-              color: AppTheme.indigoColor,
-              title: 'New Stock Take',
-            ),
-          ),
-          body: const Center(
-            child: Text('You do not have permission to access this feature.'),
-          ),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.manageStockTakes,
+      featureName: 'New Stock Take',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final settings = context.watch<SettingsProvider>();
     final categories = context.watch<CategoryProvider>().categories;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/purchase_order_model.dart';
@@ -447,15 +448,14 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.createReturns)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Create Return')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.createReturns,
+      featureName: 'Create Return',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final customers = context.watch<CustomerProvider>().activeCustomers;
     final vendors = context.watch<VendorProvider>().activeVendors;

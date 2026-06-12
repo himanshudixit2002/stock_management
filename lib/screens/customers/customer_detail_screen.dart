@@ -14,6 +14,7 @@ import '../../providers/sales_order_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/routes.dart';
@@ -40,7 +41,13 @@ class CustomerDetailScreen extends StatelessWidget {
     if (customer == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Customer')),
-        body: const Center(child: Text('Customer not found')),
+        body: NotFoundState(
+          icon: Icons.person_off_rounded,
+          title: 'Customer not found',
+          message:
+              'This customer may have been deleted or is no longer available.',
+          onGoBack: () => Navigator.of(context).pop(),
+        ),
       );
     }
 

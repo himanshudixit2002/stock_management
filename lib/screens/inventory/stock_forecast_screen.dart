@@ -12,7 +12,7 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../config/permissions.dart';
-import '../../providers/auth_provider.dart';
+import '../../widgets/permission_gate.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -155,34 +155,14 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewStockForecast)) {
-      return Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: const AppBarTitleRow(
-              icon: Icons.trending_down_rounded,
-              color: AppTheme.infoColor,
-              title: 'Stock Forecast',
-            ),
-          ),
-          body: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: Responsive.contentMaxWidth(context),
-              ),
-              child: const Center(
-                child: Text(
-                  'You do not have permission to access this feature.',
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewStockForecast,
+      featureName: 'Stock Forecast',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final productProvider = context.watch<ProductProvider>();
     final products = productProvider.analyticsProducts;

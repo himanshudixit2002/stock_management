@@ -18,6 +18,7 @@ import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../models/stock_hold_model.dart';
 
 class StockOutScreen extends StatefulWidget {
@@ -376,15 +377,14 @@ class _StockOutScreenState extends State<StockOutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.stockOut)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Stock Out')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.stockOut,
+      featureName: 'Stock Out',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final allProducts = context.watch<ProductProvider>().allProducts;
 

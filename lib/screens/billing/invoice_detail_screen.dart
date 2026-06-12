@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
@@ -15,6 +16,7 @@ import '../../services/billing_pdf_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/shimmer_loading.dart';
 import 'record_payment_sheet.dart';
 
@@ -89,22 +91,16 @@ class InvoiceDetailScreen extends StatelessWidget {
                         ),
                       ],
                     )
-                  : Text(
-                      'Invoice not found',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textPri(context)),
+                  : NotFoundState(
+                      icon: Icons.receipt_long_rounded,
+                      title: 'Invoice not found',
+                      message:
+                          'This invoice may have been deleted or is no longer '
+                          'available.',
+                      onGoBack: () => Navigator.of(context).pop(),
                     ),
             ),
           ),
-        ),
-      );
-    }
-
-    if (user != null && !user.hasPermission(AppPermissions.viewInvoices)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Invoice')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
         ),
       );
     }
@@ -117,9 +113,12 @@ class InvoiceDetailScreen extends StatelessWidget {
     final canCreate =
         user?.hasPermission(AppPermissions.createInvoices) ?? false;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
+    return PermissionGate(
+      permission: AppPermissions.viewInvoices,
+      featureName: 'Invoice',
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -248,6 +247,7 @@ class InvoiceDetailScreen extends StatelessWidget {
               ),
             )
           : null,
+      ),
     );
   }
 

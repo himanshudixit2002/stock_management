@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/vendor_model.dart';
 import '../../widgets/glass_panel.dart';
@@ -168,25 +169,16 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    final hasAdd = user?.hasPermission(AppPermissions.addVendors) ?? false;
-    final hasEdit = user?.hasPermission(AppPermissions.editVendors) ?? false;
-    if (_isEditing && !hasEdit) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Edit Vendor')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
-    if (!_isEditing && !hasAdd) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Add Vendor')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: _isEditing
+          ? AppPermissions.editVendors
+          : AppPermissions.addVendors,
+      featureName: _isEditing ? 'Edit Vendor' : 'Add Vendor',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return PopScope(
       canPop: false,

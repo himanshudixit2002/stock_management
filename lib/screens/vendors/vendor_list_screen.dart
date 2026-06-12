@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/vendor_model.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/vendor_provider.dart';
@@ -274,64 +276,55 @@ class _VendorListScreenState extends State<VendorListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewVendors,
+      featureName: 'Vendors',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewVendors)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Vendors')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final vendorProvider = context.watch<VendorProvider>();
     final vendors = vendorProvider.vendors;
     final filtered = _applyFiltersAndSort(vendors);
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: Text('Vendors (${vendors.length})'),
-        actions: [
-          PopupMenuButton<_VendorSort>(
-            icon: const Icon(Icons.sort_rounded),
-            tooltip: 'Sort',
-            onSelected: (v) => setState(() => _sort = v),
-            itemBuilder: (_) => [
-              _sortMenuItem(_VendorSort.nameAsc, 'Name A–Z'),
-              _sortMenuItem(_VendorSort.nameDesc, 'Name Z–A'),
-              const PopupMenuDivider(),
-              _sortMenuItem(_VendorSort.ratingHigh, 'Rating: High to Low'),
-              _sortMenuItem(_VendorSort.ratingLow, 'Rating: Low to High'),
-              const PopupMenuDivider(),
-              _sortMenuItem(_VendorSort.leadShort, 'Lead Time: Shortest'),
-              _sortMenuItem(_VendorSort.leadLong, 'Lead Time: Longest'),
-            ],
+    return AppScreenScaffold(
+      icon: Icons.store_rounded,
+      title: 'Vendors (${vendors.length})',
+      actions: [
+        PopupMenuButton<_VendorSort>(
+          icon: const Icon(Icons.sort_rounded),
+          tooltip: 'Sort',
+          onSelected: (v) => setState(() => _sort = v),
+          itemBuilder: (_) => [
+            _sortMenuItem(_VendorSort.nameAsc, 'Name A–Z'),
+            _sortMenuItem(_VendorSort.nameDesc, 'Name Z–A'),
+            const PopupMenuDivider(),
+            _sortMenuItem(_VendorSort.ratingHigh, 'Rating: High to Low'),
+            _sortMenuItem(_VendorSort.ratingLow, 'Rating: Low to High'),
+            const PopupMenuDivider(),
+            _sortMenuItem(_VendorSort.leadShort, 'Lead Time: Shortest'),
+            _sortMenuItem(_VendorSort.leadLong, 'Lead Time: Longest'),
+          ],
+        ),
+        IconButton(
+          icon: Badge(
+            isLabelVisible: _hasActiveFilters,
+            smallSize: 8,
+            child: const Icon(Icons.filter_list_rounded),
           ),
+          tooltip: 'Filter',
+          onPressed: _showFilterSheet,
+        ),
+        if (user?.hasPermission(AppPermissions.addVendors) ?? false)
           IconButton(
-            icon: Badge(
-              isLabelVisible: _hasActiveFilters,
-              smallSize: 8,
-              child: const Icon(Icons.filter_list_rounded),
-            ),
-            tooltip: 'Filter',
-            onPressed: _showFilterSheet,
+            icon: const Icon(Icons.add_rounded),
+            onPressed: () => context.pushAppRoute(AppRoutes.addVendor),
           ),
-          if (user?.hasPermission(AppPermissions.addVendors) ?? false)
-            IconButton(
-              icon: const Icon(Icons.add_rounded),
-              onPressed: () => context.pushAppRoute(AppRoutes.addVendor),
-            ),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
+      ],
+      body: Column(
               children: [
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -460,9 +453,6 @@ class _VendorListScreenState extends State<VendorListScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

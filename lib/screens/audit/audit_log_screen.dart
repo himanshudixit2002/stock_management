@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../providers/audit_log_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -114,21 +115,14 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user != null && !user.hasPermission(AppPermissions.viewAuditLog)) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const AppBarTitleRow(
-            icon: Icons.history_edu_rounded,
-            color: AppTheme.indigoColor,
-            title: 'Audit Log',
-          ),
-        ),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.viewAuditLog,
+      featureName: 'Audit Log',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     final provider = context.watch<AuditLogProvider>();
     final logs = _filteredLogs(provider.logs);

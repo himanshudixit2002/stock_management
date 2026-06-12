@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../models/purchase_order_model.dart';
 import '../../providers/auth_provider.dart';
@@ -62,16 +63,15 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      permission: AppPermissions.viewPurchaseOrders,
+      featureName: 'Purchase Orders',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    if (user != null &&
-        !user.hasPermission(AppPermissions.viewPurchaseOrders)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Purchase Orders')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
 
     final allOrders = context.watch<PurchaseOrderProvider>().orders;
     final isLoading = context.watch<PurchaseOrderProvider>().isLoading;

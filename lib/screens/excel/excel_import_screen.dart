@@ -17,6 +17,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/loading_widget.dart';
 import '../../utils/responsive.dart';
 import '../../config/permissions.dart';
+import '../../widgets/permission_gate.dart';
 
 class ExcelImportScreen extends StatefulWidget {
   const ExcelImportScreen({super.key});
@@ -324,15 +325,14 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-    if (user == null || !user.hasPermission(AppPermissions.importData)) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Import Data')),
-        body: const Center(
-          child: Text('You do not have permission to access this feature.'),
-        ),
-      );
-    }
+    return PermissionGate(
+      permission: AppPermissions.importData,
+      featureName: 'Import Data',
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),

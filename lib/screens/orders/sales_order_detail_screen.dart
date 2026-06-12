@@ -19,6 +19,7 @@ import '../../services/database_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
@@ -43,7 +44,14 @@ class SalesOrderDetailScreen extends StatelessWidget {
     if (order == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Sales Order')),
-        body: const Center(child: Text('Order not found')),
+        body: NotFoundState(
+          icon: Icons.receipt_long_rounded,
+          title: 'Order not found',
+          message:
+              'This sales order may have been deleted or is no longer '
+              'available.',
+          onGoBack: () => Navigator.of(context).pop(),
+        ),
       );
     }
 
