@@ -306,37 +306,38 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
             itemBuilder: (context, index) {
               final p = filtered[index];
               final selected = _selectedProductIds.contains(p.id);
-              return AnimatedListItem(
-                index: index,
-                child: CheckboxListTile(
-                  value: selected,
-                  onChanged: (v) {
-                    setState(() {
-                      if (v == true) {
-                        _selectedProductIds.add(p.id);
-                      } else {
-                        _selectedProductIds.remove(p.id);
-                      }
-                    });
-                  },
-                  title: Text(
-                    p.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${p.categoryName} • ${p.quantity} ${p.unit}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  activeColor: AppTheme.primaryColor,
-                  dense: true,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              final tile = CheckboxListTile(
+                value: selected,
+                onChanged: (v) {
+                  setState(() {
+                    if (v == true) {
+                      _selectedProductIds.add(p.id);
+                    } else {
+                      _selectedProductIds.remove(p.id);
+                    }
+                  });
+                },
+                title: Text(
+                  p.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                   ),
                 ),
+                subtitle: Text(
+                  '${p.categoryName} • ${p.quantity} ${p.unit}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                activeColor: AppTheme.primaryColor,
+                dense: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               );
+              // Cap entrance animations for large product lists.
+              return index < 15
+                  ? AnimatedListItem(index: index, child: tile)
+                  : tile;
             },
           ),
         ),
@@ -572,27 +573,27 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        ...selected.indexed.map(
-          (entry) => AnimatedListItem(
-            index: entry.$1,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: ListTile(
-                dense: true,
-                leading: const Icon(Icons.inventory_2_rounded, size: 18),
-                title: Text(entry.$2.name, style: const TextStyle(fontSize: 13)),
-                subtitle: Text(
-                  '${entry.$2.categoryName} • ${entry.$2.quantity} ${entry.$2.unit}',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                tileColor: AppTheme.inputFill(context),
+        ...selected.indexed.map((entry) {
+          final tile = Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.inventory_2_rounded, size: 18),
+              title: Text(entry.$2.name, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                '${entry.$2.categoryName} • ${entry.$2.quantity} ${entry.$2.unit}',
+                style: const TextStyle(fontSize: 11),
               ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              tileColor: AppTheme.inputFill(context),
             ),
-          ),
-        ),
+          );
+          return entry.$1 < 15
+              ? AnimatedListItem(index: entry.$1, child: tile)
+              : tile;
+        }),
       ],
     );
   }

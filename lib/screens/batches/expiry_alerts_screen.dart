@@ -5,6 +5,7 @@ import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
 import '../../providers/batch_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
@@ -135,7 +136,22 @@ class _ExpiryTab extends StatelessWidget {
                       title: 'All Clear',
                       subtitle: 'No batches expiring in this time frame.',
                     )
-                  : ListView.builder(
+                  : RefreshIndicator(
+                      color: AppTheme.primaryColor,
+                      onRefresh: () async {
+                        context.read<BatchProvider>().initialize(
+                          companyId: context
+                                  .read<AuthProvider>()
+                                  .currentUser
+                                  ?.companyId ??
+                              '',
+                        );
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 400),
+                        );
+                      },
+                      child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.fromLTRB(
                         Responsive.horizontalPadding(context),
                         0,
@@ -261,6 +277,7 @@ class _ExpiryTab extends StatelessWidget {
                           ),
                         );
                       },
+                    ),
                     ),
             ),
           ],

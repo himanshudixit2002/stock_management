@@ -279,9 +279,23 @@ class _HoldListScreenState extends State<HoldListScreen> {
                         subtitle:
                             'Create a hold with a challan number to reserve stock.',
                       )
-                    : ListView.builder(
+                    : RefreshIndicator(
+                        color: AppTheme.primaryColor,
+                        onRefresh: () async {
+                          final cid =
+                              context.read<ProductProvider>().companyId;
+                          if (cid.isNotEmpty) {
+                            context.read<StockProvider>().initialize(
+                              companyId: cid,
+                            );
+                          }
+                          await Future<void>.delayed(
+                            const Duration(milliseconds: 400),
+                          );
+                        },
+                        child: ListView.builder(
                         padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 16),
-                        physics: const BouncingScrollPhysics(),
+                        physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: challanKeys.length,
                         itemBuilder: (context, index) {
                           final challan = challanKeys[index];
@@ -297,6 +311,7 @@ class _HoldListScreenState extends State<HoldListScreen> {
                             ),
                           );
                         },
+                      ),
                       ),
               ),
             ],

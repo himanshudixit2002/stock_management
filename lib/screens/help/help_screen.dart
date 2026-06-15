@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/feedback_service.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
+import '../../utils/url_helper.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/app_navigation.dart';
@@ -191,10 +196,144 @@ class HelpScreen extends StatelessWidget {
           _ContactOption(
             icon: Icons.feedback_outlined,
             title: 'Send Feedback',
-            subtitle: 'Help us improve the app',
-            onTap: () => context.pushAppRoute(AppRoutes.support),
+            subtitle: 'Tell us what to build or fix next',
+            onTap: () => showFeedbackSheet(context),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Opens a compact in-app feedback sheet. Submissions are stored per company in
+/// Firestore via [FeedbackService]; if that write fails (e.g. rules not yet
+/// deployed) the user is offered an email fallback so feedback is never lost.
+Future<void> showFeedbackSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    constraints: Responsive.sheetConstraints(context),
+    builder: (_) => const _FeedbackSheet(),
+  );
+}
+
+class _FeedbackSheet extends StatefulWidget {
+  const _FeedbackSheet();
+
+  @override
+  State<_FeedbackSheet> createState() => _FeedbackSheetState();
+}
+
+class _FeedbackSheetState extends State<_FeedbackSheet> {
+  final TextEditingController _controller = TextEditingController();
+  final FeedbackService _service = FeedbackService();
+
+  static const _categories = ['General', 'Bug', 'Feature request'];
+  String _category = 'General';
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final message = _controller.text.trim();
+    if (message.isEmpty) {
+      showErrorSnackBar(context, 'Please enter your feedback first.');
+      return;
+    }
+    final user = context.read<AuthProvider>().currentUser;
+    setState(() => _submitting = true);
+    try {
+      await _service.submit(
+        companyId: user?.companyId ?? '',
+        message: message,
+        category: _category,
+        userId: user?.uid ?? '',
+        userName: user?.name ?? '',
+        userEmail: user?.email ?? '',
+      );
+      if (!mounted) return;
+      showSuccessSnackBar(context, 'Thanks! Your feedback was sent.');
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      // Firestore unavailable (e.g. offline / rules not deployed): fall back to
+      // email so the feedback still reaches the team.
+      final subject = Uri.encodeComponent('App feedback ($_category)');
+      final body = Uri.encodeComponent(message);
+      await openUrl(
+        context,
+        'mailto:support@smartshelfkart.com?subject=$subject&body=$body',
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SlideUpSheet(
+        title: 'Send Feedback',
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'What kind of feedback?',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSec(context),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: _categories.map((c) {
+                    return ChoiceChip(
+                      label: Text(c),
+                      selected: _category == c,
+                      onSelected: _submitting
+                          ? null
+                          : (_) => setState(() => _category = c),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  enabled: !_submitting,
+                  maxLines: 4,
+                  maxLength: 1000,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Tell us what is working well or what we can improve…',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ShimmerButton(
+                  label: _submitting ? 'Sending…' : 'Send feedback',
+                  icon: Icons.send_rounded,
+                  onPressed: _submitting ? null : _submit,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

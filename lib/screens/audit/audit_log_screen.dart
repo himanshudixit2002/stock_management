@@ -236,16 +236,20 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                             vertical: 8,
                           ),
                           itemCount: logs.length,
-                          itemBuilder: (_, i) => AnimatedListItem(
-                            index: i,
-                            child: _AuditLogTile(
+                          itemBuilder: (_, i) {
+                            final tile = _AuditLogTile(
                               log: logs[i],
                               icon: _actionIcon(logs[i].action),
                               color: _actionColor(logs[i].action),
                               relativeTime: _relativeTime(logs[i].timestamp),
                               isLast: i == logs.length - 1,
-                            ),
-                          ),
+                            );
+                            // Animate only the first items so long logs stay
+                            // smooth while scrolling.
+                            return i < 15
+                                ? AnimatedListItem(index: i, child: tile)
+                                : tile;
+                          },
                         ),
                       ),
               ),

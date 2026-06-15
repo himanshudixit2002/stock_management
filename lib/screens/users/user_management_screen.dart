@@ -261,13 +261,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                             .currentUser
                                             ?.uid;
 
-                                    return AnimatedListItem(
-                                      index: index,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8,
-                                        ),
-                                        child: GlassCard(
+                                    final card = Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8,
+                                      ),
+                                      child: GlassCard(
                                           borderRadius: 14,
                                           child: ListTile(
                                             leading: CircleAvatar(
@@ -454,8 +452,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                 : null,
                                           ),
                                         ),
-                                      ),
                                     );
+                                    // Cap entrance animations for large lists.
+                                    return index < 15
+                                        ? AnimatedListItem(
+                                            index: index,
+                                            child: card,
+                                          )
+                                        : card;
                                   },
                                 ),
                               ),

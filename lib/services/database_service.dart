@@ -283,9 +283,28 @@ class DatabaseService {
     await batch.commit();
   }
 
+  /// Commits a chunk of a bulk write, converting any failure into a
+  /// [BulkWriteException] that carries how many rows were already committed.
+  /// This stops bulk imports from failing silently mid-way: callers can tell
+  /// the user exactly how many rows landed (and that a retry may duplicate
+  /// them) instead of leaving an unreported partial commit.
+  Future<void> _commitBulkBatch(
+    WriteBatch batch,
+    int committedSoFar,
+    int total,
+  ) async {
+    try {
+      await batch.commit();
+    } catch (e) {
+      throw BulkWriteException(committed: committedSoFar, total: total, cause: e);
+    }
+  }
+
   Future<int> bulkAddProducts(List<ProductModel> products) async {
+    _ensureCompanyId();
     var batch = _firestore.batch();
     int count = 0;
+    int committed = 0;
 
     for (var product in products) {
       final docRef = _products.doc();
@@ -293,21 +312,24 @@ class DatabaseService {
       count++;
 
       if (count % kFirestoreBatchLimit == 0) {
-        await batch.commit();
+        await _commitBulkBatch(batch, committed, products.length);
+        committed = count;
         batch = _firestore.batch();
       }
     }
 
     if (count % kFirestoreBatchLimit != 0) {
-      await batch.commit();
+      await _commitBulkBatch(batch, committed, products.length);
+      committed = count;
     }
-    return count;
+    return committed;
   }
 
   Future<int> bulkUpdateProducts(List<ProductModel> products) async {
     _ensureCompanyId();
     var batch = _firestore.batch();
     int count = 0;
+    int committed = 0;
 
     for (var product in products) {
       if (product.id.isEmpty) continue;
@@ -316,15 +338,17 @@ class DatabaseService {
       count++;
 
       if (count % kFirestoreBatchLimit == 0) {
-        await batch.commit();
+        await _commitBulkBatch(batch, committed, products.length);
+        committed = count;
         batch = _firestore.batch();
       }
     }
 
     if (count % kFirestoreBatchLimit != 0) {
-      await batch.commit();
+      await _commitBulkBatch(batch, committed, products.length);
+      committed = count;
     }
-    return count;
+    return committed;
   }
 
   // ==================== STOCK TRANSACTIONS ====================
@@ -2557,4 +2581,26 @@ class DatabaseService {
       'updatedAt': Timestamp.now(),
     });
   }
+}
+
+/// Thrown when a chunked bulk write fails partway through. [committed] rows were
+/// already saved before the failure, so callers can surface which portion of an
+/// import actually landed (and warn that re-importing may duplicate those rows)
+/// instead of silently leaving an unreported partial commit.
+class BulkWriteException implements Exception {
+  final int committed;
+  final int total;
+  final Object cause;
+
+  BulkWriteException({
+    required this.committed,
+    required this.total,
+    required this.cause,
+  });
+
+  @override
+  String toString() =>
+      'Saved $committed of $total row(s) before the operation failed ($cause). '
+      'The $committed already-saved row(s) may be duplicated if you retry — '
+      'review your data before re-importing.';
 }

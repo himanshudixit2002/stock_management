@@ -9,6 +9,7 @@ import '../../models/category_model.dart';
 import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/not_found_state.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/theme.dart';
@@ -135,25 +136,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
           ),
           Expanded(
             child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          size: 48,
-                          color: AppTheme.iconMute(context),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No categories match "$_searchQuery"',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: AppTheme.textTer(context),
-                          ),
-                        ),
-                      ],
-                    ),
+                ? NotFoundState(
+                    title: 'No Matches',
+                    message: 'No categories match "$_searchQuery"',
                   )
                 : RefreshIndicator(
                     color: AppTheme.primaryColor,

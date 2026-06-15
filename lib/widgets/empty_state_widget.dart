@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
+// Deferred so the (rarely used) Lottie illustration path doesn't pull the
+// animation library into the main bundle; callers without a lottieAsset never
+// fetch it, and the illustrated icon is shown while it loads.
+import 'package:lottie/lottie.dart' deferred as lottie;
 import '../config/motion.dart';
 import '../config/theme.dart';
 import 'animations.dart';
@@ -210,12 +213,51 @@ class EmptyStateWidget extends StatelessWidget {
     if (lottieAsset == null) return illustration;
     return SizedBox(
       height: 140,
-      child: Lottie.asset(
-        lottieAsset!,
-        fit: BoxFit.contain,
+      child: _DeferredLottie(
+        asset: lottieAsset!,
         animate: !reduceMotion(context),
-        errorBuilder: (context, error, stackTrace) => illustration,
+        fallback: illustration,
       ),
+    );
+  }
+}
+
+/// Loads the deferred `lottie` library on demand and renders the animation,
+/// showing [fallback] while the library loads or if it (or the asset) fails.
+class _DeferredLottie extends StatefulWidget {
+  final String asset;
+  final bool animate;
+  final Widget fallback;
+
+  const _DeferredLottie({
+    required this.asset,
+    required this.animate,
+    required this.fallback,
+  });
+
+  @override
+  State<_DeferredLottie> createState() => _DeferredLottieState();
+}
+
+class _DeferredLottieState extends State<_DeferredLottie> {
+  late final Future<void> _load = lottie.loadLibrary();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _load,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            snapshot.hasError) {
+          return widget.fallback;
+        }
+        return lottie.Lottie.asset(
+          widget.asset,
+          fit: BoxFit.contain,
+          animate: widget.animate,
+          errorBuilder: (context, error, stackTrace) => widget.fallback,
+        );
+      },
     );
   }
 }

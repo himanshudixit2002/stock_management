@@ -119,9 +119,15 @@ class QuickStats extends StatelessWidget {
           a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
 
-    final isInitialLoading = context.select<ProductProvider, bool>(
-      (p) => p.isLoading,
+    // Only show the skeleton box when we have *nothing* to show yet. When a
+    // cached seed (or live data) exists, render the real number immediately and
+    // let it reconcile silently as fresh data lands.
+    final hasSeededStats = context.select<ProductProvider, bool>(
+      (p) => p.hasSeededStats,
     );
+    final isInitialLoading =
+        context.select<ProductProvider, bool>((p) => p.isLoading) &&
+        !hasSeededStats;
     final isRefiningData = context.select<ProductProvider, bool>(
       (p) => p.isLoadingAnalytics && !p.isAnalyticsLoaded,
     );
@@ -156,6 +162,64 @@ class QuickStats extends StatelessWidget {
       return -1;
     }
 
+    void goToProducts() {
+      final idx = tabIndexFor('Products');
+      if (idx > 0) {
+        context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
+      }
+    }
+
+    final stats = <_StatData>[
+      _StatData(
+        label: 'Products',
+        value: totalProducts,
+        icon: Icons.inventory_2_rounded,
+        color: AppTheme.primaryColor,
+        isLoading: isInitialLoading,
+        onTap: goToProducts,
+      ),
+      _StatData(
+        label: 'Low Stock',
+        value: lowStock,
+        icon: Icons.warning_amber_rounded,
+        color: lowStock > 0 ? AppTheme.warningColor : AppTheme.successColor,
+        isLoading: isInitialLoading,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.lowStock),
+      ),
+      _StatData(
+        label: 'Out of Stock',
+        value: outOfStock,
+        icon: Icons.remove_shopping_cart_rounded,
+        color: AppTheme.dangerColor,
+        isLoading: isInitialLoading,
+        onTap: () {
+          final idx = tabIndexFor('Products');
+          if (idx > 0) {
+            context.read<ProductProvider>().filterByStockStatus('out_of_stock');
+            context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(
+              idx,
+            );
+          }
+        },
+      ),
+      _StatData(
+        label: 'Today',
+        value: todayTxns,
+        icon: Icons.receipt_long_rounded,
+        color: AppTheme.infoColor,
+        onTap: () {
+          final idx = tabIndexFor('Reports');
+          if (idx > 0) {
+            context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(
+              idx,
+            );
+          }
+        },
+      ),
+    ];
+
+    final isDesktop = Responsive.isDesktop(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -171,104 +235,129 @@ class QuickStats extends StatelessWidget {
               ),
             ),
           ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cols = Responsive.isDesktop(context) ? 4 : 2;
-            final spacing = 10.0;
-            final cardWidth =
-                (constraints.maxWidth - spacing * (cols - 1)) / cols;
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: [
-                AnimatedListItem(
-                  index: 0,
-                  child: SizedBox(
-                    width: cardWidth,
-                    child: _StatCard(
-                      label: 'Products',
-                      value: totalProducts,
-                      icon: Icons.inventory_2_rounded,
-                      color: AppTheme.primaryColor,
-                      isLoading: isInitialLoading,
-                      onTap: () {
-                        final idx = tabIndexFor('Products');
-                        if (idx > 0) {
-                          context
-                              .findAncestorStateOfType<HomeScreenState>()
-                              ?.switchToTab(idx);
-                        }
-                      },
+        if (isDesktop)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const cols = 4;
+              const spacing = 10.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (cols - 1)) / cols;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (var i = 0; i < stats.length; i++)
+                    AnimatedListItem(
+                      index: i,
+                      child: SizedBox(
+                        width: cardWidth,
+                        child: _StatCard(
+                          label: stats[i].label,
+                          value: stats[i].value,
+                          icon: stats[i].icon,
+                          color: stats[i].color,
+                          isLoading: stats[i].isLoading,
+                          onTap: stats[i].onTap,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                AnimatedListItem(
-                  index: 1,
-                  child: SizedBox(
-                    width: cardWidth,
-                    child: _StatCard(
-                      label: 'Low Stock',
-                      value: lowStock,
-                      icon: Icons.warning_amber_rounded,
-                      color: lowStock > 0
-                          ? AppTheme.warningColor
-                          : AppTheme.successColor,
-                      isLoading: isInitialLoading,
-                      onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.lowStock);
-                      },
-                    ),
-                  ),
-                ),
-                AnimatedListItem(
-                  index: 2,
-                  child: SizedBox(
-                    width: cardWidth,
-                    child: _StatCard(
-                      label: 'Out of Stock',
-                      value: outOfStock,
-                      icon: Icons.remove_shopping_cart_rounded,
-                      color: AppTheme.dangerColor,
-                      isLoading: isInitialLoading,
-                      onTap: () {
-                        final idx = tabIndexFor('Products');
-                        if (idx > 0) {
-                          context.read<ProductProvider>().filterByStockStatus(
-                            'out_of_stock',
-                          );
-                          context
-                              .findAncestorStateOfType<HomeScreenState>()
-                              ?.switchToTab(idx);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                AnimatedListItem(
-                  index: 3,
-                  child: SizedBox(
-                    width: cardWidth,
-                    child: _StatCard(
-                      label: 'Today',
-                      value: todayTxns,
-                      icon: Icons.receipt_long_rounded,
-                      color: AppTheme.infoColor,
-                      onTap: () {
-                        final idx = tabIndexFor('Reports');
-                        if (idx > 0) {
-                          context
-                              .findAncestorStateOfType<HomeScreenState>()
-                              ?.switchToTab(idx);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+                ],
+              );
+            },
+          )
+        else
+          // One scrollable row of compact mini pills (keeps stats above the fold).
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: Responsive.scrollPhysics(context),
+              itemCount: stats.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) => _StatPill(data: stats[i]),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+/// Lightweight value object describing one Home stat, shared by the desktop
+/// [_StatCard] grid and the mobile [_StatPill] strip.
+class _StatData {
+  final String label;
+  final int value;
+  final IconData icon;
+  final Color color;
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  const _StatData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.isLoading = false,
+    this.onTap,
+  });
+}
+
+/// Compact single-row stat pill for mobile Home. Keeps the seeded/cached value
+/// with a [CountUpText] reconcile (reduce-motion aware via [CountUpText]).
+class _StatPill extends StatelessWidget {
+  final _StatData data;
+  const _StatPill({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: data.isLoading ? null : data.onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: data.color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: data.color.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(data.icon, color: data.color, size: 16),
+              const SizedBox(width: 6),
+              data.isLoading
+                  ? Container(
+                      width: 22,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: AppTheme.dividerC(context),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    )
+                  : CountUpText(
+                      data.value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: data.color,
+                      ),
+                    ),
+              const SizedBox(width: 6),
+              Text(
+                data.label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

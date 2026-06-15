@@ -14,6 +14,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
@@ -326,6 +327,26 @@ class _VendorListScreenState extends State<VendorListScreen> {
       ],
       body: Column(
               children: [
+                if (vendorProvider.errorMessage != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      8,
+                      Responsive.horizontalPadding(context),
+                      0,
+                    ),
+                    child: ProviderErrorBanner(
+                      message: vendorProvider.errorMessage!,
+                      onDismiss: () =>
+                          context.read<VendorProvider>().clearError(),
+                      onRetry: () => context.read<VendorProvider>().initialize(
+                        companyId: context
+                            .read<AuthProvider>()
+                            .currentUser!
+                            .companyId,
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     Responsive.horizontalPadding(context),

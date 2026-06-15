@@ -464,6 +464,17 @@ class FeatureMap {
       sortOrder: 6,
     ),
     FeatureEntry(
+      id: 'activityTimeline',
+      label: 'Activity Timeline',
+      subtitle: 'A chronological feed of recent activity',
+      icon: Icons.timeline_rounded,
+      route: AppRoutes.activityTimeline,
+      category: FeatureCategory.reports,
+      placement: FeaturePlacement.searchOnly,
+      permissionKey: AppPermissions.viewActivityTimeline,
+      sortOrder: 8,
+    ),
+    FeatureEntry(
       id: 'priceHistory',
       label: 'Price History',
       subtitle: 'Historical price changes',

@@ -36,7 +36,6 @@ import '../screens/users/staff_permissions_screen.dart';
 import '../screens/vendors/vendor_list_screen.dart';
 import '../screens/vendors/vendor_detail_screen.dart';
 import '../screens/vendors/add_edit_vendor_screen.dart';
-import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/legal/privacy_policy_screen.dart';
 import '../screens/legal/terms_screen.dart';
 import '../screens/legal/support_screen.dart';
@@ -89,6 +88,7 @@ import '../screens/reports/abc_analysis_screen.dart' deferred as reports_abc;
 import '../screens/reports/valuation_trends_screen.dart'
     deferred as reports_val;
 import '../screens/reports/price_history_screen.dart' deferred as reports_price;
+import '../screens/dashboard/dashboard_screen.dart' deferred as dashboard;
 import '../screens/billing/invoice_list_screen.dart' deferred as billing_list;
 import '../screens/billing/create_invoice_screen.dart'
     deferred as billing_create;
@@ -353,7 +353,12 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
         builder: (_) => reports.ReportsScreen(),
       ),
     ),
-    AppRoutes.dashboard => _slideRoute(const DashboardScreen()),
+    AppRoutes.dashboard => _slideRoute(
+      _DeferredScreenLoader(
+        future: dashboard.loadLibrary(),
+        builder: (_) => dashboard.DashboardScreen(),
+      ),
+    ),
     AppRoutes.damageHistory => _slideRoute(
       _DeferredScreenLoader(
         future: reports_damage.loadLibrary(),

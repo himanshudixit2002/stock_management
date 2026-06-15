@@ -26,7 +26,6 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/floating_nav_padding.dart';
-import '../../widgets/tab_context_header.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -43,10 +42,26 @@ class _ReportsScreenState extends State<ReportsScreen>
   String _chartGranularity = 'daily'; // daily | weekly | monthly
   bool _isExporting = false;
 
+  bool _appliedInitialTab = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // On phones, open straight to the at-a-glance Summary tab. Done once,
+    // before the first build, so the Phase-1 lazy tab builder mounts Summary
+    // (and not Transactions) on initial paint.
+    if (!_appliedInitialTab) {
+      _appliedInitialTab = true;
+      if (Responsive.isMobile(context) && _tabController.index != 3) {
+        _tabController.index = 3;
+      }
+    }
   }
 
   @override
@@ -365,11 +380,44 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   Widget _buildContent(BuildContext context) {
+    final perms =
+        context.watch<AuthProvider>().currentUser?.effectivePermissions ??
+        UserModel.defaultPermissions;
+    final shortcuts = FeatureMap.entriesByCategory(
+      FeatureCategory.reports,
+      perms,
+      placement: FeaturePlacement.tabShortcut,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Reports'),
+        actions: [
+          if (shortcuts.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: 'Shortcuts',
+              onSelected: (route) => Navigator.pushNamed(context, route),
+              itemBuilder: (context) => [
+                for (final entry in shortcuts)
+                  PopupMenuItem<String>(
+                    value: entry.route,
+                    child: Row(
+                      children: [
+                        Icon(
+                          entry.icon,
+                          size: 18,
+                          color: AppTheme.primaryColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(entry.label),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryColor,
@@ -412,46 +460,41 @@ class _ReportsScreenState extends State<ReportsScreen>
       ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: Column(
+        child: TabBarView(
+          controller: _tabController,
           children: [
-            _buildContextHeader(context),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildTransactionTab(),
-                  _buildCategoryAnalyticsTab(),
-                  _buildChartsTab(),
-                  _buildSummaryTab(),
-                ],
-              ),
-            ),
+                  // Each tab's (potentially heavy) content — including the
+                  // chart computations — is built only once its tab is first
+                  // selected, then kept alive. Unselected tabs cost nothing.
+                  _LazyTab(
+                    controller: _tabController,
+                    index: 0,
+                    builder: _buildTransactionTab,
+                  ),
+                  _LazyTab(
+                    controller: _tabController,
+                    index: 1,
+                    builder: _buildCategoryAnalyticsTab,
+                  ),
+                  _LazyTab(
+                    controller: _tabController,
+                    index: 2,
+                    builder: _buildChartsTab,
+                  ),
+                  _LazyTab(
+                    controller: _tabController,
+                    index: 3,
+                    builder: _buildSummaryTab,
+                  ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildContextHeader(BuildContext context) {
-    final perms =
-        context.watch<AuthProvider>().currentUser?.effectivePermissions ??
-        UserModel.defaultPermissions;
-    final shortcuts = FeatureMap.entriesByCategory(
-      FeatureCategory.reports,
-      perms,
-      placement: FeaturePlacement.tabShortcut,
-    );
-    return TabContextHeader(
-      icon: Icons.analytics_rounded,
-      title: 'Reports & Insights',
-      subtitle: 'Analyze movements, categories and trends',
-      shortcuts: shortcuts,
-    );
-  }
-
   // ==================== TAB 1: TRANSACTIONS ====================
 
-  Widget _buildTransactionTab() {
+  Widget _buildTransactionTab(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
     final dateFormat = DateFormat('dd MMM, hh:mm a');
     final hPad = Responsive.horizontalPadding(context);
@@ -540,20 +583,33 @@ class _ReportsScreenState extends State<ReportsScreen>
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: _isExporting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.file_download_outlined, size: 20),
-                    tooltip: 'Export CSV',
-                    onPressed: _isExporting
-                        ? null
-                        : () => _exportTransactions(
-                            _getFilteredTransactions(stockProvider),
-                          ),
+                  Builder(
+                    builder: (context) {
+                      final exportable = _getFilteredTransactions(
+                        stockProvider,
+                      );
+                      final canExport = !_isExporting && exportable.isNotEmpty;
+                      return IconButton(
+                        icon: _isExporting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.file_download_outlined,
+                                size: 20,
+                              ),
+                        tooltip: exportable.isEmpty
+                            ? 'Nothing to export'
+                            : 'Export CSV',
+                        onPressed: canExport
+                            ? () => _exportTransactions(exportable)
+                            : null,
+                      );
+                    },
                   ),
                   _AdvancedFilterButton(
                     hasActive:
@@ -710,6 +766,44 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
               ],
             ),
+            if (stockProvider.transactionsTruncated)
+              Padding(
+                padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppTheme.warningColor.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: AppTheme.warningColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Showing the most recent ${StockProvider.transactionFetchLimit} '
+                          'transactions. Older entries are not included in these '
+                          'totals — narrow the date range for complete figures.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.warningColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // Transaction list
             Expanded(
               child: Builder(
@@ -837,7 +931,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   // ==================== TAB 2: CATEGORY ANALYTICS ====================
 
-  Widget _buildCategoryAnalyticsTab() {
+  Widget _buildCategoryAnalyticsTab(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
 
     final hasNoData = productProvider.analyticsProducts.isEmpty;
@@ -1010,7 +1104,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   // ==================== TAB 3: CHARTS & TRENDS ====================
 
-  Widget _buildChartsTab() {
+  Widget _buildChartsTab(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
     final authProvider = context.watch<AuthProvider>();
     final wide = Responsive.isWide(context);
@@ -1271,7 +1365,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   // ==================== TAB 4: SUMMARY ====================
 
-  Widget _buildSummaryTab() {
+  Widget _buildSummaryTab(BuildContext context) {
     final productProvider = context.watch<ProductProvider>();
     final stockProvider = context.watch<StockProvider>();
 
@@ -2555,6 +2649,62 @@ class _KpiCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Defers building a tab's content until that tab is first selected, then keeps
+/// it alive so re-selecting is instant and scroll/expansion state is preserved.
+/// This avoids running the heavy chart/analytics computations for tabs the user
+/// never opens.
+class _LazyTab extends StatefulWidget {
+  final TabController controller;
+  final int index;
+  final WidgetBuilder builder;
+
+  const _LazyTab({
+    required this.controller,
+    required this.index,
+    required this.builder,
+  });
+
+  @override
+  State<_LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<_LazyTab>
+    with AutomaticKeepAliveClientMixin {
+  bool _shown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _shown = widget.controller.index == widget.index;
+    widget.controller.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (!_shown &&
+        (widget.controller.index == widget.index ||
+            widget.controller.animation?.value.round() == widget.index)) {
+      setState(() => _shown = true);
+      updateKeepAlive();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  @override
+  bool get wantKeepAlive => _shown;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (!_shown) return const SizedBox.shrink();
+    return widget.builder(context);
   }
 }
 

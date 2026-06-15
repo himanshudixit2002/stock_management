@@ -881,12 +881,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               .toList()
               .asMap()
               .entries
-              .map(
-                (e) => AnimatedListItem(
-                  index: e.key,
-                  child: _ModifiedProductCard(diff: e.value),
-                ),
-              ),
+              .map((e) {
+                final card = _ModifiedProductCard(diff: e.value);
+                return e.key < 15
+                    ? AnimatedListItem(index: e.key, child: card)
+                    : card;
+              }),
           const SizedBox(height: 16),
         ],
 
@@ -899,12 +899,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               .toList()
               .asMap()
               .entries
-              .map(
-                (e) => AnimatedListItem(
-                  index: e.key,
-                  child: _NewProductCard(diff: e.value),
-                ),
-              ),
+              .map((e) {
+                final card = _NewProductCard(diff: e.value);
+                return e.key < 15
+                    ? AnimatedListItem(index: e.key, child: card)
+                    : card;
+              }),
           const SizedBox(height: 16),
         ],
 
@@ -917,12 +917,12 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               .toList()
               .asMap()
               .entries
-              .map(
-                (e) => AnimatedListItem(
-                  index: e.key,
-                  child: _ErrorCard(diff: e.value),
-                ),
-              ),
+              .map((e) {
+                final card = _ErrorCard(diff: e.value);
+                return e.key < 15
+                    ? AnimatedListItem(index: e.key, child: card)
+                    : card;
+              }),
           const SizedBox(height: 16),
         ],
 

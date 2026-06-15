@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/feature_map.dart';
+import '../../config/motion.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/user_model.dart';
@@ -15,21 +16,17 @@ import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/floating_nav_padding.dart';
+import 'getting_started_card.dart';
 import 'home_sections.dart';
+import 'today_card.dart';
 
 /// The Home tab body. Discovery is organized into a clear hierarchy:
-/// a small set of customizable Quick Action cards (daily use) followed by a
+/// a single compact top bar (avatar + greeting + search), a horizontal strip of
+/// customizable Quick Actions (daily use), a row of mini stat pills, then a
 /// categorized grid (Orders, Billing, Smart Inventory) sourced from
 /// [FeatureMap], so every feature has a single, predictable home.
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
-
-  static String _greeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning,';
-    if (hour < 17) return 'Good afternoon,';
-    return 'Good evening,';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,28 +63,24 @@ class HomeTab extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.fromLTRB(
                 Responsive.horizontalPadding(context),
-                12,
+                8,
                 Responsive.horizontalPadding(context),
                 24,
               ),
               children: [
-                _buildSearchRow(context),
+                _buildTopBar(context, user.name, initials, user),
                 _buildUpdatedLabel(context),
-                const SizedBox(height: 4),
-                FadeSlideIn(
-                  index: 0,
-                  child: _buildProfileHero(context, user, initials),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 _buildQuickActionsSection(context, perms, isWide),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 const QuickStats(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
+                const TodayCard(),
+                const GettingStartedCard(),
+                const SizedBox(height: 14),
                 const FadeSlideIn(index: 3, child: InsightsCard()),
-                const SizedBox(height: 16),
-                const FadeSlideIn(index: 4, child: FavoritesSection()),
-                const SizedBox(height: 16),
-                const FadeSlideIn(index: 5, child: TipOfTheDay()),
+                const SizedBox(height: 12),
+                const _HomeMoreSection(),
                 const SizedBox(height: 4),
                 ..._buildCategoryGrids(context, perms),
                 const SizedBox(height: 16),
@@ -102,41 +95,86 @@ class HomeTab extends StatelessWidget {
   }
 
   // ---------------------------------------------------------------------------
-  // Search + notifications row
+  // Merged top bar: avatar + greeting + search + notifications (single header)
   // ---------------------------------------------------------------------------
-  Widget _buildSearchRow(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+  Widget _buildTopBar(
+    BuildContext context,
+    String name,
+    String initials,
+    UserModel user,
+  ) {
+    final firstName = name.trim().split(' ').firstOrNull ?? name;
+    final multiCompany = user.companyMemberships.length > 1;
+
+    final avatar = Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.inputBorder(context)),
+        shape: BoxShape.circle,
+        gradient: AppTheme.heroGradient,
       ),
+      child: CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.transparent,
+        child: Text(
+          initials,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+
+    return SizedBox(
+      height: 52,
       child: Row(
         children: [
+          if (multiCompany)
+            Semantics(
+              button: true,
+              label: 'Switch company',
+              child: InkWell(
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.companySwitcher),
+                borderRadius: BorderRadius.circular(22),
+                child: avatar,
+              ),
+            )
+          else
+            avatar,
+          const SizedBox(width: 12),
           Expanded(
-            child: InkWell(
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.globalSearch),
-              borderRadius: BorderRadius.circular(8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.search_rounded,
-                    size: 22,
-                    color: AppTheme.textSec(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Hi, $firstName',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPri(context),
                   ),
-                  const SizedBox(width: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (user.companyName.isNotEmpty)
                   Text(
-                    'Search products, vendors, barcodes…',
+                    user.companyName,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
+              ],
             ),
+          ),
+          IconButton(
+            icon: Icon(Icons.search_rounded, color: AppTheme.textSec(context)),
+            tooltip: 'Search',
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.globalSearch),
           ),
           Consumer<NotificationProvider>(
             builder: (context, notifProvider, _) {
@@ -196,122 +234,6 @@ class HomeTab extends StatelessWidget {
   }
 
   // ---------------------------------------------------------------------------
-  // Profile hero
-  // ---------------------------------------------------------------------------
-  Widget _buildProfileHero(
-    BuildContext context,
-    UserModel user,
-    String initials,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: AppTheme.heroGradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 2.5,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: 22,
-              backgroundColor: Colors.white.withValues(alpha: 0.15),
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  user.name,
-                  style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                if (user.companyName.isNotEmpty)
-                  GestureDetector(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.companySwitcher,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            user.companyName,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.95),
-                            ),
-                          ),
-                          if (user.companyMemberships.length > 1) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.swap_horiz_rounded,
-                              size: 16,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            child: Text(
-              user.isAdmin ? 'ADMIN' : 'STAFF',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Quick Actions (customizable cards) + section header
   // ---------------------------------------------------------------------------
   Widget _buildQuickActionsSection(
@@ -353,17 +275,18 @@ class HomeTab extends StatelessWidget {
             ..removeLast();
       grid = Row(children: spaced);
     } else {
-      grid = LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = (constraints.maxWidth - 10) / 2;
-          return Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: cards
-                .map((b) => SizedBox(width: itemWidth, child: b))
-                .toList(),
-          );
-        },
+      // Horizontal scroll strip keeps primary daily actions above the fold.
+      grid = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: Responsive.scrollPhysics(context),
+        child: Row(
+          children: [
+            for (int i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              SizedBox(width: 104, child: cards[i]),
+            ],
+          ],
+        ),
       );
     }
 
@@ -372,7 +295,7 @@ class HomeTab extends StatelessWidget {
       children: [
         const SectionHeader(
           title: 'Quick Actions',
-          subtitle: 'Your most-used daily tasks — tap + below for more',
+          padding: EdgeInsets.symmetric(vertical: 4),
         ),
         const SizedBox(height: 8),
         FadeSlideIn(index: 1, child: grid),
@@ -448,5 +371,93 @@ class HomeTab extends StatelessWidget {
       );
     }
     return widgets;
+  }
+}
+
+/// Tucks the secondary Favorites + Tip-of-the-Day surfaces behind a single
+/// "Show more" expander so they don't push primary content below the fold.
+/// Honors reduce-motion via the zero-duration [AnimatedCrossFade].
+class _HomeMoreSection extends StatefulWidget {
+  const _HomeMoreSection();
+
+  @override
+  State<_HomeMoreSection> createState() => _HomeMoreSectionState();
+}
+
+class _HomeMoreSectionState extends State<_HomeMoreSection> {
+  bool _expanded = false;
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = reduceMotion(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _toggle,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _expanded ? 'Show less' : 'Show more',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: reduce
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FadeSlideIn(child: FavoritesSection()),
+                SizedBox(height: 16),
+                FadeSlideIn(child: TipOfTheDay()),
+              ],
+            ),
+          ),
+          crossFadeState: _expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: reduce ? Duration.zero : const Duration(milliseconds: 220),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
+    );
   }
 }

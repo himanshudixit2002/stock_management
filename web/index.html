@@ -119,6 +119,9 @@
       }
       window.hideStockmgmtHtmlSplash = hideStockmgmtHtmlSplash;
       window.addEventListener('stockmgmt-hide-html-splash', hideStockmgmtHtmlSplash);
+      // Safety net: if the Flutter app never dispatches the hand-off event
+      // (e.g. a fatal bootstrap error), don't leave the splash stuck forever.
+      setTimeout(hideStockmgmtHtmlSplash, 20000);
     })();
   </script>
   <script src="flutter_bootstrap.js" async></script>

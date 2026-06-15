@@ -11,6 +11,7 @@ import '../../models/product_model.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animations.dart';
 import '../../utils/responsive.dart';
 
@@ -120,7 +121,14 @@ class ValuationTrendsScreen extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: Responsive.contentMaxWidth(context),
             ),
-            child: SingleChildScrollView(
+            child: allProducts.isEmpty
+                ? const EmptyStateWidget(
+                    icon: Icons.assessment_rounded,
+                    title: 'No Inventory to Value',
+                    subtitle:
+                        'Add products with pricing to see valuation trends.',
+                  )
+                : SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: Responsive.horizontalPadding(context),
                 vertical: 16,

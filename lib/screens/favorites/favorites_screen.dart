@@ -49,19 +49,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           itemCount: favorites.length,
           itemBuilder: (context, index) {
             final product = favorites[index];
-            return AnimatedListItem(
-              index: index,
-              child: _FavoriteProductCard(
-                product: product,
-                onUnfavorite: () {
-                  context.read<FavoritesProvider>().toggle(product.id);
-                },
-                onTap: () => context.pushAppRoute(
-                  AppRoutes.productDetail,
-                  extra: product,
-                ),
+            final card = _FavoriteProductCard(
+              product: product,
+              onUnfavorite: () {
+                context.read<FavoritesProvider>().toggle(product.id);
+              },
+              onTap: () => context.pushAppRoute(
+                AppRoutes.productDetail,
+                extra: product,
               ),
             );
+            // Cap entrance animations to the first items for long lists.
+            return index < 15
+                ? AnimatedListItem(index: index, child: card)
+                : card;
           },
         ),
       ),

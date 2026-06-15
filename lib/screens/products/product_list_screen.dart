@@ -13,7 +13,6 @@ import '../../widgets/provider_error_banner.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/floating_nav_padding.dart';
-import '../../widgets/tab_context_header.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
@@ -156,6 +155,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final canManageProducts =
         user?.hasPermission(AppPermissions.addProducts) ?? false;
     final isMobile = Responsive.isMobile(context);
+    final shortcuts = FeatureMap.entriesByCategory(
+      FeatureCategory.inventory,
+      user?.effectivePermissions ?? UserModel.defaultPermissions,
+      placement: FeaturePlacement.tabShortcut,
+    );
 
     return PermissionGate(
       permission: AppPermissions.viewProducts,
@@ -210,16 +214,40 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           ),
                         ],
                       ),
+                      if (shortcuts.isNotEmpty)
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert_rounded, size: 22),
+                          tooltip: 'Shortcuts',
+                          onSelected: (route) =>
+                              Navigator.pushNamed(context, route),
+                          itemBuilder: (context) => [
+                            for (final entry in shortcuts)
+                              PopupMenuItem<String>(
+                                value: entry.route,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      entry.icon,
+                                      size: 18,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(entry.label),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
                     ],
                     bottom: PreferredSize(
-                      preferredSize: const Size(double.infinity, 72),
+                      preferredSize: const Size(double.infinity, 64),
                       child: Container(
                         color: AppTheme.surface(context),
                         padding: EdgeInsets.fromLTRB(
                           Responsive.horizontalPadding(context),
-                          8,
+                          6,
                           Responsive.horizontalPadding(context),
-                          8,
+                          6,
                         ),
                         child: Row(
                           children: [
@@ -228,19 +256,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             _buildFilterButton(productProvider, isMobile),
                           ],
                         ),
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: TabContextHeader(
-                      icon: Icons.inventory_2_rounded,
-                      title: 'Products',
-                      subtitle: 'Browse, filter and manage your catalog',
-                      shortcuts: FeatureMap.entriesByCategory(
-                        FeatureCategory.inventory,
-                        user?.effectivePermissions ??
-                            UserModel.defaultPermissions,
-                        placement: FeaturePlacement.tabShortcut,
                       ),
                     ),
                   ),

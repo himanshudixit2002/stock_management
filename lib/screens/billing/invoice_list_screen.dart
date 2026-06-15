@@ -134,6 +134,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               _buildSearchAndFilters(),
               Expanded(
                 child: RefreshIndicator(
+                  color: AppTheme.primaryColor,
                   onRefresh: _onRefreshInvoices,
                   child: _buildInvoiceScrollable(
                     context,

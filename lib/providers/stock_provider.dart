@@ -9,9 +9,20 @@ import 'package:intl/intl.dart';
 class StockProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
 
+  /// Hard cap on the transactions stream. When the result reaches this many
+  /// rows the data is (likely) truncated and totals/charts only reflect the
+  /// most recent window — the UI surfaces a warning so figures aren't silently
+  /// undercounted.
+  static const int transactionFetchLimit = 2000;
+
   List<StockTransactionModel> _recentTransactions = [];
   bool _isLoading = false;
   String? _errorMessage;
+
+  /// True when the transactions stream hit [transactionFetchLimit], meaning
+  /// older transactions are not loaded and reports show a partial window.
+  bool get transactionsTruncated =>
+      _recentTransactions.length >= transactionFetchLimit;
 
   StreamSubscription? _transactionsSubscription;
   StreamSubscription? _holdsSubscription;
@@ -627,7 +638,7 @@ class StockProvider extends ChangeNotifier {
     });
 
     _transactionsSubscription = _databaseService
-        .getAllTransactions(limit: 2000)
+        .getAllTransactions(limit: transactionFetchLimit)
         .listen(
           (transactions) {
             _loadingTimeout?.cancel();

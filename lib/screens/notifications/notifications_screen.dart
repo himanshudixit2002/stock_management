@@ -119,21 +119,22 @@ class NotificationsScreen extends StatelessWidget {
           itemCount: notifications.length,
           itemBuilder: (context, index) {
             final n = notifications[index];
-            return AnimatedListItem(
-              index: index,
-              child: _NotificationCard(
-                notification: n,
-                icon: _typeIcon(n.type),
-                color: _typeColor(n.type),
-                relativeTime: _relativeTime(n.timestamp),
-                onTap: () {
-                  if (!n.isRead) {
-                    provider.markRead(n.id);
-                  }
-                },
-                onDismissed: () => provider.delete(n.id),
-              ),
+            final card = _NotificationCard(
+              notification: n,
+              icon: _typeIcon(n.type),
+              color: _typeColor(n.type),
+              relativeTime: _relativeTime(n.timestamp),
+              onTap: () {
+                if (!n.isRead) {
+                  provider.markRead(n.id);
+                }
+              },
+              onDismissed: () => provider.delete(n.id),
             );
+            // Cap entrance animations to the first items for long lists.
+            return index < 15
+                ? AnimatedListItem(index: index, child: card)
+                : card;
           },
         ),
       ),

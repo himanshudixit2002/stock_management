@@ -157,10 +157,12 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.ios_share_rounded, size: 20),
-            tooltip: 'Export',
-            onPressed: () {
-              showInfoSnackBar(context, 'Export coming soon');
-            },
+            tooltip: stockOuts.isEmpty ? 'No data to export' : 'Export',
+            onPressed: stockOuts.isEmpty
+                ? null
+                : () {
+                    showInfoSnackBar(context, 'Export coming soon');
+                  },
           ),
         ],
         bottom: PreferredSize(

@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config/routes.dart';
@@ -37,6 +36,7 @@ import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'firebase_options.dart';
 import 'utils/html_splash.dart';
+import 'widgets/branded_splash.dart';
 
 /// App-wide scroll behavior tuned for a soft, "cloudy" feel that is identical
 /// on every platform: iOS-style bouncy overscroll everywhere (mobile, web and
@@ -220,11 +220,26 @@ class _AuthWrapperState extends State<AuthWrapper>
       if (authProvider.isLoggedIn && authProvider.currentUser != null) {
         if (mounted) {
           if (kIsWeb) {
-            // On web, show the app shell immediately. Provider data loads in
-            // the background -- home screen already handles partial/empty data.
+            // On web, paint the app shell immediately and load provider data in
+            // the background. [build] renders Home with skeletons/cached stats
+            // while the staggered init runs, so the URL feels instant and is
+            // never blocked on the full catalog/analytics.
             setState(() => _initialized = true);
             _scheduleHideHtmlSplash();
-            await _initializeProviders(authProvider.currentUser!.companyId);
+            unawaited(
+              _initializeProviders(
+                authProvider.currentUser!.companyId,
+              ).catchError((Object e) {
+                if (mounted) {
+                  setState(
+                    () => _providerInitError = friendlyError(
+                      e,
+                      fallback: 'Could not load data. Please try again.',
+                    ),
+                  );
+                }
+              }),
+            );
           } else {
             await _initializeProviders(authProvider.currentUser!.companyId);
           }
@@ -275,42 +290,36 @@ class _AuthWrapperState extends State<AuthWrapper>
     _providersInitializing = false;
   }
 
+  /// Staggered, web-priority provider startup. Initialization is split into
+  /// phases so the Home shell becomes interactive fast and is never blocked on
+  /// the full catalog or analytics:
+  ///
+  ///  * Phase 1 (awaited): RBAC + settings — the minimum needed to resolve
+  ///    permissions and gate features for the first paint.
+  ///  * Phase 2 (awaited, parallel): categories + stock (streams) and the first
+  ///    product *page* (not the full catalog), plus the lightweight local
+  ///    favorites/home-customization/billing-toggle reads the Home shell needs.
+  ///    [_providersBoundCompanyId] is set at the end of this phase.
+  ///  * Phase 3 (background, post-frame): orders, billing data, audit,
+  ///    notifications, vendors, warehouse zones, and the full-catalog analytics.
+  ///
+  /// Every initialization the previous implementation performed still happens
+  /// (same companyId scoping + listeners) — only the *timing* is rescheduled.
   Future<void> _initializeProviders(String companyId) async {
     if (_providersInitializing) return;
     _providersInitializing = true;
     if (mounted) setState(() => _providerInitError = null);
     try {
-      final catProvider = context.read<CategoryProvider>();
-      final stockProvider = context.read<StockProvider>();
-      final vendorProvider = context.read<VendorProvider>();
-      final settingsProvider = context.read<SettingsProvider>();
-      final productProvider = context.read<ProductProvider>();
-
-      catProvider.initialize(companyId: companyId);
-      stockProvider.initialize(companyId: companyId);
-      vendorProvider.initialize(companyId: companyId);
-      context.read<PurchaseOrderProvider>().initialize(companyId: companyId);
-      context.read<SalesOrderProvider>().initialize(companyId: companyId);
-      context.read<ReturnProvider>().initialize(companyId: companyId);
-      context.read<CustomerProvider>().initialize(companyId: companyId);
-      context.read<BatchProvider>().initialize(companyId: companyId);
-      context.read<StockTakeProvider>().initialize(companyId: companyId);
-      context.read<AuditLogProvider>().initialize(companyId: companyId);
-      context.read<NotificationProvider>().initialize(companyId: companyId);
-      context.read<PriceHistoryProvider>().initialize(companyId: companyId);
-      context.read<WarehouseZoneProvider>().initialize(companyId: companyId);
-      context.read<BillingProvider>().initialize(companyId: companyId);
-      context.read<BillingSettingsProvider>().initialize(companyId);
-      context.read<RoleProvider>().initialize(companyId: companyId);
-
-      // Attach RoleProvider to AuthProvider for permission resolution
+      // ---- Phase 1: auth/RBAC + settings (needed for first paint) ----------
       final authProvider = context.read<AuthProvider>();
       final roleProvider = context.read<RoleProvider>();
-      authProvider.attachRoleProvider(roleProvider);
+      final settingsProvider = context.read<SettingsProvider>();
 
-      // Ensure RBAC roles exist and legacy users are migrated
+      roleProvider.initialize(companyId: companyId);
+      authProvider.attachRoleProvider(roleProvider);
       await authProvider.ensureRbacReady();
 
+      if (!mounted) return;
       await settingsProvider
           .initialize(companyId)
           .timeout(
@@ -321,11 +330,23 @@ class _AuthWrapperState extends State<AuthWrapper>
               );
             },
           );
-
       if (!mounted) return;
 
+      // ---- Phase 2: core inventory data (parallel) -------------------------
+      final catProvider = context.read<CategoryProvider>();
+      final stockProvider = context.read<StockProvider>();
+      final productProvider = context.read<ProductProvider>();
+
+      // Streams start immediately and resolve in parallel.
+      catProvider.initialize(companyId: companyId);
+      stockProvider.initialize(companyId: companyId);
+      // Billing toggle gates the Home grid, so load it now (cheap single doc).
+      context.read<BillingSettingsProvider>().initialize(companyId);
+
+      // First product PAGE only — the full catalog/analytics is deferred to
+      // Phase 3 so Home never waits on it.
       await productProvider
-          .initialize(companyId: companyId)
+          .initialize(companyId: companyId, loadFullCatalog: false)
           .timeout(
             const Duration(seconds: 20),
             onTimeout: () {
@@ -334,23 +355,25 @@ class _AuthWrapperState extends State<AuthWrapper>
               );
             },
           );
+      if (!mounted) return;
 
-      if (mounted) {
-        await context.read<HomeCustomizationProvider>().setCompanyId(companyId);
-      }
-      if (mounted) {
-        final uid = context.read<AuthProvider>().currentUser?.uid ?? '';
-        await context.read<FavoritesProvider>().initialize(
-          companyId: companyId,
-          uid: uid,
-        );
-      }
+      await context.read<HomeCustomizationProvider>().setCompanyId(companyId);
+      if (!mounted) return;
+      final uid = authProvider.currentUser?.uid ?? '';
+      await context.read<FavoritesProvider>().initialize(
+        companyId: companyId,
+        uid: uid,
+      );
+
       if (mounted) {
         setState(() {
           _providersBoundCompanyId = companyId;
           _activeCompanyId = companyId;
         });
       }
+
+      // ---- Phase 3: everything else, in the background ---------------------
+      _startBackgroundProviders(companyId);
     } catch (e) {
       if (mounted) {
         setState(
@@ -363,6 +386,31 @@ class _AuthWrapperState extends State<AuthWrapper>
     } finally {
       _providersInitializing = false;
     }
+  }
+
+  /// Phase 3: start the remaining feature providers and the full-catalog
+  /// analytics *after* the first frame, so they never compete with the
+  /// above-the-fold Home render. All are companyId-scoped stream listeners or
+  /// non-blocking fetches; nothing here gates the initial shell.
+  void _startBackgroundProviders(String companyId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _providersBoundCompanyId != companyId) return;
+      context.read<VendorProvider>().initialize(companyId: companyId);
+      context.read<PurchaseOrderProvider>().initialize(companyId: companyId);
+      context.read<SalesOrderProvider>().initialize(companyId: companyId);
+      context.read<ReturnProvider>().initialize(companyId: companyId);
+      context.read<CustomerProvider>().initialize(companyId: companyId);
+      context.read<BatchProvider>().initialize(companyId: companyId);
+      context.read<StockTakeProvider>().initialize(companyId: companyId);
+      context.read<AuditLogProvider>().initialize(companyId: companyId);
+      context.read<NotificationProvider>().initialize(companyId: companyId);
+      context.read<PriceHistoryProvider>().initialize(companyId: companyId);
+      context.read<WarehouseZoneProvider>().initialize(companyId: companyId);
+      context.read<BillingProvider>().initialize(companyId: companyId);
+      // Full-catalog analytics fills in the dashboard/report numbers; the Home
+      // shell already shows cached/first-page stats until this lands.
+      context.read<ProductProvider>().loadAnalytics();
+    });
   }
 
   @override
@@ -398,11 +446,7 @@ class _AuthWrapperState extends State<AuthWrapper>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
-                    width: 120,
-                    height: 120,
-                    child: Lottie.asset('assets/lottie/lottie_logo.json'),
-                  ),
+                  const BrandedSplashLogo(size: 120),
                   const SizedBox(height: 20),
                   const Text(
                     'SmartShelfKart',
@@ -504,9 +548,15 @@ class _AuthWrapperState extends State<AuthWrapper>
       final currentCompanyId = authProvider.currentUser!.companyId;
       final settings = context.read<SettingsProvider>();
 
-      final needsRebind = _providersBoundCompanyId != currentCompanyId;
+      // A genuine company SWITCH (already bound to a *different* company) must
+      // hard-reset and reload to avoid showing the previous tenant's data. The
+      // *initial* startup (never bound yet) instead renders the Home shell with
+      // skeletons/cached stats while the staggered init streams data in.
+      final isSwitchingCompany =
+          _providersBoundCompanyId != null &&
+          _providersBoundCompanyId != currentCompanyId;
 
-      if (needsRebind) {
+      if (isSwitchingCompany) {
         if (_providerInitError != null) {
           return Scaffold(
             body: Center(
@@ -607,22 +657,70 @@ class _AuthWrapperState extends State<AuthWrapper>
         );
       }
 
-      _activeCompanyId = currentCompanyId;
+      final isFullyBound = _providersBoundCompanyId == currentCompanyId;
 
-      if (!_onboardingChecked) {
-        _onboardingChecked = true;
-        final categories = context.read<CategoryProvider>().categories;
-        if (settings.locations.isEmpty && categories.isEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            if (!mounted) return;
-            final prefs = await SharedPreferences.getInstance();
-            final key = 'onboarding_completed_$currentCompanyId';
-            if (prefs.getBool(key) != true) {
-              if (mounted) {
-                Navigator.pushNamed(context, AppRoutes.onboarding);
-              }
+      if (!isFullyBound) {
+        // Initial startup: providers not yet bound. Surface a blocking error
+        // (with retry) only if init actually failed; otherwise fall through and
+        // render the Home shell now — it shows skeletons/cached stats and
+        // reconciles as the staggered init streams data in.
+        if (_providerInitError != null) {
+          return _ProviderInitErrorScreen(
+            message: _providerInitError!,
+            onRetry: () {
+              setState(() => _providerInitError = null);
+              _initializeProviders(currentCompanyId).catchError((Object e) {
+                if (mounted) {
+                  setState(
+                    () => _providerInitError = friendlyError(
+                      e,
+                      fallback: 'Could not load data.',
+                    ),
+                  );
+                }
+              });
+            },
+          );
+        }
+        // Safety net: ensure init is running (e.g. if the initial kick-off was
+        // missed). On web it is already started by [_initializeApp].
+        if (!_providersInitializing) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted &&
+                _providersBoundCompanyId == null &&
+                !_providersInitializing &&
+                _providerInitError == null) {
+              _initializeProviders(currentCompanyId).catchError((Object e) {
+                if (mounted) {
+                  setState(
+                    () => _providerInitError = friendlyError(
+                      e,
+                      fallback: 'Could not load data.',
+                    ),
+                  );
+                }
+              });
             }
           });
+        }
+      } else {
+        _activeCompanyId = currentCompanyId;
+
+        if (!_onboardingChecked) {
+          _onboardingChecked = true;
+          final categories = context.read<CategoryProvider>().categories;
+          if (settings.locations.isEmpty && categories.isEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              final prefs = await SharedPreferences.getInstance();
+              final key = 'onboarding_completed_$currentCompanyId';
+              if (prefs.getBool(key) != true) {
+                if (mounted) {
+                  Navigator.pushNamed(context, AppRoutes.onboarding);
+                }
+              }
+            });
+          }
         }
       }
 
@@ -666,5 +764,62 @@ class _AuthWrapperState extends State<AuthWrapper>
       }
       return const LandingScreen();
     }
+  }
+}
+
+/// Blocking error screen shown when the initial provider load fails, offering a
+/// retry. Extracted so the build method's branches stay readable.
+class _ProviderInitErrorScreen extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ProviderInitErrorScreen({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 64,
+                color: AppTheme.dangerColor,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Could Not Load Data',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPri(context),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppTheme.textTer(context)),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

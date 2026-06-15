@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../models/warehouse_zone_model.dart';
 import '../../providers/warehouse_zone_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -73,22 +74,38 @@ class WarehouseZonesScreen extends StatelessWidget {
                   constraints: BoxConstraints(
                     maxWidth: Responsive.contentMaxWidth(context),
                   ),
-                  child: ListView(
-                    padding: EdgeInsets.all(
-                      Responsive.horizontalPadding(context),
-                    ),
-                    children: grouped.entries.toList().asMap().entries.map((e) {
-                      final entry = e.value;
-                      return FadeSlideIn(
-                        index: e.key,
-                        child: _buildLocationSection(
-                          context,
-                          entry.key,
-                          entry.value,
-                          locations,
-                        ),
+                  child: RefreshIndicator(
+                    color: AppTheme.primaryColor,
+                    onRefresh: () async {
+                      context.read<WarehouseZoneProvider>().initialize(
+                        companyId:
+                            context.read<AuthProvider>().currentUser?.companyId ??
+                            '',
                       );
-                    }).toList(),
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 400),
+                      );
+                    },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(
+                        Responsive.horizontalPadding(context),
+                      ),
+                      children: grouped.entries.toList().asMap().entries.map((
+                        e,
+                      ) {
+                        final entry = e.value;
+                        return FadeSlideIn(
+                          index: e.key,
+                          child: _buildLocationSection(
+                            context,
+                            entry.key,
+                            entry.value,
+                            locations,
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
               ),

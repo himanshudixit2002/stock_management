@@ -4,21 +4,42 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/product_model.dart';
 import '../services/database_service.dart';
+import '../services/stats_cache.dart';
 import '../utils/error_helpers.dart';
 import '../utils/product_search.dart';
 
 class ProductProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
+  final StatsCache _statsCache = StatsCache();
 
   /// Shared in-flight analytics load so [search] can await the same future as [initialize].
   Future<void>? _analyticsInFlight;
+
+  /// Last-known counters seeded from [StatsCache] so Home can show real numbers
+  /// the instant the shell paints — before the first Firestore page returns.
+  /// Cleared as soon as authoritative data (even an empty result) arrives.
+  int? _seedTotal;
+  int? _seedLowStock;
+  int? _seedOutOfStock;
+
+  bool get _hasLiveProducts => _analyticsSource.isNotEmpty;
+
+  /// True when Home has *something* real to show (live data or a cached seed),
+  /// so stat tiles can render numbers instead of skeletons.
+  bool get hasSeededStats =>
+      _hasLiveProducts ||
+      _seedTotal != null ||
+      _seedLowStock != null ||
+      _seedOutOfStock != null;
 
   String get companyId => _databaseService.companyId;
 
   List<ProductModel> _products = [];
   List<ProductModel> _filteredProducts = [];
   List<ProductModel> _lowStockProducts = [];
-  bool _isLoading = false;
+  // Starts true so the Home shell shows skeletons (not a "0" flash) on the
+  // fast web path, before [initialize] has run. Cleared after the first page.
+  bool _isLoading = true;
   String? _errorMessage;
   String? _warningMessage;
   String _searchQuery = '';
@@ -235,11 +256,23 @@ class ProductProvider extends ChangeNotifier {
     _analyticsProducts = null;
     _isLoadingAnalytics = false;
     _analyticsFetchedAt = null;
+    _seedTotal = null;
+    _seedLowStock = null;
+    _seedOutOfStock = null;
     _invalidateAnalytics();
     notifyListeners();
   }
 
-  Future<void> initialize({required String companyId}) async {
+  /// Loads the first product page quickly.
+  ///
+  /// [loadFullCatalog] controls whether the full-catalog analytics fetch is
+  /// kicked off here. During staggered startup the shell schedules analytics in
+  /// a later background phase (so Home is never blocked on the full catalog),
+  /// so it passes `false`. Manual refreshes pass `true` to refresh everything.
+  Future<void> initialize({
+    required String companyId,
+    bool loadFullCatalog = true,
+  }) async {
     _databaseService.setCompanyId(companyId);
 
     _errorMessage = null;
@@ -249,10 +282,19 @@ class ProductProvider extends ChangeNotifier {
     _lastDoc = null;
     _hasMoreProducts = true;
     _isLoading = true;
+
+    // Seed last-known counters so the Home shell shows real numbers before the
+    // first page returns. Reconciled (and cleared) the moment data arrives.
+    final cached = await _statsCache.readProductStats(companyId);
+    if (cached != null) {
+      _seedTotal = cached.total;
+      _seedLowStock = cached.lowStock;
+      _seedOutOfStock = cached.outOfStock;
+    }
     notifyListeners();
 
     try {
-      // Phase 1: Load first page quickly for immediate UI rendering.
+      // Load first page quickly for immediate UI rendering.
       final result = await _databaseService
           .getProductsPage(limit: DatabaseService.productsPageSize)
           .timeout(const Duration(seconds: 15));
@@ -262,6 +304,10 @@ class ProductProvider extends ChangeNotifier {
       _lowStockProducts = _products
           .where((p) => p.quantity <= p.lowStockThreshold)
           .toList();
+      // Authoritative page data is in — stop using the seed fallback.
+      _seedTotal = null;
+      _seedLowStock = null;
+      _seedOutOfStock = null;
       _invalidateAnalytics();
       _applyFilters();
     } catch (error) {
@@ -274,10 +320,9 @@ class ProductProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Phase 2: Load full product set in background for accurate analytics.
-    // Non-blocking — dashboard/reports use _analyticsSource which falls back
-    // to the first page until the full set arrives.
-    loadAnalytics();
+    // Full product set for accurate analytics. Non-blocking — dashboard/reports
+    // use _analyticsSource which falls back to the first page until it arrives.
+    if (loadFullCatalog) loadAnalytics();
   }
 
   Future<void> loadMoreProducts() async {
@@ -379,6 +424,10 @@ class ProductProvider extends ChangeNotifier {
   /// Cached for 2 minutes to avoid redundant fetches.
   /// Called automatically by initialize() and manually after stock operations.
   Future<void> loadAnalytics() async {
+    // On the fast startup path the Home shell can mount (and request analytics)
+    // before this provider has been scoped to a company. Bail out quietly —
+    // the staggered init's background phase calls this again once bound.
+    if (_databaseService.companyId.isEmpty) return;
     final now = DateTime.now();
     if (_analyticsProducts != null &&
         _analyticsFetchedAt != null &&
@@ -410,7 +459,20 @@ class ProductProvider extends ChangeNotifier {
           .toList();
       _lastDoc = null;
       _hasMoreProducts = false;
+      _seedTotal = null;
+      _seedLowStock = null;
+      _seedOutOfStock = null;
       _invalidateAnalytics();
+      // Persist authoritative counters so the next cold start can paint them
+      // before Firestore returns. Fire-and-forget; never blocks the UI.
+      unawaited(
+        _statsCache.saveProductStats(
+          loadForCompany,
+          total: products.length,
+          lowStock: products.where((p) => p.isLowStock).length,
+          outOfStock: products.where((p) => p.isOutOfStock).length,
+        ),
+      );
     } catch (e) {
       if (_databaseService.companyId != loadForCompany) return;
       // Fall back to whatever is already loaded so dashboard isn't empty.
@@ -769,10 +831,9 @@ class ProductProvider extends ChangeNotifier {
           .map((p) => p.copyWith(createdBy: userId, createdByName: userName))
           .toList();
       final count = await _databaseService.bulkAddProducts(productsWithAudit);
-      _analyticsProducts = null;
-      _analyticsFetchedAt = null;
-      _invalidateAnalytics();
-      notifyListeners();
+      // Reload so newly imported products (and updated counts) appear without a
+      // manual refresh — matching the add/edit/delete and bulkUpdate paths.
+      await refreshProducts();
       return count;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to import products.');
@@ -811,10 +872,17 @@ class ProductProvider extends ChangeNotifier {
   }
 
   // --- Dashboard stats (use _analyticsSource for correct totals) ---
-  int get totalProducts => _analyticsSource.length;
-  int get lowStockCount => _analyticsSource.where((p) => p.isLowStock).length;
+  // While no live products are loaded yet, fall back to the cached seed so the
+  // Home shell shows real numbers immediately, then reconciles when data lands.
+  int get totalProducts =>
+      _hasLiveProducts ? _analyticsSource.length : (_seedTotal ?? 0);
+
+  int get lowStockCount => _hasLiveProducts
+      ? _analyticsSource.where((p) => p.isLowStock).length
+      : (_seedLowStock ?? 0);
 
   int get outOfStockCount {
+    if (!_hasLiveProducts) return _seedOutOfStock ?? 0;
     if (_cachedOutOfStockCount != null) {
       return _cachedOutOfStockCount!;
     }

@@ -104,6 +104,13 @@ class ReturnProvider extends ChangeNotifier {
     required DatabaseService db,
   }) async {
     if (_isLoading) return false;
+    // Guard against double-processing: re-running would add/remove stock a
+    // second time and double-count. Only an unprocessed return adjusts stock.
+    if (returnModel.status == ReturnStatus.processed) {
+      _errorMessage = 'This return has already been processed.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

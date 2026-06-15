@@ -14,6 +14,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../config/routes.dart';
 
 class SalesOrderListScreen extends StatefulWidget {
@@ -76,6 +77,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
     final allOrders = context.watch<SalesOrderProvider>().orders;
     final activeHolds = context.watch<StockProvider>().activeHolds;
     final isLoading = context.watch<SalesOrderProvider>().isLoading;
+    final errorMessage = context.watch<SalesOrderProvider>().errorMessage;
     final holdCountByOrder = <String, int>{};
     for (final hold in activeHolds) {
       if (hold.sourceId.isEmpty) continue;
@@ -95,6 +97,27 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
       title: 'Sales Orders',
       body: Column(
               children: [
+                if (errorMessage != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      8,
+                      Responsive.horizontalPadding(context),
+                      0,
+                    ),
+                    child: ProviderErrorBanner(
+                      message: errorMessage,
+                      onDismiss: () =>
+                          context.read<SalesOrderProvider>().clearError(),
+                      onRetry: () =>
+                          context.read<SalesOrderProvider>().initialize(
+                            companyId: context
+                                .read<AuthProvider>()
+                                .currentUser!
+                                .companyId,
+                          ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     Responsive.horizontalPadding(context),

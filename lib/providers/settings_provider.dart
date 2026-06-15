@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
 import '../models/product_model.dart';
+import '../services/stats_cache.dart';
 import '../utils/error_helpers.dart';
 
 class SettingsProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final StatsCache _statsCache = StatsCache();
   String _companyId = '';
   bool _pricingEnabled = true;
   bool _vendorsEnabled = true;
@@ -71,6 +75,18 @@ class SettingsProvider extends ChangeNotifier {
     _sizes = [];
     _locations = [];
     _errorMessage = null;
+
+    // Seed feature toggles from the last-known cache so the Home grid gates
+    // features correctly on first paint (no flash of actions that get hidden
+    // once Firestore returns). Reconciled below with authoritative values.
+    final cachedToggles = await _statsCache.readSettingsToggles(companyId);
+    if (cachedToggles != null) {
+      _pricingEnabled = cachedToggles.pricingEnabled;
+      _vendorsEnabled = cachedToggles.vendorsEnabled;
+      _barcodeEnabled = cachedToggles.barcodeEnabled;
+      notifyListeners();
+    }
+
     try {
       final doc = await _companyDoc.get();
       if (doc.exists) {
@@ -90,6 +106,16 @@ class SettingsProvider extends ChangeNotifier {
     }
     _initialized = true;
     notifyListeners();
+
+    // Persist authoritative toggles for the next cold start. Fire-and-forget.
+    unawaited(
+      _statsCache.saveSettingsToggles(
+        companyId,
+        pricingEnabled: _pricingEnabled,
+        vendorsEnabled: _vendorsEnabled,
+        barcodeEnabled: _barcodeEnabled,
+      ),
+    );
   }
 
   static List<String> _toStringList(dynamic value) {

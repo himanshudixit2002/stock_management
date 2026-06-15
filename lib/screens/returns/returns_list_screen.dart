@@ -14,6 +14,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
 
 class ReturnsListScreen extends StatefulWidget {
@@ -88,6 +89,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
 
     final allReturns = context.watch<ReturnProvider>().returns;
     final isLoading = context.watch<ReturnProvider>().isLoading;
+    final errorMessage = context.watch<ReturnProvider>().errorMessage;
     final dateFormat = DateFormat('dd MMM yyyy');
 
     return Scaffold(
@@ -118,6 +120,26 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
             ),
             child: Column(
               children: [
+                if (errorMessage != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      8,
+                      Responsive.horizontalPadding(context),
+                      0,
+                    ),
+                    child: ProviderErrorBanner(
+                      message: errorMessage,
+                      onDismiss: () =>
+                          context.read<ReturnProvider>().clearError(),
+                      onRetry: () => context.read<ReturnProvider>().initialize(
+                        companyId: context
+                            .read<AuthProvider>()
+                            .currentUser!
+                            .companyId,
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     Responsive.horizontalPadding(context),

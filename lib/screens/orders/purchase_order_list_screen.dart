@@ -13,6 +13,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../config/routes.dart';
 
 class PurchaseOrderListScreen extends StatefulWidget {
@@ -75,6 +76,7 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
 
     final allOrders = context.watch<PurchaseOrderProvider>().orders;
     final isLoading = context.watch<PurchaseOrderProvider>().isLoading;
+    final errorMessage = context.watch<PurchaseOrderProvider>().errorMessage;
     final filtered = _filteredOrders(allOrders);
     final dateFormat = DateFormat('dd MMM yyyy');
     final currencyFormat = NumberFormat.currency(
@@ -88,6 +90,27 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
       title: 'Purchase Orders',
       body: Column(
               children: [
+                if (errorMessage != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      8,
+                      Responsive.horizontalPadding(context),
+                      0,
+                    ),
+                    child: ProviderErrorBanner(
+                      message: errorMessage,
+                      onDismiss: () =>
+                          context.read<PurchaseOrderProvider>().clearError(),
+                      onRetry: () =>
+                          context.read<PurchaseOrderProvider>().initialize(
+                            companyId: context
+                                .read<AuthProvider>()
+                                .currentUser!
+                                .companyId,
+                          ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     Responsive.horizontalPadding(context),

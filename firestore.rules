@@ -407,6 +407,14 @@ service cloud.firestore {
         allow update, delete: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
       }
+
+      // In-app feedback subcollection (append-only; any member may submit,
+      // only admins/owners may review).
+      match /feedback/{feedbackId} {
+        allow read: if belongsToCompany(companyId) && isAdmin();
+        allow create: if belongsToCompany(companyId);
+        allow update, delete: if false;
+      }
     }
   }
 }

@@ -15,6 +15,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
 
 enum _CustomerSort {
@@ -303,6 +304,27 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ],
       body: Column(
               children: [
+                if (customerProvider.errorMessage != null)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      Responsive.horizontalPadding(context),
+                      8,
+                      Responsive.horizontalPadding(context),
+                      0,
+                    ),
+                    child: ProviderErrorBanner(
+                      message: customerProvider.errorMessage!,
+                      onDismiss: () =>
+                          context.read<CustomerProvider>().clearError(),
+                      onRetry: () =>
+                          context.read<CustomerProvider>().initialize(
+                            companyId: context
+                                .read<AuthProvider>()
+                                .currentUser!
+                                .companyId,
+                          ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     Responsive.horizontalPadding(context),

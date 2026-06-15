@@ -14,9 +14,10 @@ import '../models/user_model.dart';
 import '../utils/responsive.dart';
 import '../utils/dialogs.dart';
 import '../widgets/feature_tour.dart';
+import '../widgets/keyboard_shortcuts_scope.dart';
 import 'home/home_tab.dart';
 import 'products/product_list_screen.dart';
-import 'reports/reports_screen.dart';
+import 'reports/reports_tab.dart';
 import 'settings/settings_screen.dart';
 import '../widgets/animations.dart';
 import '../widgets/floating_bottom_nav.dart';
@@ -43,6 +44,14 @@ class HomeScreenState extends State<HomeScreen>
   // Visited-tab stack so the back gesture/button returns to the previously
   // viewed tab (natural in-app navigation) instead of jumping straight out.
   final List<int> _tabHistory = [];
+
+  // Tabs that have been visited at least once. Bodies are built lazily on
+  // first visit, then kept mounted by the IndexedStack so their state/scroll
+  // position is preserved. Unvisited tabs render a zero-cost placeholder and
+  // therefore never build their widget tree or touch Firestore until opened.
+  // Keyed by tab *kind* so the set stays correct even if permissions change
+  // the tab list/indices.
+  final Set<FloatingNavTabKind> _mountedTabs = {FloatingNavTabKind.home};
 
   // Drives a gentle fade + rise when switching tabs. The IndexedStack keeps its
   // identity (so each tab's state/scroll position is preserved) while this
@@ -232,39 +241,42 @@ class HomeScreenState extends State<HomeScreen>
     );
 
     final tabs = <_ShellTab>[
-      const _ShellTab(
+      _ShellTab(
         Icons.home_rounded,
         Icons.home_outlined,
         'Home',
         FloatingNavTabKind.home,
-        HomeTab(),
+        (_) => const HomeTab(),
       ),
       if (perms['canViewProducts'] == true)
-        const _ShellTab(
+        _ShellTab(
           Icons.inventory_2_rounded,
           Icons.inventory_2_outlined,
           'Products',
           FloatingNavTabKind.products,
-          ProductListScreen(),
+          (_) => const ProductListScreen(),
         ),
       if (perms['canViewReports'] == true)
-        const _ShellTab(
+        _ShellTab(
           Icons.analytics_rounded,
           Icons.analytics_outlined,
           'Reports',
           FloatingNavTabKind.reports,
-          ReportsScreen(),
+          (_) => const ReportsTab(),
         ),
-      const _ShellTab(
+      _ShellTab(
         Icons.settings_rounded,
         Icons.settings_outlined,
         'Settings',
         FloatingNavTabKind.settings,
-        SettingsScreen(),
+        (_) => const SettingsScreen(),
       ),
     ];
 
     final safeIndex = _currentIndex.clamp(0, tabs.length - 1);
+    // Mount the active tab on demand (idempotent); previously visited tabs stay
+    // in [_mountedTabs] so the IndexedStack keeps their state alive.
+    _mountedTabs.add(tabs[safeIndex].kind);
 
     Widget scaffold;
 
@@ -280,7 +292,7 @@ class HomeScreenState extends State<HomeScreen>
                 child: _tabTransition(
                   IndexedStack(
                     index: safeIndex,
-                    children: tabs.map((t) => t.body).toList(),
+                    children: _buildTabBodies(tabs),
                   ),
                 ),
               ),
@@ -301,7 +313,7 @@ class HomeScreenState extends State<HomeScreen>
                 child: _tabTransition(
                   IndexedStack(
                     index: safeIndex,
-                    children: tabs.map((t) => t.body).toList(),
+                    children: _buildTabBodies(tabs),
                   ),
                 ),
               ),
@@ -324,7 +336,8 @@ class HomeScreenState extends State<HomeScreen>
     }
 
     final isDark = AppTheme.isDark(context);
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    return KeyboardShortcutsScope(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
@@ -352,7 +365,25 @@ class HomeScreenState extends State<HomeScreen>
           ),
         ],
       ),
+      ),
     );
+  }
+
+  /// Builds the IndexedStack children, mounting a tab's real body only once it
+  /// has been visited and a lightweight placeholder otherwise. Visited bodies
+  /// keep a stable key so the IndexedStack preserves their element/state when
+  /// switching tabs (instant, <100ms-feel switching with no rebuild cost).
+  List<Widget> _buildTabBodies(List<_ShellTab> tabs) {
+    return [
+      for (final t in tabs)
+        if (_mountedTabs.contains(t.kind))
+          KeyedSubtree(
+            key: ValueKey<FloatingNavTabKind>(t.kind),
+            child: Builder(builder: t.builder),
+          )
+        else
+          const SizedBox.shrink(),
+    ];
   }
 
   // ---------------------------------------------------------------------------
@@ -495,20 +526,22 @@ class HomeScreenState extends State<HomeScreen>
   }
 }
 
-/// Internal description of a shell tab (body + nav metadata).
+/// Internal description of a shell tab (lazy body builder + nav metadata).
 class _ShellTab {
   final IconData icon;
   final IconData inactiveIcon;
   final String label;
   final FloatingNavTabKind kind;
-  final Widget body;
+
+  /// Built lazily on first visit so unvisited tabs cost nothing.
+  final WidgetBuilder builder;
 
   const _ShellTab(
     this.icon,
     this.inactiveIcon,
     this.label,
     this.kind,
-    this.body,
+    this.builder,
   );
 
   FloatingNavTab toNavTab() => FloatingNavTab(

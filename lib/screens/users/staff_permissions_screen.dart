@@ -89,10 +89,12 @@ class StaffPermissionsScreen extends StatelessWidget {
                           itemCount: users.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 12),
-                          itemBuilder: (context, i) => AnimatedListItem(
-                            index: i,
-                            child: _UserOverrideCard(user: users[i]),
-                          ),
+                          itemBuilder: (context, i) {
+                            final card = _UserOverrideCard(user: users[i]);
+                            return i < 15
+                                ? AnimatedListItem(index: i, child: card)
+                                : card;
+                          },
                         ),
                       ),
                     ),

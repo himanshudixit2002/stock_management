@@ -372,6 +372,53 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
+    // Block invoice creation when billing is disabled for the company, even if
+    // the user still holds the create-invoices permission and reaches this
+    // screen via a stale/deep route — entry points are hidden, writes blocked.
+    if (!context.watch<BillingSettingsProvider>().billingEnabled) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Billing Disabled')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.receipt_long_rounded,
+                  size: 64,
+                  color: AppTheme.warningColor,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Billing is turned off',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPri(context),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Enable billing in Settings to create invoices.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textTer(context),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final bs = context.watch<BillingSettingsProvider>().settings;
     final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';

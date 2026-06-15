@@ -40,10 +40,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSettingsContextHeader(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.only(bottom: 12),
-      child: TabContextHeader(
+      child: CompactTabHeader(
         icon: Icons.settings_rounded,
         title: 'Settings & Account',
         subtitle: 'Preferences, features, data and your team',
+        initiallyExpanded: true,
         padding: EdgeInsets.zero,
       ),
     );
@@ -141,7 +142,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : ListView(
                   padding: padding,
                   children: [
-                    if (isTabShell) _buildSettingsContextHeader(context),
+                    // The contextual header is redundant on phones (the tab
+                    // bar already names the screen) — keep it only on wide/
+                    // desktop layouts.
+                    if (isTabShell && Responsive.isWide(context))
+                      _buildSettingsContextHeader(context),
                     _buildSettingsProfileCard(context, user, initials),
                     SizedBox(height: _settingsSectionGap(context)),
                     ..._interleaveSettingsSectionGaps(context, sectionBlocks),
@@ -277,6 +282,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     UserModel user,
     String initials,
   ) {
+    // On phones the full gradient hero is overkill — show a compact row that
+    // links to Edit Profile. The hero styling is reserved for wide/desktop.
+    if (!Responsive.isWide(context)) {
+      return _buildCompactProfileRow(context, user, initials);
+    }
     return Container(
       padding: EdgeInsets.all(_settingsWebLux(context) ? 20 : 10),
       decoration: BoxDecoration(
@@ -377,6 +387,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCompactProfileRow(
+    BuildContext context,
+    UserModel user,
+    String initials,
+  ) {
+    return GlassPanel(
+      borderRadius: 14,
+      useContentVariant: true,
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showEditProfileDialog(context),
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: AppTheme.heroGradient,
+                  ),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.transparent,
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        user.name,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPri(context),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        user.email,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSec(context),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    user.isAdmin ? 'ADMIN' : user.role.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryColor,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: AppTheme.iconMute(context),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -915,6 +1024,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Onboarding Wizard',
             subtitle: 'Re-run the setup wizard',
             onTap: () => Navigator.pushNamed(context, AppRoutes.onboarding),
+          ),
+        ],
+      ),
+      _SettingsSectionBlock(
+        title: 'Help & About',
+        accentColor: AppTheme.infoColor,
+        children: [
+          _SettingsTile(
+            icon: Icons.help_outline_rounded,
+            iconColor: AppTheme.primaryColor,
+            title: 'Help & Support',
+            subtitle: 'Guides, FAQs and send feedback',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.help),
+          ),
+          if (user.hasPermission(AppPermissions.viewActivityTimeline)) ...[
+            const Divider(height: 1, indent: 48),
+            _SettingsTile(
+              icon: Icons.timeline_rounded,
+              iconColor: AppTheme.indigoColor,
+              title: 'Activity Timeline',
+              subtitle: 'A chronological feed of recent activity',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.activityTimeline),
+            ),
+          ],
+          const Divider(height: 1, indent: 48),
+          _SettingsTile(
+            icon: Icons.info_outline_rounded,
+            iconColor: AppTheme.textSec(context),
+            title: 'About',
+            subtitle: 'App version, credits and links',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.about),
           ),
         ],
       ),

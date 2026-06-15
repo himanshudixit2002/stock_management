@@ -124,10 +124,10 @@ class AppScreenScaffold extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: ScaleFadeIn(
               child: GlassPanel(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 useContentVariant: true,
                 child: header!,
               ),
