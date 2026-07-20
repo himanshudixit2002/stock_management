@@ -48,3 +48,12 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Secrets & Configs
+rag_backend/.env
+upload_certificate.pem
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+rag_backend/chroma_db/
+
