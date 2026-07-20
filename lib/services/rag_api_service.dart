@@ -34,7 +34,7 @@ class RagApiService {
       return 'http://localhost:8000';
     }
     // Production Cloud Run URL
-    return 'https://rag-backend-647731796550.asia-south1.run.app';
+    return 'https://stock-rag-backend-647731796550.asia-south1.run.app';
   }
 
   /// Sends a question to the RAG backend and returns a parsed [RagResponse].
