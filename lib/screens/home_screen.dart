@@ -333,8 +333,6 @@ class HomeScreenState extends State<HomeScreen>
                   currentIndex: safeIndex,
                   tabs: tabs.map((t) => t.toNavTab()).toList(),
                   onTap: _onTabSelected,
-                  showQuickActions: quickActions.isNotEmpty,
-                  onQuickActions: () => _openQuickActionsSheet(quickActions),
                 ),
               ),
             ],
@@ -502,19 +500,7 @@ class HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
-        trailing: quickActions.isEmpty
-            ? null
-            : Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: _RailQuickActionsButton(
-                      onTap: () => _openQuickActionsSheet(quickActions),
-                    ),
-                  ),
-                ),
-              ),
+        trailing: null,
         destinations: tabs
             .map(
               (t) => NavigationRailDestination(

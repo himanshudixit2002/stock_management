@@ -180,13 +180,8 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
               .toList()
             ..sort();
       if (missingVendors.isNotEmpty) {
-        final preview = missingVendors.take(5).join(', ');
-        final suffix = missingVendors.length > 5 ? ' and more' : '';
-        throw Exception(
-          'Import references vendors without phone numbers configured: '
-          '$preview$suffix. Create these vendors with phone numbers in '
-          'Manage Vendors, then retry import.',
-        );
+        // We will no longer block import for missing phone numbers.
+        // Instead, the excel_service.dart will just auto-create them or import will proceed gracefully.
       }
 
       List<ProductModel> products;

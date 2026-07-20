@@ -226,6 +226,13 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageCategories'));
       }
 
+      // Warehouse Zones subcollection
+      match /warehouseZones/{zoneId} {
+        allow read: if belongsToCompany(companyId);
+        allow create, update, delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageWarehouseZones'));
+      }
+
       // Transactions subcollection
       match /transactions/{transactionId} {
         allow read: if belongsToCompany(companyId);

@@ -44,25 +44,18 @@ class FloatingBottomNav extends StatelessWidget {
   final List<FloatingNavTab> tabs;
   final ValueChanged<int> onTap;
 
-  /// Whether to show the raised centre Quick Actions button.
-  final bool showQuickActions;
 
-  /// Opens the categorized quick-actions sheet (owned by the shell).
-  final VoidCallback? onQuickActions;
 
   const FloatingBottomNav({
     super.key,
     required this.currentIndex,
     required this.tabs,
     required this.onTap,
-    this.showQuickActions = false,
-    this.onQuickActions,
   });
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-    final showButton = showQuickActions && onQuickActions != null;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -71,27 +64,8 @@ class FloatingBottomNav extends StatelessWidget {
         bottom: bottomInset + kFloatingNavBarBottomGap,
       ),
       child: SizedBox(
-        height:
-            kFloatingNavBarHeight + (showButton ? kFloatingNavButtonOverhang : 0),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: kFloatingNavBarHeight,
-              child: _buildPill(context),
-            ),
-            if (showButton)
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: _CenterQuickActionsButton(onTap: onQuickActions!),
-                ),
-              ),
-          ],
-        ),
+        height: kFloatingNavBarHeight,
+        child: _buildPill(context),
       ),
     );
   }

@@ -478,9 +478,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
         ),
         ),
-        floatingActionButton: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        floatingActionButton: Padding(
+          padding: EdgeInsets.only(bottom: floatingNavContentInset(context)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             if (_showScrollTop)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -506,6 +508,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: const Icon(Icons.add),
               ),
           ],
+        ),
         ),
       ),
     );
