@@ -1,9 +1,12 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/sales_order_provider.dart';
@@ -47,6 +50,59 @@ class _RagChatScreenState extends State<RagChatScreen> {
   void initState() {
     super.initState();
     _initSpeech();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadChatHistory();
+    });
+  }
+
+  Future<void> _saveChatHistory() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final user = authProvider.currentUser;
+      if (user == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final list = _messages.map((m) => jsonEncode({
+        'text': m.text,
+        'isUser': m.isUser,
+        'actionPayload': m.actionPayload,
+        'isActionExecuted': m.isActionExecuted,
+      })).toList();
+      
+      await prefs.setStringList('chat_history_${user.uid}', list);
+    } catch (e) {
+      debugPrint("Error saving chat history: $e");
+    }
+  }
+
+  Future<void> _loadChatHistory() async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final user = authProvider.currentUser;
+      if (user == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('chat_history_${user.uid}');
+      if (list != null && list.isNotEmpty) {
+        setState(() {
+          _messages.clear();
+          _messages.addAll(list.map((item) {
+            final json = jsonDecode(item);
+            return _Message(
+              json['text'],
+              json['isUser'],
+              actionPayload: json['actionPayload'] != null 
+                  ? Map<String, dynamic>.from(json['actionPayload']) 
+                  : null,
+              isActionExecuted: json['isActionExecuted'] ?? false,
+            );
+          }));
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      debugPrint("Error loading chat history: $e");
+    }
   }
 
   void _initSpeech() async {
@@ -87,6 +143,8 @@ class _RagChatScreenState extends State<RagChatScreen> {
       _messages.add(_Message(text, true));
       _isLoading = true;
     });
+    _saveChatHistory();
+    
     if (predefinedText == null) _controller.clear();
     // Zero-token Interceptor for greetings (Includes Hinglish!)
     final greetings = ['hi', 'hello', 'hey', 'help', 'who are you', 'how are you', 'namaste', 'kaise ho', 'kya haal', 'aur batao'];
@@ -99,6 +157,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           _isLoading = false;
         });
         _scrollToBottom();
+        _saveChatHistory();
       }
       return;
     }
@@ -125,6 +184,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
             _isLoading = false;
           });
           _scrollToBottom();
+          _saveChatHistory();
         }
         return;
       }
@@ -182,10 +242,27 @@ class _RagChatScreenState extends State<RagChatScreen> {
 
     final contextText = '$intentContext $productContext'.trim();
 
+    // Map recent messages to backend format (excluding the last one we just added)
+    final historyMessages = _messages
+        .take(_messages.length - 1)
+        .where((m) => m.text != "Hi! I'm Nova, your intelligent inventory assistant. How can I help you manage your stock today?")
+        .toList();
+    
+    // Take the last 6 messages (3 turns)
+    final recentHistory = historyMessages.length > 6 
+        ? historyMessages.sublist(historyMessages.length - 6) 
+        : historyMessages;
+        
+    final historyPayload = recentHistory.map((m) => {
+      'role': m.isUser ? 'user' : 'model',
+      'content': m.text,
+    }).toList();
+
     try {
       final response = await RagApiService.askQuestion(
         text,
         context: contextText.isNotEmpty ? contextText : "No inventory data found.",
+        history: historyPayload,
       );
 
       if (mounted) {
@@ -195,6 +272,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           _isLoading = false;
         });
         _scrollToBottom();
+        _saveChatHistory();
       }
     } catch (e) {
       if (mounted) {
@@ -203,6 +281,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           _messages.add(_Message("Sorry, I couldn't reach the server. Please ensure the backend is running.", false));
           _isLoading = false;
         });
+        _saveChatHistory();
       }
     }
     _scrollToBottom();
@@ -240,12 +319,14 @@ class _RagChatScreenState extends State<RagChatScreen> {
                 IconButton(
                   icon: const Icon(Icons.delete_outline_rounded),
                   tooltip: 'Clear Chat',
-                  onPressed: () {
+                  onPressed: () async {
                     HapticFeedback.lightImpact();
                     setState(() {
                       _messages.clear();
                       _messages.add(_Message("Hi! I'm Nova, your intelligent inventory assistant. How can I help you manage your stock today?", false));
                     });
+                    await _saveChatHistory();
+                    await RagApiService.clearCache();
                   },
                 )
               ],
@@ -267,7 +348,10 @@ class _RagChatScreenState extends State<RagChatScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
-                return _ChatBubble(message: message)
+                return _ChatBubble(
+                  message: message,
+                  onActionExecuted: _saveChatHistory,
+                )
                     .animate()
                     .fade(duration: 400.ms)
                     .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
@@ -509,8 +593,9 @@ class _QuickActionChip extends StatelessWidget {
 
 class _ChatBubble extends StatefulWidget {
   final _Message message;
+  final VoidCallback? onActionExecuted;
 
-  const _ChatBubble({required this.message});
+  const _ChatBubble({required this.message, this.onActionExecuted});
 
   @override
   State<_ChatBubble> createState() => _ChatBubbleState();
@@ -584,6 +669,11 @@ class _ChatBubbleState extends State<_ChatBubble> {
             widget.message.isActionExecuted = true;
           });
           HapticFeedback.heavyImpact();
+          if (widget.onActionExecuted != null) {
+            widget.onActionExecuted!();
+          }
+          // Clear backend RAG query cache since stock has updated
+          RagApiService.clearCache();
         } else {
           // If update failed, we could show a snackbar
           if (mounted) {

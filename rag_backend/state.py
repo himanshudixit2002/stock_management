@@ -1,4 +1,4 @@
-from typing import List, TypedDict, Optional
+from typing import List, TypedDict, Optional, Dict
 
 class GraphState(TypedDict):
     """
@@ -10,3 +10,5 @@ class GraphState(TypedDict):
     retries: int
     is_restock_required: Optional[bool]
     provided_context: Optional[str]
+    history: Optional[List[Dict[str, str]]]
+

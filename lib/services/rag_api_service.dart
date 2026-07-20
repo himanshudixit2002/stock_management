@@ -24,7 +24,11 @@ class RagApiService {
   }
 
   /// Sends a question to the RAG backend and returns a parsed RagResponse.
-  static Future<RagResponse> askQuestion(String question, {String? context}) async {
+  static Future<RagResponse> askQuestion(
+    String question, {
+    String? context,
+    List<Map<String, String>>? history,
+  }) async {
     final url = Uri.parse('$_baseUrl/api/chat');
     try {
       final response = await http.post(
@@ -33,6 +37,7 @@ class RagApiService {
         body: jsonEncode({
           'question': question,
           if (context != null) 'context': context,
+          if (history != null) 'history': history,
         }),
       );
 
@@ -62,6 +67,16 @@ class RagApiService {
       }
     } catch (e) {
       return RagResponse('Connection error: Could not reach the Cloud Run backend ($e).', null);
+    }
+  }
+
+  /// Clears the backend query cache.
+  static Future<void> clearCache() async {
+    final url = Uri.parse('$_baseUrl/api/cache/clear');
+    try {
+      await http.post(url);
+    } catch (e) {
+      print("Failed to clear backend cache: $e");
     }
   }
 }

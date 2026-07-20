@@ -48,9 +48,6 @@ llm_pro = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
 
 llm_lite_with_tools = llm_lite.bind_tools([UpdateStock])
 
-rag_chain_lite = lite_prompt | llm_lite_with_tools
-rag_chain_pro = pro_prompt | llm_pro
-
 # 4. Data Layer Retrieval
 def get_retriever():
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
@@ -80,6 +77,7 @@ def retrieve(state: GraphState):
 def generate(state: GraphState):
     question = state["question"]
     documents = state["documents"]
+    history = state.get("history") or []
     
     docs_text = "\n\n".join(doc.page_content for doc in documents) if documents else "No inventory context available."
     
@@ -92,12 +90,48 @@ def generate(state: GraphState):
     
     is_simple_update = has_operation and not is_analytics
     
+    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+    
+    messages = []
+    if is_simple_update:
+        messages.append(SystemMessage(content=(
+            "You are the automated inventory ledger for SmartShelfKart. Your ONLY task is tool execution.\n\n"
+            "CRITICAL DATABASE SCHEMA:\n"
+            "- product_name (string)\n"
+            "- barcode (string)\n"
+            "- current_stock (integer)\n\n"
+            "RULES:\n"
+            "1. Match the user's requested item to the context, extract the exact barcode, and call the UpdateStock tool. Do not guess.\n"
+            "2. If the barcode is missing, output exactly one short sentence asking for it (e.g., 'Please provide the barcode for [Product].').\n"
+            "3. NO conversational filler, NO greetings, NO explanations."
+        )))
+    else:
+        messages.append(SystemMessage(content=(
+            "You are Nova, the business intelligence AI for SmartShelfKart. Answer strictly based on the provided context.\n\n"
+            "CRITICAL RULES:\n"
+            "1. ACCURACY: Answer ONLY based on the facts in the context. Never speculate, assume, or hallucinate metrics or products not explicitly listed. If info is missing, say: 'No matching inventory records found.'\n"
+            "2. BREVITY: Keep answers under 3 sentences total. Be extremely direct and to the point. No introductory/concluding filler (e.g., do not say 'Here is your summary' or 'Let me check').\n"
+            "3. FORMATTING: Use bold text for key numbers/status. Use compact markdown tables if comparing 2 or more products.\n"
+            "4. TOOL ACCESS: You do not have stock update tools. If the user wants to update stock, explain you can prepare it if they specify the quantity change and product."
+        )))
+        
+    for msg in history:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        elif role in ["assistant", "model"]:
+            messages.append(AIMessage(content=content))
+            
+    messages.append(HumanMessage(content=f"Context: {docs_text}\nQuestion: {question}"))
+    
     try:
         if is_simple_update:
-            response = rag_chain_lite.invoke({"context": docs_text, "question": question})
+            response = llm_lite_with_tools.invoke(messages)
         else:
-            response = rag_chain_pro.invoke({"context": docs_text, "question": question})
-    except Exception:
+            response = llm_pro.invoke(messages)
+    except Exception as e:
+        print(f"LLM Error: {e}")
         return {"documents": documents, "question": question, "generation": "I am currently experiencing connection issues with my AI brain. Please try again later."}
     
     if hasattr(response, "tool_calls") and response.tool_calls:
@@ -136,3 +170,4 @@ def generate(state: GraphState):
         generation = "✅ Request processed successfully."
         
     return {"documents": documents, "question": question, "generation": generation}
+
