@@ -33,7 +33,7 @@ class RagApiService {
       }
       return 'http://localhost:8000';
     }
-    return 'https://stock-rag-backend-647731796550.asia-south1.run.app';
+    return 'https://rag-backend-647731796550.asia-south1.run.app';
   }
 
   /// Cancels any in-flight request. Safe to call even if nothing is active.
