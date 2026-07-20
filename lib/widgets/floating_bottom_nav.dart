@@ -12,7 +12,7 @@ import '../providers/stock_provider.dart';
 import 'floating_nav_padding.dart';
 
 /// Identifies a tab so the floating nav can attach the right live badge.
-enum FloatingNavTabKind { home, products, reports, settings }
+enum FloatingNavTabKind { home, products, reports, ai, settings }
 
 /// A single destination in the [FloatingBottomNav].
 class FloatingNavTab {
@@ -233,6 +233,7 @@ class FloatingBottomNav extends StatelessWidget {
           return const _DotBadge(color: AppTheme.infoColor);
         }
         return null;
+      case FloatingNavTabKind.ai:
       case FloatingNavTabKind.home:
       case FloatingNavTabKind.settings:
         return null;

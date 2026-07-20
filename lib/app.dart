@@ -105,7 +105,6 @@ class StockManagementApp extends StatelessWidget {
           themeMode: themeProvider.themeMode,
           scrollBehavior: const SoftScrollBehavior(),
           debugShowCheckedModeBanner: false,
-          home: const AuthWrapper(),
           // Always boot into the AuthWrapper, ignoring any deep path the
           // browser supplies (refresh, back/forward, bookmarks). Without this,
           // Flutter web decomposes a deep URL like /orders/sales/detail into
@@ -119,6 +118,17 @@ class StockManagementApp extends StatelessWidget {
           ],
           onGenerateRoute: (settings) =>
               app_router.onGenerateRoute(settings, context),
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            final clampedTextScaler = mediaQuery.textScaler.clamp(
+              minScaleFactor: 0.8,
+              maxScaleFactor: 1.25,
+            );
+            return MediaQuery(
+              data: mediaQuery.copyWith(textScaler: clampedTextScaler),
+              child: child ?? const SizedBox(),
+            );
+          },
         ),
       ),
     );

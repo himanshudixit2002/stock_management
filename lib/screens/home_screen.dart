@@ -18,6 +18,7 @@ import '../widgets/keyboard_shortcuts_scope.dart';
 import 'home/home_tab.dart';
 import 'products/product_list_screen.dart';
 import 'reports/reports_tab.dart';
+import 'ai/rag_chat_screen.dart';
 import 'settings/settings_screen.dart';
 import '../widgets/animations.dart';
 import '../widgets/floating_bottom_nav.dart';
@@ -265,6 +266,13 @@ class HomeScreenState extends State<HomeScreen>
           (_) => const ReportsTab(),
         ),
       _ShellTab(
+        Icons.auto_awesome_rounded,
+        Icons.auto_awesome_outlined,
+        'AI',
+        FloatingNavTabKind.ai,
+        (_) => const RagChatScreen(),
+      ),
+      _ShellTab(
         Icons.settings_rounded,
         Icons.settings_outlined,
         'Settings',
@@ -438,6 +446,7 @@ class HomeScreenState extends State<HomeScreen>
             child: Icon(icon),
           );
         case FloatingNavTabKind.home:
+        case FloatingNavTabKind.ai:
         case FloatingNavTabKind.settings:
           return Icon(icon);
       }
