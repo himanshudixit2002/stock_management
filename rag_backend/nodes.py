@@ -1,174 +1,138 @@
 import json
-import logging
+import re
+from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from state import GraphState
-from intent_classifier import classify_intent as run_intent_classifier
-from context_engine import filter_context
-from actions import UpdateStock, CreatePurchaseOrder, CreateSalesOrder, NavigateToScreen, GenerateReport, SearchProducts
 
-logger = logging.getLogger(__name__)
+# 1. Structured Tool Schema
+class UpdateStock(BaseModel):
+    product_name: str = Field(description="The name of the product to update.")
+    barcode: str = Field(description="The exact alphanumeric barcode of the product extracted from the context.")
+    qty_change: int = Field(description="The exact quantity to add (positive) or deduct (negative).")
 
-# Singleton initialization
-llm_lite = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
-llm_pro = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-llm_grader = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
-
-embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-
-# Lazy initialization variables for Chroma
-vectorstore = None
-retriever = None
-
-def get_retriever():
-    global vectorstore, retriever
-    if retriever is None:
-        try:
-            vectorstore = Chroma(collection_name="stock_inventory", embedding_function=embeddings, persist_directory="./chroma_db")
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB: {e}")
-            raise e
-    return retriever
-
-tools = [UpdateStock, CreatePurchaseOrder, CreateSalesOrder, NavigateToScreen, GenerateReport, SearchProducts]
-llm_lite_with_tools = llm_lite.bind_tools(tools)
-
-pro_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are Nova, the intelligent inventory assistant for SmartShelfKart.\n\n"
-               "CRITICAL RULES:\n"
-               "1. BE EXTREMELY CONCISE. No introductory/concluding fluff.\n"
-               "2. Use short bullet points and bold text for metrics.\n"
-               "3. You do NOT have tools bound here. Base answers solely on context.\n"),
-    ("user", "Chat History: {chat_history}\nContext: {context}\nQuestion: {question}\nAssistant:")
+# 2. Specialized System Prompts
+lite_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are the automated inventory ledger for SmartShelfKart. Your ONLY task is tool execution.\n\n"
+               "CRITICAL DATABASE SCHEMA:\n"
+               "- product_name (string)\n"
+               "- barcode (string)\n"
+               "- current_stock (integer)\n\n"
+               "RULES:\n"
+               "1. Match the user's requested item to the context, extract the exact barcode, and call the UpdateStock tool. Do not guess.\n"
+               "2. If the barcode is missing, output exactly one short sentence asking for it (e.g., 'Please provide the barcode for [Product].').\n"
+               "3. NO conversational filler. NO greetings."),
+    ("user", "Context: {context}\nQuestion: {question}\nAssistant:")
 ])
 
-def classify_intent(state: GraphState):
-    logger.info(f"Classifying intent for question: {state['question']}")
-    intent = run_intent_classifier(state["question"], state.get("chat_history", []))
-    logger.info(f"Classified intent: {intent}")
-    return {"intent": intent, "max_retries": state.get("max_retries", 2)}
+pro_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are Nova, the business intelligence AI for SmartShelfKart.\n\n"
+               "CRITICAL DATABASE SCHEMA:\n"
+               "- product_name (string)\n"
+               "- barcode (string)\n"
+               "- current_stock (integer)\n\n"
+               "RULES FOR UI RENDERING:\n"
+               "1. BE EXTREMELY CONCISE. Get straight to the point. No introductory or concluding paragraphs (e.g., never say 'Here is the analysis').\n"
+               "2. Optimize for token efficiency. Keep text under 4 sentences total.\n"
+               "3. Use short bullet points and bold text for key metrics.\n"
+               "4. Use compact markdown tables ONLY if comparing multiple items.\n"
+               "5. You DO NOT have access to stock update tools. Answer based only on the context."),
+    ("user", "Context: {context}\nQuestion: {question}\nAssistant:")
+])
 
-def smart_retrieve(state: GraphState):
-    intent = state["intent"]
+# 3. Model & Chain Initialization
+llm_lite = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
+llm_pro = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
+
+llm_lite_with_tools = llm_lite.bind_tools([UpdateStock])
+
+rag_chain_lite = lite_prompt | llm_lite_with_tools
+rag_chain_pro = pro_prompt | llm_pro
+
+# 4. Data Layer Retrieval
+def get_retriever():
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
+    vectorstore = Chroma(
+        collection_name="stock_inventory",
+        embedding_function=embeddings,
+        persist_directory="./chroma_db"
+    )
+    return vectorstore.as_retriever(search_kwargs={"k": 3})
+
+def retrieve(state: GraphState):
     question = state["question"]
-        
-    provided_context = state.get("provided_context", "")
+    provided_context = state.get("provided_context")
+
     if provided_context:
-        filtered = filter_context(intent, question, provided_context)
-        return {"documents": [Document(page_content=filtered)] if filtered else []}
+        documents = [Document(page_content=provided_context)]
+    else:
+        try:
+            retriever = get_retriever()
+            documents = retriever.invoke(question)
+        except Exception:
+            documents = []
     
-    try:
-        r = get_retriever()
-        documents = r.invoke(question)
-    except Exception as e:
-        logger.error(f"Retrieval error: {e}")
-        documents = []
-        
-    return {"documents": documents}
+    return {"documents": documents, "question": question}
 
+# 5. Core Operational Brain
 def generate(state: GraphState):
-    intent = state["intent"]
     question = state["question"]
-    documents = state.get("documents", [])
-    chat_history = state.get("chat_history", [])
+    documents = state["documents"]
     
-    if intent == "GREETING":
-        return {"generation": "Hi! I'm Nova, your Inventory AI. How can I help you today?"}
+    docs_text = "\n\n".join(doc.page_content for doc in documents) if documents else "No inventory context available."
     
-    if intent == "NAVIGATION":
-        return {"generation": "Navigating..."}
-        
-    docs_text = "\n\n".join(doc.page_content for doc in documents) if documents else "No relevant inventory data found."
+    q_lower = question.lower()
+    analytics_keywords = ["analyze", "forecast", "trend", "predict", "growth", "report", "summary", "why"]
+    operation_keywords = ["update", "add", "remove", "deduct", "stock", "change"]
+    
+    is_analytics = any(kw in q_lower for kw in analytics_keywords)
+    has_operation = any(kw in q_lower for kw in operation_keywords)
+    
+    is_simple_update = has_operation and not is_analytics
     
     try:
-        if intent in ["STOCK_UPDATE", "ORDER_MGMT"]:
-            msg_history = chat_history.copy()
-            msg_history.append({"role": "user", "content": f"Context: {docs_text}\nQuestion: {question}"})
-            response = llm_lite_with_tools.invoke(msg_history)
+        if is_simple_update:
+            response = rag_chain_lite.invoke({"context": docs_text, "question": question})
         else:
-            chain = pro_prompt | (llm_lite if intent in ["STOCK_QUERY", "GENERAL"] else llm_pro)
-            response = chain.invoke({"context": docs_text, "question": question, "chat_history": str(chat_history)})
-            
-    except Exception as e:
-        logger.error(f"Generation error: {e}")
-        return {"generation": "I'm having trouble processing your request right now."}
-        
-    # Tool call formatting
-    action_payload = None
+            response = rag_chain_pro.invoke({"context": docs_text, "question": question})
+    except Exception:
+        return {"documents": documents, "question": question, "generation": "I am currently experiencing connection issues with my AI brain. Please try again later."}
+    
     if hasattr(response, "tool_calls") and response.tool_calls:
         tool_call = response.tool_calls[0]
-        name = tool_call["name"]
-        args = tool_call["args"]
-        
-        type_mapping = {
-            "UpdateStock": "update_stock",
-            "CreatePurchaseOrder": "create_purchase_order",
-            "CreateSalesOrder": "create_sales_order",
-            "NavigateToScreen": "navigate",
-            "GenerateReport": "generate_report",
-            "SearchProducts": "search_products"
-        }
-        
-        action_payload = args
-        action_payload["type"] = type_mapping.get(name, name)
-        
-        action_json = json.dumps(action_payload)
-        generation = f"Action prepared.\n\n[ACTION: {action_json}]"
-        return {"generation": generation, "action_payload": action_payload}
-        
+        if tool_call["name"] == "UpdateStock":
+            args = tool_call["args"]
+            product_name = args.get("product_name", "")
+            qty = args.get("qty_change", 0)
+            barcode = args.get("barcode", "")
+            
+            if not barcode or barcode == product_name:
+                return {"documents": documents, "question": question, "generation": f"Could you please provide the exact barcode for {product_name}?"}
+            
+            action_json = json.dumps({
+                "type": "update_stock", 
+                "barcode": barcode, 
+                "qty_change": qty
+            })
+            generation = f"📦 Stock adjustment prepared for {product_name} (Barcode: {barcode}).\n\n[ACTION: {action_json}]"
+            return {"documents": documents, "question": question, "generation": generation}
+    
     generation = response.content
+    
     if isinstance(generation, list):
-        generation = "".join(b["text"] if isinstance(b, dict) and "text" in b else str(b) for b in generation)
+        text_blocks = []
+        for block in generation:
+            if isinstance(block, dict) and "text" in block:
+                text_blocks.append(block["text"])
+            elif isinstance(block, str):
+                text_blocks.append(block)
+        generation = "".join(text_blocks)
     elif not isinstance(generation, str):
         generation = str(generation)
         
-    return {"generation": generation}
-
-def grade_documents(state: GraphState):
-    docs_text = "\n\n".join(doc.page_content for doc in state.get("documents", []))
-    if not docs_text:
-        return {"doc_grade": "irrelevant"}
+    if not generation.strip():
+        generation = "✅ Request processed successfully."
         
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "Is this context relevant to answering the question? Answer 'yes' or 'no' only."),
-        ("user", "Context: {context}\nQuestion: {question}")
-    ])
-    try:
-        res = (prompt | llm_grader).invoke({"context": docs_text, "question": state["question"]})
-        grade = "relevant" if "yes" in res.content.lower() else "irrelevant"
-    except:
-        grade = "relevant"
-        
-    return {"doc_grade": grade}
-
-def grade_hallucination(state: GraphState):
-    if state.get("action_payload"):
-        return {"hallucination_grade": "grounded"}
-        
-    docs_text = "\n\n".join(doc.page_content for doc in state.get("documents", []))
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "Is this answer fully grounded in the provided context? Answer 'yes' or 'no' only."),
-        ("user", "Context: {context}\nAnswer: {answer}")
-    ])
-    try:
-        res = (prompt | llm_grader).invoke({"context": docs_text, "answer": state["generation"]})
-        grade = "grounded" if "yes" in res.content.lower() else "hallucinated"
-    except:
-        grade = "grounded"
-        
-    return {"hallucination_grade": grade}
-
-def format_response(state: GraphState):
-    generation = state.get("generation", "")
-    if state.get("retries", 0) > 0:
-        logger.info(f"Response formatted after {state['retries']} retries.")
-    return {"generation": generation}
-
-def retries_incrementer_retrieve(state: GraphState):
-    return {"retries": state.get("retries", 0) + 1}
-
-def retries_incrementer_generate(state: GraphState):
-    return {"retries": state.get("retries", 0) + 1}
+    return {"documents": documents, "question": question, "generation": generation}

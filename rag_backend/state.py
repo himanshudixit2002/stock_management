@@ -1,17 +1,12 @@
 from typing import List, TypedDict, Optional
-from langchain_core.documents import Document
-
 
 class GraphState(TypedDict):
-    """State for the self-healing RAG pipeline."""
+    """
+    Represents the state of our graph for Stock Recommendations.
+    """
     question: str
-    chat_history: List[dict]          # [{role: 'user'|'assistant', content: str}, ...]
-    intent: str                        # classified intent category
     generation: str
-    documents: List[Document]          # Retrieved/provided context documents
+    documents: List[str]
     retries: int
-    max_retries: int                   # default 2
-    doc_grade: str                     # 'relevant' | 'irrelevant'
-    hallucination_grade: str           # 'grounded' | 'hallucinated'
+    is_restock_required: Optional[bool]
     provided_context: Optional[str]
-    action_payload: Optional[dict]     # Structured action output
