@@ -32,6 +32,7 @@ import 'providers/billing_provider.dart';
 import 'providers/billing_settings_provider.dart';
 import 'providers/role_provider.dart';
 import 'providers/connectivity_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'firebase_options.dart';
@@ -96,6 +97,7 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => BillingSettingsProvider()),
         ChangeNotifierProvider(create: (_) => RoleProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) => MaterialApp(
