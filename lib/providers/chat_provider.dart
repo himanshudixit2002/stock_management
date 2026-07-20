@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/chat_session_model.dart';
+import '../services/rag_api_service.dart';
 
 /// A contextual suggestion displayed as a chip below the chat.
 class SmartSuggestion {
@@ -14,24 +15,23 @@ class SmartSuggestion {
   });
 }
 
-/// Manages chat sessions, messages, streaming state, and smart suggestions.
+/// Manages chat sessions, messages, and request lifecycle.
 ///
-/// Sessions are stored in-memory only (not persisted to Firestore) to stay
-/// cost-effective. Data persists during the app lifecycle.
+/// Key improvements:
+/// - Tracks an active request and can cancel it when a new one arrives.
+/// - No more streaming state — uses simple loading + response model.
+/// - Sessions are in-memory only (cost-effective).
 class ChatProvider extends ChangeNotifier {
   List<ChatSession> _sessions = [];
   ChatSession? _currentSession;
   bool _isLoading = false;
-  bool _isStreaming = false;
-  String _streamingText = '';
+  int _activeRequestId = 0; // Monotonically increasing ID to track active request
 
   // ── Getters ──────────────────────────────────────────────────────────────
 
   List<ChatSession> get sessions => _sessions;
   ChatSession? get currentSession => _currentSession;
   bool get isLoading => _isLoading;
-  bool get isStreaming => _isStreaming;
-  String get streamingText => _streamingText;
   List<ChatMessage> get messages => _currentSession?.messages ?? [];
 
   // ── Constructor ──────────────────────────────────────────────────────────
@@ -42,16 +42,16 @@ class ChatProvider extends ChangeNotifier {
 
   // ── Session Management ───────────────────────────────────────────────────
 
-  /// Creates a new chat session and sets it as the current one.
   void startNewSession() {
+    cancelActiveRequest();
     final session = ChatSession();
     _sessions.insert(0, session);
     _currentSession = session;
     notifyListeners();
   }
 
-  /// Switches the active session to the one matching [sessionId].
   void switchSession(String sessionId) {
+    cancelActiveRequest();
     _currentSession = _sessions.firstWhere(
       (s) => s.id == sessionId,
       orElse: () => _sessions.first,
@@ -59,14 +59,12 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Removes the session with [sessionId]. If it was the active session,
-  /// automatically selects the next available or creates a fresh one.
   void deleteSession(String sessionId) {
     _sessions.removeWhere((s) => s.id == sessionId);
     if (_currentSession?.id == sessionId) {
       if (_sessions.isEmpty) {
         startNewSession();
-        return; // startNewSession already notifies
+        return;
       } else {
         _currentSession = _sessions.first;
       }
@@ -74,9 +72,20 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Request Lifecycle ────────────────────────────────────────────────────
+
+  /// Cancels any in-flight AI request.
+  void cancelActiveRequest() {
+    _activeRequestId++;
+    RagApiService.cancelActiveRequest();
+    if (_isLoading) {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   // ── Message Management ───────────────────────────────────────────────────
 
-  /// Adds a user message to the current session.
   void addUserMessage(String text) {
     if (_currentSession == null) startNewSession();
     final message = ChatMessage(text: text, isUser: true);
@@ -84,7 +93,6 @@ class ChatProvider extends ChangeNotifier {
     _currentSession!.messageCount++;
     _currentSession!.lastMessageAt = DateTime.now();
 
-    // Auto-title from the first user message
     final userMessages =
         _currentSession!.messages.where((m) => m.isUser).toList();
     if (userMessages.length == 1) {
@@ -94,7 +102,6 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Adds a bot response message to the current session.
   void addBotMessage(ChatMessage message) {
     if (_currentSession == null) return;
     _currentSession!.messages.add(message);
@@ -103,38 +110,20 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Updates the loading state (shown before a response arrives).
   void setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
   }
 
-  // ── Streaming ────────────────────────────────────────────────────────────
+  /// Returns a unique request ID. If the ID changes before the response
+  /// arrives, the response should be discarded (request was superseded).
+  int getRequestId() => _activeRequestId;
 
-  /// Starts a streaming response session.
-  void startStreaming() {
-    _isStreaming = true;
-    _streamingText = '';
-    notifyListeners();
-  }
-
-  /// Appends an incoming text chunk to the streaming buffer.
-  void appendStreamChunk(String chunk) {
-    _streamingText += chunk;
-    notifyListeners();
-  }
-
-  /// Ends the streaming session and commits the final message.
-  void finalizeStream(ChatMessage finalMessage) {
-    _isStreaming = false;
-    _streamingText = '';
-    addBotMessage(finalMessage);
-  }
+  /// Check if a request ID is still the active one.
+  bool isRequestActive(int requestId) => requestId == _activeRequestId;
 
   // ── Chat History ─────────────────────────────────────────────────────────
 
-  /// Returns the last 10 messages formatted for the API's `chat_history`
-  /// parameter: `[{role: 'user'|'assistant', content: '...'}, ...]`
   List<Map<String, String>> getChatHistory() {
     if (_currentSession == null) return [];
     final msgs = _currentSession!.messages;
@@ -149,8 +138,6 @@ class ChatProvider extends ChangeNotifier {
 
   // ── Smart Suggestions ────────────────────────────────────────────────────
 
-  /// Returns contextual quick-action suggestions based on the last bot
-  /// response. Falls back to sensible defaults for new conversations.
   List<SmartSuggestion> getSmartSuggestions() {
     if (_currentSession == null || _currentSession!.messages.isEmpty) {
       return _defaultSuggestions;
@@ -164,11 +151,10 @@ class ChatProvider extends ChangeNotifier {
     final hasAction = lastBot.actionPayload != null;
     final text = lastBot.text.toLowerCase();
 
-    // After a stock update action
     if (hasAction && lastBot.actionPayload?['type'] == 'update_stock') {
       return const [
         SmartSuggestion(
-          label: 'Check Updated Stock',
+          label: 'Check Stock',
           icon: Icons.inventory_2_rounded,
           prompt: 'Show me the current stock levels after the update',
         ),
@@ -178,53 +164,40 @@ class ChatProvider extends ChangeNotifier {
           prompt: 'Create a purchase order for this item',
         ),
         SmartSuggestion(
-          label: 'Stock History',
-          icon: Icons.history_rounded,
-          prompt: 'Show stock movement history',
-        ),
-        SmartSuggestion(
-          label: 'Low Stock Items',
+          label: 'Low Stock',
           icon: Icons.warning_rounded,
           prompt: 'What items are low in stock?',
         ),
       ];
     }
 
-    // After analytics / report intent
     if (intent.contains('ANALYTICS') ||
         intent.contains('REPORT') ||
         text.contains('report') ||
-        text.contains('analytics') ||
         text.contains('trend')) {
       return const [
-        SmartSuggestion(
-          label: 'Export Report',
-          icon: Icons.download_rounded,
-          prompt: 'Export this report as a file',
-        ),
-        SmartSuggestion(
-          label: 'Show Chart',
-          icon: Icons.bar_chart_rounded,
-          prompt: 'Show this data as a chart',
-        ),
-        SmartSuggestion(
-          label: 'Compare Period',
-          icon: Icons.compare_arrows_rounded,
-          prompt: 'Compare with last month',
-        ),
         SmartSuggestion(
           label: 'Top Products',
           icon: Icons.star_rounded,
           prompt: 'Show top selling products',
         ),
+        SmartSuggestion(
+          label: 'Low Stock',
+          icon: Icons.warning_rounded,
+          prompt: 'What items are low in stock?',
+        ),
+        SmartSuggestion(
+          label: 'Overview',
+          icon: Icons.pie_chart_rounded,
+          prompt: 'Give me a summary of my inventory',
+        ),
       ];
     }
 
-    // After an error response
     if (text.contains('error') ||
         text.contains('sorry') ||
         text.contains("couldn't") ||
-        text.contains('failed')) {
+        text.contains('timed out')) {
       return const [
         SmartSuggestion(
           label: 'Try Again',
@@ -232,19 +205,9 @@ class ChatProvider extends ChangeNotifier {
           prompt: 'Please try that again',
         ),
         SmartSuggestion(
-          label: 'Rephrase',
-          icon: Icons.edit_rounded,
-          prompt: 'Let me rephrase my question',
-        ),
-        SmartSuggestion(
           label: 'Help',
           icon: Icons.help_outline_rounded,
           prompt: 'What can you help me with?',
-        ),
-        SmartSuggestion(
-          label: 'Status',
-          icon: Icons.info_outline_rounded,
-          prompt: 'Check system status',
         ),
       ];
     }
@@ -254,24 +217,19 @@ class ChatProvider extends ChangeNotifier {
 
   static const List<SmartSuggestion> _defaultSuggestions = [
     SmartSuggestion(
-      label: 'Inventory Overview',
+      label: 'Overview',
       icon: Icons.pie_chart_rounded,
       prompt: 'Give me a summary of my inventory',
     ),
     SmartSuggestion(
-      label: 'Low Stock Alert',
+      label: 'Low Stock',
       icon: Icons.warning_rounded,
       prompt: 'What items are low in stock?',
     ),
     SmartSuggestion(
-      label: 'Pending Orders',
+      label: 'Orders',
       icon: Icons.receipt_long_rounded,
       prompt: 'Show me pending orders',
-    ),
-    SmartSuggestion(
-      label: 'Sales Trend',
-      icon: Icons.trending_up_rounded,
-      prompt: 'Show me the sales trend',
     ),
   ];
 }

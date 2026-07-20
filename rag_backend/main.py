@@ -5,7 +5,6 @@ import json
 import re
 from typing import Optional, List
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import uvicorn
 from dotenv import load_dotenv
@@ -18,6 +17,8 @@ from cache import get_cached, set_cached, should_cache
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
+# NOTE for deployment: Recommend setting min_instances: 1 in Cloud Run 
+# to avoid cold start issues with heavy LLM imports.
 app = FastAPI(title="Self-Healing RAG API")
 
 app.add_middleware(
@@ -59,13 +60,27 @@ async def chat_endpoint(request: ChatRequest):
         "max_retries": 2
     }
     
-    final_state = await asyncio.to_thread(rag_pipeline.invoke, inputs)
+    try:
+        final_state = await asyncio.wait_for(asyncio.to_thread(rag_pipeline.invoke, inputs), timeout=55.0)
+    except asyncio.TimeoutError:
+        logger.error("RAG pipeline timed out after 55s")
+        return ChatResponse(
+            answer="I'm sorry, this request took too long to process. Please try again.",
+            intent="ERROR",
+            latency_ms=int((time.time() - start_time) * 1000)
+        )
+    except Exception as e:
+        logger.error(f"RAG pipeline error: {e}")
+        return ChatResponse(
+            answer="I'm sorry, I encountered an error processing your request.",
+            intent="ERROR",
+            latency_ms=int((time.time() - start_time) * 1000)
+        )
     
     answer = final_state.get("generation", "")
     action = final_state.get("action_payload")
     
     if not action:
-        # Fallback action parsing
         action_match = re.search(r'\[ACTION:\s*({.*?})\s*\]', answer, re.DOTALL)
         if action_match:
             try:
@@ -88,35 +103,15 @@ async def chat_endpoint(request: ChatRequest):
         
     return ChatResponse(**resp_dict)
 
-@app.post("/api/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest):
-    async def event_generator():
-        start_time = time.time()
-        inputs = {
-            "question": request.question,
-            "provided_context": request.context,
-            "chat_history": request.chat_history,
-            "retries": 0,
-            "max_retries": 2
-        }
-        final_state = await asyncio.to_thread(rag_pipeline.invoke, inputs)
-        answer = final_state.get("generation", "")
-        
-        # Strip action blocks from streaming answer
-        clean_answer = re.sub(r'\[ACTION:\s*({.*?})\s*\]', '', answer, flags=re.DOTALL).strip()
-        
-        words = clean_answer.split()
-        for word in words:
-            yield f"data: {word} \n\n"
-            await asyncio.sleep(0.05)
-            
-        yield "data: [DONE]\n\n"
-        
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+@app.get("/warmup")
+async def warmup_endpoint():
+    """Cloud Run startup probe endpoint."""
+    return {"status": "ok"}
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "2.0"}
+    return {"status": "ok", "version": "2.1"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

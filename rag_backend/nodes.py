@@ -17,8 +17,21 @@ llm_pro = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
 llm_grader = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
 
 embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-vectorstore = Chroma(collection_name="stock_inventory", embedding_function=embeddings, persist_directory="./chroma_db")
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+# Lazy initialization variables for Chroma
+vectorstore = None
+retriever = None
+
+def get_retriever():
+    global vectorstore, retriever
+    if retriever is None:
+        try:
+            vectorstore = Chroma(collection_name="stock_inventory", embedding_function=embeddings, persist_directory="./chroma_db")
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB: {e}")
+            raise e
+    return retriever
 
 tools = [UpdateStock, CreatePurchaseOrder, CreateSalesOrder, NavigateToScreen, GenerateReport, SearchProducts]
 llm_lite_with_tools = llm_lite.bind_tools(tools)
@@ -41,9 +54,6 @@ def classify_intent(state: GraphState):
 def smart_retrieve(state: GraphState):
     intent = state["intent"]
     question = state["question"]
-    
-    if intent in ["GREETING", "NAVIGATION"]:
-        return {"documents": []}
         
     provided_context = state.get("provided_context", "")
     if provided_context:
@@ -51,7 +61,8 @@ def smart_retrieve(state: GraphState):
         return {"documents": [Document(page_content=filtered)] if filtered else []}
     
     try:
-        documents = retriever.invoke(question)
+        r = get_retriever()
+        documents = r.invoke(question)
     except Exception as e:
         logger.error(f"Retrieval error: {e}")
         documents = []
@@ -61,14 +72,14 @@ def smart_retrieve(state: GraphState):
 def generate(state: GraphState):
     intent = state["intent"]
     question = state["question"]
-    documents = state["documents"]
+    documents = state.get("documents", [])
     chat_history = state.get("chat_history", [])
     
     if intent == "GREETING":
         return {"generation": "Hi! I'm Nova, your Inventory AI. How can I help you today?"}
     
     if intent == "NAVIGATION":
-        return {"generation": "Navigating..."} # Client side interceptor usually catches this
+        return {"generation": "Navigating..."}
         
     docs_text = "\n\n".join(doc.page_content for doc in documents) if documents else "No relevant inventory data found."
     
@@ -78,8 +89,8 @@ def generate(state: GraphState):
             msg_history.append({"role": "user", "content": f"Context: {docs_text}\nQuestion: {question}"})
             response = llm_lite_with_tools.invoke(msg_history)
         else:
-            response = pro_prompt | (llm_lite if intent in ["STOCK_QUERY", "GENERAL"] else llm_pro)
-            response = response.invoke({"context": docs_text, "question": question, "chat_history": str(chat_history)})
+            chain = pro_prompt | (llm_lite if intent in ["STOCK_QUERY", "GENERAL"] else llm_pro)
+            response = chain.invoke({"context": docs_text, "question": question, "chat_history": str(chat_history)})
             
     except Exception as e:
         logger.error(f"Generation error: {e}")
@@ -117,11 +128,7 @@ def generate(state: GraphState):
     return {"generation": generation}
 
 def grade_documents(state: GraphState):
-    intent = state["intent"]
-    if intent in ["GREETING", "NAVIGATION"]:
-        return {"doc_grade": "relevant"}
-        
-    docs_text = "\n\n".join(doc.page_content for doc in state["documents"])
+    docs_text = "\n\n".join(doc.page_content for doc in state.get("documents", []))
     if not docs_text:
         return {"doc_grade": "irrelevant"}
         
@@ -138,11 +145,10 @@ def grade_documents(state: GraphState):
     return {"doc_grade": grade}
 
 def grade_hallucination(state: GraphState):
-    intent = state["intent"]
-    if intent in ["GREETING", "NAVIGATION"] or state.get("action_payload"):
+    if state.get("action_payload"):
         return {"hallucination_grade": "grounded"}
         
-    docs_text = "\n\n".join(doc.page_content for doc in state["documents"])
+    docs_text = "\n\n".join(doc.page_content for doc in state.get("documents", []))
     prompt = ChatPromptTemplate.from_messages([
         ("system", "Is this answer fully grounded in the provided context? Answer 'yes' or 'no' only."),
         ("user", "Context: {context}\nAnswer: {answer}")
@@ -160,3 +166,9 @@ def format_response(state: GraphState):
     if state.get("retries", 0) > 0:
         logger.info(f"Response formatted after {state['retries']} retries.")
     return {"generation": generation}
+
+def retries_incrementer_retrieve(state: GraphState):
+    return {"retries": state.get("retries", 0) + 1}
+
+def retries_incrementer_generate(state: GraphState):
+    return {"retries": state.get("retries", 0) + 1}
