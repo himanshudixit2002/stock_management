@@ -48,7 +48,13 @@ class _RagChatScreenState extends State<RagChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final List<_Message> _messages = [
-    _Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false)
+    _Message(
+      "👋 **Hey buddy! Ask AI is ready!** ⚡\n\n"
+      "• 📊 **Stock Snapshot** - Live counts & health\n"
+      "• 🔥 **Low Stock Alert** - Fast restock items\n"
+      "• 📦 **Smart Action** - Add/deduct inventory", 
+      false,
+    )
   ];
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
@@ -253,11 +259,17 @@ class _RagChatScreenState extends State<RagChatScreen> {
     // Zero-token Interceptor for greetings
     final greetings = ['hi', 'hello', 'hey', 'help', 'who are you', 'how are you', 'namaste', 'kaise ho', 'kya haal', 'aur batao'];
     if (greetings.contains(lowerText)) {
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
-          _messages.add(_Message("Hey! I'm **Ask AI**, your smart inventory assistant. How can I help you optimize your stock today?", false));
+          _messages.add(_Message(
+            "👋 **Hey buddy! What's cookin'?** ⚡\n\n"
+            "• 📊 **Stock Snapshot**: Get instant totals\n"
+            "• 🔥 **Low Stock Alert**: Catch items running out\n"
+            "• 📦 **Smart Action**: Update quantities fast",
+            false,
+          ));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -276,12 +288,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
       else if (lowerText.contains('report')) target = 'reports';
 
       if (target != null) {
-        await Future.delayed(const Duration(milliseconds: 400));
+        await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) {
           HapticFeedback.mediumImpact();
           setState(() {
             _messages.add(_Message(
-              "🚀 Opening **$target** module for you...",
+              "🚀 **Boom! Teleporting you to $target...**",
               false,
               actionPayload: {'type': 'navigate', 'target': target},
             ));
@@ -322,12 +334,15 @@ class _RagChatScreenState extends State<RagChatScreen> {
     
     // Check if user requested summary or low stock alerts locally for instantaneous human response with visual widgets
     if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 350));
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
           _messages.add(_Message(
-            "Here's your real-time inventory snapshot: **$totalItems** catalog items, **$lowStockCount** low stock alerts, and **${pendingSales + pendingPurchase}** pending orders.",
+            "⚡ **Live Inventory Pulse:**\n\n"
+            "• 📦 **Catalog Items**: $totalItems active products\n"
+            "• 🔥 **Low Stock Alerts**: $lowStockCount item(s) running low\n"
+            "• ⏳ **Pending Orders**: ${pendingSales + pendingPurchase} order(s) in pipeline",
             false,
             statsPayload: statsMap,
           ));
@@ -340,7 +355,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
     }
 
     if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 350));
       if (mounted) {
         HapticFeedback.mediumImpact();
         final lowItemsList = lowStockProducts.take(8).map((p) => {
@@ -354,8 +369,8 @@ class _RagChatScreenState extends State<RagChatScreen> {
         setState(() {
           _messages.add(_Message(
             lowItemsList.isEmpty 
-                ? "Awesome! All stock levels are currently healthy." 
-                : "Found **${lowItemsList.length}** item(s) running low. Tap to restock immediately:",
+                ? "🎉 **Woohoo! All stock levels are super healthy!**" 
+                : "🔥 **${lowItemsList.length} Item(s) Need Restocking!**\n• Tap any card below to restock in 1 click:",
             false,
             statsPayload: statsMap,
             lowStockItemsPayload: lowItemsList,
@@ -369,7 +384,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
     }
 
     // Determine context for backend RAG
-    String intentContext = "[SYSTEM DIRECTIVE: Respond in 1-2 humanly short, friendly sentences. Data: Total $totalItems, Low Stock $lowStockCount, Out of Stock $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
+    String intentContext = "[SYSTEM DIRECTIVE: STRICTLY NO PARAGRAPHS! Format answer in 2-3 short, playful, bulleted points (•). Data: Total $totalItems, Low $lowStockCount, Out $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
     List<dynamic> relevantProducts = allProducts.where((p) => 
       lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
     ).take(5).toList();
@@ -556,21 +571,33 @@ class _RagChatScreenState extends State<RagChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         children: [
           _QuickActionChip(
-            label: "Inventory Summary",
-            icon: Icons.pie_chart_rounded,
+            label: "⚡ Stock Snapshot",
+            icon: Icons.bolt_rounded,
             onTap: () => _sendMessage("Give me a summary of my inventory"),
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
-            label: "Low Stock Alert",
-            icon: Icons.warning_rounded,
+            label: "🔥 Low Stock Alert",
+            icon: Icons.local_fire_department_rounded,
             onTap: () => _sendMessage("What items are low in stock?"),
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
-            label: "Restock Advice",
-            icon: Icons.shopping_cart_rounded,
+            label: "📦 Smart Restock",
+            icon: Icons.inventory_2_rounded,
             onTap: () => _sendMessage("What should I order next?"),
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            label: "🎯 Pending Orders",
+            icon: Icons.track_changes_rounded,
+            onTap: () => _sendMessage("Show me pending sales orders"),
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            label: "💡 Quick Tip",
+            icon: Icons.lightbulb_outline_rounded,
+            onTap: () => _sendMessage("Give me a quick inventory tip"),
           ),
         ],
       ),
@@ -873,22 +900,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
             data: widget.message.text,
             selectable: false,
             styleSheet: MarkdownStyleSheet(
-              p: TextStyle(color: AppTheme.textPri(context), fontSize: 14.5, height: 1.4, letterSpacing: 0.1),
-              h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
-              h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
-              h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14.5),
-              strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.5),
-              em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14),
-              listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
-              blockSpacing: 8,
+              p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.35, letterSpacing: 0.1),
+              h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+              h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
+              h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
+              strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
+              em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
+              listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
+              blockSpacing: 4,
               tableBorder: TableBorder(
                 horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
                 bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
                 top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
               ),
-              tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 13, height: 1.3),
-              tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.w700),
+              tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 12.5, height: 1.25),
+              tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.w700),
               tableColumnWidth: const FlexColumnWidth(),
             ),
           ),
@@ -897,8 +924,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
     );
 
     Widget bubble = Container(
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
       decoration: BoxDecoration(
         gradient: isUser 
@@ -909,14 +936,14 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 end: Alignment.bottomRight,
               ),
         border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 1),
-        borderRadius: BorderRadius.circular(18).copyWith(
-          bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(18),
-          bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(4),
+        borderRadius: BorderRadius.circular(16).copyWith(
+          bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+          bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
         ),
         boxShadow: [
           BoxShadow(
-            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
+            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
             offset: const Offset(0, 2),
           )
         ],
@@ -926,7 +953,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
             widget.message.text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14.5,
+              fontSize: 14,
               height: 1.3,
               fontWeight: FontWeight.w500,
             ),
@@ -937,11 +964,11 @@ class _ChatBubbleState extends State<_ChatBubble> {
             children: [
               bubbleContent,
               if (widget.message.statsPayload != null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 _VisualStatsHeader(stats: widget.message.statsPayload!),
               ],
               if (widget.message.lowStockItemsPayload != null && widget.message.lowStockItemsPayload!.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 _VisualLowStockCards(
                   items: widget.message.lowStockItemsPayload!,
                   onRestockTap: (item) {
@@ -1085,10 +1112,10 @@ class _VisualStatsHeader extends StatelessWidget {
     final outPct = total > 0 ? (out / total) : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppTheme.bg(context).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -1096,24 +1123,24 @@ class _VisualStatsHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.bar_chart_rounded, size: 16, color: AppTheme.primaryColor),
-              const SizedBox(width: 6),
+              const Icon(Icons.bar_chart_rounded, size: 14, color: AppTheme.primaryColor),
+              const SizedBox(width: 5),
               Text(
                 "Inventory Health Meter",
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textPri(context),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           // Multi-segment progress bar visualization
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
             child: SizedBox(
-              height: 8,
+              height: 5,
               child: Row(
                 children: [
                   if (healthyPct > 0)
@@ -1135,7 +1162,7 @@ class _VisualStatsHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           // Metric Chips
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1168,28 +1195,28 @@ class _MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(icon, size: 12, color: color),
-              const SizedBox(width: 4),
+              Icon(icon, size: 11, color: color),
+              const SizedBox(width: 3),
               Text(
                 value,
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: color),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: color),
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 9.5, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -1209,102 +1236,115 @@ class _VisualLowStockCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayItems = items.take(3).toList();
+    final int extraCount = items.length - displayItems.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: items.map((item) {
-        final int qty = (item['quantity'] ?? 0) as int;
-        final int minThreshold = (item['lowStockThreshold'] ?? 10) as int;
-        final double ratio = minThreshold > 0 ? (qty / minThreshold).clamp(0.0, 1.0) : 0.0;
-        final Color statusColor = qty == 0 ? AppTheme.dangerColor : Colors.amber.shade700;
+      children: [
+        ...displayItems.map((item) {
+          final int qty = (item['quantity'] ?? 0) as int;
+          final int minThreshold = (item['lowStockThreshold'] ?? 10) as int;
+          final double ratio = minThreshold > 0 ? (qty / minThreshold).clamp(0.0, 1.0) : 0.0;
+          final Color statusColor = qty == 0 ? AppTheme.dangerColor : Colors.amber.shade700;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppTheme.surface(context).withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      item['name'] ?? 'Item',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                        color: AppTheme.textPri(context),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "$qty / $minThreshold min",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor,
+          return Container(
+            margin: const EdgeInsets.only(bottom: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.surface(context).withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: statusColor.withValues(alpha: 0.25), width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item['name'] ?? 'Item',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          color: AppTheme.textPri(context),
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 5,
-                  backgroundColor: statusColor.withValues(alpha: 0.15),
-                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Barcode: ${item['barcode'] ?? 'N/A'}",
-                    style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
-                  ),
-                  InkWell(
-                    onTap: () => onRestockTap(item),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        borderRadius: BorderRadius.circular(8),
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_rounded, size: 13, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            "Quick Restock",
-                            style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      child: Text(
+                        "$qty / $minThreshold",
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    minHeight: 4,
+                    backgroundColor: statusColor.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "BC: ${item['barcode'] ?? 'N/A'}",
+                      style: TextStyle(fontSize: 10, color: AppTheme.textSec(context)),
+                    ),
+                    InkWell(
+                      onTap: () => onRestockTap(item),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: AppTheme.primaryGradient,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_rounded, size: 12, color: Colors.white),
+                            SizedBox(width: 2),
+                            Text(
+                              "Restock",
+                              style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+        if (extraCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 2),
+            child: Text(
+              "+ $extraCount more items low in stock...",
+              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+            ),
           ),
-        );
-      }).toList(),
+      ],
     );
   }
 }
