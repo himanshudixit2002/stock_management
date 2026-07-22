@@ -891,34 +891,32 @@ class _ChatBubbleState extends State<_ChatBubble> {
   Widget build(BuildContext context) {
     final isUser = widget.message.isUser;
     
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxBubbleWidth = screenWidth * 0.82;
+
     Widget bubbleContent = SelectionArea(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: MarkdownBody(
-            data: widget.message.text,
-            selectable: false,
-            styleSheet: MarkdownStyleSheet(
-              p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.35, letterSpacing: 0.1),
-              h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
-              h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
-              h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
-              strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
-              em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
-              listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
-              blockSpacing: 4,
-              tableBorder: TableBorder(
-                horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
-                bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-                top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-              ),
-              tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 12.5, height: 1.25),
-              tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.w700),
-              tableColumnWidth: const FlexColumnWidth(),
-            ),
+      child: MarkdownBody(
+        data: widget.message.text,
+        selectable: false,
+        shrinkWrap: true,
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.35, letterSpacing: 0.1),
+          h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+          h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
+          h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
+          strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
+          em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
+          listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
+          blockSpacing: 4,
+          tableBorder: TableBorder(
+            horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
+            bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+            top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
           ),
+          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 12.5, height: 1.25),
+          tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.w700),
+          tableColumnWidth: const FlexColumnWidth(),
         ),
       ),
     );
@@ -926,7 +924,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
     Widget bubble = Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+      constraints: BoxConstraints(maxWidth: maxBubbleWidth),
       decoration: BoxDecoration(
         gradient: isUser 
             ? AppTheme.primaryGradient 
@@ -988,11 +986,12 @@ class _ChatBubbleState extends State<_ChatBubble> {
       final actionDesc = (qty >= 0) ? "Add $qty units" : "Deduct ${qty.abs()} units";
       
       Widget actionCard = Container(
-        margin: const EdgeInsets.only(top: 6, bottom: 8, left: 4),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(top: 4, bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        constraints: BoxConstraints(maxWidth: maxBubbleWidth),
         decoration: BoxDecoration(
           color: AppTheme.surface(context).withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.4) : AppTheme.primaryColor.withValues(alpha: 0.2),
             width: 1,
@@ -1000,7 +999,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
+              blurRadius: 4,
               offset: const Offset(0, 2),
             )
           ],
@@ -1013,30 +1012,30 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 Icon(
                   widget.message.isActionExecuted ? Icons.check_circle_rounded : Icons.flash_on_rounded,
                   color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
-                  size: 18,
+                  size: 16,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   widget.message.isActionExecuted ? "Action Executed" : "Pending AI Action",
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textPri(context),
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               "Task: $actionDesc",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 13.5),
+              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12.5),
             ),
             Text(
               "Barcode: ${payload['barcode']}",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12.5),
+              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12),
             ),
             if (!widget.message.isActionExecuted) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -1044,13 +1043,13 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     elevation: 0,
                   ),
                   child: _isExecuting 
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Confirm & Execute", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text("Confirm & Execute", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                 ),
               )
             ]
@@ -1065,27 +1064,39 @@ class _ChatBubbleState extends State<_ChatBubble> {
     }
 
     if (isUser) {
-      return Align(alignment: Alignment.centerRight, child: bubble);
-    } else {
       return Align(
-        alignment: Alignment.centerLeft,
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 36),
+          child: bubble,
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.only(right: 12, top: 3, bottom: 3),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Container(
-              margin: const EdgeInsets.only(right: 10, bottom: 4),
-              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(right: 8, top: 3),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 gradient: AppTheme.primaryGradient,
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))
+                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))
                 ],
-                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 12),
             ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 2500.ms, color: Colors.white.withValues(alpha: 0.8)),
-            Flexible(child: bubble),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: bubble,
+              ),
+            ),
           ],
         ),
       );
