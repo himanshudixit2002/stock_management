@@ -17,7 +17,7 @@ import '../../models/sales_order_model.dart';
 import '../../models/purchase_order_model.dart';
 import '../../services/rag_api_service.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import '../../widgets/floating_nav_padding.dart';
+import '../../utils/responsive.dart';
 
 class RagChatScreen extends StatefulWidget {
   const RagChatScreen({super.key});
@@ -30,13 +30,23 @@ class _Message {
   final String text;
   final bool isUser;
   final Map<String, dynamic>? actionPayload;
+  final Map<String, dynamic>? statsPayload;
+  final List<Map<String, dynamic>>? lowStockItemsPayload;
   bool isActionExecuted;
 
-  _Message(this.text, this.isUser, {this.actionPayload, this.isActionExecuted = false});
+  _Message(
+    this.text,
+    this.isUser, {
+    this.actionPayload,
+    this.statsPayload,
+    this.lowStockItemsPayload,
+    this.isActionExecuted = false,
+  });
 }
 
 class _RagChatScreenState extends State<RagChatScreen> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   final List<_Message> _messages = [
     _Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false)
   ];
@@ -50,9 +60,28 @@ class _RagChatScreenState extends State<RagChatScreen> {
   void initState() {
     super.initState();
     _initSpeech();
+    _focusNode.addListener(_onFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadChatHistory();
     });
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      // Smoothly scroll to bottom as software keyboard opens
+      Future.delayed(const Duration(milliseconds: 150), () {
+        _scrollToBottom();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _saveChatHistory() async {
@@ -66,6 +95,8 @@ class _RagChatScreenState extends State<RagChatScreen> {
         'text': m.text,
         'isUser': m.isUser,
         'actionPayload': m.actionPayload,
+        'statsPayload': m.statsPayload,
+        'lowStockItemsPayload': m.lowStockItemsPayload,
         'isActionExecuted': m.isActionExecuted,
       })).toList();
       
@@ -94,6 +125,14 @@ class _RagChatScreenState extends State<RagChatScreen> {
               actionPayload: json['actionPayload'] != null 
                   ? Map<String, dynamic>.from(json['actionPayload']) 
                   : null,
+              statsPayload: json['statsPayload'] != null
+                  ? Map<String, dynamic>.from(json['statsPayload'])
+                  : null,
+              lowStockItemsPayload: json['lowStockItemsPayload'] != null
+                  ? (json['lowStockItemsPayload'] as List)
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList()
+                  : null,
               isActionExecuted: json['isActionExecuted'] ?? false,
             );
           }));
@@ -105,30 +144,94 @@ class _RagChatScreenState extends State<RagChatScreen> {
     }
   }
 
+  String _baseText = '';
+  double _soundLevel = 0.0;
+
   void _initSpeech() async {
     _speechEnabled = await _speechToText.initialize();
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _startListening() async {
-    await _speechToText.listen(onResult: (result) {
-      setState(() {
-        _controller.text = result.recognizedWords;
-      });
-      if (result.finalResult) {
-        _stopListening();
+    if (!_speechEnabled) {
+      _speechEnabled = await _speechToText.initialize();
+      if (!_speechEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone access unavailable.')));
+        }
+        return;
       }
-    });
+    }
+
+    _baseText = _controller.text.trim();
+    _soundLevel = 0.0;
     setState(() {
       _isListening = true;
     });
+
+    try {
+      await _speechToText.listen(
+        onResult: (result) {
+          if (!mounted) return;
+          final recognized = result.recognizedWords.trim();
+          if (recognized.isEmpty) return;
+
+          setState(() {
+            if (_baseText.isNotEmpty) {
+              _controller.text = "$_baseText $recognized";
+            } else {
+              _controller.text = recognized;
+            }
+            _controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: _controller.text.length),
+            );
+          });
+
+          if (result.finalResult) {
+            _stopListening();
+          }
+        },
+        listenOptions: SpeechListenOptions(
+          listenMode: ListenMode.dictation,
+          cancelOnError: true,
+          partialResults: true,
+        ),
+        onSoundLevelChange: (level) {
+          if (mounted) {
+            setState(() {
+              _soundLevel = (level / 10.0).clamp(0.0, 1.0);
+            });
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+      }
+    }
   }
 
   void _stopListening() async {
     await _speechToText.stop();
-    setState(() {
-      _isListening = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+        _soundLevel = 0.0;
+      });
+    }
+  }
+
+  void _cancelListening() async {
+    await _speechToText.cancel();
+    if (mounted) {
+      setState(() {
+        _controller.text = _baseText;
+        _isListening = false;
+        _soundLevel = 0.0;
+      });
+    }
   }
 
   void _sendMessage([String? predefinedText]) async {
@@ -146,14 +249,15 @@ class _RagChatScreenState extends State<RagChatScreen> {
     _saveChatHistory();
     
     if (predefinedText == null) _controller.clear();
-    // Zero-token Interceptor for greetings (Includes Hinglish!)
+    
+    // Zero-token Interceptor for greetings
     final greetings = ['hi', 'hello', 'hey', 'help', 'who are you', 'how are you', 'namaste', 'kaise ho', 'kya haal', 'aur batao'];
     if (greetings.contains(lowerText)) {
-      await Future.delayed(const Duration(milliseconds: 600)); // Simulate think time
+      await Future.delayed(const Duration(milliseconds: 400));
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
-          _messages.add(_Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false));
+          _messages.add(_Message("Hey! I'm **Ask AI**, your smart inventory assistant. How can I help you optimize your stock today?", false));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -172,12 +276,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
       else if (lowerText.contains('report')) target = 'reports';
 
       if (target != null) {
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 400));
         if (mounted) {
           HapticFeedback.mediumImpact();
           setState(() {
             _messages.add(_Message(
-              "🚀 **Executing Neural Route**: Transferring control to **$target** module...",
+              "🚀 Opening **$target** module for you...",
               false,
               actionPayload: {'type': 'navigate', 'target': target},
             ));
@@ -190,65 +294,97 @@ class _RagChatScreenState extends State<RagChatScreen> {
       }
     }
 
-    // Fetch live products to provide as context (use full catalog if available)
+    // Fetch live products for analytics context
     final provider = context.read<ProductProvider>();
     final salesProvider = context.read<SalesOrderProvider>();
     final purchaseProvider = context.read<PurchaseOrderProvider>();
     
-    // SMART FETCHING: Ensure Firestore data is fully loaded before calculating stats
     if (!provider.isAnalyticsLoaded) {
       await provider.loadAnalytics();
     }
     
     final allProducts = provider.analyticsProducts;
     
-    // Build an ultra-smart, zero-cost summary
     final totalItems = allProducts.length;
-    final lowStockCount = provider.lowStockProducts.length;
+    final lowStockProducts = provider.lowStockProducts;
+    final lowStockCount = lowStockProducts.length;
     final outOfStockCount = allProducts.where((p) => p.isOutOfStock).length;
     final pendingSales = salesProvider.orders.where((o) => o.status != SOStatus.delivered && o.status != SOStatus.cancelled).length;
     final pendingPurchase = purchaseProvider.orders.where((o) => o.status != POStatus.received && o.status != POStatus.cancelled).length;
+
+    final statsMap = {
+      'total': totalItems,
+      'low': lowStockCount,
+      'out': outOfStockCount,
+      'pending_so': pendingSales,
+      'pending_po': pendingPurchase,
+    };
     
-    // Determine the intent to filter products smartly (Converse concisely like Ask AI)
-    String intentContext = "";
-    List<dynamic> relevantProducts = [];
-    
-    if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('how many') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
-      intentContext = "[SYSTEM DIRECTIVE: User requested inventory summary. Answer concisely in a friendly, human way. Include key figures: Total $totalItems, Low Stock $lowStockCount, Out of Stock $outOfStockCount, Pending Sales $pendingSales, Pending Purchase Orders $pendingPurchase. Give direct tactical advice without corporate boilerplate.]";
-    } else if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
-      relevantProducts = provider.lowStockProducts.take(10).toList();
-      if (relevantProducts.isEmpty) {
-        intentContext = "[SYSTEM DIRECTIVE: Restock analysis requested. All items are in healthy stock! Congratulate the user naturally.]";
-      } else {
-        intentContext = "[SYSTEM DIRECTIVE: Urgent restock analysis. Provide a direct, concise list of critical low items and exact reorder amounts:]";
+    // Check if user requested summary or low stock alerts locally for instantaneous human response with visual widgets
+    if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _messages.add(_Message(
+            "Here's your real-time inventory snapshot: **$totalItems** catalog items, **$lowStockCount** low stock alerts, and **${pendingSales + pendingPurchase}** pending orders.",
+            false,
+            statsPayload: statsMap,
+          ));
+          _isLoading = false;
+        });
+        _scrollToBottom();
+        _saveChatHistory();
       }
-    } else if (lowerText.contains('sale') || lowerText.contains('purchase') || lowerText.contains('order') || lowerText.contains('bikri') || lowerText.contains('kharid')) {
-       intentContext = "[SYSTEM DIRECTIVE: Order pipeline analysis. Give a direct summary of $pendingSales pending sales orders and $pendingPurchase pending POs with fulfillment advice.]";
-    } else {
-      relevantProducts = allProducts.where((p) => 
-        lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
-      ).take(5).toList();
-      
-      if (relevantProducts.isEmpty && allProducts.isNotEmpty) {
-        intentContext = "[SYSTEM DIRECTIVE: Inventory inquiry. Answer concisely in a human way using stats: Total catalog count: $totalItems, Low stock count: $lowStockCount.]";
-        relevantProducts = allProducts.take(5).toList();
-      }
+      return;
     }
 
-    // Map context into an extremely minified string to save max tokens
+    if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        final lowItemsList = lowStockProducts.take(8).map((p) => {
+          'name': p.name,
+          'quantity': p.quantity,
+          'lowStockThreshold': p.lowStockThreshold,
+          'barcode': p.barcode,
+          'categoryName': p.categoryName,
+        }).toList();
+
+        setState(() {
+          _messages.add(_Message(
+            lowItemsList.isEmpty 
+                ? "Awesome! All stock levels are currently healthy." 
+                : "Found **${lowItemsList.length}** item(s) running low. Tap to restock immediately:",
+            false,
+            statsPayload: statsMap,
+            lowStockItemsPayload: lowItemsList,
+          ));
+          _isLoading = false;
+        });
+        _scrollToBottom();
+        _saveChatHistory();
+      }
+      return;
+    }
+
+    // Determine context for backend RAG
+    String intentContext = "[SYSTEM DIRECTIVE: Respond in 1-2 humanly short, friendly sentences. Data: Total $totalItems, Low Stock $lowStockCount, Out of Stock $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
+    List<dynamic> relevantProducts = allProducts.where((p) => 
+      lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
+    ).take(5).toList();
+
     final productContext = relevantProducts.isEmpty ? "" : relevantProducts.map((p) => 
       '${p.name}(BC:${p.barcode},Qty:${p.quantity},Min:${p.lowStockThreshold})'
     ).join(' | ');
 
     final contextText = '$intentContext $productContext'.trim();
 
-    // Map recent messages to backend format (excluding greetings)
     final historyMessages = _messages
         .take(_messages.length - 1)
         .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!"))
         .toList();
     
-    // Take the last 6 messages (3 turns)
     final recentHistory = historyMessages.length > 6 
         ? historyMessages.sublist(historyMessages.length - 6) 
         : historyMessages;
@@ -268,7 +404,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
-          _messages.add(_Message(response.text, false, actionPayload: response.actionPayload));
+          _messages.add(_Message(
+            response.text, 
+            false, 
+            actionPayload: response.actionPayload,
+            statsPayload: response.statsPayload ?? statsMap,
+          ));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -292,8 +433,8 @@ class _RagChatScreenState extends State<RagChatScreen> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutQuart,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
         );
       }
     });
@@ -304,7 +445,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
       extendBodyBehindAppBar: true,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true, // Key for soft keyboard synchronization
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRRect(
@@ -365,28 +506,38 @@ class _RagChatScreenState extends State<RagChatScreen> {
           child: Column(
             children: [
               Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.only(
-                    top: 16,
-                    bottom: 16,
-                    left: 12,
-                    right: 12,
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(
+                      top: kToolbarHeight + 12,
+                      bottom: 12,
+                      left: 12,
+                      right: 12,
+                    ),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      return _ChatBubble(
+                        message: message,
+                        onActionExecuted: _saveChatHistory,
+                        onQuickPrompt: (prompt) => _sendMessage(prompt),
+                      )
+                          .animate()
+                          .fade(duration: 300.ms)
+                          .slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuad);
+                    },
                   ),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    return _ChatBubble(
-                      message: message,
-                      onActionExecuted: _saveChatHistory,
-                    )
-                        .animate()
-                        .fade(duration: 400.ms)
-                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
-                  },
                 ),
               ),
               if (_isLoading) const _CompactThinkingWidget(),
+              if (_isListening)
+                _LiveVoiceVisualizerWidget(
+                  soundLevel: _soundLevel,
+                  onDone: _stopListening,
+                  onCancel: _cancelListening,
+                ),
               _buildQuickActions(),
               _buildInputArea(context),
             ],
@@ -398,7 +549,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
 
   Widget _buildQuickActions() {
     return Container(
-      height: 32,
+      height: 34,
       margin: const EdgeInsets.only(bottom: 6),
       child: ListView(
         scrollDirection: Axis.horizontal,
@@ -423,17 +574,28 @@ class _RagChatScreenState extends State<RagChatScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.6, end: 0, curve: Curves.easeOutQuart);
+    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.4, end: 0, curve: Curves.easeOutQuart);
   }
 
   Widget _buildInputArea(BuildContext context) {
-    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardOpen = bottomInset > 0;
     
-    return Padding(
+    // On the AI screen, there is no bottom nav bar.
+    // When typing (keyboard open), position the bar JUST ABOVE the keyboard with a sleek 6px gap.
+    // When idle (keyboard closed), utilize the very bottom edge with safe area padding.
+    final double safeBottom = MediaQuery.of(context).padding.bottom;
+    final double bottomPadding = keyboardOpen 
+        ? 6.0 
+        : (safeBottom > 0 ? safeBottom + 4.0 : 8.0);
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
       padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        bottom: keyboardOpen ? 12 : floatingNavContentInset(context) + 12,
+        left: 10,
+        right: 10,
+        bottom: bottomPadding,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -441,9 +603,9 @@ class _RagChatScreenState extends State<RagChatScreen> {
           boxShadow: [
             BoxShadow(
               color: AppTheme.primaryColor.withValues(alpha: 0.15),
-              blurRadius: 24,
+              blurRadius: 20,
               spreadRadius: -2,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, 6),
             )
           ],
         ),
@@ -452,88 +614,85 @@ class _RagChatScreenState extends State<RagChatScreen> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.surface(context).withValues(alpha: 0.85),
+                color: AppTheme.surface(context).withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
               ),
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        style: TextStyle(color: AppTheme.textPri(context), fontSize: 15),
-                        decoration: InputDecoration(
-                          hintText: 'Message Ask AI...',
-                          hintStyle: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.4), fontSize: 15),
-                          filled: true,
-                          fillColor: Colors.transparent,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      style: TextStyle(color: AppTheme.textPri(context), fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: 'Message Ask AI...',
+                        hintStyle: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.45), fontSize: 15),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
                         ),
-                        onSubmitted: (_) => _sendMessage(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
+                      onSubmitted: (_) => _sendMessage(),
                     ),
-                    const SizedBox(width: 4),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: _isListening ? AppTheme.dangerColor.withValues(alpha: 0.15) : Colors.transparent,
-                        shape: BoxShape.circle,
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _isListening ? AppTheme.dangerColor.withValues(alpha: 0.15) : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      iconSize: 20,
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                        color: _isListening ? AppTheme.dangerColor : AppTheme.textSec(context).withValues(alpha: 0.7),
                       ),
-                      child: IconButton(
-                        iconSize: 20,
-                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                          color: _isListening ? AppTheme.dangerColor : AppTheme.textSec(context).withValues(alpha: 0.7),
-                        ),
-                        onPressed: () async {
+                      onPressed: () async {
+                        if (!_speechEnabled) {
+                          _speechEnabled = await _speechToText.initialize();
                           if (!_speechEnabled) {
-                            _speechEnabled = await _speechToText.initialize();
-                            if (!_speechEnabled) {
-                               if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone not available.')));
-                               }
-                               return;
-                            }
+                             if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone not available.')));
+                             }
+                             return;
                           }
-                          _speechToText.isNotListening ? _startListening() : _stopListening();
-                        },
-                      ),
-                    ).animate(target: _isListening ? 1 : 0).scale(begin: const Offset(1, 1), end: const Offset(1.15, 1.15)),
-                    const SizedBox(width: 6),
-                    Container(
+                        }
+                        _speechToText.isNotListening ? _startListening() : _stopListening();
+                      },
+                    ),
+                  ).animate(target: _isListening ? 1 : 0).scale(begin: const Offset(1, 1), end: const Offset(1.15, 1.15)),
+                  const SizedBox(width: 6),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.primaryGradient,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        )
+                      ]
+                    ),
+                    child: IconButton(
+                      iconSize: 18,
                       constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.primaryGradient,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          )
-                        ]
-                      ),
-                      child: IconButton(
-                        iconSize: 18,
-                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
-                        onPressed: _isLoading ? null : () => _sendMessage(),
-                      ),
-                    ).animate().scale(begin: const Offset(0.85, 0.85), end: const Offset(1, 1), curve: Curves.easeOutBack),
-                    const SizedBox(width: 2),
-                  ],
-                ),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
+                      onPressed: _isLoading ? null : () => _sendMessage(),
+                    ),
+                  ).animate().scale(begin: const Offset(0.85, 0.85), end: const Offset(1, 1), curve: Curves.easeOutBack),
+                  const SizedBox(width: 2),
+                ],
               ),
             ),
           ),
@@ -600,8 +759,13 @@ class _QuickActionChip extends StatelessWidget {
 class _ChatBubble extends StatefulWidget {
   final _Message message;
   final VoidCallback? onActionExecuted;
+  final Function(String)? onQuickPrompt;
 
-  const _ChatBubble({required this.message, this.onActionExecuted});
+  const _ChatBubble({
+    required this.message, 
+    this.onActionExecuted,
+    this.onQuickPrompt,
+  });
 
   @override
   State<_ChatBubble> createState() => _ChatBubbleState();
@@ -666,10 +830,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
              reason: reason,
            );
         } else {
-           // change == 0, ignore
            success = true; 
         }
 
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
         if (success) {
           setState(() {
             widget.message.isActionExecuted = true;
@@ -678,12 +842,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
           if (widget.onActionExecuted != null) {
             widget.onActionExecuted!();
           }
-          // Clear backend RAG query cache since stock has updated
           RagApiService.clearCache();
         } else {
-          // If update failed, we could show a snackbar
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update stock.')));
+            scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Failed to update stock.')));
           }
         }
       } catch (e) {
@@ -702,8 +864,40 @@ class _ChatBubbleState extends State<_ChatBubble> {
   Widget build(BuildContext context) {
     final isUser = widget.message.isUser;
     
+    Widget bubbleContent = SelectionArea(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+          child: MarkdownBody(
+            data: widget.message.text,
+            selectable: false,
+            styleSheet: MarkdownStyleSheet(
+              p: TextStyle(color: AppTheme.textPri(context), fontSize: 14.5, height: 1.4, letterSpacing: 0.1),
+              h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
+              h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+              h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14.5),
+              strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.5),
+              em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14),
+              listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
+              blockSpacing: 8,
+              tableBorder: TableBorder(
+                horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
+                bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+                top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+              ),
+              tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 13, height: 1.3),
+              tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.w700),
+              tableColumnWidth: const FlexColumnWidth(),
+            ),
+          ),
+        ),
+      ),
+    );
+
     Widget bubble = Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
       decoration: BoxDecoration(
@@ -714,16 +908,15 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 1),
+        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 1),
         borderRadius: BorderRadius.circular(18).copyWith(
           bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(18),
           bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(4),
         ),
         boxShadow: [
           BoxShadow(
-            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            spreadRadius: 0,
+            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           )
         ],
@@ -738,53 +931,27 @@ class _ChatBubbleState extends State<_ChatBubble> {
               fontWeight: FontWeight.w500,
             ),
           )
-        : SelectionArea(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-                child: MarkdownBody(
-                  data: widget.message.text,
-                  selectable: false,
-                  styleSheet: MarkdownStyleSheet(
-                    p: TextStyle(color: AppTheme.textPri(context), fontSize: 14, height: 1.45, letterSpacing: 0.1),
-                    h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
-                    h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
-                    h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14.5),
-                    strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14),
-                    em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
-                    listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
-                    blockSpacing: 10,
-                    tableBorder: TableBorder(
-                      horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
-                      bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-                      top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-                    ),
-                    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 13, height: 1.3),
-                    tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.w700),
-                    tableColumnWidth: const FlexColumnWidth(),
-                    blockquote: TextStyle(color: AppTheme.textSec(context), fontSize: 13.5, fontStyle: FontStyle.italic),
-                    blockquoteDecoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(4),
-                      border: const Border(left: BorderSide(color: AppTheme.primaryColor, width: 3)),
-                    ),
-                    code: TextStyle(
-                      color: AppTheme.textPri(context),
-                      backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.05),
-                      fontFamily: 'monospace',
-                      fontSize: 12.5,
-                    ),
-                    codeblockDecoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.1)),
-                    ),
-                  ),
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              bubbleContent,
+              if (widget.message.statsPayload != null) ...[
+                const SizedBox(height: 10),
+                _VisualStatsHeader(stats: widget.message.statsPayload!),
+              ],
+              if (widget.message.lowStockItemsPayload != null && widget.message.lowStockItemsPayload!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _VisualLowStockCards(
+                  items: widget.message.lowStockItemsPayload!,
+                  onRestockTap: (item) {
+                    if (widget.onQuickPrompt != null) {
+                      widget.onQuickPrompt!("Add 10 units of ${item['name']} (Barcode: ${item['barcode']})");
+                    }
+                  },
                 ),
-              ),
-            ),
+              ],
+            ],
           ),
     );
 
@@ -794,18 +961,18 @@ class _ChatBubbleState extends State<_ChatBubble> {
       final actionDesc = (qty >= 0) ? "Add $qty units" : "Deduct ${qty.abs()} units";
       
       Widget actionCard = Container(
-        margin: const EdgeInsets.only(top: 6, bottom: 10, left: 36),
+        margin: const EdgeInsets.only(top: 6, bottom: 8, left: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppTheme.surface(context).withValues(alpha: 0.9),
+          color: AppTheme.surface(context).withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.4) : AppTheme.primaryColor.withValues(alpha: 0.15),
+            color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.4) : AppTheme.primaryColor.withValues(alpha: 0.2),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -817,7 +984,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
             Row(
               children: [
                 Icon(
-                  widget.message.isActionExecuted ? Icons.check_circle_rounded : Icons.warning_rounded,
+                  widget.message.isActionExecuted ? Icons.check_circle_rounded : Icons.flash_on_rounded,
                   color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
                   size: 18,
                 ),
@@ -842,7 +1009,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
               style: TextStyle(color: AppTheme.textSec(context), fontSize: 12.5),
             ),
             if (!widget.message.isActionExecuted) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -885,7 +1052,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 gradient: AppTheme.primaryGradient,
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))
+                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))
                 ],
                 border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
               ),
@@ -896,6 +1063,249 @@ class _ChatBubbleState extends State<_ChatBubble> {
         ),
       );
     }
+  }
+}
+
+// Visual Metric Dashboard Header
+class _VisualStatsHeader extends StatelessWidget {
+  final Map<String, dynamic> stats;
+
+  const _VisualStatsHeader({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final int total = stats['total'] ?? 0;
+    final int low = stats['low'] ?? 0;
+    final int out = stats['out'] ?? 0;
+    final int pending = (stats['pending_so'] ?? 0) + (stats['pending_po'] ?? 0);
+
+    final healthy = (total - low - out).clamp(0, total);
+    final healthyPct = total > 0 ? (healthy / total) : 1.0;
+    final lowPct = total > 0 ? (low / total) : 0.0;
+    final outPct = total > 0 ? (out / total) : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.bg(context).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, size: 16, color: AppTheme.primaryColor),
+              const SizedBox(width: 6),
+              Text(
+                "Inventory Health Meter",
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPri(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Multi-segment progress bar visualization
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 8,
+              child: Row(
+                children: [
+                  if (healthyPct > 0)
+                    Expanded(
+                      flex: (healthyPct * 100).toInt().clamp(1, 100),
+                      child: Container(color: Colors.green),
+                    ),
+                  if (lowPct > 0)
+                    Expanded(
+                      flex: (lowPct * 100).toInt().clamp(1, 100),
+                      child: Container(color: Colors.amber),
+                    ),
+                  if (outPct > 0)
+                    Expanded(
+                      flex: (outPct * 100).toInt().clamp(1, 100),
+                      child: Container(color: AppTheme.dangerColor),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Metric Chips
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined),
+              _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded),
+              _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined),
+              _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _MetricChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Text(
+                value,
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: color),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Low Stock Item Cards Visualization Widget
+class _VisualLowStockCards extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  final Function(Map<String, dynamic>) onRestockTap;
+
+  const _VisualLowStockCards({
+    required this.items,
+    required this.onRestockTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items.map((item) {
+        final int qty = (item['quantity'] ?? 0) as int;
+        final int minThreshold = (item['lowStockThreshold'] ?? 10) as int;
+        final double ratio = minThreshold > 0 ? (qty / minThreshold).clamp(0.0, 1.0) : 0.0;
+        final Color statusColor = qty == 0 ? AppTheme.dangerColor : Colors.amber.shade700;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item['name'] ?? 'Item',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: AppTheme.textPri(context),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "$qty / $minThreshold min",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 5,
+                  backgroundColor: statusColor.withValues(alpha: 0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Barcode: ${item['barcode'] ?? 'N/A'}",
+                    style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                  ),
+                  InkWell(
+                    onTap: () => onRestockTap(item),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.primaryGradient,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, size: 13, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            "Quick Restock",
+                            style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 }
 
@@ -948,7 +1358,7 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0, left: 16.0, right: 16.0),
+      padding: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Column(
@@ -983,7 +1393,6 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Tiny pulsing spark icon
                       const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 14)
                           .animate(onPlay: (c) => c.repeat(reverse: true))
                           .scale(begin: const Offset(0.85, 0.85), end: const Offset(1.15, 1.15), duration: 700.ms),
@@ -1057,6 +1466,115 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
             ]
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LiveVoiceVisualizerWidget extends StatelessWidget {
+  final double soundLevel;
+  final VoidCallback onDone;
+  final VoidCallback onCancel;
+
+  const _LiveVoiceVisualizerWidget({
+    required this.soundLevel,
+    required this.onDone,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surface(context).withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.dangerColor.withValues(alpha: 0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.dangerColor.withValues(alpha: 0.15),
+            blurRadius: 12,
+            spreadRadius: 0,
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.dangerColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.mic_rounded, color: AppTheme.dangerColor, size: 18),
+          ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(0.9, 0.9), end: const Offset(1.15, 1.15), duration: 600.ms),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      "Listening...",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppTheme.dangerColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 0.4),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 0.9),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 0.6),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 1.0),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 0.7),
+                    _SoundWaveBar(level: soundLevel, heightFactor: 0.5),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Speak clearly into microphone",
+                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+            tooltip: "Cancel Voice",
+            onPressed: onCancel,
+          ),
+          IconButton(
+            icon: const Icon(Icons.check_circle_rounded, size: 22, color: Colors.green),
+            tooltip: "Done",
+            onPressed: onDone,
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 200.ms).slideY(begin: 0.2, end: 0);
+  }
+}
+
+class _SoundWaveBar extends StatelessWidget {
+  final double level;
+  final double heightFactor;
+
+  const _SoundWaveBar({required this.level, required this.heightFactor});
+
+  @override
+  Widget build(BuildContext context) {
+    final height = (8.0 + (level * 16.0 * heightFactor)).clamp(6.0, 24.0);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
+      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+      width: 3.5,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppTheme.dangerColor,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }

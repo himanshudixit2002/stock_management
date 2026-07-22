@@ -6,8 +6,9 @@ import 'package:http/http.dart' as http;
 class RagResponse {
   final String text;
   final Map<String, dynamic>? actionPayload;
+  final Map<String, dynamic>? statsPayload;
 
-  RagResponse(this.text, this.actionPayload);
+  RagResponse(this.text, this.actionPayload, {this.statsPayload});
 }
 
 class RagApiService {
@@ -45,23 +46,33 @@ class RagApiService {
         final data = jsonDecode(response.body);
         String rawAnswer = data['answer'] ?? 'Received empty answer from server.';
         
-        // Parse the action block if it exists
+        // Parse action block
         Map<String, dynamic>? actionPayload;
         final actionRegex = RegExp(r'\[ACTION:\s*({.*?})\s*\]', dotAll: true);
         final match = actionRegex.firstMatch(rawAnswer);
-        
         if (match != null) {
           try {
-            final jsonStr = match.group(1)!;
-            actionPayload = jsonDecode(jsonStr);
-            // Remove the action block from the visible text
+            actionPayload = jsonDecode(match.group(1)!);
             rawAnswer = rawAnswer.replaceFirst(match.group(0)!, '').trim();
           } catch (e) {
             print("Failed to parse action JSON: $e");
           }
         }
+
+        // Parse stats block
+        Map<String, dynamic>? statsPayload;
+        final statsRegex = RegExp(r'\[STATS:\s*({.*?})\s*\]', dotAll: true);
+        final statsMatch = statsRegex.firstMatch(rawAnswer);
+        if (statsMatch != null) {
+          try {
+            statsPayload = jsonDecode(statsMatch.group(1)!);
+            rawAnswer = rawAnswer.replaceFirst(statsMatch.group(0)!, '').trim();
+          } catch (e) {
+            print("Failed to parse stats JSON: $e");
+          }
+        }
         
-        return RagResponse(rawAnswer, actionPayload);
+        return RagResponse(rawAnswer, actionPayload, statsPayload: statsPayload);
       } else {
         return RagResponse('Error: Server returned status ${response.statusCode}', null);
       }
