@@ -193,6 +193,24 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       ),
                     ),
                     actions: [
+                      if (canManageProducts)
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))
+                            ]
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                            tooltip: 'Add Product',
+                            onPressed: () => Navigator.pushNamed(context, AppRoutes.addProduct),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                          ),
+                        ),
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.sort_rounded, size: 22),
                         tooltip: 'Sort',
@@ -499,14 +517,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   child: const Icon(Icons.arrow_upward_rounded),
                 ),
               ),
-            if (canManageProducts)
-              FloatingActionButton(
-                heroTag: 'add_product',
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.addProduct),
-                tooltip: 'Add Product',
-                child: const Icon(Icons.add),
-              ),
+
           ],
         ),
         ),

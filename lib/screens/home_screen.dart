@@ -23,6 +23,7 @@ import 'settings/settings_screen.dart';
 import '../widgets/animations.dart';
 import '../widgets/floating_bottom_nav.dart';
 import '../widgets/offline_banner.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -265,13 +266,7 @@ class HomeScreenState extends State<HomeScreen>
           FloatingNavTabKind.reports,
           (_) => const ReportsTab(),
         ),
-      _ShellTab(
-        Icons.auto_awesome_rounded,
-        Icons.auto_awesome_outlined,
-        'AI',
-        FloatingNavTabKind.ai,
-        (_) => const RagChatScreen(),
-      ),
+
       _ShellTab(
         Icons.settings_rounded,
         Icons.settings_outlined,
@@ -307,6 +302,7 @@ class HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
+        floatingActionButton: _buildAskAIFab(context, isWide: true),
       );
     } else {
       scaffold = Scaffold(
@@ -334,6 +330,11 @@ class HomeScreenState extends State<HomeScreen>
                   tabs: tabs.map((t) => t.toNavTab()).toList(),
                   onTap: _onTabSelected,
                 ),
+              ),
+              Positioned(
+                right: 16,
+                bottom: 100, // Float above bottom nav
+                child: _buildAskAIFab(context, isWide: false),
               ),
             ],
           ),
@@ -519,6 +520,72 @@ class HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+  Widget _buildAskAIFab(BuildContext context, {required bool isWide}) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        shape: isWide ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: isWide ? BorderRadius.circular(24) : null,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          )
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: isWide ? BorderRadius.circular(24) : BorderRadius.circular(30),
+        child: InkWell(
+          borderRadius: isWide ? BorderRadius.circular(24) : BorderRadius.circular(30),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => const RagChatScreen(),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.05),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                      child: child,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+          child: Padding(
+            padding: isWide ? const EdgeInsets.symmetric(horizontal: 20, vertical: 14) : const EdgeInsets.all(16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                if (isWide) ...[
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Ask AI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ]
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().scale(delay: 500.ms, duration: 500.ms, curve: Curves.easeOutBack);
+  }
 }
 
 /// Internal description of a shell tab (lazy body builder + nav metadata).
@@ -551,7 +618,7 @@ class _ShellTab {
 class _RailQuickActionsButton extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _RailQuickActionsButton({required this.onTap});
+  const _RailQuickActionsButton({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -612,6 +679,7 @@ class _QuickActionTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _QuickActionTile({
+    super.key,
     required this.feature,
     required this.color,
     required this.onTap,

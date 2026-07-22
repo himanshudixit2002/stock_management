@@ -38,7 +38,7 @@ class _Message {
 class _RagChatScreenState extends State<RagChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<_Message> _messages = [
-    _Message("Greetings! I am **Nova**, Chief Supply Chain & Inventory Intelligence Strategist for SmartShelfKart.\n\nHow can I optimize your stock velocity, analyze risk exposure, or synthesize a reorder plan today?", false)
+    _Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false)
   ];
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
@@ -153,7 +153,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
-          _messages.add(_Message("Greetings! I am **Nova**, Chief Supply Chain & Inventory Intelligence Strategist. Ask me about stock velocity, risk exposure, or reorder blueprints!", false));
+          _messages.add(_Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -209,28 +209,28 @@ class _RagChatScreenState extends State<RagChatScreen> {
     final pendingSales = salesProvider.orders.where((o) => o.status != SOStatus.delivered && o.status != SOStatus.cancelled).length;
     final pendingPurchase = purchaseProvider.orders.where((o) => o.status != POStatus.received && o.status != POStatus.cancelled).length;
     
-    // Determine the intent to filter products smartly (Now with Hinglish & Strategic Intelligence Support)
+    // Determine the intent to filter products smartly (Converse concisely like Ask AI)
     String intentContext = "";
     List<dynamic> relevantProducts = [];
     
     if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('how many') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
-      intentContext = "[SYSTEM DIRECTIVE: User requested inventory summary. Deliver an extraordinary strategic briefing with 3 pillars (Velocity snapshot: Total $totalItems, Low $lowStockCount, Out $outOfStockCount; Exposure: $pendingSales pending sales, $pendingPurchase pending POs; Executive Blueprint). Be visionary & crisp!]";
+      intentContext = "[SYSTEM DIRECTIVE: User requested inventory summary. Answer concisely in a friendly, human way. Include key figures: Total $totalItems, Low Stock $lowStockCount, Out of Stock $outOfStockCount, Pending Sales $pendingSales, Pending Purchase Orders $pendingPurchase. Give direct tactical advice without corporate boilerplate.]";
     } else if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
       relevantProducts = provider.lowStockProducts.take(10).toList();
       if (relevantProducts.isEmpty) {
-        intentContext = "[SYSTEM DIRECTIVE: Restock analysis requested. All stock is 100% healthy! Congratulate the user with an executive status confirmation.]";
+        intentContext = "[SYSTEM DIRECTIVE: Restock analysis requested. All items are in healthy stock! Congratulate the user naturally.]";
       } else {
-        intentContext = "[SYSTEM DIRECTIVE: Urgent restock advisory. Provide an extraordinary executive reorder blueprint with stockout risk scores for these items:]";
+        intentContext = "[SYSTEM DIRECTIVE: Urgent restock analysis. Provide a direct, concise list of critical low items and exact reorder amounts:]";
       }
     } else if (lowerText.contains('sale') || lowerText.contains('purchase') || lowerText.contains('order') || lowerText.contains('bikri') || lowerText.contains('kharid')) {
-       intentContext = "[SYSTEM DIRECTIVE: Order pipeline analysis. Provide strategic breakdown of $pendingSales pending sales orders and $pendingPurchase pending POs with fulfillment velocity insights.]";
+       intentContext = "[SYSTEM DIRECTIVE: Order pipeline analysis. Give a direct summary of $pendingSales pending sales orders and $pendingPurchase pending POs with fulfillment advice.]";
     } else {
       relevantProducts = allProducts.where((p) => 
         lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
       ).take(5).toList();
       
       if (relevantProducts.isEmpty && allProducts.isNotEmpty) {
-        intentContext = "[SYSTEM DIRECTIVE: Executive inventory inquiry. Analyze using strategic context: Total catalog count: $totalItems, Low stock alert count: $lowStockCount. Deliver sharp, actionable guidance.]";
+        intentContext = "[SYSTEM DIRECTIVE: Inventory inquiry. Answer concisely in a human way using stats: Total catalog count: $totalItems, Low stock count: $lowStockCount.]";
         relevantProducts = allProducts.take(5).toList();
       }
     }
@@ -242,10 +242,10 @@ class _RagChatScreenState extends State<RagChatScreen> {
 
     final contextText = '$intentContext $productContext'.trim();
 
-    // Map recent messages to backend format (excluding the last one we just added)
+    // Map recent messages to backend format (excluding greetings)
     final historyMessages = _messages
         .take(_messages.length - 1)
-        .where((m) => m.text != "Hi! I'm Nova, your intelligent inventory assistant. How can I help you manage your stock today?")
+        .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!"))
         .toList();
     
     // Take the last 6 messages (3 turns)
@@ -302,28 +302,52 @@ class _RagChatScreenState extends State<RagChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Let HomeScreen's gradient show through
+      backgroundColor: AppTheme.bg(context),
       extendBodyBehindAppBar: true,
       resizeToAvoidBottomInset: false,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: AppBar(
-              title: const Text('Nova AI', style: TextStyle(fontWeight: FontWeight.bold)),
-              backgroundColor: AppTheme.bg(context).withValues(alpha: 0.7),
+              leading: const BackButton(),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Ask AI', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppTheme.textPri(context))),
+                ],
+              ),
+              backgroundColor: AppTheme.bg(context).withValues(alpha: 0.6),
               elevation: 0,
               centerTitle: true,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        AppTheme.primaryColor.withValues(alpha: 0.2),
+                        Colors.transparent,
+                      ]
+                    )
+                  )
+                ),
+              ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 22),
                   tooltip: 'Clear Chat',
+                  color: AppTheme.textSec(context),
                   onPressed: () async {
                     HapticFeedback.lightImpact();
                     setState(() {
                       _messages.clear();
-                      _messages.add(_Message("Hi! I'm Nova, your intelligent inventory assistant. How can I help you manage your stock today?", false));
+                      _messages.add(_Message("Hey! I'm **Ask AI**, your smart inventory assistant. Ask me anything about your stock, low items, or pending orders!", false));
                     });
                     await _saveChatHistory();
                     await RagApiService.clearCache();
@@ -334,58 +358,64 @@ class _RagChatScreenState extends State<RagChatScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
-                bottom: 16,
-                left: 16,
-                right: 16,
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.only(
+                    top: 16,
+                    bottom: 16,
+                    left: 12,
+                    right: 12,
+                  ),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final message = _messages[index];
+                    return _ChatBubble(
+                      message: message,
+                      onActionExecuted: _saveChatHistory,
+                    )
+                        .animate()
+                        .fade(duration: 400.ms)
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
+                  },
+                ),
               ),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _ChatBubble(
-                  message: message,
-                  onActionExecuted: _saveChatHistory,
-                )
-                    .animate()
-                    .fade(duration: 400.ms)
-                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
-              },
-            ),
+              if (_isLoading) const _CompactThinkingWidget(),
+              _buildQuickActions(),
+              _buildInputArea(context),
+            ],
           ),
-          if (_isLoading) const _CompactThinkingWidget(),
-          _buildQuickActions(),
-          _buildInputArea(context),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildQuickActions() {
     return Container(
-      height: 44,
-      margin: const EdgeInsets.only(bottom: 12),
+      height: 32,
+      margin: const EdgeInsets.only(bottom: 6),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         children: [
           _QuickActionChip(
             label: "Inventory Summary",
             icon: Icons.pie_chart_rounded,
             onTap: () => _sendMessage("Give me a summary of my inventory"),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _QuickActionChip(
-            label: "Low Stock Items",
+            label: "Low Stock Alert",
             icon: Icons.warning_rounded,
             onTap: () => _sendMessage("What items are low in stock?"),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _QuickActionChip(
             label: "Restock Advice",
             icon: Icons.shopping_cart_rounded,
@@ -393,7 +423,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.8, end: 0, curve: Curves.easeOutQuart);
+    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.6, end: 0, curve: Curves.easeOutQuart);
   }
 
   Widget _buildInputArea(BuildContext context) {
@@ -403,30 +433,30 @@ class _RagChatScreenState extends State<RagChatScreen> {
       padding: EdgeInsets.only(
         left: 12,
         right: 12,
-        bottom: keyboardOpen ? 8 : floatingNavContentInset(context),
+        bottom: keyboardOpen ? 12 : floatingNavContentInset(context) + 12,
       ),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
               color: AppTheme.primaryColor.withValues(alpha: 0.15),
               blurRadius: 24,
-              spreadRadius: 2,
+              spreadRadius: -2,
               offset: const Offset(0, 8),
             )
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                color: AppTheme.surface(context).withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1.5),
+                color: AppTheme.surface(context).withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1.5),
               ),
               child: SafeArea(
                 top: false,
@@ -436,17 +466,17 @@ class _RagChatScreenState extends State<RagChatScreen> {
                     Expanded(
                       child: TextField(
                         controller: _controller,
-                        style: TextStyle(color: AppTheme.textPri(context), fontSize: 16),
+                        style: TextStyle(color: AppTheme.textPri(context), fontSize: 15),
                         decoration: InputDecoration(
-                          hintText: 'Ask Nova...',
-                          hintStyle: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.5)),
+                          hintText: 'Message Ask AI...',
+                          hintStyle: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.4), fontSize: 15),
                           filled: true,
                           fillColor: Colors.transparent,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
                         onSubmitted: (_) => _sendMessage(),
                       ),
@@ -458,9 +488,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
+                        iconSize: 20,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        padding: EdgeInsets.zero,
                         icon: Icon(
                           _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                          color: _isListening ? AppTheme.dangerColor : AppTheme.textSec(context),
+                          color: _isListening ? AppTheme.dangerColor : AppTheme.textSec(context).withValues(alpha: 0.7),
                         ),
                         onPressed: () async {
                           if (!_speechEnabled) {
@@ -476,24 +509,29 @@ class _RagChatScreenState extends State<RagChatScreen> {
                         },
                       ),
                     ).animate(target: _isListening ? 1 : 0).scale(begin: const Offset(1, 1), end: const Offset(1.15, 1.15)),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Container(
+                      constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
                       decoration: BoxDecoration(
                         gradient: AppTheme.primaryGradient,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           )
                         ]
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                        iconSize: 18,
+                        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
                         onPressed: _isLoading ? null : () => _sendMessage(),
                       ),
-                    ).animate().scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1), curve: Curves.easeOutBack),
+                    ).animate().scale(begin: const Offset(0.85, 0.85), end: const Offset(1, 1), curve: Curves.easeOutBack),
+                    const SizedBox(width: 2),
                   ],
                 ),
               ),
@@ -516,37 +554,37 @@ class _QuickActionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: AppTheme.primaryColor.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           )
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Material(
-            color: AppTheme.surface(context).withValues(alpha: 0.8),
+            color: AppTheme.surface(context).withValues(alpha: 0.85),
             child: InkWell(
               onTap: onTap,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 1.2),
-                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.25), width: 1),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon, size: 16, color: AppTheme.primaryColor),
-                    const SizedBox(width: 8),
+                    Icon(icon, size: 13, color: AppTheme.primaryColor),
+                    const SizedBox(width: 6),
                     Text(
                       label,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.primaryColor),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppTheme.primaryColor),
                     ),
                   ],
                 ),
@@ -665,28 +703,28 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final isUser = widget.message.isUser;
     
     Widget bubble = Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
       decoration: BoxDecoration(
         gradient: isUser 
             ? AppTheme.primaryGradient 
             : LinearGradient(
-                colors: [AppTheme.surface(context).withValues(alpha: 0.85), AppTheme.bg(context).withValues(alpha: 0.95)],
+                colors: [AppTheme.surface(context).withValues(alpha: 0.95), AppTheme.bg(context)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1.5),
-        borderRadius: BorderRadius.circular(24).copyWith(
-          bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(24),
-          bottomLeft: isUser ? const Radius.circular(24) : const Radius.circular(4),
+        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 1),
+        borderRadius: BorderRadius.circular(18).copyWith(
+          bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(18),
+          bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(4),
         ),
         boxShadow: [
           BoxShadow(
-            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
+            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
             spreadRadius: 0,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 2),
           )
         ],
       ),
@@ -695,7 +733,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
             widget.message.text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 15,
+              fontSize: 14.5,
               height: 1.3,
               fontWeight: FontWeight.w500,
             ),
@@ -704,33 +742,44 @@ class _ChatBubbleState extends State<_ChatBubble> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.74),
+                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
                 child: MarkdownBody(
                   data: widget.message.text,
                   selectable: false,
                   styleSheet: MarkdownStyleSheet(
-                    p: TextStyle(color: AppTheme.textPri(context), fontSize: 14.5, height: 1.45, letterSpacing: 0.1),
-                    h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 17),
-                    h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
-                    h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 15),
-                    strong: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w800, fontSize: 14.5),
-                    em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14),
-                    listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14.5, fontWeight: FontWeight.bold),
+                    p: TextStyle(color: AppTheme.textPri(context), fontSize: 14, height: 1.45, letterSpacing: 0.1),
+                    h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
+                    h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+                    h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14.5),
+                    strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14),
+                    em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
+                    listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
                     blockSpacing: 10,
-                    tableBorder: TableBorder.all(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                      width: 1,
-                      borderRadius: BorderRadius.circular(10),
+                    tableBorder: TableBorder(
+                      horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
+                      bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+                      top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
                     ),
-                    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    tableBody: TextStyle(color: AppTheme.textPri(context), fontSize: 13, height: 1.35),
-                    tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.bold),
-                    tableColumnWidth: const IntrinsicColumnWidth(),
+                    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 13, height: 1.3),
+                    tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.w700),
+                    tableColumnWidth: const FlexColumnWidth(),
                     blockquote: TextStyle(color: AppTheme.textSec(context), fontSize: 13.5, fontStyle: FontStyle.italic),
                     blockquoteDecoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(4),
                       border: const Border(left: BorderSide(color: AppTheme.primaryColor, width: 3)),
+                    ),
+                    code: TextStyle(
+                      color: AppTheme.textPri(context),
+                      backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.05),
+                      fontFamily: 'monospace',
+                      fontSize: 12.5,
+                    ),
+                    codeblockDecoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.1)),
                     ),
                   ),
                 ),
@@ -745,14 +794,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
       final actionDesc = (qty >= 0) ? "Add $qty units" : "Deduct ${qty.abs()} units";
       
       Widget actionCard = Container(
-        margin: const EdgeInsets.only(top: 8, bottom: 12, left: 40),
+        margin: const EdgeInsets.only(top: 6, bottom: 10, left: 36),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppTheme.surface(context),
-          borderRadius: BorderRadius.circular(16),
+          color: AppTheme.surface(context).withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.3) : AppTheme.primaryColor.withValues(alpha: 0.2),
+            color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.4) : AppTheme.primaryColor.withValues(alpha: 0.15),
+            width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,14 +818,14 @@ class _ChatBubbleState extends State<_ChatBubble> {
               children: [
                 Icon(
                   widget.message.isActionExecuted ? Icons.check_circle_rounded : Icons.warning_rounded,
-                  color: widget.message.isActionExecuted ? Colors.green : Colors.orange,
-                  size: 20,
+                  color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
+                  size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   widget.message.isActionExecuted ? "Action Executed" : "Pending AI Action",
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     color: AppTheme.textPri(context),
                     fontSize: 14,
                   ),
@@ -778,11 +835,11 @@ class _ChatBubbleState extends State<_ChatBubble> {
             const SizedBox(height: 8),
             Text(
               "Task: $actionDesc",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 14),
+              style: TextStyle(color: AppTheme.textSec(context), fontSize: 13.5),
             ),
             Text(
               "Barcode: ${payload['barcode']}",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 13),
+              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12.5),
             ),
             if (!widget.message.isActionExecuted) ...[
               const SizedBox(height: 12),
@@ -793,12 +850,13 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
+                    elevation: 0,
                   ),
                   child: _isExecuting 
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Confirm & Execute"),
+                      : const Text("Confirm & Execute", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                 ),
               )
             ]
@@ -821,18 +879,18 @@ class _ChatBubbleState extends State<_ChatBubble> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Container(
-              margin: const EdgeInsets.only(right: 12, bottom: 6),
-              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.only(right: 10, bottom: 4),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: AppTheme.primaryGradient,
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))
+                  BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))
                 ],
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
-            ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 2000.ms, color: Colors.white.withValues(alpha: 0.8)),
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+            ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 2500.ms, color: Colors.white.withValues(alpha: 0.8)),
             Flexible(child: bubble),
           ],
         ),
@@ -854,17 +912,17 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
   Timer? _timer;
 
   final List<String> _stages = [
-    "Thinking...",
-    "Scanning stock telemetry...",
-    "Evaluating risk & velocity...",
-    "Synthesizing blueprint...",
+    "Ask AI is thinking...",
+    "Checking inventory...",
+    "Analyzing data...",
+    "Generating response...",
   ];
 
   final List<String> _reasoningLogs = [
-    "• Initialized Gemini 3.5 Deep Reasoning Engine",
-    "• Vectorizing context & stock analytics",
-    "• Evaluating reorder thresholds & sales velocity",
-    "• Formulating executive supply-chain advice",
+    "• Initializing...",
+    "• Scanning...",
+    "• Evaluating...",
+    "• Processing...",
   ];
 
   @override
