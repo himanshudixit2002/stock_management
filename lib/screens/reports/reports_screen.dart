@@ -4,28 +4,13 @@ import 'package:intl/intl.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../providers/stock_provider.dart';
-import '../../providers/product_provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../models/stock_transaction_model.dart';
-import '../../providers/settings_provider.dart';
-import '../../providers/vendor_provider.dart';
-import '../../config/feature_map.dart';
-import '../../config/routes.dart';
 import '../../config/theme.dart';
-import '../../models/user_model.dart';
-import '../../utils/dialogs.dart';
-import '../../services/excel_service.dart';
-import '../../widgets/charts/transaction_line_chart.dart';
-import '../../widgets/charts/category_pie_chart.dart';
-import '../../widgets/charts/stock_bar_chart.dart';
-import '../../widgets/charts/top_products_chart.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/glass_panel.dart';
-import '../../widgets/animations.dart';
-import '../../widgets/animated_list_item.dart';
-import '../../widgets/shimmer_loading.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/floating_nav_padding.dart';
+import 'tabs/executive_summary_tab.dart';
+import 'tabs/custom_report_builder_tab.dart';
+import 'tabs/analytics_charts_tab.dart';
+import 'tabs/predictive_forecasting_tab.dart';
+import 'widgets/reports_export_sheet.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -37,12 +22,7 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedFilter = 'all';
-  int _chartDays = 7;
-  String _chartGranularity = 'daily'; // daily | weekly | monthly
-  bool _isExporting = false;
-
-  bool _appliedInitialTab = false;
+  final DateFormat _dateFormat = DateFormat('dd MMM');
 
   @override
   void initState() {
@@ -51,52 +31,9 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // On phones, open straight to the at-a-glance Summary tab. Done once,
-    // before the first build, so the Phase-1 lazy tab builder mounts Summary
-    // (and not Transactions) on initial paint.
-    if (!_appliedInitialTab) {
-      _appliedInitialTab = true;
-      if (Responsive.isMobile(context) && _tabController.index != 3) {
-        _tabController.index = 3;
-      }
-    }
-  }
-
-  @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickCustomDateRange(StockProvider stockProvider) async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: now,
-      initialDateRange: stockProvider.filterStartDate != null
-          ? DateTimeRange(
-              start: stockProvider.filterStartDate!,
-              end: stockProvider.filterEndDate ?? now,
-            )
-          : DateTimeRange(
-              start: now.subtract(const Duration(days: 30)),
-              end: now,
-            ),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(
-            context,
-          ).colorScheme.copyWith(primary: AppTheme.primaryColor),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null && mounted) {
-      stockProvider.setDateRangeFilter(picked.start, picked.end);
-    }
   }
 
   void _showDateRangeSheet(StockProvider stockProvider) {
@@ -113,11 +50,21 @@ class _ReportsScreenState extends State<ReportsScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Date Range', style: Theme.of(context).textTheme.titleLarge),
+              Text('Select Date Filter',
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.today),
-                title: const Text('Last 7 days'),
+                leading: const Icon(Icons.today_rounded),
+                title: const Text('Today'),
+                onTap: () {
+                  final now = DateTime.now();
+                  stockProvider.setDateRangeFilter(now, now);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.date_range_rounded),
+                title: const Text('Last 7 Days'),
                 onTap: () {
                   stockProvider.setDateRangeFilter(
                     DateTime.now().subtract(const Duration(days: 7)),
@@ -127,8 +74,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.date_range),
-                title: const Text('Last 30 days'),
+                leading: const Icon(Icons.calendar_month_rounded),
+                title: const Text('Last 30 Days'),
                 onTap: () {
                   stockProvider.setDateRangeFilter(
                     DateTime.now().subtract(const Duration(days: 30)),
@@ -138,8 +85,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.date_range_outlined),
-                title: const Text('Last 90 days'),
+                leading: const Icon(Icons.history_rounded),
+                title: const Text('Last 90 Days'),
                 onTap: () {
                   stockProvider.setDateRangeFilter(
                     DateTime.now().subtract(const Duration(days: 90)),
@@ -149,17 +96,35 @@ class _ReportsScreenState extends State<ReportsScreen>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.calendar_month),
-                title: const Text('Custom range...'),
-                onTap: () {
+                leading: const Icon(Icons.edit_calendar_rounded),
+                title: const Text('Custom Range...'),
+                onTap: () async {
                   Navigator.pop(context);
-                  _pickCustomDateRange(stockProvider);
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    initialDateRange: stockProvider.filterStartDate != null
+                        ? DateTimeRange(
+                            start: stockProvider.filterStartDate!,
+                            end: stockProvider.filterEndDate ?? DateTime.now(),
+                          )
+                        : DateTimeRange(
+                            start: DateTime.now()
+                                .subtract(const Duration(days: 30)),
+                            end: DateTime.now(),
+                          ),
+                  );
+                  if (picked != null && mounted) {
+                    stockProvider.setDateRangeFilter(
+                        picked.start, picked.end);
+                  }
                 },
               ),
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.clear_all),
-                title: const Text('Clear date filter'),
+                leading: const Icon(Icons.clear_all_rounded),
+                title: const Text('All Time'),
                 onTap: () {
                   stockProvider.setDateRangeFilter(null, null);
                   Navigator.pop(context);
@@ -172,2575 +137,196 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
-  void _showAdvancedFiltersSheet(StockProvider stockProvider) {
-    final vendorProvider = context.read<VendorProvider>();
-    final settingsProvider = context.read<SettingsProvider>();
-    String tempUserId = stockProvider.filterUserId;
-    String tempVendorId = stockProvider.filterVendorId;
-
+  void _openExportSheet() {
     showModalBottomSheet(
       context: context,
-      constraints: Responsive.sheetConstraints(context),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final users = stockProvider.uniqueUsers;
-          final vendors = vendorProvider.vendors;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.dividerC(context),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Advanced Filters',
-                    style: Theme.of(ctx).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 20),
-                  if (users.isNotEmpty) ...[
-                    Text(
-                      'User',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppTheme.dividerC(context)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: tempUserId.isEmpty ? null : tempUserId,
-                          hint: const Text(
-                            'All users',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                          isExpanded: true,
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text(
-                                'All users',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            ...users.map(
-                              (u) => DropdownMenuItem(
-                                value: u.key,
-                                child: Text(
-                                  u.value,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              setSheetState(() => tempUserId = v ?? ''),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (settingsProvider.vendorsEnabled &&
-                      vendors.isNotEmpty) ...[
-                    Text(
-                      'Vendor',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppTheme.dividerC(context)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: tempVendorId.isEmpty ? null : tempVendorId,
-                          hint: const Text(
-                            'All vendors',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                          isExpanded: true,
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text(
-                                'All vendors',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                            ),
-                            ...vendors.map(
-                              (v) => DropdownMenuItem(
-                                value: v.id,
-                                child: Text(
-                                  v.name,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              setSheetState(() => tempVendorId = v ?? ''),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            stockProvider.setUserFilter('');
-                            stockProvider.setVendorFilter('');
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('Clear'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () {
-                            stockProvider.setUserFilter(tempUserId);
-                            stockProvider.setVendorFilter(tempVendorId);
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('Apply'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+      builder: (context) => const ReportsExportSheet(),
     );
-  }
-
-  Future<void> _exportTransactions(
-    List<StockTransactionModel> transactions,
-  ) async {
-    if (_isExporting) return;
-    if (transactions.isEmpty) {
-      showInfoSnackBar(context, 'No transactions to export');
-      return;
-    }
-
-    setState(() => _isExporting = true);
-    try {
-      final excelService = ExcelService();
-      final result = await excelService.exportTransactionsToCsv(transactions);
-      if (!mounted) return;
-      await excelService.saveAndShare(result);
-    } catch (e) {
-      if (mounted) {
-        showErrorSnackBar(context, 'Export failed: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return PermissionGate(
       permission: AppPermissions.viewReports,
-      featureName: 'Reports',
-      child: Builder(builder: _buildContent),
-    );
-  }
+      // No Scaffold wrapper — we sit inside HomeScreen's Scaffold
+      child: Column(
+        children: [
+          // ── Header bar (replaces AppBar) ────────────────────────────
+          _ReportsHeader(
+            tabController: _tabController,
+            dateFormat: _dateFormat,
+            onDateFilter: (sp) => _showDateRangeSheet(sp),
+            onExport: _openExportSheet,
+          ),
 
-  Widget _buildContent(BuildContext context) {
-    final perms =
-        context.watch<AuthProvider>().currentUser?.effectivePermissions ??
-        UserModel.defaultPermissions;
-    final shortcuts = FeatureMap.entriesByCategory(
-      FeatureCategory.reports,
-      perms,
-      placement: FeaturePlacement.tabShortcut,
-    );
-
-    return Scaffold(
-      backgroundColor: AppTheme.bg(context),
-      appBar: AppBar(
-        title: const Text('Reports'),
-        actions: [
-          if (shortcuts.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded),
-              tooltip: 'Shortcuts',
-              onSelected: (route) => Navigator.pushNamed(context, route),
-              itemBuilder: (context) => [
-                for (final entry in shortcuts)
-                  PopupMenuItem<String>(
-                    value: entry.route,
-                    child: Row(
-                      children: [
-                        Icon(
-                          entry.icon,
-                          size: 18,
-                          color: AppTheme.primaryColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(entry.label),
-                      ],
-                    ),
-                  ),
+          // ── Tab bodies ───────────────────────────────────────────────
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                ExecutiveSummaryTab(
+                  onNavigateTab: (i) => _tabController.animateTo(i),
+                ),
+                const CustomReportBuilderTab(),
+                const AnalyticsChartsTab(),
+                const PredictiveForecastingTab(),
               ],
             ),
+          ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppTheme.primaryColor,
-          unselectedLabelColor: AppTheme.textSec(context),
-          indicatorSize: TabBarIndicatorSize.label,
-          indicatorColor: AppTheme.primaryColor,
-          indicatorWeight: 3,
-          dividerColor: Colors.transparent,
-          splashBorderRadius: BorderRadius.circular(8),
-          indicator: UnderlineTabIndicator(
-            borderSide: const BorderSide(
-              color: AppTheme.primaryColor,
-              width: 3,
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
-          ),
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.history_rounded, size: 18),
-              text: 'Transactions',
-            ),
-            Tab(
-              icon: Icon(Icons.category_rounded, size: 18),
-              text: 'Categories',
-            ),
-            Tab(icon: Icon(Icons.show_chart_rounded, size: 18), text: 'Charts'),
-            Tab(icon: Icon(Icons.dashboard_rounded, size: 18), text: 'Summary'),
-          ],
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-                  // Each tab's (potentially heavy) content — including the
-                  // chart computations — is built only once its tab is first
-                  // selected, then kept alive. Unselected tabs cost nothing.
-                  _LazyTab(
-                    controller: _tabController,
-                    index: 0,
-                    builder: _buildTransactionTab,
-                  ),
-                  _LazyTab(
-                    controller: _tabController,
-                    index: 1,
-                    builder: _buildCategoryAnalyticsTab,
-                  ),
-                  _LazyTab(
-                    controller: _tabController,
-                    index: 2,
-                    builder: _buildChartsTab,
-                  ),
-                  _LazyTab(
-                    controller: _tabController,
-                    index: 3,
-                    builder: _buildSummaryTab,
-                  ),
-          ],
-        ),
       ),
     );
   }
+}
 
-  // ==================== TAB 1: TRANSACTIONS ====================
+// ─────────────────────────────────────────────────────────────────────────────
+// Ultra-compact header — single bar + slim tab row
+// ─────────────────────────────────────────────────────────────────────────────
+class _ReportsHeader extends StatelessWidget {
+  final TabController tabController;
+  final DateFormat dateFormat;
+  final void Function(StockProvider) onDateFilter;
+  final VoidCallback onExport;
 
-  Widget _buildTransactionTab(BuildContext context) {
-    final stockProvider = context.watch<StockProvider>();
-    final dateFormat = DateFormat('dd MMM, hh:mm a');
-    final hPad = Responsive.horizontalPadding(context);
+  const _ReportsHeader({
+    required this.tabController,
+    required this.dateFormat,
+    required this.onDateFilter,
+    required this.onExport,
+  });
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: Responsive.contentMaxWidth(context),
-        ),
-        child: Column(
-          children: [
-            // Row 1: Search + Date + Sort + Export
-            Padding(
-              padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search product...',
-                          hintStyle: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.textTer(context),
-                          ),
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(
-                              color: AppTheme.dividerC(context),
-                            ),
-                          ),
-                          isDense: true,
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                        onChanged: (v) => stockProvider.setProductFilter(v),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _showDateRangeSheet(stockProvider),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      child: Icon(
-                        Icons.calendar_today,
-                        size: 20,
-                        color: stockProvider.filterStartDate != null
-                            ? AppTheme.primaryColor
-                            : AppTheme.textSec(context),
-                      ),
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.sort, size: 20),
-                    tooltip: 'Sort',
-                    onSelected: (v) => stockProvider.setSortBy(v),
-                    itemBuilder: (context) => [
-                      _sortMenuItem(
-                        'date_desc',
-                        'Date (newest)',
-                        stockProvider.sortBy,
-                      ),
-                      _sortMenuItem(
-                        'date_asc',
-                        'Date (oldest)',
-                        stockProvider.sortBy,
-                      ),
-                      _sortMenuItem(
-                        'qty_desc',
-                        'Qty (high-low)',
-                        stockProvider.sortBy,
-                      ),
-                      _sortMenuItem(
-                        'qty_asc',
-                        'Qty (low-high)',
-                        stockProvider.sortBy,
-                      ),
-                    ],
-                  ),
-                  Builder(
-                    builder: (context) {
-                      final exportable = _getFilteredTransactions(
-                        stockProvider,
-                      );
-                      final canExport = !_isExporting && exportable.isNotEmpty;
-                      return IconButton(
-                        icon: _isExporting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.file_download_outlined,
-                                size: 20,
-                              ),
-                        tooltip: exportable.isEmpty
-                            ? 'Nothing to export'
-                            : 'Export CSV',
-                        onPressed: canExport
-                            ? () => _exportTransactions(exportable)
-                            : null,
-                      );
-                    },
-                  ),
-                  _AdvancedFilterButton(
-                    hasActive:
-                        stockProvider.filterUserId.isNotEmpty ||
-                        stockProvider.filterVendorId.isNotEmpty,
-                    onTap: () => _showAdvancedFiltersSheet(stockProvider),
-                  ),
-                  if (stockProvider.filterStartDate != null ||
-                      stockProvider.filterUserId.isNotEmpty ||
-                      stockProvider.filterVendorId.isNotEmpty ||
-                      stockProvider.filterProductId.isNotEmpty ||
-                      _selectedFilter != 'all')
-                    IconButton(
-                      icon: const Icon(Icons.clear, size: 20),
-                      onPressed: () {
-                        stockProvider.clearFilters();
-                        setState(() => _selectedFilter = 'all');
-                      },
-                      tooltip: 'Clear filters',
-                    ),
-                ],
-              ),
-            ),
-            // Row 2: Type chips
-            Padding(
-              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 6),
-              child: SizedBox(
-                height: 32,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _FilterChip(
-                      label: 'All',
-                      isSelected: _selectedFilter == 'all',
-                      onTap: () => setState(() => _selectedFilter = 'all'),
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Stock In',
-                      isSelected: _selectedFilter == 'stock_in',
-                      onTap: () => setState(() => _selectedFilter = 'stock_in'),
-                      color: AppTheme.successColor,
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Stock Out',
-                      isSelected: _selectedFilter == 'stock_out',
-                      onTap: () =>
-                          setState(() => _selectedFilter = 'stock_out'),
-                      color: AppTheme.primaryColor,
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Damage',
-                      isSelected: _selectedFilter == 'damage',
-                      onTap: () => setState(() => _selectedFilter = 'damage'),
-                      color: AppTheme.dangerColor,
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Transfer',
-                      isSelected: _selectedFilter == 'transfer',
-                      onTap: () => setState(() => _selectedFilter = 'transfer'),
-                      color: AppTheme.indigoColor,
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Hold',
-                      isSelected: _selectedFilter == 'hold',
-                      onTap: () => setState(() => _selectedFilter = 'hold'),
-                      color: AppTheme.warningColor,
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Release',
-                      isSelected: _selectedFilter == 'hold_release',
-                      onTap: () =>
-                          setState(() => _selectedFilter = 'hold_release'),
-                      color: AppTheme.successColor,
-                    ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.transactionHistory,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.open_in_new,
-                              size: 14,
-                              color: AppTheme.textSec(context),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Full History',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textSec(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // KPI cards
-            _KpiRow(
-              padding: EdgeInsets.fromLTRB(hPad, 4, hPad, 8),
-              cards: [
-                _KpiCard(
-                  label: 'Transactions',
-                  value: '${stockProvider.recentTransactions.length}',
-                  icon: Icons.receipt_long_rounded,
-                  color: AppTheme.primaryColor,
-                  changePercent: stockProvider.periodChangePercentages['count'],
-                ),
-                _KpiCard(
-                  label: 'Stock In',
-                  value: '${stockProvider.stockInTotal}',
-                  icon: Icons.add_circle_rounded,
-                  color: AppTheme.successColor,
-                  changePercent:
-                      stockProvider.periodChangePercentages['stockIn'],
-                ),
-                _KpiCard(
-                  label: 'Stock Out',
-                  value: '${stockProvider.stockOutTotal}',
-                  icon: Icons.remove_circle_rounded,
-                  color: AppTheme.primaryColor,
-                  changePercent:
-                      stockProvider.periodChangePercentages['stockOut'],
-                ),
-                _KpiCard(
-                  label: 'Net Flow',
-                  value:
-                      '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange}',
-                  icon: Icons.swap_vert_rounded,
-                  color: stockProvider.netStockChange >= 0
-                      ? AppTheme.successColor
-                      : AppTheme.dangerColor,
-                  changePercent:
-                      stockProvider.periodChangePercentages['netFlow'],
-                ),
-              ],
-            ),
-            if (stockProvider.transactionsTruncated)
-              Padding(
-                padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppTheme.warningColor.withValues(alpha: 0.2),
-                    ),
-                  ),
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Consumer<StockProvider>(
+      builder: (context, stockProvider, _) {
+        final start = stockProvider.filterStartDate;
+        final end = stockProvider.filterEndDate;
+        final dateLabel = start != null && end != null
+            ? '${dateFormat.format(start)}–${dateFormat.format(end)}'
+            : 'All Time';
+
+        return Material(
+          color: AppTheme.bg(context),
+          elevation: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Status bar gap
+              SizedBox(height: topPadding),
+
+              // ── Single combined bar ───────────────────────────────────
+              SizedBox(
+                height: 44,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        size: 16,
-                        color: AppTheme.warningColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Showing the most recent ${StockProvider.transactionFetchLimit} '
-                          'transactions. Older entries are not included in these '
-                          'totals — narrow the date range for complete figures.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.warningColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // Transaction list
-            Expanded(
-              child: Builder(
-                builder: (context) {
-                  final transactions = _getFilteredTransactions(stockProvider);
-
-                  if (transactions.isEmpty) {
-                    return const EmptyStateWidget(
-                      icon: Icons.history_rounded,
-                      title: 'No transactions found',
-                      subtitle: 'Try adjusting your filters or date range.',
-                    );
-                  }
-
-                  if (Responsive.isDesktop(context)) {
-                    return GridView.builder(
-                      padding: EdgeInsets.fromLTRB(
-                        hPad,
-                        0,
-                        hPad,
-                        floatingNavContentInset(context),
-                      ),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisExtent: 100,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                          ),
-                      itemCount: transactions.length,
-                      itemBuilder: (context, index) {
-                        final t = transactions[index];
-                        return AnimatedListItem(
-                          index: index,
-                          child: _TransactionTile(
-                            transaction: t,
-                            dateFormat: dateFormat,
-                          ),
-                        );
-                      },
-                    );
-                  }
-
-                  return ListView.builder(
-                    addAutomaticKeepAlives: false,
-                    padding: EdgeInsets.fromLTRB(
-                      hPad,
-                      0,
-                      hPad,
-                      floatingNavContentInset(context),
-                    ),
-                    itemCount: transactions.length,
-                    itemBuilder: (context, index) {
-                      final t = transactions[index];
-                      return AnimatedListItem(
-                        index: index,
-                        child: _TransactionTile(
-                          transaction: t,
-                          dateFormat: dateFormat,
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<StockTransactionModel> _getFilteredTransactions(
-    StockProvider stockProvider,
-  ) {
-    var transactions = stockProvider.recentTransactions;
-    if (_selectedFilter != 'all') {
-      TransactionType filterType;
-      switch (_selectedFilter) {
-        case 'stock_in':
-          filterType = TransactionType.stockIn;
-          break;
-        case 'stock_out':
-          filterType = TransactionType.stockOut;
-          break;
-        case 'damage':
-          filterType = TransactionType.damage;
-          break;
-        case 'transfer':
-          filterType = TransactionType.transfer;
-          break;
-        case 'hold':
-          filterType = TransactionType.hold;
-          break;
-        case 'hold_release':
-          filterType = TransactionType.holdRelease;
-          break;
-        default:
-          filterType = TransactionType.stockIn;
-      }
-      transactions = transactions.where((t) => t.type == filterType).toList();
-    }
-    return transactions;
-  }
-
-  PopupMenuItem<String> _sortMenuItem(
-    String value,
-    String label,
-    String current,
-  ) {
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          if (current == value)
-            const Icon(Icons.check, size: 16, color: AppTheme.primaryColor)
-          else
-            const SizedBox(width: 16),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
-  // ==================== TAB 2: CATEGORY ANALYTICS ====================
-
-  Widget _buildCategoryAnalyticsTab(BuildContext context) {
-    final productProvider = context.watch<ProductProvider>();
-
-    final hasNoData = productProvider.analyticsProducts.isEmpty;
-    final isStillLoading =
-        productProvider.isLoading ||
-        (productProvider.isLoadingAnalytics && hasNoData);
-
-    if (isStillLoading && hasNoData) {
-      return const ShimmerLoading(layout: ShimmerLayout.card);
-    }
-
-    final countByCategory = productProvider.productCountByCategory;
-    final lowByCategory = productProvider.lowStockByCategory;
-    final outByCategory = productProvider.outOfStockByCategory;
-
-    final isRefining = productProvider.isLoadingAnalytics;
-
-    return RefreshIndicator(
-      onRefresh: () => productProvider.loadAnalytics(),
-      child: SingleChildScrollView(
-        physics: Responsive.scrollPhysics(context),
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
-          EdgeInsets.only(bottom: floatingNavContentInset(context)),
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isRefining)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: LinearProgressIndicator(
-                      minHeight: 2,
-                      color: AppTheme.primaryColor,
-                      backgroundColor: Color(0x1A007AFF),
-                    ),
-                  ),
-                _KpiRow(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  cards: [
-                    _KpiCard(
-                      label: 'Categories',
-                      value: '${countByCategory.length}',
-                      icon: Icons.category_rounded,
-                      color: AppTheme.primaryColor,
-                    ),
-                    _KpiCard(
-                      label: 'Total Products',
-                      value: '${productProvider.totalProducts}',
-                      icon: Icons.inventory_2_rounded,
-                      color: AppTheme.successColor,
-                    ),
-                    _KpiCard(
-                      label: 'Health Score',
-                      value: '${productProvider.inventoryHealthScore.toInt()}',
-                      icon: Icons.favorite_rounded,
-                      color: productProvider.inventoryHealthScore >= 80
-                          ? AppTheme.successColor
-                          : productProvider.inventoryHealthScore >= 50
-                          ? AppTheme.warningColor
-                          : AppTheme.dangerColor,
-                    ),
-                  ],
-                ),
-                if (Responsive.isDesktop(context)) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _SectionCard(
-                          title: 'Products by Category',
-                          child: CategoryPieChart(
-                            data: countByCategory.map(
-                              (k, v) => MapEntry(k, v.toDouble()),
-                            ),
-                            valueLabel: 'products',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Category Details',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            ...countByCategory.entries.map((entry) {
-                              final name = entry.key;
-                              final count = entry.value;
-                              final low = lowByCategory[name] ?? 0;
-                              final out = outByCategory[name] ?? 0;
-
-                              final categoryProducts =
-                                  productProvider.productsByCategory[name];
-                              final categoryId =
-                                  categoryProducts != null &&
-                                      categoryProducts.isNotEmpty
-                                  ? categoryProducts.first.categoryId
-                                  : null;
-
-                              return _CategoryDetailCard(
-                                name: name,
-                                count: count,
-                                low: low,
-                                out: out,
-                                categoryId: categoryId,
-                                productProvider: productProvider,
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  _SectionCard(
-                    title: 'Products by Category',
-                    child: CategoryPieChart(
-                      data: countByCategory.map(
-                        (k, v) => MapEntry(k, v.toDouble()),
-                      ),
-                      valueLabel: 'products',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'Category Details',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-
-                  ...countByCategory.entries.map((entry) {
-                    final name = entry.key;
-                    final count = entry.value;
-                    final low = lowByCategory[name] ?? 0;
-                    final out = outByCategory[name] ?? 0;
-
-                    final categoryProducts =
-                        productProvider.productsByCategory[name];
-                    final categoryId =
-                        categoryProducts != null && categoryProducts.isNotEmpty
-                        ? categoryProducts.first.categoryId
-                        : null;
-
-                    return _CategoryDetailCard(
-                      name: name,
-                      count: count,
-                      low: low,
-                      out: out,
-                      categoryId: categoryId,
-                      productProvider: productProvider,
-                    );
-                  }),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== TAB 3: CHARTS & TRENDS ====================
-
-  Widget _buildChartsTab(BuildContext context) {
-    final stockProvider = context.watch<StockProvider>();
-    final authProvider = context.watch<AuthProvider>();
-    final wide = Responsive.isWide(context);
-
-    final pctChange = stockProvider.periodChangePercentages;
-
-    final kpiRow = _KpiRow(
-      padding: const EdgeInsets.only(bottom: 12),
-      cards: [
-        _KpiCard(
-          label: 'Stock In',
-          value: '${stockProvider.stockInTotal}',
-          icon: Icons.add_circle_rounded,
-          color: AppTheme.successColor,
-          changePercent: pctChange['stockIn'],
-        ),
-        _KpiCard(
-          label: 'Stock Out',
-          value: '${stockProvider.stockOutTotal}',
-          icon: Icons.remove_circle_rounded,
-          color: AppTheme.primaryColor,
-          changePercent: pctChange['stockOut'],
-        ),
-        _KpiCard(
-          label: 'Damage',
-          value: '${stockProvider.damageTotal}',
-          icon: Icons.report_problem_rounded,
-          color: AppTheme.dangerColor,
-          changePercent: pctChange['damage'],
-        ),
-        _KpiCard(
-          label: 'Transfers',
-          value: '${stockProvider.transferTotal}',
-          icon: Icons.swap_horiz_rounded,
-          color: AppTheme.indigoColor,
-          changePercent: pctChange['transfer'],
-        ),
-      ],
-    );
-
-    final Map<String, Map<TransactionType, int>> trendData;
-    final String granularityLabel;
-    int? daysParam;
-    switch (_chartGranularity) {
-      case 'weekly':
-        trendData = stockProvider.transactionsByWeek;
-        granularityLabel = 'weekly';
-      case 'monthly':
-        trendData = stockProvider.transactionsByMonth;
-        granularityLabel = 'monthly';
-      default:
-        trendData = stockProvider.transactionsByDay;
-        granularityLabel = 'daily';
-        daysParam =
-            stockProvider.filterStartDate != null &&
-                stockProvider.filterEndDate != null
-            ? stockProvider.filterEndDate!
-                  .difference(stockProvider.filterStartDate!)
-                  .inDays
-                  .clamp(1, 365)
-            : _chartDays;
-    }
-
-    final trendChart = _SectionCard(
-      title: 'Transaction Trends',
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ToggleChip(
-            label: 'D',
-            isSelected: _chartGranularity == 'daily',
-            onTap: () => setState(() => _chartGranularity = 'daily'),
-          ),
-          const SizedBox(width: 4),
-          _ToggleChip(
-            label: 'W',
-            isSelected: _chartGranularity == 'weekly',
-            onTap: () => setState(() => _chartGranularity = 'weekly'),
-          ),
-          const SizedBox(width: 4),
-          _ToggleChip(
-            label: 'M',
-            isSelected: _chartGranularity == 'monthly',
-            onTap: () => setState(() => _chartGranularity = 'monthly'),
-          ),
-          if (_chartGranularity == 'daily') ...[
-            const SizedBox(width: 8),
-            _ToggleChip(
-              label: '7D',
-              isSelected: _chartDays == 7,
-              onTap: () => setState(() => _chartDays = 7),
-            ),
-            const SizedBox(width: 4),
-            _ToggleChip(
-              label: '30D',
-              isSelected: _chartDays == 30,
-              onTap: () => setState(() => _chartDays = 30),
-            ),
-            const SizedBox(width: 4),
-            _ToggleChip(
-              label: '90D',
-              isSelected: _chartDays == 90,
-              onTap: () => setState(() => _chartDays = 90),
-            ),
-          ],
-        ],
-      ),
-      child: TransactionLineChart(
-        dataByDay: trendData,
-        days: daysParam ?? trendData.length,
-        granularity: granularityLabel,
-      ),
-    );
-
-    final movementChart = _SectionCard(
-      title: 'Stock Movement Breakdown',
-      child: CategoryPieChart(
-        data: {
-          'Stock In': stockProvider.stockInTotal.toDouble(),
-          'Stock Out': stockProvider.stockOutTotal.toDouble(),
-          'Transfer': stockProvider.transferTotal.toDouble(),
-          'Damage': stockProvider.damageTotal.toDouble(),
-        },
-        valueLabel: 'units',
-        onSliceTap: (category, _) {
-          final typeMap = {
-            'Stock In': 'stock_in',
-            'Stock Out': 'stock_out',
-            'Transfer': 'transfer',
-            'Damage': 'damage',
-          };
-          if (typeMap.containsKey(category)) {
-            setState(() => _selectedFilter = typeMap[category]!);
-            _tabController.animateTo(0);
-          }
-        },
-      ),
-    );
-
-    void drillDownProduct(String name, int _) {
-      stockProvider.setProductFilter(name);
-      _tabController.animateTo(0);
-    }
-
-    final activityChart = _SectionCard(
-      title: 'Top Products by Activity',
-      child: TopProductsChart(
-        data: stockProvider.topProductsByTransactions,
-        barColor: AppTheme.primaryColor,
-        valueLabel: 'transactions',
-        onItemTap: drillDownProduct,
-      ),
-    );
-
-    final unitsChart = _SectionCard(
-      title: 'Top Products by Units Moved',
-      child: TopProductsChart(
-        data: stockProvider.topProductsByQuantityMoved,
-        barColor: AppTheme.successColor,
-        valueLabel: 'units',
-        onItemTap: drillDownProduct,
-      ),
-    );
-
-    final salesChart = _SectionCard(
-      title: 'Top Items by Sales',
-      child: TopProductsChart(
-        data: stockProvider.topProductsBySales,
-        barColor: AppTheme.primaryColor,
-        valueLabel: 'boxes sold',
-        onItemTap: drillDownProduct,
-      ),
-    );
-
-    final breakageChart = _SectionCard(
-      title: 'Top Items by Breakage',
-      child: TopProductsChart(
-        data: stockProvider.topProductsByBreakage,
-        barColor: AppTheme.dangerColor,
-        valueLabel: 'boxes damaged',
-        onItemTap: drillDownProduct,
-      ),
-    );
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
-        EdgeInsets.only(bottom: floatingNavContentInset(context)),
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              kpiRow,
-              if (wide) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: trendChart),
-                    const SizedBox(width: 16),
-                    Expanded(child: movementChart),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: activityChart),
-                    const SizedBox(width: 16),
-                    Expanded(child: unitsChart),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: salesChart),
-                    const SizedBox(width: 16),
-                    Expanded(child: breakageChart),
-                  ],
-                ),
-              ] else ...[
-                trendChart,
-                const SizedBox(height: 16),
-                movementChart,
-                const SizedBox(height: 16),
-                activityChart,
-                const SizedBox(height: 16),
-                unitsChart,
-                const SizedBox(height: 16),
-                salesChart,
-                const SizedBox(height: 16),
-                breakageChart,
-              ],
-              const SizedBox(height: 16),
-              if (authProvider.isAdmin) ...[
-                _SectionCard(
-                  title: 'Activity by User',
-                  child: StockBarChart(
-                    data: stockProvider.transactionsByUser.map(
-                      (k, v) => MapEntry(k, v.toDouble()),
-                    ),
-                    barColor: AppTheme.infoColor,
-                    emptyMessage: 'No user activity data',
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== TAB 4: SUMMARY ====================
-
-  Widget _buildSummaryTab(BuildContext context) {
-    final productProvider = context.watch<ProductProvider>();
-    final stockProvider = context.watch<StockProvider>();
-
-    final hasNoData = productProvider.analyticsProducts.isEmpty;
-    final isStillLoading =
-        productProvider.isLoading ||
-        (productProvider.isLoadingAnalytics && hasNoData);
-
-    if (isStillLoading && hasNoData) {
-      return const ShimmerLoading(layout: ShimmerLayout.card);
-    }
-
-    final healthScore = productProvider.inventoryHealthScore;
-    final healthLabel = productProvider.healthLabel;
-    Color healthColor;
-    if (healthScore >= 80) {
-      healthColor = AppTheme.successColor;
-    } else if (healthScore >= 50) {
-      healthColor = AppTheme.warningColor;
-    } else {
-      healthColor = AppTheme.dangerColor;
-    }
-
-    final lowStockItems = productProvider.analyticsProducts
-        .where((p) => p.isLowStock)
-        .toList();
-    final outOfStockItems = productProvider.analyticsProducts
-        .where((p) => p.isOutOfStock)
-        .toList();
-
-    return RefreshIndicator(
-      onRefresh: () => productProvider.loadAnalytics(),
-      child: SingleChildScrollView(
-        physics: Responsive.scrollPhysics(context),
-        padding: EdgeInsets.all(Responsive.horizontalPadding(context)).add(
-          EdgeInsets.only(bottom: floatingNavContentInset(context)),
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: Responsive.contentMaxWidth(context),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Inventory health score
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        healthColor.withValues(alpha: 0.15),
-                        healthColor.withValues(alpha: 0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: healthColor.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
+                      // Title
+                      Icon(Icons.analytics_rounded,
+                          color: AppTheme.primaryColor, size: 18),
+                      const SizedBox(width: 6),
                       Text(
-                        'Inventory Health',
-                        style: Theme.of(context).textTheme.titleMedium,
+                        'Reports',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPri(context),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 90,
-                            height: 90,
-                            child: CircularProgressIndicator(
-                              value: healthScore / 100,
-                              strokeWidth: 8,
-                              backgroundColor: healthColor.withValues(
-                                alpha: 0.15,
-                              ),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                healthColor,
-                              ),
-                            ),
+                      const SizedBox(width: 10),
+
+                      // Date chip — tappable, compact
+                      GestureDetector(
+                        onTap: () => onDateFilter(stockProvider),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: AppTheme.primaryColor
+                                    .withValues(alpha: 0.25)),
                           ),
-                          Column(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
+                              Icon(Icons.calendar_today_rounded,
+                                  size: 11,
+                                  color: AppTheme.primaryColor),
+                              const SizedBox(width: 4),
                               Text(
-                                '${healthScore.toInt()}',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                  color: healthColor,
-                                ),
-                              ),
-                              Text(
-                                healthLabel,
+                                dateLabel,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: healthColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                ..._buildSummaryCards(
-                  context,
-                  productProvider: productProvider,
-                  stockProvider: stockProvider,
-                ),
-
-                // Low stock items (expandable)
-                if (lowStockItems.isNotEmpty)
-                  _ExpandableSection(
-                    title: 'Low Stock Items (${lowStockItems.length})',
-                    icon: Icons.warning_amber_rounded,
-                    iconColor: AppTheme.warningColor,
-                    children: lowStockItems
-                        .map(
-                          (p) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: AppTheme.warningColor,
-                            ),
-                            title: Text(
-                              p.name,
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                            trailing: Text(
-                              '${p.quantity} ${p.unit}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.warningColor,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                const SizedBox(height: 8),
-
-                // Out of stock items (expandable)
-                if (outOfStockItems.isNotEmpty)
-                  _ExpandableSection(
-                    title: 'Out of Stock Items (${outOfStockItems.length})',
-                    icon: Icons.error_rounded,
-                    iconColor: AppTheme.dangerColor,
-                    children: outOfStockItems
-                        .map(
-                          (p) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: AppTheme.dangerColor,
-                            ),
-                            title: Text(
-                              p.name,
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                            trailing: Text(
-                              '0 ${p.unit}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.dangerColor,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                const SizedBox(height: 16),
-
-                // Export full report button
-                Consumer<SettingsProvider>(
-                  builder: (context, settings, _) {
-                    if (!settings.vendorsEnabled) {
-                      return const SizedBox.shrink();
-                    }
-                    final vendorProvider = context.watch<VendorProvider>();
-                    final vendorVolume = vendorProvider
-                        .vendorsByTransactionVolume(
-                          stockProvider.allTransactions,
-                        );
-                    if (vendorVolume.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.local_shipping_rounded,
-                              color: AppTheme.indigoColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Vendor Analytics',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: AppTheme.cardDeco(context),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Top Vendors by Transaction Volume',
-                                style: TextStyle(
-                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: AppTheme.textSec(context),
+                                  color: AppTheme.primaryColor,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              ...vendorVolume.take(5).map((entry) {
-                                final maxVal = vendorVolume.first.value;
-                                final fraction = maxVal > 0
-                                    ? entry.value / maxVal
-                                    : 0.0;
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              entry.key,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            '${entry.value}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppTheme.indigoColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value: fraction,
-                                          backgroundColor: AppTheme.indigoColor
-                                              .withValues(alpha: 0.1),
-                                          color: AppTheme.indigoColor,
-                                          minHeight: 6,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
+                              Icon(Icons.arrow_drop_down,
+                                  size: 14,
+                                  color: AppTheme.primaryColor),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
-                  },
-                ),
+                      ),
 
-                _SectionCard(
-                  title: 'Detailed Reports',
-                  child: Column(
-                    children: [
-                      _SummaryRow(
-                        label: 'Profit & Loss',
-                        value: '',
-                        icon: Icons.account_balance_wallet,
-                        color: AppTheme.successColor,
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.profitLoss),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'ABC Analysis',
-                        value: '',
-                        icon: Icons.stacked_bar_chart,
-                        color: AppTheme.indigoColor,
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.abcAnalysis),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Inventory Valuation',
-                        value: '',
-                        icon: Icons.trending_up,
-                        color: AppTheme.warningColor,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.valuationTrends,
-                        ),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Audit Log',
-                        value: '',
-                        icon: Icons.history,
-                        color: AppTheme.infoColor,
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.auditLog),
-                      ),
-                      const _DividerRow(),
-                      _SummaryRow(
-                        label: 'Price History',
-                        value: '',
-                        icon: Icons.price_change,
-                        color: AppTheme.primaryColor,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.priceHistory,
+                      const Spacer(),
+
+                      // Export icon button
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(Icons.ios_share_rounded,
+                              size: 20,
+                              color: AppTheme.textSec(context)),
+                          tooltip: 'Export PDF / Excel',
+                          onPressed: onExport,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                ShimmerButton(
-                  label: 'Export Full Report',
-                  icon: Icons.download_rounded,
-                  onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.excelExport),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildSummaryCards(
-    BuildContext context, {
-    required ProductProvider productProvider,
-    required StockProvider stockProvider,
-  }) {
-    final inventoryOverview = _SectionCard(
-      title: 'Inventory Overview',
-      child: Column(
-        children: [
-          _SummaryRow(
-            label: 'Total Products',
-            value: '${productProvider.totalProducts}',
-            icon: Icons.inventory_2_rounded,
-            color: AppTheme.primaryColor,
-          ),
-          const _DividerRow(),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.lowStock),
-            child: _SummaryRow(
-              label: 'Low Stock Items',
-              value: '${productProvider.lowStockCount}',
-              icon: Icons.warning_amber_rounded,
-              color: AppTheme.warningColor,
-            ),
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Out of Stock',
-            value: '${productProvider.outOfStockCount}',
-            icon: Icons.error_rounded,
-            color: AppTheme.dangerColor,
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Locations',
-            value: '${context.watch<SettingsProvider>().locations.length}',
-            icon: Icons.location_on_rounded,
-            color: AppTheme.infoColor,
-          ),
-        ],
-      ),
-    );
-
-    final transactionSummary = _SectionCard(
-      title: 'Transaction Summary',
-      child: Column(
-        children: [
-          _SummaryRow(
-            label: 'Stock In',
-            value:
-                '${stockProvider.transactionsByType[TransactionType.stockIn] ?? 0} entries (+${stockProvider.stockInTotal} units)',
-            icon: Icons.add_circle_rounded,
-            color: AppTheme.successColor,
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Stock Out',
-            value:
-                '${stockProvider.transactionsByType[TransactionType.stockOut] ?? 0} entries (-${stockProvider.stockOutTotal} units)',
-            icon: Icons.remove_circle_rounded,
-            color: AppTheme.primaryColor,
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Damage',
-            value:
-                '${stockProvider.transactionsByType[TransactionType.damage] ?? 0} entries (-${stockProvider.damageTotal} units)',
-            icon: Icons.report_problem_rounded,
-            color: AppTheme.dangerColor,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.damageHistory),
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Transfer',
-            value:
-                '${stockProvider.transactionsByType[TransactionType.transfer] ?? 0} entries (${stockProvider.transferTotal} units)',
-            icon: Icons.swap_horiz_rounded,
-            color: AppTheme.indigoColor,
-          ),
-        ],
-      ),
-    );
-
-    final turnoverFlow = _SectionCard(
-      title: 'Stock Turnover & Flow',
-      child: Column(
-        children: [
-          _SummaryRow(
-            label: 'Net Stock Flow',
-            value:
-                '${stockProvider.netStockChange >= 0 ? '+' : ''}${stockProvider.netStockChange} units',
-            icon: Icons.swap_vert_rounded,
-            color: stockProvider.netStockChange >= 0
-                ? AppTheme.successColor
-                : AppTheme.dangerColor,
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Avg Transaction Size',
-            value:
-                '${stockProvider.averageTransactionSize.toStringAsFixed(1)} units',
-            icon: Icons.analytics_rounded,
-            color: AppTheme.primaryColor,
-          ),
-          const _DividerRow(),
-          _SummaryRow(
-            label: 'Peak Activity Day',
-            value: stockProvider.peakActivityDay,
-            icon: Icons.calendar_today_rounded,
-            color: AppTheme.infoColor,
-          ),
-        ],
-      ),
-    );
-
-    final locationBreakdown = _SectionCard(
-      title: 'Location Breakdown',
-      child: Column(
-        children: productProvider.locationBreakdown.entries.map((entry) {
-          final locQty = productProvider.quantityByLocation[entry.key] ?? 0;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Icon(Icons.location_on, size: 16, color: AppTheme.infoColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(entry.key, style: const TextStyle(fontSize: 13)),
-                ),
-                Text(
-                  '${entry.value} products',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSec(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '$locQty units',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-
-    final valuationCard = Consumer<SettingsProvider>(
-      builder: (context, settings, _) {
-        if (!settings.pricingEnabled) {
-          return const SizedBox.shrink();
-        }
-        final allProducts = productProvider.analyticsProducts;
-        double totalCostValue = 0;
-        double totalSellingValue = 0;
-        for (final p in allProducts) {
-          totalCostValue += p.totalCostValue;
-          totalSellingValue += p.totalStockValue;
-        }
-        final totalProfit = totalSellingValue - totalCostValue;
-        return _SectionCard(
-          title: 'Inventory Valuation',
-          child: Column(
-            children: [
-              _SummaryRow(
-                label: 'Total Cost Value',
-                value:
-                    '${AppTheme.currencySymbol}${totalCostValue.toStringAsFixed(2)}',
-                icon: Icons.money_rounded,
-                color: AppTheme.primaryColor,
               ),
-              const _DividerRow(),
-              _SummaryRow(
-                label: 'Total Selling Value',
-                value:
-                    '${AppTheme.currencySymbol}${totalSellingValue.toStringAsFixed(2)}',
-                icon: Icons.sell_rounded,
-                color: AppTheme.infoColor,
+
+              // ── Compact tab bar (text only, no stacked icons) ─────────
+              TabBar(
+                controller: tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                labelPadding:
+                    const EdgeInsets.symmetric(horizontal: 12),
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorColor: AppTheme.primaryColor,
+                indicatorWeight: 2.5,
+                labelColor: AppTheme.primaryColor,
+                unselectedLabelColor: AppTheme.textSec(context),
+                labelStyle: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 13),
+                unselectedLabelStyle:
+                    const TextStyle(fontSize: 13),
+                tabs: const [
+                  Tab(text: 'Summary'),
+                  Tab(text: 'Builder'),
+                  Tab(text: 'Charts'),
+                  Tab(text: 'Forecast'),
+                ],
               ),
-              const _DividerRow(),
-              _SummaryRow(
-                label: 'Total Profit',
-                value:
-                    '${AppTheme.currencySymbol}${totalProfit.toStringAsFixed(2)}',
-                icon: Icons.trending_up_rounded,
-                color: totalProfit >= 0
-                    ? AppTheme.successColor
-                    : AppTheme.dangerColor,
-              ),
+              const Divider(height: 1, thickness: 0.5),
             ],
           ),
         );
       },
-    );
-
-    if (Responsive.isDesktop(context)) {
-      return [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: inventoryOverview),
-            const SizedBox(width: 16),
-            Expanded(child: transactionSummary),
-          ],
-        ),
-        const SizedBox(height: 16),
-        valuationCard,
-        const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: turnoverFlow),
-            const SizedBox(width: 16),
-            Expanded(child: locationBreakdown),
-          ],
-        ),
-        const SizedBox(height: 16),
-      ];
-    }
-
-    return [
-      inventoryOverview,
-      const SizedBox(height: 16),
-      valuationCard,
-      const SizedBox(height: 16),
-      transactionSummary,
-      const SizedBox(height: 16),
-      turnoverFlow,
-      const SizedBox(height: 16),
-      locationBreakdown,
-      const SizedBox(height: 16),
-    ];
-  }
-}
-
-// ==================== HELPER WIDGETS ====================
-
-class _TransactionTile extends StatelessWidget {
-  final StockTransactionModel transaction;
-  final DateFormat dateFormat;
-
-  const _TransactionTile({required this.transaction, required this.dateFormat});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = transaction;
-    Color typeColor;
-    IconData typeIcon;
-
-    switch (t.type) {
-      case TransactionType.stockIn:
-        typeColor = AppTheme.successColor;
-        typeIcon = Icons.add_circle_rounded;
-        break;
-      case TransactionType.stockOut:
-        typeColor = AppTheme.primaryColor;
-        typeIcon = Icons.remove_circle_rounded;
-        break;
-      case TransactionType.damage:
-        typeColor = AppTheme.dangerColor;
-        typeIcon = Icons.report_problem_rounded;
-        break;
-      case TransactionType.transfer:
-        typeColor = AppTheme.indigoColor;
-        typeIcon = Icons.swap_horiz_rounded;
-        break;
-      case TransactionType.adjustment:
-        typeColor = AppTheme.warningColor;
-        typeIcon = Icons.tune_rounded;
-        break;
-      case TransactionType.hold:
-        typeColor = AppTheme.warningColor;
-        typeIcon = Icons.pause_circle_rounded;
-        break;
-      case TransactionType.holdRelease:
-        typeColor = AppTheme.successColor;
-        typeIcon = Icons.play_circle_rounded;
-        break;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: GlassCard(
-        borderRadius: 14,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(typeIcon, color: typeColor, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.productName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      [
-                        t.typeLabel,
-                        if (t.location.isNotEmpty) t.location,
-                        if (t.userName.isNotEmpty) t.userName,
-                        dateFormat.format(t.date),
-                      ].join(' \u2022 '),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                    if (t.vendorName.isNotEmpty)
-                      Text(
-                        'Vendor: ${t.vendorName}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppTheme.indigoColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    if (t.reason.isNotEmpty)
-                      Text(
-                        t.reason,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppTheme.textTer(context),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              ),
-              Text(
-                t.type == TransactionType.stockIn
-                    ? '+${t.quantity}'
-                    : t.type == TransactionType.transfer ||
-                          t.type == TransactionType.hold ||
-                          t.type == TransactionType.holdRelease
-                    ? '${t.quantity}'
-                    : '-${t.quantity}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: typeColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Color? color;
-
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = color ?? AppTheme.primaryColor;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? chipColor : chipColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-            border: isSelected
-                ? null
-                : Border.all(color: chipColor.withValues(alpha: 0.3)),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : AppTheme.textPri(context),
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ToggleChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppTheme.primaryColor
-                : AppTheme.primaryColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : AppTheme.textPri(context),
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final row = Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: color, size: 17),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
-          ),
-        ),
-        Flexible(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              color: color,
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-        if (onTap != null) ...[
-          const SizedBox(width: 4),
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 12,
-            color: color.withValues(alpha: 0.5),
-          ),
-        ],
-      ],
-    );
-    if (onTap != null) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: row,
-        ),
-      );
-    }
-    return row;
-  }
-}
-
-class _DividerRow extends StatelessWidget {
-  const _DividerRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Divider(height: 1),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Widget? trailing;
-
-  const _SectionCard({required this.title, required this.child, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassSectionCard(title: title, trailing: trailing, child: child);
-  }
-}
-
-class _CategoryDetailCard extends StatelessWidget {
-  final String name;
-  final int count;
-  final int low;
-  final int out;
-  final String? categoryId;
-  final ProductProvider productProvider;
-
-  const _CategoryDetailCard({
-    required this.name,
-    required this.count,
-    required this.low,
-    required this.out,
-    required this.categoryId,
-    required this.productProvider,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: categoryId != null
-            ? () {
-                productProvider.filterByCategory(categoryId!);
-                Navigator.pushNamed(context, AppRoutes.productList);
-              }
-            : null,
-        child: GlassCard(
-          borderRadius: 14,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: const Icon(
-                        Icons.category,
-                        color: AppTheme.primaryColor,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '$count products',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: AppTheme.textSec(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _MiniStat(
-                      icon: Icons.inventory_2,
-                      label: 'Products',
-                      value: '$count',
-                      color: AppTheme.primaryColor,
-                    ),
-                    const SizedBox(width: 16),
-                    _MiniStat(
-                      icon: Icons.warning_amber,
-                      label: 'Low Stock',
-                      value: '$low',
-                      color: AppTheme.warningColor,
-                    ),
-                    const SizedBox(width: 16),
-                    _MiniStat(
-                      icon: Icons.error_outline,
-                      label: 'Out',
-                      value: '$out',
-                      color: AppTheme.dangerColor,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _MiniStat({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textSec(context),
-                  ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExpandableSection extends StatefulWidget {
-  final String title;
-  final IconData icon;
-  final Color iconColor;
-  final List<Widget> children;
-
-  const _ExpandableSection({
-    required this.title,
-    required this.icon,
-    required this.iconColor,
-    required this.children,
-  });
-
-  @override
-  State<_ExpandableSection> createState() => _ExpandableSectionState();
-}
-
-class _ExpandableSectionState extends State<_ExpandableSection> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      borderRadius: 14,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Icon(widget.icon, size: 18, color: widget.iconColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: const Icon(Icons.expand_more, size: 20),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-            child: _expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                    child: Column(children: widget.children),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdvancedFilterButton extends StatelessWidget {
-  final bool hasActive;
-  final VoidCallback onTap;
-
-  const _AdvancedFilterButton({required this.hasActive, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.tune_rounded, size: 20),
-          tooltip: 'User & Vendor filters',
-          onPressed: onTap,
-        ),
-        if (hasActive)
-          Positioned(
-            right: 8,
-            top: 8,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppTheme.primaryColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _KpiCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final double? changePercent;
-
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.changePercent,
-  });
-
-  /// Counts up plain integer KPI values (handling an optional leading +/-),
-  /// leaving formatted strings untouched.
-  Widget _buildValue() {
-    final style = TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.w800,
-      color: color,
-    );
-    final hasPlusPrefix = value.startsWith('+');
-    final cleaned = hasPlusPrefix ? value.substring(1) : value;
-    final intVal = int.tryParse(cleaned);
-    if (intVal == null) {
-      return Text(value, style: style);
-    }
-    return CountUpText(
-      intVal,
-      style: style,
-      formatter: (v) => '${hasPlusPrefix ? '+' : ''}${v.round()}',
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: 0.10),
-            color.withValues(alpha: 0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: color.withValues(alpha: 0.8),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          _buildValue(),
-          if (changePercent != null) ...[
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(
-                  changePercent! >= 0
-                      ? Icons.trending_up_rounded
-                      : Icons.trending_down_rounded,
-                  size: 12,
-                  color: changePercent! >= 0
-                      ? AppTheme.successColor
-                      : AppTheme.dangerColor,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  '${changePercent! >= 0 ? '+' : ''}${changePercent!.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: changePercent! >= 0
-                        ? AppTheme.successColor
-                        : AppTheme.dangerColor,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Defers building a tab's content until that tab is first selected, then keeps
-/// it alive so re-selecting is instant and scroll/expansion state is preserved.
-/// This avoids running the heavy chart/analytics computations for tabs the user
-/// never opens.
-class _LazyTab extends StatefulWidget {
-  final TabController controller;
-  final int index;
-  final WidgetBuilder builder;
-
-  const _LazyTab({
-    required this.controller,
-    required this.index,
-    required this.builder,
-  });
-
-  @override
-  State<_LazyTab> createState() => _LazyTabState();
-}
-
-class _LazyTabState extends State<_LazyTab>
-    with AutomaticKeepAliveClientMixin {
-  bool _shown = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _shown = widget.controller.index == widget.index;
-    widget.controller.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (!_shown &&
-        (widget.controller.index == widget.index ||
-            widget.controller.animation?.value.round() == widget.index)) {
-      setState(() => _shown = true);
-      updateKeepAlive();
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onTabChanged);
-    super.dispose();
-  }
-
-  @override
-  bool get wantKeepAlive => _shown;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    if (!_shown) return const SizedBox.shrink();
-    return widget.builder(context);
-  }
-}
-
-class _KpiRow extends StatelessWidget {
-  final List<_KpiCard> cards;
-  final EdgeInsetsGeometry? padding;
-
-  const _KpiRow({required this.cards, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
-    if (Responsive.isDesktop(context)) {
-      return Padding(
-        padding: padding ?? EdgeInsets.zero,
-        child: Row(
-          children: [
-            for (int i = 0; i < cards.length; i++) ...[
-              Expanded(child: cards[i]),
-              if (i < cards.length - 1) const SizedBox(width: 10),
-            ],
-          ],
-        ),
-      );
-    }
-    return Padding(
-      padding: padding ?? EdgeInsets.zero,
-      child: SizedBox(
-        height: 82,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          physics: Responsive.scrollPhysics(context),
-          itemCount: cards.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (_, i) => cards[i],
-        ),
-      ),
     );
   }
 }
