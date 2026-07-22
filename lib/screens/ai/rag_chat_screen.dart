@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,7 +7,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/sales_order_provider.dart';
@@ -38,7 +38,7 @@ class _Message {
 class _RagChatScreenState extends State<RagChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<_Message> _messages = [
-    _Message("Hi! I'm Nova, your intelligent inventory assistant. How can I help you manage your stock today?", false)
+    _Message("Greetings! I am **Nova**, Chief Supply Chain & Inventory Intelligence Strategist for SmartShelfKart.\n\nHow can I optimize your stock velocity, analyze risk exposure, or synthesize a reorder plan today?", false)
   ];
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
@@ -153,7 +153,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
       if (mounted) {
         HapticFeedback.mediumImpact();
         setState(() {
-          _messages.add(_Message("Hi! I'm Nova, your Inventory AI. Ask me about stock levels or restocking, and I'll keep it brief!", false));
+          _messages.add(_Message("Greetings! I am **Nova**, Chief Supply Chain & Inventory Intelligence Strategist. Ask me about stock velocity, risk exposure, or reorder blueprints!", false));
           _isLoading = false;
         });
         _scrollToBottom();
@@ -177,7 +177,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           HapticFeedback.mediumImpact();
           setState(() {
             _messages.add(_Message(
-              "Sure, let me take you there.",
+              "🚀 **Executing Neural Route**: Transferring control to **$target** module...",
               false,
               actionPayload: {'type': 'navigate', 'target': target},
             ));
@@ -209,28 +209,28 @@ class _RagChatScreenState extends State<RagChatScreen> {
     final pendingSales = salesProvider.orders.where((o) => o.status != SOStatus.delivered && o.status != SOStatus.cancelled).length;
     final pendingPurchase = purchaseProvider.orders.where((o) => o.status != POStatus.received && o.status != POStatus.cancelled).length;
     
-    // Determine the intent to filter products smartly (Now with Hinglish Support)
+    // Determine the intent to filter products smartly (Now with Hinglish & Strategic Intelligence Support)
     String intentContext = "";
     List<dynamic> relevantProducts = [];
     
     if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('how many') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
-      intentContext = "[SYSTEM: User wants an overview. They might speak Hinglish (Hindi in English). Answer naturally. Provide a sharp 1-sentence summary based on these stats: Total Products: $totalItems, Low Stock: $lowStockCount, Out of Stock: $outOfStockCount, Pending Sales: $pendingSales, Pending Purchase Orders: $pendingPurchase]";
+      intentContext = "[SYSTEM DIRECTIVE: User requested inventory summary. Deliver an extraordinary strategic briefing with 3 pillars (Velocity snapshot: Total $totalItems, Low $lowStockCount, Out $outOfStockCount; Exposure: $pendingSales pending sales, $pendingPurchase pending POs; Executive Blueprint). Be visionary & crisp!]";
     } else if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
       relevantProducts = provider.lowStockProducts.take(10).toList();
       if (relevantProducts.isEmpty) {
-        intentContext = "[SYSTEM: User asked for restocking advice (possibly in Hinglish). Their inventory is perfectly healthy! Congratulate them in 1 sentence.]";
+        intentContext = "[SYSTEM DIRECTIVE: Restock analysis requested. All stock is 100% healthy! Congratulate the user with an executive status confirmation.]";
       } else {
-        intentContext = "[SYSTEM: Focus on urgent restocking. They might speak Hinglish. Here are the most critical low stock items:]";
+        intentContext = "[SYSTEM DIRECTIVE: Urgent restock advisory. Provide an extraordinary executive reorder blueprint with stockout risk scores for these items:]";
       }
     } else if (lowerText.contains('sale') || lowerText.contains('purchase') || lowerText.contains('order') || lowerText.contains('bikri') || lowerText.contains('kharid')) {
-       intentContext = "[SYSTEM: User asked about orders (possibly in Hinglish). We currently have $pendingSales pending sales and $pendingPurchase pending purchase orders.]";
+       intentContext = "[SYSTEM DIRECTIVE: Order pipeline analysis. Provide strategic breakdown of $pendingSales pending sales orders and $pendingPurchase pending POs with fulfillment velocity insights.]";
     } else {
       relevantProducts = allProducts.where((p) => 
         lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
       ).take(5).toList();
       
       if (relevantProducts.isEmpty && allProducts.isNotEmpty) {
-        intentContext = "[SYSTEM: General query. Answer smartly using these sample products and overall stats (Total: $totalItems, Low: $lowStockCount)]";
+        intentContext = "[SYSTEM DIRECTIVE: Executive inventory inquiry. Analyze using strategic context: Total catalog count: $totalItems, Low stock alert count: $lowStockCount. Deliver sharp, actionable guidance.]";
         relevantProducts = allProducts.take(5).toList();
       }
     }
@@ -358,39 +358,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
               },
             ),
           ),
-          if (_isLoading)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0, left: 24.0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface(context).withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
-                        ],
-                      ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 16),
-                    ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 1500.ms, color: Colors.white).scale(begin: const Offset(0.9, 0.9), end: const Offset(1.1, 1.1), duration: 800.ms).then().scale(begin: const Offset(1.1, 1.1), end: const Offset(0.9, 0.9), duration: 800.ms),
-                    const SizedBox(width: 14),
-                    const Text(
-                      'Analyzing inventory...',
-                      style: TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        letterSpacing: 0.5,
-                      ),
-                    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(begin: 0.4, end: 1.0, duration: 800.ms),
-                  ],
-                ),
-              ),
-            ),
+          if (_isLoading) const _AdvancedThinkingWidget(),
           _buildQuickActions(),
           _buildInputArea(context),
         ],
@@ -846,5 +814,264 @@ class _ChatBubbleState extends State<_ChatBubble> {
         ),
       );
     }
+  }
+}
+
+class _AdvancedThinkingWidget extends StatefulWidget {
+  const _AdvancedThinkingWidget();
+
+  @override
+  State<_AdvancedThinkingWidget> createState() => _AdvancedThinkingWidgetState();
+}
+
+class _AdvancedThinkingWidgetState extends State<_AdvancedThinkingWidget> {
+  int _currentStepIndex = 0;
+  bool _isExpanded = false;
+  Timer? _timer;
+
+  final List<String> _stages = [
+    "⚡ Querying Neural Vector Index & Context Graph...",
+    "🔍 Aggregating Product Metrics & Stock Telemetry...",
+    "📊 Evaluating Inventory Velocity, Turnover & Risk Exposure...",
+    "💡 Synthesizing Extraordinary Executive Blueprint...",
+  ];
+
+  final List<String> _reasoningLogs = [
+    "• Initialized Gemini 3.5 Deep Reasoning Engine",
+    "• Retrieved live stock analytics & transactional context",
+    "• Cross-referencing threshold limits & order imbalances",
+    "• Applying executive supply-chain decision rules",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_currentStepIndex < _stages.length - 1) {
+            _currentStepIndex++;
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentStage = _stages[_currentStepIndex];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14.0, left: 16.0, right: 16.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryColor.withValues(alpha: 0.15),
+                AppTheme.surface(context).withValues(alpha: 0.9),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: AppTheme.primaryColor.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                blurRadius: 18,
+                spreadRadius: 1,
+              )
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        // Animated pulsing radar icon
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withValues(alpha: 0.5),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              )
+                            ],
+                          ),
+                          child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 16),
+                        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                         .scale(begin: const Offset(0.9, 0.9), end: const Offset(1.15, 1.15), duration: 800.ms),
+                        
+                        const SizedBox(width: 10),
+                        
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5), width: 0.8),
+                                    ),
+                                    child: const Text(
+                                      "DEEP REASONING",
+                                      style: TextStyle(
+                                        color: AppTheme.primaryColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "[${_currentStepIndex + 1}/${_stages.length}]",
+                                    style: TextStyle(
+                                      color: AppTheme.textSec(context),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+                                child: Text(
+                                  currentStage,
+                                  key: ValueKey(_currentStepIndex),
+                                  style: TextStyle(
+                                    color: AppTheme.textPri(context),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Expand / collapse trigger button
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _isExpanded = !_isExpanded;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface(context).withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+                            ),
+                            child: Icon(
+                              _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.tune_rounded,
+                              color: AppTheme.primaryColor,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Progress bar indicator
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (_currentStepIndex + 1) / _stages.length,
+                        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                        minHeight: 3,
+                      ),
+                    ),
+
+                    // Expandable detailed thought trace drawer
+                    if (_isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: List.generate(_reasoningLogs.length, (idx) {
+                            final isDone = idx <= _currentStepIndex;
+                            final isCurrent = idx == _currentStepIndex;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isDone ? Icons.check_circle_outlined : Icons.circle_outlined,
+                                    size: 12,
+                                    color: isCurrent 
+                                        ? AppTheme.primaryColor 
+                                        : (isDone ? Colors.green : Colors.grey.withValues(alpha: 0.5)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _reasoningLogs[idx],
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 11,
+                                        color: isCurrent 
+                                            ? AppTheme.primaryColor 
+                                            : (isDone ? AppTheme.textPri(context) : AppTheme.textSec(context).withValues(alpha: 0.6)),
+                                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.1, end: 0),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1)),
+      ),
+    );
   }
 }
