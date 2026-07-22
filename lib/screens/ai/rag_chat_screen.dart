@@ -358,7 +358,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
               },
             ),
           ),
-          if (_isLoading) const _AdvancedThinkingWidget(),
+          if (_isLoading) const _CompactThinkingWidget(),
           _buildQuickActions(),
           _buildInputArea(context),
         ],
@@ -700,17 +700,41 @@ class _ChatBubbleState extends State<_ChatBubble> {
               fontWeight: FontWeight.w500,
             ),
           )
-        : MarkdownBody(
-            data: widget.message.text,
-            styleSheet: MarkdownStyleSheet(
-              p: TextStyle(color: AppTheme.textPri(context), fontSize: 15, height: 1.4, letterSpacing: 0.1),
-              strong: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w900, fontSize: 15),
-              listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 15, fontWeight: FontWeight.bold),
-              blockSpacing: 8,
-              tableBorder: TableBorder.all(color: AppTheme.primaryColor.withValues(alpha: 0.3), width: 1, borderRadius: BorderRadius.circular(8)),
-              tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              tableBody: TextStyle(color: AppTheme.textPri(context), fontSize: 14),
-              tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.bold),
+        : SelectionArea(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.74),
+                child: MarkdownBody(
+                  data: widget.message.text,
+                  selectable: false,
+                  styleSheet: MarkdownStyleSheet(
+                    p: TextStyle(color: AppTheme.textPri(context), fontSize: 14.5, height: 1.45, letterSpacing: 0.1),
+                    h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 17),
+                    h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
+                    h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 15),
+                    strong: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w800, fontSize: 14.5),
+                    em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14),
+                    listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14.5, fontWeight: FontWeight.bold),
+                    blockSpacing: 10,
+                    tableBorder: TableBorder.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                      width: 1,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    tableBody: TextStyle(color: AppTheme.textPri(context), fontSize: 13, height: 1.35),
+                    tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.bold),
+                    tableColumnWidth: const IntrinsicColumnWidth(),
+                    blockquote: TextStyle(color: AppTheme.textSec(context), fontSize: 13.5, fontStyle: FontStyle.italic),
+                    blockquoteDecoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: const Border(left: BorderSide(color: AppTheme.primaryColor, width: 3)),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
     );
@@ -817,36 +841,36 @@ class _ChatBubbleState extends State<_ChatBubble> {
   }
 }
 
-class _AdvancedThinkingWidget extends StatefulWidget {
-  const _AdvancedThinkingWidget();
+class _CompactThinkingWidget extends StatefulWidget {
+  const _CompactThinkingWidget();
 
   @override
-  State<_AdvancedThinkingWidget> createState() => _AdvancedThinkingWidgetState();
+  State<_CompactThinkingWidget> createState() => _CompactThinkingWidgetState();
 }
 
-class _AdvancedThinkingWidgetState extends State<_AdvancedThinkingWidget> {
+class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
   int _currentStepIndex = 0;
   bool _isExpanded = false;
   Timer? _timer;
 
   final List<String> _stages = [
-    "⚡ Querying Neural Vector Index & Context Graph...",
-    "🔍 Aggregating Product Metrics & Stock Telemetry...",
-    "📊 Evaluating Inventory Velocity, Turnover & Risk Exposure...",
-    "💡 Synthesizing Extraordinary Executive Blueprint...",
+    "Thinking...",
+    "Scanning stock telemetry...",
+    "Evaluating risk & velocity...",
+    "Synthesizing blueprint...",
   ];
 
   final List<String> _reasoningLogs = [
     "• Initialized Gemini 3.5 Deep Reasoning Engine",
-    "• Retrieved live stock analytics & transactional context",
-    "• Cross-referencing threshold limits & order imbalances",
-    "• Applying executive supply-chain decision rules",
+    "• Vectorizing context & stock analytics",
+    "• Evaluating reorder thresholds & sales velocity",
+    "• Formulating executive supply-chain advice",
   ];
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (mounted) {
         setState(() {
           if (_currentStepIndex < _stages.length - 1) {
@@ -865,212 +889,116 @@ class _AdvancedThinkingWidgetState extends State<_AdvancedThinkingWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final currentStage = _stages[_currentStepIndex];
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14.0, left: 16.0, right: 16.0),
+      padding: const EdgeInsets.only(bottom: 10.0, left: 16.0, right: 16.0),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.88),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              colors: [
-                AppTheme.primaryColor.withValues(alpha: 0.15),
-                AppTheme.surface(context).withValues(alpha: 0.9),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(
-              color: AppTheme.primaryColor.withValues(alpha: 0.4),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryColor.withValues(alpha: 0.25),
-                blurRadius: 18,
-                spreadRadius: 1,
-              )
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        // Animated pulsing radar icon
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryColor.withValues(alpha: 0.5),
-                                blurRadius: 10,
-                                spreadRadius: 1,
-                              )
-                            ],
-                          ),
-                          child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 16),
-                        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-                         .scale(begin: const Offset(0.9, 0.9), end: const Offset(1.15, 1.15), duration: 800.ms),
-                        
-                        const SizedBox(width: 10),
-                        
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.5), width: 0.8),
-                                    ),
-                                    child: const Text(
-                                      "DEEP REASONING",
-                                      style: TextStyle(
-                                        color: AppTheme.primaryColor,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    "[${_currentStepIndex + 1}/${_stages.length}]",
-                                    style: TextStyle(
-                                      color: AppTheme.textSec(context),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
-                                child: Text(
-                                  currentStage,
-                                  key: ValueKey(_currentStepIndex),
-                                  style: TextStyle(
-                                    color: AppTheme.textPri(context),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        // Expand / collapse trigger button
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _isExpanded = !_isExpanded;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: AppTheme.surface(context).withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-                            ),
-                            child: Icon(
-                              _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.tune_rounded,
-                              color: AppTheme.primaryColor,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _isExpanded = !_isExpanded);
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface(context).withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.35),
+                      width: 1.2,
                     ),
-
-                    // Progress bar indicator
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: (_currentStepIndex + 1) / _stages.length,
-                        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                        minHeight: 3,
-                      ),
-                    ),
-
-                    // Expandable detailed thought trace drawer
-                    if (_isExpanded) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: List.generate(_reasoningLogs.length, (idx) {
-                            final isDone = idx <= _currentStepIndex;
-                            final isCurrent = idx == _currentStepIndex;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isDone ? Icons.check_circle_outlined : Icons.circle_outlined,
-                                    size: 12,
-                                    color: isCurrent 
-                                        ? AppTheme.primaryColor 
-                                        : (isDone ? Colors.green : Colors.grey.withValues(alpha: 0.5)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _reasoningLogs[idx],
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 11,
-                                        color: isCurrent 
-                                            ? AppTheme.primaryColor 
-                                            : (isDone ? AppTheme.textPri(context) : AppTheme.textSec(context).withValues(alpha: 0.6)),
-                                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ),
-                      ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.1, end: 0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        spreadRadius: 0,
+                      )
                     ],
-                  ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Tiny pulsing spark icon
+                      const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 14)
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .scale(begin: const Offset(0.85, 0.85), end: const Offset(1.15, 1.15), duration: 700.ms),
+                      const SizedBox(width: 8),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: Text(
+                          _stages[_currentStepIndex],
+                          key: ValueKey(_currentStepIndex),
+                          style: TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                        color: AppTheme.primaryColor.withValues(alpha: 0.7),
+                        size: 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1)),
+            if (_isExpanded) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+                decoration: BoxDecoration(
+                  color: AppTheme.bg(context).withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.25), width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(_reasoningLogs.length, (idx) {
+                    final isDone = idx <= _currentStepIndex;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2.5),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isDone ? Icons.check_circle_outlined : Icons.circle_outlined,
+                            size: 11,
+                            color: isDone ? AppTheme.primaryColor : Colors.grey.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _reasoningLogs[idx],
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: isDone 
+                                    ? AppTheme.textPri(context).withValues(alpha: 0.9) 
+                                    : AppTheme.textSec(context).withValues(alpha: 0.5),
+                                fontWeight: isDone ? FontWeight.w500 : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ).animate().fadeIn(duration: 150.ms).slideY(begin: -0.1, end: 0),
+            ]
+          ],
+        ),
       ),
     );
   }
