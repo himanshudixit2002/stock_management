@@ -21,10 +21,35 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
   bool _enablePoPComparison = true;
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_searchFocusNode.hasFocus) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted && _scrollController.hasClients) {
+          _scrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _searchFocusNode.removeListener(_onFocusChange);
+    _searchFocusNode.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -65,6 +90,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
       behavior: HitTestBehavior.opaque,
       child: FadeSlideIn(
         child: SingleChildScrollView(
+          controller: _scrollController,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
@@ -115,19 +141,9 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _buildChip('Category', 'category'),
-                        _buildChip('User / Cashier', 'user'),
-                        _buildChip('Vendor', 'vendor'),
-                        _buildChip('Transaction Type', 'type'),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     TextField(
                       controller: _searchController,
+                      focusNode: _searchFocusNode,
                       onChanged: (val) => setState(() => _searchQuery = val),
                       decoration: InputDecoration(
                         hintText: 'Search groups...',
@@ -148,6 +164,17 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                           borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _buildChip('Category', 'category'),
+                        _buildChip('User / Cashier', 'user'),
+                        _buildChip('Vendor', 'vendor'),
+                        _buildChip('Transaction Type', 'type'),
+                      ],
                     ),
                   ],
                 ),
