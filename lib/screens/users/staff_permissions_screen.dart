@@ -87,7 +87,7 @@ class StaffPermissionsScreen extends StatelessWidget {
                             Responsive.horizontalPadding(context),
                           ),
                           itemCount: users.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, i) {
                             final card = _UserOverrideCard(user: users[i]);

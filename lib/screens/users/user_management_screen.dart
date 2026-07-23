@@ -560,32 +560,37 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ...roles.map(
-                  (role) => RadioListTile<String>(
-                    value: role.id,
-                    groupValue: selectedRoleId,
-                    title: Text(
-                      role.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      role.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textTer(context),
+                RadioGroup<String>(
+                  groupValue: selectedRoleId,
+                  onChanged: (v) => setSheetState(() => selectedRoleId = v),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: roles.map(
+                      (role) => RadioListTile<String>(
+                        value: role.id,
+                        title: Text(
+                          role.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          role.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTer(context),
+                          ),
+                        ),
+                        secondary: Text(
+                          '${role.enabledCount}/${role.totalCount}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
-                    secondary: Text(
-                      '${role.enabledCount}/${role.totalCount}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.primaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    onChanged: (v) => setSheetState(() => selectedRoleId = v),
+                    ).toList(),
                   ),
                 ),
                 Padding(
@@ -982,7 +987,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           builder: (ctx, setLocalState) {
                             final roles = ctx.watch<RoleProvider>().roles;
                             return DropdownButtonFormField<String>(
-                              value: selectedRoleId,
+                              initialValue: selectedRoleId,
                               decoration: const InputDecoration(
                                 labelText: 'Role',
                                 prefixIcon: Icon(Icons.badge_rounded),

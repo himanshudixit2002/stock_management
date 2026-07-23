@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -12,6 +13,19 @@ class ReportPdfService {
   static final DateFormat _dateTimeFormat = DateFormat('MMM dd, yyyy HH:mm');
   static final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
 
+  static pw.Font? _notoSans;
+
+  static Future<pw.Font> _loadFont() async {
+    if (_notoSans != null) return _notoSans!;
+    try {
+      final fontData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+      _notoSans = pw.Font.ttf(fontData);
+    } catch (_) {
+      _notoSans = pw.Font.helvetica();
+    }
+    return _notoSans!;
+  }
+
   /// Generates a professional multi-page Executive Inventory & Sales PDF document.
   static Future<Uint8List> generateExecutivePdfReport({
     required String companyName,
@@ -22,9 +36,12 @@ class ReportPdfService {
     required List<CustomReportRow> categoryRows,
     required List<String> aiInsights,
   }) async {
+    final font = await _loadFont();
+    final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(
       title: '$companyName Executive Inventory Report',
       author: companyName,
+      theme: theme,
     );
 
     int totalIn = 0;

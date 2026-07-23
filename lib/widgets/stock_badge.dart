@@ -116,7 +116,7 @@ class _StockBadgeState extends State<StockBadge>
     final content = (_shouldPulse && !reduceMotion(context))
         ? AnimatedBuilder(
             animation: _controller,
-            builder: (_, __) =>
+            builder: (_, _) =>
                 badge(Curves.easeInOut.transform(_controller.value)),
           )
         : badge(0);

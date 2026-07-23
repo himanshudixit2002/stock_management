@@ -391,7 +391,7 @@ class FeatureMap {
       icon: Icons.dashboard_rounded,
       route: AppRoutes.dashboard,
       category: FeatureCategory.reports,
-      placement: FeaturePlacement.tabShortcut,
+      placement: FeaturePlacement.homeSecondary,
       permissionKey: AppPermissions.viewDashboard,
       sortOrder: 0,
     ),
@@ -426,7 +426,7 @@ class FeatureMap {
       icon: Icons.account_balance_wallet_rounded,
       route: AppRoutes.profitLoss,
       category: FeatureCategory.reports,
-      placement: FeaturePlacement.searchOnly,
+      placement: FeaturePlacement.homeSecondary,
       permissionKey: AppPermissions.viewReports,
       sortOrder: 3,
     ),
@@ -437,7 +437,7 @@ class FeatureMap {
       icon: Icons.stacked_bar_chart_rounded,
       route: AppRoutes.abcAnalysis,
       category: FeatureCategory.reports,
-      placement: FeaturePlacement.searchOnly,
+      placement: FeaturePlacement.homeSecondary,
       permissionKey: AppPermissions.viewReports,
       sortOrder: 4,
     ),
@@ -448,7 +448,7 @@ class FeatureMap {
       icon: Icons.trending_up_rounded,
       route: AppRoutes.valuationTrends,
       category: FeatureCategory.reports,
-      placement: FeaturePlacement.searchOnly,
+      placement: FeaturePlacement.homeSecondary,
       permissionKey: AppPermissions.viewReports,
       sortOrder: 5,
     ),
@@ -662,6 +662,7 @@ class FeatureMap {
       FeatureCategory.orders,
       FeatureCategory.billing,
       FeatureCategory.inventory,
+      FeatureCategory.reports,
     ];
     return order
         .where(

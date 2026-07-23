@@ -548,6 +548,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                               padding: const EdgeInsets.only(bottom: 4),
                               child: GestureDetector(
                                 onTap: () async {
+                                  final settingsProvider = context.read<SettingsProvider>();
                                   final result = await showSearchablePicker(
                                     context: context,
                                     title: 'Location',
@@ -571,10 +572,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                       );
                                     }).toList(),
                                   );
-                                  if (result == null || !mounted) return;
+                                  if (result == null || !context.mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider = context
-                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',

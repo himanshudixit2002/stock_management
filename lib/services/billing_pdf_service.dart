@@ -243,9 +243,12 @@ class BillingPdfService {
         '${item.quantity} ${item.unit}',
         _fmt(item.unitPrice, sym),
       ];
-      if (bs.enableDiscounts)
+      if (bs.enableDiscounts) {
         row.add(item.discountPercent > 0 ? '${item.discountPercent}%' : '-');
-      if (bs.enableTax) row.add(item.taxRate > 0 ? '${item.taxRate}%' : '-');
+      }
+      if (bs.enableTax) {
+        row.add(item.taxRate > 0 ? '${item.taxRate}%' : '-');
+      }
       row.add(_fmt(item.lineTotal, sym));
       data.add(row);
     }
@@ -281,7 +284,7 @@ class BillingPdfService {
       rows.add(_totalRow('Discount', '- ${_fmt(invoice.totalDiscount, sym)}'));
     }
     if (bs.enableTax && invoice.totalTax > 0) {
-      rows.add(_totalRow('${bs.taxLabel}', _fmt(invoice.totalTax, sym)));
+      rows.add(_totalRow(bs.taxLabel, _fmt(invoice.totalTax, sym)));
     }
     rows.add(pw.Divider(thickness: 0.5));
     rows.add(

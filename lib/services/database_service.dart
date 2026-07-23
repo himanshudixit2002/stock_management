@@ -505,7 +505,7 @@ class DatabaseService {
   }
 
   int _sumMapValues(Map<String, int> map) {
-    return map.values.fold<int>(0, (sum, value) => sum + value);
+    return map.values.fold<int>(0, (total, value) => total + value);
   }
 
   String _normalizeLocation(String location) {

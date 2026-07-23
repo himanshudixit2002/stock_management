@@ -501,7 +501,19 @@ class HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
-        trailing: null,
+        trailing: quickActions.isNotEmpty
+            ? Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: _RailQuickActionsButton(
+                      onTap: () => _openQuickActionsSheet(quickActions),
+                    ),
+                  ),
+                ),
+              )
+            : null,
         destinations: tabs
             .map(
               (t) => NavigationRailDestination(

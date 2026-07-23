@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
 
 class RagResponse {
@@ -45,7 +45,9 @@ class RagApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'question': question,
+          // ignore: use_null_aware_elements
           if (context != null) 'context': context,
+          // ignore: use_null_aware_elements
           if (history != null) 'history': history,
         }),
       );
@@ -65,7 +67,7 @@ class RagApiService {
             actionPayload = jsonDecode(match.group(1)!);
             rawAnswer = rawAnswer.replaceFirst(match.group(0)!, '').trim();
           } catch (e) {
-            print("Failed to parse action JSON: $e");
+            debugPrint("Failed to parse action JSON: $e");
           }
         }
 
@@ -97,7 +99,7 @@ class RagApiService {
             statsPayload = jsonDecode(statsMatch.group(1)!);
             rawAnswer = rawAnswer.replaceFirst(statsMatch.group(0)!, '').trim();
           } catch (e) {
-            print("Failed to parse stats JSON: $e");
+            debugPrint("Failed to parse stats JSON: $e");
           }
         }
         
@@ -127,7 +129,7 @@ class RagApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      print("Failed to sync catalog to RAG backend: $e");
+      debugPrint("Failed to sync catalog to RAG backend: $e");
       return false;
     }
   }
@@ -138,7 +140,7 @@ class RagApiService {
     try {
       await http.post(url);
     } catch (e) {
-      print("Failed to clear backend cache: $e");
+      debugPrint("Failed to clear backend cache: $e");
     }
   }
 }

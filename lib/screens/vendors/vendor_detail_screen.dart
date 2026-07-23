@@ -1034,29 +1034,27 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                                   toAssign.isEmpty && toUnassign.isEmpty;
 
                               if (unchanged) return;
+                              final vendorProvider = parentCtx.read<VendorProvider>();
+                              final productProvider = parentCtx.read<ProductProvider>();
 
                               bool ok = true;
                               if (toAssign.isNotEmpty) {
-                                ok = await parentCtx
-                                    .read<VendorProvider>()
-                                    .bulkAssignVendor(
-                                      productIds: toAssign,
-                                      vendorId: vendor.id,
-                                      vendorName: vendor.name,
-                                    );
+                                ok = await vendorProvider.bulkAssignVendor(
+                                  productIds: toAssign,
+                                  vendorId: vendor.id,
+                                  vendorName: vendor.name,
+                                );
                               }
                               if (toUnassign.isNotEmpty && ok) {
-                                ok = await parentCtx
-                                    .read<VendorProvider>()
-                                    .bulkAssignVendor(
-                                      productIds: toUnassign,
-                                      vendorId: '',
-                                      vendorName: '',
-                                    );
+                                ok = await vendorProvider.bulkAssignVendor(
+                                  productIds: toUnassign,
+                                  vendorId: '',
+                                  vendorName: '',
+                                );
                               }
 
-                              if (mounted) {
-                                parentCtx.read<ProductProvider>()
+                              if (context.mounted) {
+                                productProvider
                                   ..invalidateAnalytics()
                                   ..loadAnalytics();
 

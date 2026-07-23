@@ -152,6 +152,7 @@ class _StockInScreenState extends State<StockInScreen> {
       final uid = user.uid;
       final userName = user.name;
 
+      final localContext = context;
       productProvider.refreshProducts();
       HapticFeedback.mediumImpact();
       _quantityController.clear();
@@ -165,11 +166,11 @@ class _StockInScreenState extends State<StockInScreen> {
         _formKey = GlobalKey<FormState>();
       });
       messenger.hideCurrentSnackBar();
-      showSuccessOverlay(context, message: 'Stock added successfully');
+      showSuccessOverlay(localContext, message: 'Stock added successfully');
       Future.delayed(const Duration(milliseconds: 1300), () {
-        if (!context.mounted) return;
+        if (!localContext.mounted) return;
         showUndoSnackBar(
-          context,
+          localContext,
           'Added $quantity to $productName. Undo?',
           () async {
             final undone = await stockProvider.removeStock(
@@ -186,8 +187,8 @@ class _StockInScreenState extends State<StockInScreen> {
             if (undone) {
               productProvider.refreshProducts();
               messenger.hideCurrentSnackBar();
-              if (context.mounted) {
-                showSuccessSnackBar(context, 'Stock-in undone');
+              if (localContext.mounted) {
+                showSuccessSnackBar(localContext, 'Stock-in undone');
               }
             }
           },
@@ -414,6 +415,7 @@ class _StockInScreenState extends State<StockInScreen> {
                           // Location selector
                           GestureDetector(
                             onTap: () async {
+                              final settingsProvider = context.read<SettingsProvider>();
                               final result = await showSearchablePicker(
                                 context: context,
                                 title: 'Location',
@@ -434,10 +436,8 @@ class _StockInScreenState extends State<StockInScreen> {
                                   );
                                 }).toList(),
                               );
-                              if (result == null || !mounted) return;
+                              if (result == null || !context.mounted) return;
                               if (result == '__create_new__') {
-                                final settingsProvider = context
-                                    .read<SettingsProvider>();
                                 final newName = await showAddNameDialog(
                                   context,
                                   title: 'Add new location',

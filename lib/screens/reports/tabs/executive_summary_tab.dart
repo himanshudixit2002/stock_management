@@ -27,14 +27,24 @@ class ExecutiveSummaryTab extends StatelessWidget {
     final products = productProvider.products;
     final pMap = {for (final p in products) p.id: p};
 
-    final periodDays = stockProvider.filterStartDate != null && stockProvider.filterEndDate != null
-        ? stockProvider.filterEndDate!.difference(stockProvider.filterStartDate!).inDays.abs()
-        : 30;
+    final now = DateTime.now();
+    final currentEnd = stockProvider.filterEndDate ?? now;
+    final currentStart = stockProvider.filterStartDate ?? currentEnd.subtract(const Duration(days: 30));
+    final duration = currentEnd.difference(currentStart);
+    final periodDays = duration.inDays.abs();
+    final prevEnd = currentStart.subtract(const Duration(days: 1));
+    final prevStart = prevEnd.subtract(duration);
+    final prevStartDay = DateTime(prevStart.year, prevStart.month, prevStart.day);
+    final prevEndExcl = DateTime(prevEnd.year, prevEnd.month, prevEnd.day + 1);
+
+    final previousTx = stockProvider.allTransactions.where((t) {
+      return !t.date.isBefore(prevStartDay) && t.date.isBefore(prevEndExcl);
+    }).toList();
 
     final analytics = ReportAnalyticsService();
     final deltas = analytics.computePeriodOverPeriodDeltas(
       currentTx: transactions,
-      previousTx: const [],
+      previousTx: previousTx,
       productMap: pMap,
     );
 

@@ -1380,8 +1380,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       textCapitalization:
                                           TextCapitalization.words,
                                       onChanged: (_) {
-                                        if (errorText != null)
+                                        if (errorText != null) {
                                           setSheetState(() => errorText = null);
+                                        }
                                       },
                                       onSubmitted: (_) => handleAdd(),
                                     ),

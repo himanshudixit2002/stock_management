@@ -75,10 +75,12 @@ class _VendorListScreenState extends State<VendorListScreen> {
           return false;
         }
       }
-      if (_statusFilter == _StatusFilter.activeOnly && !v.isActive)
+      if (_statusFilter == _StatusFilter.activeOnly && !v.isActive) {
         return false;
-      if (_statusFilter == _StatusFilter.inactiveOnly && v.isActive)
+      }
+      if (_statusFilter == _StatusFilter.inactiveOnly && v.isActive) {
         return false;
+      }
       if (_minRating > 0 && v.rating < _minRating) return false;
       return true;
     }).toList();

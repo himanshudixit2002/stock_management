@@ -375,6 +375,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                               padding: const EdgeInsets.only(bottom: 16),
                               child: GestureDetector(
                                 onTap: () async {
+                                  final settingsProvider = context.read<SettingsProvider>();
                                   final result = await showSearchablePicker(
                                     context: context,
                                     title: 'From Location',
@@ -396,10 +397,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       );
                                     }).toList(),
                                   );
-                                  if (result == null || !mounted) return;
+                                  if (result == null || !context.mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider = context
-                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',
@@ -408,18 +407,20 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       onAdd: (name) =>
                                           settingsProvider.addLocation(name),
                                     );
-                                    if (newName != null && mounted) {
+                                    if (newName != null && context.mounted) {
                                       setState(() {
                                         _fromLocation = newName;
-                                        if (_toLocation == newName)
+                                        if (_toLocation == newName) {
                                           _toLocation = null;
+                                        }
                                       });
                                     }
                                   } else {
                                     setState(() {
                                       _fromLocation = result;
-                                      if (_toLocation == result)
+                                      if (_toLocation == result) {
                                         _toLocation = null;
+                                      }
                                     });
                                   }
                                 },
@@ -478,6 +479,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                               padding: const EdgeInsets.only(bottom: 16),
                               child: GestureDetector(
                                 onTap: () async {
+                                  final settingsProvider = context.read<SettingsProvider>();
                                   final toItems = settingsLocations
                                       .where((l) => l != _fromLocation)
                                       .map(
@@ -497,10 +499,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                     addNewValue: '__create_new__',
                                     items: toItems,
                                   );
-                                  if (result == null || !mounted) return;
+                                  if (result == null || !context.mounted) return;
                                   if (result == '__create_new__') {
-                                    final settingsProvider = context
-                                        .read<SettingsProvider>();
                                     final newName = await showAddNameDialog(
                                       context,
                                       title: 'Add new location',
@@ -509,7 +509,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       onAdd: (name) =>
                                           settingsProvider.addLocation(name),
                                     );
-                                    if (newName != null && mounted) {
+                                    if (newName != null && context.mounted) {
                                       setState(() => _toLocation = newName);
                                     }
                                   } else {

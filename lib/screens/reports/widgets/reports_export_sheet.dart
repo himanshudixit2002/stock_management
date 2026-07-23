@@ -41,9 +41,22 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
         groupBy: 'category',
       );
 
+      final now = DateTime.now();
+      final currentEnd = stockProvider.filterEndDate ?? now;
+      final currentStart = stockProvider.filterStartDate ?? currentEnd.subtract(const Duration(days: 30));
+      final duration = currentEnd.difference(currentStart);
+      final prevEnd = currentStart.subtract(const Duration(days: 1));
+      final prevStart = prevEnd.subtract(duration);
+      final prevStartDay = DateTime(prevStart.year, prevStart.month, prevStart.day);
+      final prevEndExcl = DateTime(prevEnd.year, prevEnd.month, prevEnd.day + 1);
+
+      final previousTx = stockProvider.allTransactions.where((t) {
+        return !t.date.isBefore(prevStartDay) && t.date.isBefore(prevEndExcl);
+      }).toList();
+
       final deltas = ReportAnalyticsService().computePeriodOverPeriodDeltas(
         currentTx: stockProvider.recentTransactions,
-        previousTx: const [],
+        previousTx: previousTx,
         productMap: pMap,
       );
 

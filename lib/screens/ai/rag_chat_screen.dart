@@ -17,7 +17,6 @@ import '../../models/sales_order_model.dart';
 import '../../models/purchase_order_model.dart';
 import '../../services/rag_api_service.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import '../../utils/responsive.dart';
 
 class RagChatScreen extends StatefulWidget {
   const RagChatScreen({super.key});
@@ -1047,7 +1046,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
       final payload = widget.message.actionPayload!;
       final type = payload['type'] ?? 'update_stock';
       final isPo = type == 'create_po';
-      final qty = payload['qty_change'] ?? payload['reorder_qty'] ?? 0;
+      final num qty = payload['qty_change'] ?? payload['reorder_qty'] ?? 0;
       final productName = payload['product_name'] ?? '';
       final barcode = payload['barcode'] ?? '';
       final supplier = payload['supplier'] ?? '';
@@ -1058,7 +1057,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
       final String actionDesc = isPo
           ? "Reorder $qty units of ${productName.isNotEmpty ? productName : 'item'}"
-          : ((qty as num) >= 0 ? "Add $qty units to stock" : "Deduct ${(qty as num).abs()} units from stock");
+          : (qty >= 0 ? "Add $qty units to stock" : "Deduct ${qty.abs()} units from stock");
 
       final String actionDetail = isPo
           ? (supplier.isNotEmpty ? "Supplier: $supplier • Barcode: $barcode" : "Barcode: $barcode")

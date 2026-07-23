@@ -70,6 +70,29 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
       groupBy: _groupBy,
     );
 
+    Map<String, CustomReportRow>? prevRowMap;
+    if (_enablePoPComparison) {
+      final now = DateTime.now();
+      final currentEnd = stockProvider.filterEndDate ?? now;
+      final currentStart = stockProvider.filterStartDate ?? currentEnd.subtract(const Duration(days: 30));
+      final duration = currentEnd.difference(currentStart);
+      final prevEnd = currentStart.subtract(const Duration(days: 1));
+      final prevStart = prevEnd.subtract(duration);
+      final prevStartDay = DateTime(prevStart.year, prevStart.month, prevStart.day);
+      final prevEndExcl = DateTime(prevEnd.year, prevEnd.month, prevEnd.day + 1);
+
+      final previousTx = stockProvider.allTransactions.where((t) {
+        return !t.date.isBefore(prevStartDay) && t.date.isBefore(prevEndExcl);
+      }).toList();
+
+      final prevRows = analytics.generateCustomReport(
+        transactions: previousTx,
+        productMap: pMap,
+        groupBy: _groupBy,
+      );
+      prevRowMap = {for (final r in prevRows) r.groupName: r};
+    }
+
     final filteredRows = rows.where((r) {
       if (_searchQuery.isEmpty) return true;
       return r.groupName.toLowerCase().contains(_searchQuery.toLowerCase());
@@ -245,11 +268,49 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                               ),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  'Rev: ${currency.format(row.salesRevenue)} • Profit: ${currency.format(row.profit)} (${row.profitMarginPct.toStringAsFixed(1)}%)',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Rev: ${currency.format(row.salesRevenue)} • Profit: ${currency.format(row.profit)} (${row.profitMarginPct.toStringAsFixed(1)}%)',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                                    ),
+                                    if (_enablePoPComparison && prevRowMap != null) ...[
+                                      const SizedBox(height: 2),
+                                      Builder(
+                                        builder: (context) {
+                                          final prevRow = prevRowMap![row.groupName];
+                                          final prevRevenue = prevRow?.salesRevenue ?? 0.0;
+                                          final revChangePct = prevRevenue > 0
+                                              ? ((row.salesRevenue - prevRevenue) / prevRevenue) * 100
+                                              : (row.salesRevenue > 0 ? 100.0 : 0.0);
+                                          final isPositive = revChangePct >= 0;
+                                          return Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                                size: 11,
+                                                color: isPositive ? Colors.green : Colors.red,
+                                              ),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                'PoP Rev: ${isPositive ? "+" : ""}${revChangePct.toStringAsFixed(1)}% vs prev period',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isPositive ? Colors.green : Colors.red,
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               trailing: Container(

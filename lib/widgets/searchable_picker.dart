@@ -56,8 +56,9 @@ Future<String?> showSearchablePicker({
                   final q = search.toLowerCase();
                   if (item.label.toLowerCase().contains(q)) return true;
                   if (item.subtitle != null &&
-                      item.subtitle!.toLowerCase().contains(q))
+                      item.subtitle!.toLowerCase().contains(q)) {
                     return true;
+                  }
                   return false;
                 }).toList();
 
