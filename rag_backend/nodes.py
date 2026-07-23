@@ -1,58 +1,70 @@
 import json
+import os
 import re
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+# Load env variables from current directory or parent directory
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from state import GraphState
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-# 1. Structured Tool Schema
+from state import GraphState
+from inventory_db import db_instance
+
+# ---------------------------------------------------------
+# 1. Action Tool Schemas
+# ---------------------------------------------------------
+
 class UpdateStock(BaseModel):
-    product_name: str = Field(description="The name of the product to update.")
-    barcode: str = Field(description="The exact alphanumeric barcode of the product extracted from the context.")
-    qty_change: int = Field(description="The exact quantity to add (positive) or deduct (negative).")
+    barcode_or_name: str = Field(description="The barcode or product name of the item to update.")
+    qty_change: int = Field(description="The quantity to add (positive integer) or deduct (negative integer).")
+    reason: Optional[str] = Field(default="Manual Adjustment", description="Reason for stock adjustment.")
 
 class CreatePurchaseOrder(BaseModel):
-    supplier_name: str = Field(default="Default Supplier", description="Name of the supplier or vendor.")
-    product_name: str = Field(description="The product name to reorder.")
-    barcode: str = Field(description="Barcode of the product to reorder.")
-    reorder_qty: int = Field(description="Suggested reorder quantity.")
+    barcode_or_name: str = Field(description="The barcode or product name of the item to reorder.")
+    reorder_qty: int = Field(description="Quantity to reorder from supplier.")
+    supplier_name: Optional[str] = Field(default="Default Supplier", description="Name of supplier/vendor.")
 
-# 2. Specialized System Prompts
-lite_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are the automated inventory ledger for SmartShelfKart. Your ONLY task is tool execution.\n\n"
-               "CRITICAL DATABASE SCHEMA:\n"
-               "- product_name (string)\n"
-               "- barcode (string)\n"
-               "- current_stock (integer)\n\n"
-               "RULES:\n"
-               "1. Match the user's requested item to the context, extract the exact barcode, and call UpdateStock or CreatePurchaseOrder. Do not guess.\n"
-               "2. If the barcode is missing, output exactly one short sentence asking for it (e.g., 'Please provide the barcode for [Product].').\n"
-               "3. NO conversational filler. NO greetings."),
-    ("user", "Context: {context}\nQuestion: {question}\nAssistant:")
-])
+class TransferStock(BaseModel):
+    barcode_or_name: str = Field(description="The barcode or product name of the item to transfer.")
+    from_location: str = Field(description="Source location e.g. Store Front or Warehouse B.")
+    to_location: str = Field(description="Target destination location.")
+    qty: int = Field(description="Quantity of units to move.")
 
-pro_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are Ask AI, an energetic, ultra-smart, and playful inventory assistant for SmartShelfKart.\n\n"
-               "CRITICAL RULES:\n"
-               "1. ZERO PARAGRAPHS: Strictly NEVER output multi-line paragraph blocks. ALL answers MUST be structured using short, simple bulleted points (•) or key metrics.\n"
-               "2. PLAYFUL & TO THE POINT: Be friendly, lively, upbeat, and engaging with relevant emojis (⚡, 📦, 🎯, 🔥, 🚀). Skip all corporate preamble (never say 'Here is your summary' or 'Based on the context'). Jump straight to the point.\n"
-               "3. SHORT & CRISP: Maximum 2-3 ultra-short bullet points total. Keep every point direct, simple, and unique.\n"
-               "4. FACTUAL GROUNDING: Be 100% truthful to numbers in context. Never hallucinate quantities or barcodes.\n"
-               "5. You DO NOT have direct stock edit tools in this mode. Answer strictly using context."),
-    ("user", "Context: {context}\nQuestion: {question}\nAssistant:")
-])
+class AuditInventory(BaseModel):
+    barcode_or_name: str = Field(description="The barcode or product name of the item audited.")
+    actual_stock: int = Field(description="Physical counted stock quantity.")
+    notes: Optional[str] = Field(default="Physical Audit", description="Audit observation notes e.g. damaged goods.")
 
-# 3. Model & Chain Initialization
-llm_lite = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
-llm_pro = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.3)
+class SetReorderAlert(BaseModel):
+    barcode_or_name: str = Field(description="The barcode or product name of the item.")
+    new_min_threshold: int = Field(description="New minimum safety stock threshold.")
 
-llm_lite_with_tools = llm_lite.bind_tools([UpdateStock, CreatePurchaseOrder])
+# ---------------------------------------------------------
+# 2. LLM Initialization & Tool Binding
+# ---------------------------------------------------------
 
-# 4. Data Layer Retrieval
+api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "MOCK_KEY_FOR_INIT"
+
+llm_action = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, google_api_key=api_key)
+llm_pro = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.2, google_api_key=api_key)
+
+ACTION_TOOLS = [UpdateStock, CreatePurchaseOrder, TransferStock, AuditInventory, SetReorderAlert]
+llm_action_with_tools = llm_action.bind_tools(ACTION_TOOLS)
+
+# ---------------------------------------------------------
+# 3. Vectorstore Retriever
+# ---------------------------------------------------------
+
 def get_retriever():
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=api_key)
     vectorstore = Chroma(
         collection_name="stock_inventory",
         embedding_function=embeddings,
@@ -60,133 +72,315 @@ def get_retriever():
     )
     return vectorstore.as_retriever(search_kwargs={"k": 3})
 
-def retrieve(state: GraphState):
+# ---------------------------------------------------------
+# 4. Multi-Agent Graph Nodes
+# ---------------------------------------------------------
+
+def router_node(state: GraphState) -> GraphState:
+    """Classifies user intent into ACTION, ANALYTICS, or KNOWLEDGE using word-boundary matching."""
+    question = state["question"].lower()
+    
+    action_keywords = [r"\bupdate\b", r"\badd\b", r"\bdeduct\b", r"\bremove\b", r"\breorder\b", r"\bpo\b", r"\bpurchase order\b", r"\btransfer\b", r"\bmove\b", r"\baudit\b", r"\bset threshold\b", r"\balert\b"]
+    analytics_keywords = [r"\banalyze\b", r"\bforecast\b", r"\btrend\b", r"\bpredict\b", r"\bgrowth\b", r"\breport\b", r"\bsummary\b", r"\bstats\b", r"\bmetrics\b", r"\btop\b", r"\blow stock\b", r"\bout of stock\b", r"\bvaluation\b"]
+    
+    is_action = any(re.search(kw, question) for kw in action_keywords)
+    is_analytics = any(re.search(kw, question) for kw in analytics_keywords)
+    
+    if is_action:
+        intent = "ACTION"
+    elif is_analytics:
+        intent = "ANALYTICS"
+    else:
+        intent = "KNOWLEDGE"
+        
+    state["intent"] = intent
+    return state
+
+def retrieve_node(state: GraphState) -> GraphState:
+    """Retrieves vector context AND pulls live database records."""
     question = state["question"]
     provided_context = state.get("provided_context")
 
+    documents = []
     if provided_context:
-        documents = [Document(page_content=provided_context)]
+        documents.append(Document(page_content=provided_context))
     else:
         try:
-            retriever = get_retriever()
-            documents = retriever.invoke(question)
+            if api_key != "MOCK_KEY_FOR_INIT":
+                retriever = get_retriever()
+                documents = retriever.invoke(question)
         except Exception:
-            documents = []
-    
-    return {"documents": documents, "question": question}
+            pass
 
-# 5. Core Operational Brain
-def generate(state: GraphState):
+    # Always enrich with live DB state
+    all_products = db_instance.get_all_products()
+    db_context_str = "LIVE DATABASE RECORDS:\n" + "\n".join([
+        f"- Product: {p['name']} | Barcode: {p['barcode']} | Stock: {p['stock']} | Min Threshold: {p['min_threshold']} | Location: {p.get('location', 'Main Store')} | Velocity: {p.get('sales_velocity', 0)}/wk"
+        for p in all_products
+    ])
+    documents.append(Document(page_content=db_context_str))
+
+    state["documents"] = documents
+    return state
+
+def _fallback_rule_matcher(question: str) -> Optional[Dict[str, Any]]:
+    """Fallback action tool matcher when running offline or without an active API key."""
+    q = question.lower()
+    all_prods = db_instance.get_all_products()
+    
+    # Try finding matching product in question
+    target_product = None
+    for p in all_prods:
+        if p["barcode"] in question or p["name"].lower() in q:
+            target_product = p
+            break
+            
+    if not target_product and all_prods:
+        target_product = all_prods[0] # Default to first product if unspecified
+        
+    if not target_product:
+        return None
+
+    # Detect update stock
+    nums = re.findall(r'\b\d+\b', question)
+    qty = int(nums[0]) if nums else 10
+
+    if any(k in q for k in ["add", "increase", "update", "restock"]):
+        res = db_instance.update_stock(target_product["barcode"], qty, "Rule Action")
+        return {"tool": "UpdateStock", "res": res, "qty": qty}
+    elif any(k in q for k in ["deduct", "remove", "reduce", "minus"]):
+        res = db_instance.update_stock(target_product["barcode"], -qty, "Rule Action")
+        return {"tool": "UpdateStock", "res": res, "qty": -qty}
+    elif any(k in q for k in ["reorder", "po", "purchase order"]):
+        res = db_instance.create_purchase_order(target_product["barcode"], qty, "Auto Supplier")
+        return {"tool": "CreatePurchaseOrder", "res": res, "qty": qty}
+        
+    return None
+
+def action_agent_node(state: GraphState) -> GraphState:
+    """Executes tools against live Inventory DB and logs ledger mutations."""
     question = state["question"]
     documents = state["documents"]
     history = state.get("history") or []
     
-    docs_text = "\n\n".join(doc.page_content for doc in documents) if documents else "No inventory context available."
-    
-    q_lower = question.lower()
-    analytics_keywords = ["analyze", "forecast", "trend", "predict", "growth", "report", "summary", "why"]
-    operation_keywords = ["update", "add", "remove", "deduct", "stock", "change"]
-    
-    is_analytics = any(kw in q_lower for kw in analytics_keywords)
-    has_operation = any(kw in q_lower for kw in operation_keywords)
-    
-    is_simple_update = has_operation and not is_analytics
-    
-    from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-    
-    messages = []
-    if is_simple_update:
-        messages.append(SystemMessage(content=(
-            "You are the automated inventory ledger for SmartShelfKart. Your ONLY task is tool execution.\n\n"
-            "CRITICAL DATABASE SCHEMA:\n"
-            "- product_name (string)\n"
-            "- barcode (string)\n"
-            "- current_stock (integer)\n\n"
-            "RULES:\n"
-            "1. Match the user's requested item to the context, extract the exact barcode, and call the UpdateStock tool. Do not guess.\n"
-            "2. If the barcode is missing, output exactly one short sentence asking for it (e.g., 'Please provide the barcode for [Product].').\n"
-            "3. NO conversational filler, NO greetings, NO explanations."
-        )))
-    else:
-        messages.append(SystemMessage(content=(
-            "You are Ask AI, an ultra-smart, playful, and energetic inventory assistant for SmartShelfKart.\n\n"
-            "CRITICAL RESPONSE DIRECTIVES:\n"
-            "1. ZERO PARAGRAPHS: Strictly avoid multi-sentence paragraph blocks! Format ALL answers into 2-3 short, simple, bulleted points (•) or key metrics.\n"
-            "2. PLAYFUL & TO THE POINT: Be energetic, fun, friendly, and engaging with emojis. Jump directly to the core answer—no fluff, no corporate intro filler.\n"
-            "3. ULTRA CONCISE: Keep answers simple, punchy, and to the point. Make every point crystal clear.\n"
-            "4. FACTUAL GROUNDING: Rely strictly on numbers provided in context.\n"
-            "5. VISUAL METRICS PAYLOAD: Whenever giving inventory summaries or low-stock reports, append a JSON block at the very end formatted as: [STATS: {\"total\": <number>, \"low\": <number>, \"out\": <number>, \"pending_so\": <number>, \"pending_po\": <number>}]"
-        )))
-        
-    for msg in history:
-        role = msg.get("role")
-        content = msg.get("content", "")
-        if role == "user":
-            messages.append(HumanMessage(content=content))
-        elif role in ["assistant", "model"]:
-            messages.append(AIMessage(content=content))
-            
-    messages.append(HumanMessage(content=f"Context: {docs_text}\nQuestion: {question}"))
-    
-    try:
-        if is_simple_update:
-            response = llm_lite_with_tools.invoke(messages)
-        else:
-            response = llm_pro.invoke(messages)
-    except Exception as e:
-        print(f"LLM Error: {e}")
-        return {"documents": documents, "question": question, "generation": "I am currently experiencing connection issues with my AI brain. Please try again later."}
-    
-    if hasattr(response, "tool_calls") and response.tool_calls:
-        tool_call = response.tool_calls[0]
-        if tool_call["name"] == "UpdateStock":
-            args = tool_call["args"]
-            product_name = args.get("product_name", "")
-            qty = args.get("qty_change", 0)
-            barcode = args.get("barcode", "")
-            
-            if not barcode or barcode == product_name:
-                return {"documents": documents, "question": question, "generation": f"Could you please provide the exact barcode for {product_name}?"}
-            
-            action_json = json.dumps({
-                "type": "update_stock", 
-                "barcode": barcode, 
-                "qty_change": qty
-            })
-            generation = f"📦 Stock adjustment prepared for {product_name} (Barcode: {barcode}).\n\n[ACTION: {action_json}]"
-            return {"documents": documents, "question": question, "generation": generation}
-        elif tool_call["name"] == "CreatePurchaseOrder":
-            args = tool_call["args"]
-            product_name = args.get("product_name", "")
-            qty = args.get("reorder_qty", 10)
-            barcode = args.get("barcode", "")
-            supplier = args.get("supplier_name", "Default Supplier")
-            
-            action_json = json.dumps({
-                "type": "create_po", 
-                "barcode": barcode, 
-                "product_name": product_name,
-                "reorder_qty": qty,
-                "supplier": supplier
-            })
-            generation = f"📋 Purchase Order draft created for {product_name} (Qty: {qty}).\n\n[ACTION: {action_json}]"
-            return {"documents": documents, "question": question, "generation": generation}
-    
-    generation = response.content
-    
-    if isinstance(generation, list):
-        text_blocks = []
-        for block in generation:
-            if isinstance(block, dict) and "text" in block:
-                text_blocks.append(block["text"])
-            elif isinstance(block, str):
-                text_blocks.append(block)
-        generation = "".join(text_blocks)
-    elif not isinstance(generation, str):
-        generation = str(generation)
-        
-    if not generation.strip():
-        generation = "✅ Request processed successfully."
-        
-    return {"documents": documents, "question": question, "generation": generation}
+    context_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
 
+    executed_actions = []
+    
+    # Check if real API Key is available
+    if api_key == "MOCK_KEY_FOR_INIT":
+        # Rule-based fallback tool execution
+        fallback_res = _fallback_rule_matcher(question)
+        if fallback_res:
+            tool_name = fallback_res["tool"]
+            res = fallback_res["res"]
+            executed_actions.append({"tool": tool_name, "result": res})
+            if res.get("success"):
+                p = res.get("product", {})
+                if tool_name == "UpdateStock":
+                    generation = f"⚡ Stock updated for **{p.get('name')}** (Barcode: `{p.get('barcode')}`).\n" \
+                                 f"• Old Stock: {res['old_stock']} → New Stock: **{res['new_stock']}** units."
+                elif tool_name == "CreatePurchaseOrder":
+                    generation = f"📦 Purchase Order **{res['po_id']}** created for **{p.get('name')}**.\n" \
+                                 f"• Quantity: **{res['reorder_qty']}** units | Total Cost: **${res['total_cost']:.2f}**"
+                else:
+                    generation = f"✅ Action processed successfully for {p.get('name')}."
+            else:
+                generation = f"❌ Action failed: {res.get('error')}"
+        else:
+            generation = "⚠️ Please set your GOOGLE_API_KEY in `rag_backend/.env` to enable full LLM function calling."
+            
+        state["executed_actions"] = executed_actions
+        state["generation"] = generation
+        return state
+
+    system_prompt = (
+        "You are the Action Execution Agent for SmartShelfKart Inventory Ledger.\n"
+        "Your role is to extract arguments and invoke the correct tool:\n"
+        "- UpdateStock(barcode_or_name, qty_change, reason)\n"
+        "- CreatePurchaseOrder(barcode_or_name, reorder_qty, supplier_name)\n"
+        "- TransferStock(barcode_or_name, from_location, to_location, qty)\n"
+        "- AuditInventory(barcode_or_name, actual_stock, notes)\n"
+        "- SetReorderAlert(barcode_or_name, new_min_threshold)\n\n"
+        "DATABASE SCHEMA Context:\n" + context_text + "\n\n"
+        "RULES:\n"
+        "1. Select the exact product barcode or name from context.\n"
+        "2. If missing parameters, output a short single-sentence clarification request.\n"
+        "3. NO conversational filler."
+    )
+
+    messages = [SystemMessage(content=system_prompt)]
+    for msg in history:
+        r = msg.get("role")
+        c = msg.get("content", "")
+        if r == "user":
+            messages.append(HumanMessage(content=c))
+        elif r in ["assistant", "model"]:
+            messages.append(AIMessage(content=c))
+    messages.append(HumanMessage(content=question))
+
+    try:
+        response = llm_action_with_tools.invoke(messages)
+    except Exception as e:
+        state["generation"] = f"Action Execution Error: {str(e)}"
+        return state
+
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        for tool_call in response.tool_calls:
+            t_name = tool_call["name"]
+            args = tool_call["args"]
+            target = args.get("barcode_or_name", "")
+
+            if t_name == "UpdateStock":
+                res = db_instance.update_stock(target, args.get("qty_change", 0), args.get("reason", "API Action"))
+                executed_actions.append({"tool": "UpdateStock", "result": res})
+                if res.get("success"):
+                    p = res["product"]
+                    generation = f"⚡ Stock updated for **{p['name']}** (Barcode: `{p['barcode']}`).\n" \
+                                 f"• Old Stock: {res['old_stock']} → New Stock: **{res['new_stock']}** units."
+                else:
+                    generation = f"❌ Stock update failed: {res.get('error')}"
+
+            elif t_name == "CreatePurchaseOrder":
+                res = db_instance.create_purchase_order(target, args.get("reorder_qty", 10), args.get("supplier_name", "Default Supplier"))
+                executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
+                if res.get("success"):
+                    p = res["product"]
+                    generation = f"📦 Purchase Order **{res['po_id']}** created for **{p['name']}**.\n" \
+                                 f"• Quantity: **{res['reorder_qty']}** units\n" \
+                                 f"• Supplier: {res['supplier']}\n" \
+                                 f"• Total Estimated Cost: **${res['total_cost']:.2f}**"
+                else:
+                    generation = f"❌ Purchase order creation failed: {res.get('error')}"
+
+            elif t_name == "TransferStock":
+                res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1))
+                executed_actions.append({"tool": "TransferStock", "result": res})
+                if res.get("success"):
+                    p = res["product"]
+                    generation = f"🚚 Stock transferred for **{p['name']}**.\n" \
+                                 f"• Moved {res['qty']} units to **{res['to_location']}**."
+                else:
+                    generation = f"❌ Stock transfer failed: {res.get('error')}"
+
+            elif t_name == "AuditInventory":
+                res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"))
+                executed_actions.append({"tool": "AuditInventory", "result": res})
+                if res.get("success"):
+                    p = res["product"]
+                    disc = res['discrepancy']
+                    disc_str = f"+{disc}" if disc > 0 else f"{disc}"
+                    generation = f"📋 Inventory audit completed for **{p['name']}**.\n" \
+                                 f"• Adjusted stock from {res['old_stock']} → **{res['actual_stock']}** (Discrepancy: {disc_str})."
+                else:
+                    generation = f"❌ Audit logging failed: {res.get('error')}"
+
+            elif t_name == "SetReorderAlert":
+                res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10))
+                executed_actions.append({"tool": "SetReorderAlert", "result": res})
+                if res.get("success"):
+                    p = res["product"]
+                    generation = f"🔔 Safety threshold updated for **{p['name']}**.\n" \
+                                 f"• New Min Threshold: **{res['new_threshold']}** units (Old: {res['old_threshold']})."
+                else:
+                    generation = f"❌ Threshold update failed: {res.get('error')}"
+
+        state["executed_actions"] = executed_actions
+        state["generation"] = generation
+    else:
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        state["generation"] = content or "Execution finished with no tool calls."
+
+    return state
+
+def analytics_agent_node(state: GraphState) -> GraphState:
+    """Calculates live analytics, stockout risks, and financial valuations from DB."""
+    question = state["question"]
+    metrics = db_instance.get_analytics_summary()
+    autopilot_recs = db_instance.run_autopilot_scan()
+
+    if api_key == "MOCK_KEY_FOR_INIT":
+        content = (
+            f"📊 **SmartShelfKart Live Inventory Analytics**\n"
+            f"• **Total Products Registered:** {metrics['total_products']} items\n"
+            f"• **Low Stock Warnings:** {metrics['low_stock_count']} items below safety threshold\n"
+            f"• **Out-of-Stock Items:** {metrics['out_of_stock_count']} items\n"
+            f"• **Total Selling Inventory Valuation:** ${metrics['total_inventory_value']:,.2f}\n"
+            f"• **Total Cost Basis Valuation:** ${metrics['total_cost_value']:,.2f}\n"
+            f"• **Autopilot Reorder Recommendations:** {len(autopilot_recs)} urgent restock orders suggested."
+        )
+    else:
+        context_str = (
+            f"INVENTORY METRICS SUMMARY:\n"
+            f"- Total Products: {metrics['total_products']}\n"
+            f"- Low Stock Count: {metrics['low_stock_count']}\n"
+            f"- Out of Stock Count: {metrics['out_of_stock_count']}\n"
+            f"- Total Selling Valuation: ${metrics['total_inventory_value']}\n"
+            f"- Total Cost Valuation: ${metrics['total_cost_value']}\n"
+            f"- Low Stock Products: {[p['name'] + ' (Stock: ' + str(p['stock']) + ')' for p in metrics['low_stock_items']]}\n"
+            f"- Autopilot Reorder Recommendations: {autopilot_recs}\n"
+        )
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are the Analytics & Intelligence Agent for SmartShelfKart.\n"
+                       "CRITICAL INSTRUCTIONS:\n"
+                       "1. Provide a crisp, engaging, multi-bullet (•) summary using exact numbers.\n"
+                       "2. Highlight top velocity items, low stock warnings, and financial values.\n"
+                       "3. NO long paragraphs. Keep every bullet under 15 words.\n"
+                       "4. Include relevant emojis (🔥, ⚠️, 📊, 💰)."),
+            ("user", "Metrics Data:\n{context}\nUser Question: {question}")
+        ])
+
+        messages = prompt.format_messages(context=context_str, question=question)
+        try:
+            response = llm_pro.invoke(messages)
+            content = response.content if isinstance(response.content, str) else str(response.content)
+        except Exception as e:
+            content = f"Analytics calculation error: {str(e)}"
+
+    stats_payload = {
+        "total": metrics["total_products"],
+        "low": metrics["low_stock_count"],
+        "out": metrics["out_of_stock_count"],
+        "total_value": metrics["total_inventory_value"],
+        "autopilot_recommendations_count": len(autopilot_recs)
+    }
+    content += f"\n\n[STATS: {json.dumps(stats_payload)}]"
+
+    state["analytics_data"] = metrics
+    state["generation"] = content
+    return state
+
+def knowledge_agent_node(state: GraphState) -> GraphState:
+    """Handles policy, general guidance, and standard knowledge questions."""
+    question = state["question"]
+    documents = state["documents"]
+    docs_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
+
+    if api_key == "MOCK_KEY_FOR_INIT":
+        content = (
+            f"⚡ **SmartShelfKart Co-Pilot Response**\n"
+            f"• I am operating in active inventory agent mode.\n"
+            f"• You can ask me to update stock, create purchase orders, analyze inventory metrics, or run autopilot restock scans!\n"
+            f"• Set your `GOOGLE_API_KEY` in `rag_backend/.env` for full AI generation."
+        )
+    else:
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are Ask AI, an ultra-smart, friendly inventory co-pilot for SmartShelfKart.\n"
+                       "Format response using short, bulleted points (•) with clear insights and emojis."),
+            ("user", "Context:\n{context}\nQuestion: {question}")
+        ])
+        
+        messages = prompt.format_messages(context=docs_text, question=question)
+        try:
+            response = llm_pro.invoke(messages)
+            content = response.content if isinstance(response.content, str) else str(response.content)
+        except Exception as e:
+            content = f"Connection error: {str(e)}"
+
+    state["generation"] = content
+    return state
+
+# Compatibility aliases
+retrieve = retrieve_node
+generate = action_agent_node

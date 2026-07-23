@@ -1,0 +1,140 @@
+{
+  "products": {
+    "89010001": {
+      "barcode": "89010001",
+      "name": "Fresh Apples (kg)",
+      "stock": 70,
+      "min_threshold": 50,
+      "category": "Produce",
+      "cost_price": 1.2,
+      "selling_price": 2.5,
+      "sales_velocity": 40,
+      "lead_time_days": 3,
+      "location": "Store Front - A1"
+    },
+    "89010002": {
+      "barcode": "89010002",
+      "name": "Pro Laptops (15-inch)",
+      "stock": 100,
+      "min_threshold": 20,
+      "category": "Electronics",
+      "cost_price": 650.0,
+      "selling_price": 999.0,
+      "sales_velocity": 10,
+      "lead_time_days": 14,
+      "location": "Warehouse B - Shelf 4"
+    },
+    "89010003": {
+      "barcode": "89010003",
+      "name": "Sparkling Water (Pack of 12)",
+      "stock": 215,
+      "min_threshold": 100,
+      "category": "Beverages",
+      "cost_price": 4.0,
+      "selling_price": 8.99,
+      "sales_velocity": 150,
+      "lead_time_days": 1,
+      "location": "Store Front - C3"
+    },
+    "89010004": {
+      "barcode": "89010004",
+      "name": "Organic Whole Milk (1L)",
+      "stock": 8,
+      "min_threshold": 30,
+      "category": "Dairy",
+      "cost_price": 1.5,
+      "selling_price": 2.99,
+      "sales_velocity": 25,
+      "lead_time_days": 2,
+      "location": "Chiller 2"
+    }
+  },
+  "action_ledger": [
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-23T14:03:52.556498"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784795632",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-23T14:03:52.556600"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Rule Action",
+      "timestamp": "2026-07-23T14:03:52.558623"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784795632",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "reorder_qty": 10,
+      "supplier": "Auto Supplier",
+      "unit_cost": 1.2,
+      "total_cost": 12.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-23T14:03:52.559327"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-23T14:04:04.420364"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784795644",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-23T14:04:04.420686"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Rule Action",
+      "timestamp": "2026-07-23T14:04:04.422191"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 200,
+      "new_stock": 215,
+      "qty_change": 15,
+      "reason": "Rule Action",
+      "timestamp": "2026-07-23T14:04:10.047582"
+    }
+  ]
+}
