@@ -1098,9 +1098,9 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
     final rawText = widget.message.text;
 
-    // Format inline bullet items onto clean new lines
+    // Format inline bullet items and points/emojis onto clean new lines
     String formattedText = rawText;
-    formattedText = formattedText.replaceAll(RegExp(r'\s*•\s+'), '\n• ');
+    formattedText = formattedText.replaceAll(RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'), '\n\$1 ');
     if (formattedText.startsWith('\n')) {
       formattedText = formattedText.substring(1);
     }
