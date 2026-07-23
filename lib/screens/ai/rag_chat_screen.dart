@@ -1018,25 +1018,45 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
     if (widget.message.actionPayload != null && !isUser) {
       final payload = widget.message.actionPayload!;
-      final qty = payload['qty_change'] ?? 0;
-      final actionDesc = (qty >= 0) ? "Add $qty units" : "Deduct ${qty.abs()} units";
-      
+      final type = payload['type'] ?? 'update_stock';
+      final isPo = type == 'create_po';
+      final qty = payload['qty_change'] ?? payload['reorder_qty'] ?? 0;
+      final productName = payload['product_name'] ?? '';
+      final barcode = payload['barcode'] ?? '';
+      final supplier = payload['supplier'] ?? '';
+
+      final String actionTitle = isPo
+          ? (widget.message.isActionExecuted ? "PO Draft Created" : "⚡ Suggested Purchase Order")
+          : (widget.message.isActionExecuted ? "Stock Updated" : "⚡ Suggested Stock Action");
+
+      final String actionDesc = isPo
+          ? "Reorder $qty units of ${productName.isNotEmpty ? productName : 'item'}"
+          : ((qty as num) >= 0 ? "Add $qty units to stock" : "Deduct ${(qty as num).abs()} units from stock");
+
+      final String actionDetail = isPo
+          ? (supplier.isNotEmpty ? "Supplier: $supplier • Barcode: $barcode" : "Barcode: $barcode")
+          : "Barcode: $barcode";
+
+      final String btnText = isPo ? "Open PO Draft" : "Confirm & Execute";
+
       Widget actionCard = Container(
-        margin: const EdgeInsets.only(top: 4, bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        margin: const EdgeInsets.only(top: 6, bottom: 4),
+        padding: const EdgeInsets.all(12),
         constraints: BoxConstraints(maxWidth: maxBubbleWidth),
         decoration: BoxDecoration(
-          color: AppTheme.surface(context).withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(12),
+          color: AppTheme.surface(context).withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: widget.message.isActionExecuted ? Colors.green.withValues(alpha: 0.4) : AppTheme.primaryColor.withValues(alpha: 0.2),
+            color: widget.message.isActionExecuted
+                ? Colors.green.withValues(alpha: 0.4)
+                : AppTheme.primaryColor.withValues(alpha: 0.3),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              color: AppTheme.primaryColor.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             )
           ],
         ),
@@ -1045,54 +1065,78 @@ class _ChatBubbleState extends State<_ChatBubble> {
           children: [
             Row(
               children: [
-                Icon(
-                  widget.message.isActionExecuted ? Icons.check_circle_rounded : Icons.flash_on_rounded,
-                  color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
-                  size: 16,
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: widget.message.isActionExecuted
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : AppTheme.primaryColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    widget.message.isActionExecuted
+                        ? Icons.check_circle_rounded
+                        : (isPo ? Icons.add_shopping_cart_rounded : Icons.flash_on_rounded),
+                    color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
+                    size: 14,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.message.isActionExecuted ? "Action Executed" : "Pending AI Action",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPri(context),
-                    fontSize: 13,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    actionTitle,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPri(context),
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              "Task: $actionDesc",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12.5),
+              actionDesc,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPri(context),
+                fontSize: 12.5,
+              ),
             ),
-            Text(
-              "Barcode: ${payload['barcode']}",
-              style: TextStyle(color: AppTheme.textSec(context), fontSize: 12),
-            ),
+            if (actionDetail.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                actionDetail,
+                style: TextStyle(
+                  color: AppTheme.textSec(context),
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
             if (!widget.message.isActionExecuted) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: _isExecuting ? null : () => _executeAction(context),
+                  icon: _isExecuting
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : Icon(isPo ? Icons.open_in_new_rounded : Icons.bolt_rounded, size: 16),
+                  label: Text(btnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
+                    backgroundColor: isPo ? AppTheme.accentColor : AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                     elevation: 0,
                   ),
-                  child: _isExecuting 
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Confirm & Execute", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                 ),
               )
             ]
           ],
         ),
       );
-      
+
       bubble = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [bubble, actionCard],
@@ -1212,12 +1256,14 @@ class _VisualStatsHeader extends StatelessWidget {
           const SizedBox(height: 8),
           // Metric Chips
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined),
-              _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded),
-              _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined),
-              _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded),
+              Expanded(child: _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded)),
             ],
           ),
         ],
