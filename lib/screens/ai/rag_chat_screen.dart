@@ -973,10 +973,34 @@ class _ChatBubbleState extends State<_ChatBubble> {
   Widget _buildAdvancedMarkdownContent(BuildContext context, String cleanMarkdownText) {
     final List<String> lines = cleanMarkdownText.split('\n');
     final List<Widget> blocks = [];
+    final isTableLineList = List<bool>.filled(lines.length, false);
+    
+    // First pass: identify separator lines (must contain '-' and consist only of spaces, dashes, colons, and pipes)
+    final List<int> separatorIndices = [];
+    for (int i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      if (trimmed.contains('|') && trimmed.contains('-') && RegExp(r'^[\s\-:|]+$').hasMatch(trimmed)) {
+        separatorIndices.add(i);
+      }
+    }
+    
+    // Second pass: expand from separators upwards and downwards to include headers and rows
+    for (final sepIdx in separatorIndices) {
+      isTableLineList[sepIdx] = true;
+      int up = sepIdx - 1;
+      while (up >= 0 && lines[up].contains('|')) {
+        isTableLineList[up] = true;
+        up--;
+      }
+      int down = sepIdx + 1;
+      while (down < lines.length && lines[down].contains('|')) {
+        isTableLineList[down] = true;
+        down++;
+      }
+    }
     
     List<String> currentTextBlock = [];
     List<String> currentTableBlock = [];
-    bool inTable = false;
     
     void flushTextBlock() {
       if (currentTextBlock.isNotEmpty) {
@@ -1057,30 +1081,18 @@ class _ChatBubbleState extends State<_ChatBubble> {
       }
     }
     
-    for (final line in lines) {
-      final trimmed = line.trim();
-      final isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2;
-      
-      if (isTableLine) {
-        if (!inTable) {
-          flushTextBlock();
-          inTable = true;
-        }
-        currentTableBlock.add(line);
+    for (int i = 0; i < lines.length; i++) {
+      if (isTableLineList[i]) {
+        flushTextBlock();
+        currentTableBlock.add(lines[i]);
       } else {
-        if (inTable) {
-          flushTableBlock();
-          inTable = false;
-        }
-        currentTextBlock.add(line);
+        flushTableBlock();
+        currentTextBlock.add(lines[i]);
       }
     }
     
-    if (inTable) {
-      flushTableBlock();
-    } else {
-      flushTextBlock();
-    }
+    flushTableBlock();
+    flushTextBlock();
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
