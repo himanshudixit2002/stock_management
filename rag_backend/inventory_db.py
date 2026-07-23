@@ -181,6 +181,7 @@ class InventoryDB:
             "product": product,
             "old_stock": old_stock,
             "new_stock": new_stock,
+            "qty_change": qty_change,
             "action_logged": log_entry
         }
 

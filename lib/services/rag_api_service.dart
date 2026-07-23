@@ -79,11 +79,14 @@ class RagApiService {
             final res = firstAction['result'];
             if (res is Map && res['success'] == true) {
               final prod = res['product'] ?? {};
+              final oldStock = res['old_stock'];
+              final newStock = res['new_stock'];
+              final calculatedQty = (newStock is num && oldStock is num) ? (newStock - oldStock).toInt() : null;
               actionPayload = {
                 'type': tool == 'CreatePurchaseOrder' ? 'create_po' : 'update_stock',
                 'barcode': prod['barcode'] ?? res['barcode'] ?? '',
                 'product_name': prod['name'] ?? res['product_name'] ?? '',
-                'qty_change': res['qty_change'] ?? res['reorder_qty'] ?? 0,
+                'qty_change': res['qty_change'] ?? calculatedQty ?? res['reorder_qty'] ?? 0,
                 'is_executed': true,
               };
             }

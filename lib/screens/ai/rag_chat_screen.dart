@@ -324,6 +324,16 @@ class _RagChatScreenState extends State<RagChatScreen> {
           });
           _scrollToBottom();
           _saveChatHistory();
+          
+          // Actually perform the navigation!
+          String route = '/home';
+          if (target == 'billing') route = '/billing/invoices';
+          else if (target == 'orders') route = '/orders/sales';
+          else if (target == 'products') route = '/products';
+          else if (target == 'audit') route = '/stock-take';
+          else if (target == 'reports') route = '/reports';
+          
+          Navigator.pushNamed(context, route);
         }
         return;
       }
@@ -454,6 +464,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
             false, 
             actionPayload: response.actionPayload,
             statsPayload: response.statsPayload ?? statsMap,
+            isActionExecuted: response.actionPayload?['is_executed'] ?? false,
           ));
           _isLoading = false;
         });
@@ -1066,7 +1077,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
     // Format inline bullet items onto clean new lines
     String formattedText = rawText;
-    formattedText = formattedText.replaceAll(RegExp(r'(?<!^)(?<!\n)\s*[•\*]\s+'), '\n• ');
+    formattedText = formattedText.replaceAll(RegExp(r'\s*•\s+'), '\n• ');
+    if (formattedText.startsWith('\n')) {
+      formattedText = formattedText.substring(1);
+    }
 
     final cleanMarkdownText = formattedText
         .split('\n')
@@ -1147,128 +1161,131 @@ class _ChatBubbleState extends State<_ChatBubble> {
     if (widget.message.actionPayload != null && !isUser) {
       final payload = widget.message.actionPayload!;
       final type = payload['type'] ?? 'update_stock';
-      final isPo = type == 'create_po';
-      final num qty = payload['qty_change'] ?? payload['reorder_qty'] ?? 0;
-      final productName = payload['product_name'] ?? '';
-      final barcode = payload['barcode'] ?? '';
-      final supplier = payload['supplier'] ?? '';
+      
+      if (type == 'update_stock' || type == 'create_po') {
+        final isPo = type == 'create_po';
+        final num qty = payload['qty_change'] ?? payload['reorder_qty'] ?? 0;
+        final productName = payload['product_name'] ?? '';
+        final barcode = payload['barcode'] ?? '';
+        final supplier = payload['supplier'] ?? '';
 
-      final String actionTitle = isPo
-          ? (widget.message.isActionExecuted ? "PO Draft Created" : "⚡ Suggested Purchase Order")
-          : (widget.message.isActionExecuted ? "Stock Updated" : "⚡ Suggested Stock Action");
+        final String actionTitle = isPo
+            ? (widget.message.isActionExecuted ? "PO Draft Created" : "⚡ Suggested Purchase Order")
+            : (widget.message.isActionExecuted ? "Stock Updated" : "⚡ Suggested Stock Action");
 
-      final String actionDesc = isPo
-          ? "Reorder $qty units of ${productName.isNotEmpty ? productName : 'item'}"
-          : (qty >= 0 ? "Add $qty units to stock" : "Deduct ${qty.abs()} units from stock");
+        final String actionDesc = isPo
+            ? "Reorder $qty units of ${productName.isNotEmpty ? productName : 'item'}"
+            : (qty >= 0 ? "Add $qty units to stock" : "Deduct ${qty.abs()} units from stock");
 
-      final String actionDetail = isPo
-          ? (supplier.isNotEmpty ? "Supplier: $supplier • Barcode: $barcode" : "Barcode: $barcode")
-          : "Barcode: $barcode";
+        final String actionDetail = isPo
+            ? (supplier.isNotEmpty ? "Supplier: $supplier • Barcode: $barcode" : "Barcode: $barcode")
+            : "Barcode: $barcode";
 
-      final String btnText = isPo ? "Open PO Draft" : "Confirm & Execute";
+        final String btnText = isPo ? "Open PO Draft" : "Confirm & Execute";
 
-      Widget actionCard = Container(
-        margin: const EdgeInsets.only(top: 6, bottom: 4),
-        padding: const EdgeInsets.all(12),
-        constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-        decoration: BoxDecoration(
-          color: AppTheme.surface(context).withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: widget.message.isActionExecuted
-                ? Colors.green.withValues(alpha: 0.4)
-                : AppTheme.primaryColor.withValues(alpha: 0.3),
-            width: 1,
+        Widget actionCard = Container(
+          margin: const EdgeInsets.only(top: 6, bottom: 4),
+          padding: const EdgeInsets.all(12),
+          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+          decoration: BoxDecoration(
+            color: AppTheme.surface(context).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: widget.message.isActionExecuted
+                  ? Colors.green.withValues(alpha: 0.4)
+                  : AppTheme.primaryColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              )
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryColor.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            )
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: widget.message.isActionExecuted
-                        ? Colors.green.withValues(alpha: 0.15)
-                        : AppTheme.primaryColor.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    widget.message.isActionExecuted
-                        ? Icons.check_circle_rounded
-                        : (isPo ? Icons.add_shopping_cart_rounded : Icons.flash_on_rounded),
-                    color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
-                    size: 14,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    actionTitle,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPri(context),
-                      fontSize: 13,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: widget.message.isActionExecuted
+                          ? Colors.green.withValues(alpha: 0.15)
+                          : AppTheme.primaryColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
                     ),
+                    child: Icon(
+                      widget.message.isActionExecuted
+                          ? Icons.check_circle_rounded
+                          : (isPo ? Icons.add_shopping_cart_rounded : Icons.flash_on_rounded),
+                      color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
+                      size: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      actionTitle,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPri(context),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                actionDesc,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPri(context),
+                  fontSize: 12.5,
+                ),
+              ),
+              if (actionDetail.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  actionDetail,
+                  style: TextStyle(
+                    color: AppTheme.textSec(context),
+                    fontSize: 11.5,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              actionDesc,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPri(context),
-                fontSize: 12.5,
-              ),
-            ),
-            if (actionDetail.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                actionDetail,
-                style: TextStyle(
-                  color: AppTheme.textSec(context),
-                  fontSize: 11.5,
-                ),
-              ),
-            ],
-            if (!widget.message.isActionExecuted) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isExecuting ? null : () => _executeAction(context),
-                  icon: _isExecuting
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Icon(isPo ? Icons.open_in_new_rounded : Icons.bolt_rounded, size: 16),
-                  label: Text(btnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isPo ? AppTheme.accentColor : AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    elevation: 0,
+              if (!widget.message.isActionExecuted) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isExecuting ? null : () => _executeAction(context),
+                    icon: _isExecuting
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Icon(isPo ? Icons.open_in_new_rounded : Icons.bolt_rounded, size: 16),
+                    label: Text(btnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isPo ? AppTheme.accentColor : AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      elevation: 0,
+                    ),
                   ),
-                ),
-              )
-            ]
-          ],
-        ),
-      );
+                )
+              ]
+            ],
+          ),
+        );
 
-      bubble = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [bubble, actionCard],
-      );
+        bubble = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [bubble, actionCard],
+        );
+      }
     }
 
     if (isUser) {
