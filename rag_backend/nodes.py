@@ -207,17 +207,15 @@ def action_agent_node(state: GraphState) -> GraphState:
             if res.get("success"):
                 p = res.get("product", {})
                 if tool_name == "UpdateStock":
-                    generation = f"⚡ Stock updated for **{p.get('name')}** (Barcode: `{p.get('barcode')}`).\n" \
-                                 f"• Old Stock: {res['old_stock']} → New Stock: **{res['new_stock']}** units."
+                    generation = f"⚡ **{p.get('name')}** (BC: `{p.get('barcode')}`): Stock updated {res['old_stock']} ➡️ **{res['new_stock']}** units! 📦"
                 elif tool_name == "CreatePurchaseOrder":
-                    generation = f"📦 Purchase Order **{res['po_id']}** created for **{p.get('name')}**.\n" \
-                                 f"• Quantity: **{res['reorder_qty']}** units | Total Cost: **${res['total_cost']:.2f}**"
+                    generation = f"📦 **PO {res['po_id']}** created: Reordered **{res['reorder_qty']}** units of **{p.get('name')}** (Est. Cost: **${res['total_cost']:.2f}**)! 💳"
                 else:
                     generation = f"✅ Action processed successfully for {p.get('name')}."
             else:
                 generation = f"❌ Action failed: {res.get('error')}"
         else:
-            generation = "⚠️ Please set your GOOGLE_API_KEY in `rag_backend/.env` to enable full LLM function calling."
+            generation = f"⚠️ Please set your GOOGLE_API_KEY in `rag_backend/.env` to enable full LLM function calling."
             
         state["executed_actions"] = executed_actions
         state["generation"] = generation
@@ -265,8 +263,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                 executed_actions.append({"tool": "UpdateStock", "result": res})
                 if res.get("success"):
                     p = res["product"]
-                    generation = f"⚡ Stock updated for **{p['name']}** (Barcode: `{p['barcode']}`).\n" \
-                                 f"• Old Stock: {res['old_stock']} → New Stock: **{res['new_stock']}** units."
+                    generation = f"⚡ **{p['name']}** (BC: `{p['barcode']}`): Stock updated {res['old_stock']} ➡️ **{res['new_stock']}** units! 📦"
                 else:
                     generation = f"❌ Stock update failed: {res.get('error')}"
 
@@ -275,10 +272,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                 executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
                 if res.get("success"):
                     p = res["product"]
-                    generation = f"📦 Purchase Order **{res['po_id']}** created for **{p['name']}**.\n" \
-                                 f"• Quantity: **{res['reorder_qty']}** units\n" \
-                                 f"• Supplier: {res['supplier']}\n" \
-                                 f"• Total Estimated Cost: **${res['total_cost']:.2f}**"
+                    generation = f"📦 **PO {res['po_id']}** created: Reordered **{res['reorder_qty']}** units of **{p['name']}** from **{res['supplier']}** (Est. Cost: **${res['total_cost']:.2f}**)! 💳"
                 else:
                     generation = f"❌ Purchase order creation failed: {res.get('error')}"
 
@@ -287,8 +281,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                 executed_actions.append({"tool": "TransferStock", "result": res})
                 if res.get("success"):
                     p = res["product"]
-                    generation = f"🚚 Stock transferred for **{p['name']}**.\n" \
-                                 f"• Moved {res['qty']} units to **{res['to_location']}**."
+                    generation = f"🚚 **{p['name']}**: Transferred **{res['qty']}** units to **{res['to_location']}**! 📍"
                 else:
                     generation = f"❌ Stock transfer failed: {res.get('error')}"
 
@@ -299,8 +292,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                     p = res["product"]
                     disc = res['discrepancy']
                     disc_str = f"+{disc}" if disc > 0 else f"{disc}"
-                    generation = f"📋 Inventory audit completed for **{p['name']}**.\n" \
-                                 f"• Adjusted stock from {res['old_stock']} → **{res['actual_stock']}** (Discrepancy: {disc_str})."
+                    generation = f"📋 **{p['name']}** Audited: Stock adjusted from {res['old_stock']} ➡️ **{res['actual_stock']}** (Diff: **{disc_str}**)! 🔍"
                 else:
                     generation = f"❌ Audit logging failed: {res.get('error')}"
 
@@ -309,8 +301,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                 executed_actions.append({"tool": "SetReorderAlert", "result": res})
                 if res.get("success"):
                     p = res["product"]
-                    generation = f"🔔 Safety threshold updated for **{p['name']}**.\n" \
-                                 f"• New Min Threshold: **{res['new_threshold']}** units (Old: {res['old_threshold']})."
+                    generation = f"🔔 **{p['name']}**: Safety threshold updated to **{res['new_threshold']}** units (was {res['old_threshold']})! ⚠️"
                 else:
                     generation = f"❌ Threshold update failed: {res.get('error')}"
 
@@ -330,13 +321,15 @@ def analytics_agent_node(state: GraphState) -> GraphState:
 
     if api_key == "MOCK_KEY_FOR_INIT":
         content = (
-            f"📊 **SmartShelfKart Live Inventory Analytics**\n"
-            f"• **Total Products Registered:** {metrics['total_products']} items\n"
-            f"• **Low Stock Warnings:** {metrics['low_stock_count']} items below safety threshold\n"
-            f"• **Out-of-Stock Items:** {metrics['out_of_stock_count']} items\n"
-            f"• **Total Selling Inventory Valuation:** ${metrics['total_inventory_value']:,.2f}\n"
-            f"• **Total Cost Basis Valuation:** ${metrics['total_cost_value']:,.2f}\n"
-            f"• **Autopilot Reorder Recommendations:** {len(autopilot_recs)} urgent restock orders suggested."
+            f"📊 **Inventory Analytics Summary**\n\n"
+            f"| Metric 📈 | Value 🔢 |\n"
+            f"| :--- | :--- |\n"
+            f"| 📦 Registered Products | **{metrics['total_products']}** items |\n"
+            f"| ⚠️ Low Stock Alerts | **{metrics['low_stock_count']}** warnings |\n"
+            f"| 🚨 Out of Stock | **{metrics['out_of_stock_count']}** items |\n"
+            f"| 💰 Valuation (Selling) | **${metrics['total_inventory_value']:,.2f}** |\n"
+            f"| 💵 Valuation (Cost Basis) | **${metrics['total_cost_value']:,.2f}** |\n"
+            f"| 🤖 Autopilot Restocks | **{len(autopilot_recs)}** suggestions |"
         )
     else:
         context_str = (
@@ -353,10 +346,10 @@ def analytics_agent_node(state: GraphState) -> GraphState:
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are the Analytics & Intelligence Agent for SmartShelfKart.\n"
                        "CRITICAL INSTRUCTIONS:\n"
-                       "1. Provide a crisp, engaging, multi-bullet (•) summary using exact numbers.\n"
-                       "2. Highlight top velocity items, low stock warnings, and financial values.\n"
-                       "3. NO long paragraphs. Keep every bullet under 15 words.\n"
-                       "4. Include relevant emojis (🔥, ⚠️, 📊, 💰)."),
+                       "1. Keep responses short, simple, and creative. Use emojis (📊, ⚠️, 💰, 🚨).\n"
+                       "2. Present tabular data, lists, or comparisons as clean, compact markdown tables.\n"
+                       "3. Keep each table row aligned on a single line. Avoid long text in columns.\n"
+                       "4. Give a single brief summary sentence followed directly by the table."),
             ("user", "Metrics Data:\n{context}\nUser Question: {question}")
         ])
 
@@ -388,15 +381,21 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
 
     if api_key == "MOCK_KEY_FOR_INIT":
         content = (
-            f"⚡ **SmartShelfKart Co-Pilot Response**\n"
-            f"• I am operating in active inventory agent mode.\n"
-            f"• You can ask me to update stock, create purchase orders, analyze inventory metrics, or run autopilot restock scans!\n"
-            f"• Set your `GOOGLE_API_KEY` in `rag_backend/.env` for full AI generation."
+            f"⚡ **Co-Pilot Active**\n\n"
+            f"| Capability 🛠️ | Action Supported 🚀 |\n"
+            f"| :--- | :--- |\n"
+            f"| 📦 Inventory | Update Stock & Audit |\n"
+            f"| 🧾 Ordering | Purchase Orders |\n"
+            f"| 📊 Analytics | Metrics & Autopilot |\n\n"
+            f"⚠️ Set `GOOGLE_API_KEY` in `rag_backend/.env` for full AI capabilities."
         )
     else:
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are Ask AI, an ultra-smart, friendly inventory co-pilot for SmartShelfKart.\n"
-                       "Format response using short, bulleted points (•) with clear insights and emojis."),
+                       "CRITICAL INSTRUCTIONS:\n"
+                       "1. Keep responses creative, short, and simple with emojis.\n"
+                       "2. Present inventory lists, guides, and policies in clean, compact markdown tables.\n"
+                       "3. Keep text aligned on a single line per row where possible."),
             ("user", "Context:\n{context}\nQuestion: {question}")
         ])
         

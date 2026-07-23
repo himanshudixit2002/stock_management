@@ -70,10 +70,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
   final FocusNode _focusNode = FocusNode();
   final List<_Message> _messages = [
     _Message(
-      "👋 **Hey buddy! Ask AI is ready!** ⚡\n\n"
-      "• 📊 **Stock Snapshot** - Live counts & health\n"
-      "• 🔥 **Low Stock Alert** - Fast restock items\n"
-      "• 📦 **Smart Action** - Add/deduct inventory", 
+      "👋 **Ask AI is ready!** ⚡\n\n"
+      "| Command 🛠️ | Description 💡 |\n"
+      "| :--- | :--- |\n"
+      "| `summary` | 📊 Stock Snapshot & counts |\n"
+      "| `low` | 🔥 Low Stock Alert list |\n"
+      "| `update` | 📦 Smart Action (Add/Deduct) |", 
       false,
     )
   ];
@@ -360,10 +362,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
         HapticFeedback.mediumImpact();
         setState(() {
           _messages.add(_Message(
-            "⚡ **Live Inventory Pulse:**\n\n"
-            "• 📦 **Catalog Items**: $totalItems active products\n"
-            "• 🔥 **Low Stock Alerts**: $lowStockCount item(s) running low\n"
-            "• ⏳ **Pending Orders**: ${pendingSales + pendingPurchase} order(s) in pipeline",
+            "⚡ **Inventory Pulse**\n\n"
+            "| Metric 📈 | Count 🔢 |\n"
+            "| :--- | :--- |\n"
+            "| 📦 Registered Products | **$totalItems** items |\n"
+            "| ⚠️ Low Stock Alerts | **$lowStockCount** warning(s) |\n"
+            "| ⏳ Pending Orders | **${pendingSales + pendingPurchase}** order(s) |",
             false,
             statsPayload: statsMap,
           ));
@@ -927,6 +931,130 @@ class _ChatBubbleState extends State<_ChatBubble> {
     }
   }
 
+  MarkdownStyleSheet _getMarkdownStyleSheet(BuildContext context) {
+    return MarkdownStyleSheet(
+      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.4, letterSpacing: 0.1),
+      h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
+      h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
+      h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
+      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
+      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
+      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
+      listIndent: 12.0,
+      listBulletPadding: const EdgeInsets.only(right: 4),
+      pPadding: EdgeInsets.zero,
+      blockSpacing: 4,
+      tableBorder: TableBorder(
+        horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+        verticalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.05), width: 0.5),
+        bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.15), width: 1.0),
+        top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.15), width: 1.0),
+        left: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+        right: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+      ),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.95), fontSize: 12.0, height: 1.3),
+      tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 12.5, fontWeight: FontWeight.w800),
+      tableColumnWidth: const FlexColumnWidth(),
+    );
+  }
+
+  Widget _buildAdvancedMarkdownContent(BuildContext context, String cleanMarkdownText) {
+    final List<String> lines = cleanMarkdownText.split('\n');
+    final List<Widget> blocks = [];
+    
+    List<String> currentTextBlock = [];
+    List<String> currentTableBlock = [];
+    bool inTable = false;
+    
+    void flushTextBlock() {
+      if (currentTextBlock.isNotEmpty) {
+        blocks.add(
+          MarkdownBody(
+            data: currentTextBlock.join('\n'),
+            selectable: false,
+            shrinkWrap: true,
+            styleSheet: _getMarkdownStyleSheet(context),
+          ),
+        );
+        currentTextBlock = [];
+      }
+    }
+    
+    void flushTableBlock() {
+      if (currentTableBlock.isNotEmpty) {
+        blocks.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface(context).withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                    child: MarkdownBody(
+                      data: currentTableBlock.join('\n'),
+                      selectable: false,
+                      shrinkWrap: true,
+                      styleSheet: _getMarkdownStyleSheet(context).copyWith(
+                        tableColumnWidth: const IntrinsicColumnWidth(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        currentTableBlock = [];
+      }
+    }
+    
+    for (final line in lines) {
+      final trimmed = line.trim();
+      final isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2;
+      
+      if (isTableLine) {
+        if (!inTable) {
+          flushTextBlock();
+          inTable = true;
+        }
+        currentTableBlock.add(line);
+      } else {
+        if (inTable) {
+          flushTableBlock();
+          inTable = false;
+        }
+        currentTextBlock.add(line);
+      }
+    }
+    
+    if (inTable) {
+      flushTableBlock();
+    } else {
+      flushTextBlock();
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: blocks,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isUser = widget.message.isUser;
@@ -954,33 +1082,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
         .join('\n');
 
     Widget bubbleContent = SelectionArea(
-      child: MarkdownBody(
-        data: cleanMarkdownText,
-        selectable: false,
-        shrinkWrap: true,
-        styleSheet: MarkdownStyleSheet(
-          p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.35, letterSpacing: 0.1),
-          h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
-          h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
-          h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
-          strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
-          em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
-          listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
-          listIndent: 12.0,
-          listBulletPadding: const EdgeInsets.only(right: 4),
-          pPadding: EdgeInsets.zero,
-          blockSpacing: 4,
-          tableBorder: TableBorder(
-            horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
-            bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-            top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
-          ),
-          tableCellsPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.9), fontSize: 12.5, height: 1.25),
-          tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13, fontWeight: FontWeight.w700),
-          tableColumnWidth: const FlexColumnWidth(),
-        ),
-      ),
+      child: _buildAdvancedMarkdownContent(context, cleanMarkdownText),
     );
 
     Widget bubble = Container(
