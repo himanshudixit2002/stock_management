@@ -1054,8 +1054,6 @@ class _ChatBubbleState extends State<_ChatBubble> {
     
     void flushTableBlock() {
       if (currentTableBlock.isNotEmpty) {
-        final localHorizController = ScrollController();
-        final localVertController = ScrollController();
         blocks.add(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -1076,34 +1074,17 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 borderRadius: BorderRadius.circular(9),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 180),
-                  child: Scrollbar(
-                    controller: localVertController,
-                    thumbVisibility: true,
-                    thickness: 3.5,
-                    radius: const Radius.circular(2),
-                    child: SingleChildScrollView(
-                      controller: localVertController,
-                      scrollDirection: Axis.vertical,
-                      child: Scrollbar(
-                        controller: localHorizController,
-                        thumbVisibility: true,
-                        thickness: 3.5,
-                        radius: const Radius.circular(2),
-                        notificationPredicate: (n) => n.depth == 0,
-                        child: SingleChildScrollView(
-                          controller: localHorizController,
-                          scrollDirection: Axis.horizontal,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 14.0),
-                            child: MarkdownBody(
-                              data: currentTableBlock.join('\n'),
-                              selectable: false,
-                              shrinkWrap: true,
-                              styleSheet: _getMarkdownStyleSheet(context).copyWith(
-                                tableColumnWidth: const IntrinsicColumnWidth(),
-                              ),
-                            ),
-                          ),
+                  child: InteractiveViewer(
+                    constrained: false,
+                    scaleEnabled: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                      child: MarkdownBody(
+                        data: currentTableBlock.join('\n'),
+                        selectable: false,
+                        shrinkWrap: true,
+                        styleSheet: _getMarkdownStyleSheet(context).copyWith(
+                          tableColumnWidth: const IntrinsicColumnWidth(),
                         ),
                       ),
                     ),
@@ -1154,7 +1135,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
       if (line.contains('|')) {
         formattedLines.add(line);
       } else {
-        String processed = line.replaceAll(RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'), '\n\$1 ');
+        String processed = line.replaceAllMapped(
+          RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'),
+          (match) => '\n${match.group(1)} ',
+        );
         formattedLines.add(processed);
       }
     }
