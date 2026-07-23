@@ -7,8 +7,16 @@ class RagResponse {
   final String text;
   final Map<String, dynamic>? actionPayload;
   final Map<String, dynamic>? statsPayload;
+  final List<dynamic>? executedActions;
+  final String? intent;
 
-  RagResponse(this.text, this.actionPayload, {this.statsPayload});
+  RagResponse(
+    this.text, 
+    this.actionPayload, {
+    this.statsPayload,
+    this.executedActions,
+    this.intent,
+  });
 }
 
 class RagApiService {
@@ -45,6 +53,8 @@ class RagApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         String rawAnswer = data['answer'] ?? 'Received empty answer from server.';
+        final String? intent = data['intent'];
+        final List<dynamic>? executedActions = data['executed_actions'];
         
         // Parse action block
         Map<String, dynamic>? actionPayload;
@@ -56,6 +66,25 @@ class RagApiService {
             rawAnswer = rawAnswer.replaceFirst(match.group(0)!, '').trim();
           } catch (e) {
             print("Failed to parse action JSON: $e");
+          }
+        }
+
+        // If backend executed an action directly, synthesize actionPayload for UI card
+        if (actionPayload == null && executedActions != null && executedActions.isNotEmpty) {
+          final firstAction = executedActions.first;
+          if (firstAction is Map) {
+            final tool = firstAction['tool'];
+            final res = firstAction['result'];
+            if (res is Map && res['success'] == true) {
+              final prod = res['product'] ?? {};
+              actionPayload = {
+                'type': tool == 'CreatePurchaseOrder' ? 'create_po' : 'update_stock',
+                'barcode': prod['barcode'] ?? res['barcode'] ?? '',
+                'product_name': prod['name'] ?? res['product_name'] ?? '',
+                'qty_change': res['qty_change'] ?? res['reorder_qty'] ?? 0,
+                'is_executed': true,
+              };
+            }
           }
         }
 
@@ -72,7 +101,13 @@ class RagApiService {
           }
         }
         
-        return RagResponse(rawAnswer, actionPayload, statsPayload: statsPayload);
+        return RagResponse(
+          rawAnswer, 
+          actionPayload, 
+          statsPayload: statsPayload,
+          executedActions: executedActions,
+          intent: intent,
+        );
       } else {
         return RagResponse('Error: Server returned status ${response.statusCode}', null);
       }

@@ -931,16 +931,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final maxBubbleWidth = screenWidth * 0.82;
 
     final rawText = widget.message.text;
-    final cleanMarkdownText = rawText
+
+    // Format inline bullet items onto clean new lines
+    String formattedText = rawText;
+    formattedText = formattedText.replaceAll(RegExp(r'(?<!^)(?<!\n)\s*[•\*]\s+'), '\n• ');
+
+    final cleanMarkdownText = formattedText
         .split('\n')
         .map((line) {
-          final trimmed = line.trimLeft();
-          // Normalize leading list bullets to start directly from left margin
+          final trimmed = line.trim();
           if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-            return '• ${trimmed.substring(2).trimLeft()}';
+            final content = trimmed.length > 2 ? trimmed.substring(2).trim() : trimmed;
+            return '• $content';
           }
-          return line.trimLeft();
+          return trimmed;
         })
+        .where((line) => line.isNotEmpty)
         .join('\n');
 
     Widget bubbleContent = SelectionArea(
