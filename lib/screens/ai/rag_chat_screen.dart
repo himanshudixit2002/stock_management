@@ -930,9 +930,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final screenWidth = MediaQuery.of(context).size.width;
     final maxBubbleWidth = screenWidth * 0.82;
 
+    final rawText = widget.message.text;
+    final cleanMarkdownText = rawText
+        .split('\n')
+        .map((line) {
+          final trimmed = line.trimLeft();
+          // Normalize leading list bullets to start directly from left margin
+          if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+            return '• ${trimmed.substring(2).trimLeft()}';
+          }
+          return line.trimLeft();
+        })
+        .join('\n');
+
     Widget bubbleContent = SelectionArea(
       child: MarkdownBody(
-        data: widget.message.text,
+        data: cleanMarkdownText,
         selectable: false,
         shrinkWrap: true,
         styleSheet: MarkdownStyleSheet(
@@ -943,6 +956,9 @@ class _ChatBubbleState extends State<_ChatBubble> {
           strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
           em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
           listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
+          listIndent: 12.0,
+          listBulletPadding: const EdgeInsets.only(right: 4),
+          pPadding: EdgeInsets.zero,
           blockSpacing: 4,
           tableBorder: TableBorder(
             horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 1),
