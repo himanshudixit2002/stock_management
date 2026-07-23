@@ -201,7 +201,7 @@ class _ProductCardState extends State<ProductCard> {
       child: Padding(
         padding: isGrid
             ? EdgeInsets.zero
-            : const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         child: GestureDetector(
           onTapDown: widget.onTap != null ? _onTapDown : null,
           onTapUp: widget.onTap != null ? _onTapUp : null,

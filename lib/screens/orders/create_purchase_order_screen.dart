@@ -397,41 +397,60 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            Expanded(
-                              child: Text(
-                                'Items',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.textPri(context),
+                            Text(
+                              'Items (${_items.length})',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPri(context),
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: _aiAutoFillLowStock,
+                                  icon: const Icon(Icons.bolt_rounded, size: 16, color: AppTheme.primaryColor),
+                                  label: const Text(
+                                    'Auto-Fill Low Stock',
+                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
                                 ),
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: _aiAutoFillLowStock,
-                              icon: const Icon(Icons.bolt_rounded, size: 16, color: AppTheme.primaryColor),
-                              label: const Text(
-                                'Auto-Fill Low Stock',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            TextButton.icon(
-                              onPressed: _addItem,
-                              icon: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('Add Item'),
+                                const SizedBox(width: 6),
+                                TextButton.icon(
+                                  onPressed: _addItem,
+                                  icon: const Icon(Icons.add_rounded, size: 16),
+                                  label: const Text('Add Item', style: TextStyle(fontSize: 11.5)),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         ...List.generate(_items.length, (index) {
                           final item = _items[index];
+                          final isMobile = MediaQuery.of(context).size.width < 500;
+
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(bottom: 10),
                             child: Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: AppTheme.inputFill(context),
                                 borderRadius: BorderRadius.circular(12),
@@ -449,8 +468,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                               _showProductPicker(index),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 14,
+                                              horizontal: 10,
+                                              vertical: 10,
                                             ),
                                             decoration: BoxDecoration(
                                               border: Border.all(
@@ -459,14 +478,17 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                                 ),
                                               ),
                                               borderRadius:
-                                                  BorderRadius.circular(12),
+                                                  BorderRadius.circular(10),
                                               color: AppTheme.surface(context),
                                             ),
                                             child: Text(
                                               item.productName.isNotEmpty
                                                   ? item.productName
                                                   : 'Select product...',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
+                                                fontSize: 13,
                                                 color:
                                                     item.productName.isNotEmpty
                                                     ? AppTheme.textPri(context)
@@ -481,90 +503,145 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                         ),
                                       ),
                                       if (_items.length > 1) ...[
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 4),
                                         IconButton(
                                           icon: const Icon(
-                                            Icons.remove_circle_rounded,
+                                            Icons.remove_circle_outline_rounded,
                                             color: AppTheme.dangerColor,
+                                            size: 20,
                                           ),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                           onPressed: () => _removeItem(index),
                                         ),
                                       ],
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: item.qtyController,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Pack Qty *',
-                                            isDense: true,
-                                          ),
-                                          keyboardType: TextInputType.number,
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter
-                                                .digitsOnly,
-                                          ],
-                                          onChanged: (_) => setState(() {}),
-                                          validator: (v) {
-                                            if (item.productId == null)
+                                  if (isMobile) ...[
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: item.qtyController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Packs *',
+                                              isDense: true,
+                                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                            style: const TextStyle(fontSize: 13),
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.digitsOnly,
+                                            ],
+                                            onChanged: (_) => setState(() {}),
+                                            validator: (v) {
+                                              if (item.productId == null) return null;
+                                              final packs = int.tryParse(v ?? '') ?? 0;
+                                              final pieces = int.tryParse(item.pieceController.text) ?? 0;
+                                              final baseQty = toBaseQuantity(
+                                                packs: packs,
+                                                pieces: pieces,
+                                                unitsPerPack: item.unitsPerPack,
+                                              );
+                                              if (baseQty <= 0) return 'Required';
                                               return null;
-                                            final packs =
-                                                int.tryParse(v ?? '') ?? 0;
-                                            final pieces = int.tryParse(
-                                                  item.pieceController.text,
-                                                ) ??
-                                                0;
-                                            final baseQty = toBaseQuantity(
-                                              packs: packs,
-                                              pieces: pieces,
-                                              unitsPerPack:
-                                                  item.unitsPerPack,
-                                            );
-                                            if (baseQty <= 0)
-                                              return 'Required';
-                                            return null;
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      SizedBox(
-                                        width: 90,
-                                        child: TextFormField(
-                                          controller: item.pieceController,
-                                          decoration: InputDecoration(
-                                            labelText: item.baseUnit,
-                                            isDense: true,
+                                            },
                                           ),
-                                          keyboardType: TextInputType.number,
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter
-                                                .digitsOnly,
-                                          ],
-                                          onChanged: (_) => setState(() {}),
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: item.priceController,
-                                          decoration: InputDecoration(
-                                            labelText: 'Unit Price',
-                                            isDense: true,
-                                            prefixText:
-                                                '${AppTheme.currencySymbol} ',
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: item.pieceController,
+                                            decoration: InputDecoration(
+                                              labelText: 'Loose (${item.baseUnit})',
+                                              isDense: true,
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            ),
+                                            style: const TextStyle(fontSize: 13),
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.digitsOnly,
+                                            ],
+                                            onChanged: (_) => setState(() {}),
                                           ),
-                                          keyboardType:
-                                              const TextInputType.numberWithOptions(
-                                                decimal: true,
-                                              ),
-                                          onChanged: (_) => setState(() {}),
                                         ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextFormField(
+                                      controller: item.priceController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Unit Cost',
+                                        isDense: true,
+                                        prefixText: '${AppTheme.currencySymbol} ',
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                       ),
-                                    ],
-                                  ),
+                                      style: const TextStyle(fontSize: 13),
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ] else ...[
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: item.qtyController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Packs *',
+                                              isDense: true,
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.digitsOnly,
+                                            ],
+                                            onChanged: (_) => setState(() {}),
+                                            validator: (v) {
+                                              if (item.productId == null) return null;
+                                              final packs = int.tryParse(v ?? '') ?? 0;
+                                              final pieces = int.tryParse(item.pieceController.text) ?? 0;
+                                              final baseQty = toBaseQuantity(
+                                                packs: packs,
+                                                pieces: pieces,
+                                                unitsPerPack: item.unitsPerPack,
+                                              );
+                                              if (baseQty <= 0) return 'Required';
+                                              return null;
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 90,
+                                          child: TextFormField(
+                                            controller: item.pieceController,
+                                            decoration: InputDecoration(
+                                              labelText: item.baseUnit,
+                                              isDense: true,
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.digitsOnly,
+                                            ],
+                                            onChanged: (_) => setState(() {}),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: item.priceController,
+                                            decoration: InputDecoration(
+                                              labelText: 'Unit Price',
+                                              isDense: true,
+                                              prefixText: '${AppTheme.currencySymbol} ',
+                                            ),
+                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                            onChanged: (_) => setState(() {}),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
