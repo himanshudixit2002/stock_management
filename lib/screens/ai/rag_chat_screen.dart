@@ -1054,6 +1054,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
     
     void flushTableBlock() {
       if (currentTableBlock.isNotEmpty) {
+        final localHorizController = ScrollController();
         blocks.add(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -1072,13 +1073,16 @@ class _ChatBubbleState extends State<_ChatBubble> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(9),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
-                  child: InteractiveViewer(
-                    constrained: false,
-                    scaleEnabled: false,
+                child: Scrollbar(
+                  controller: localHorizController,
+                  thumbVisibility: true,
+                  thickness: 4.0,
+                  radius: const Radius.circular(2),
+                  child: SingleChildScrollView(
+                    controller: localHorizController,
+                    scrollDirection: Axis.horizontal,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                      padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 14.0),
                       child: MarkdownBody(
                         data: currentTableBlock.join('\n'),
                         selectable: false,
