@@ -142,6 +142,7 @@ class AiInsightsCard extends StatelessWidget {
         border: Border.all(color: border, width: 1),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, size: 20, color: border.withValues(alpha: 1.0)),
           const SizedBox(width: 10),
@@ -167,18 +168,21 @@ class AiInsightsCard extends StatelessWidget {
               ],
             ),
           ),
-          if (onAnomalyAction != null)
+          if (onAnomalyAction != null) ...[
+            const SizedBox(width: 8),
             InkWell(
               onTap: () => onAnomalyAction!(anomaly.id),
               borderRadius: BorderRadius.circular(6),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   anomaly.actionLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -187,6 +191,7 @@ class AiInsightsCard extends StatelessWidget {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );

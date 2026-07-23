@@ -7,6 +7,7 @@ import '../../../widgets/glass_panel.dart';
 import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../ai/rag_chat_screen.dart';
 
 class PredictiveForecastingTab extends StatefulWidget {
   const PredictiveForecastingTab({super.key});
@@ -73,6 +74,72 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
               'Predictive run-rate analytics estimating remaining days of supply',
               style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             ),
+            const SizedBox(height: 14),
+
+            GestureDetector(
+              onTap: () => RagChatScreen.open(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primaryColor.withValues(alpha: 0.15),
+                      AppTheme.accentColor.withValues(alpha: 0.10),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppTheme.primaryColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '⚡ RAG Smart AI Inventory Audit',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPri(context),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Run live AI analysis to auto-reorder & detect margin leaks',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSec(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppTheme.primaryColor,
+                      size: 22,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 14),
 
             Row(

@@ -22,6 +22,28 @@ import '../../utils/responsive.dart';
 class RagChatScreen extends StatefulWidget {
   const RagChatScreen({super.key});
 
+  static Future<void> open(BuildContext context) {
+    HapticFeedback.lightImpact();
+    return Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const RagChatScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.05),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   State<RagChatScreen> createState() => _RagChatScreenState();
 }
@@ -577,9 +599,21 @@ class _RagChatScreenState extends State<RagChatScreen> {
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
+            label: "🤖 AI Stock Audit",
+            icon: Icons.auto_awesome_rounded,
+            onTap: () => _sendMessage("Perform a full AI inventory health audit and flag risks"),
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
             label: "🔥 Low Stock Alert",
             icon: Icons.local_fire_department_rounded,
             onTap: () => _sendMessage("What items are low in stock?"),
+          ),
+          const SizedBox(width: 8),
+          _QuickActionChip(
+            label: "📋 Auto Reorder PO",
+            icon: Icons.add_shopping_cart_rounded,
+            onTap: () => _sendMessage("Create a purchase order for low stock items"),
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
@@ -589,15 +623,15 @@ class _RagChatScreenState extends State<RagChatScreen> {
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
-            label: "🎯 Pending Orders",
-            icon: Icons.track_changes_rounded,
-            onTap: () => _sendMessage("Show me pending sales orders"),
+            label: "🔮 30-Day Demand Forecast",
+            icon: Icons.trending_up_rounded,
+            onTap: () => _sendMessage("Forecast inventory demand for the next 30 days"),
           ),
           const SizedBox(width: 8),
           _QuickActionChip(
-            label: "💡 Quick Tip",
-            icon: Icons.lightbulb_outline_rounded,
-            onTap: () => _sendMessage("Give me a quick inventory tip"),
+            label: "🎯 Pending Orders",
+            icon: Icons.track_changes_rounded,
+            onTap: () => _sendMessage("Show me pending sales orders"),
           ),
         ],
       ),
@@ -884,6 +918,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
           setState(() => _isExecuting = false);
         }
       }
+    } else if (type == 'create_po') {
+      Navigator.pushNamed(context, '/orders/purchase/create');
     }
   }
 

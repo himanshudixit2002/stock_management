@@ -56,8 +56,11 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 Text(
                   'Visual Analytics & Trends',
@@ -68,6 +71,7 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
                   ),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     _dateChip('7D', 7, 'daily'),
                     const SizedBox(width: 6),
@@ -87,8 +91,11 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       Text(
                         'Transaction Volume Trend',
@@ -115,60 +122,76 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
             ),
             const SizedBox(height: 14),
 
-            // Pie Chart & Bar Chart Grid
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: GlassPanel(
-                    padding: const EdgeInsets.all(16),
-                    borderRadius: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Category Mix',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPri(context),
-                          ),
+            // Pie Chart & Bar Chart Grid (Stacked on Mobile, Row on Desktop)
+            Builder(
+              builder: (context) {
+                final isMobile = MediaQuery.of(context).size.width < 600;
+
+                final categoryMixCard = GlassPanel(
+                  padding: const EdgeInsets.all(16),
+                  borderRadius: 16,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Category Mix',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPri(context),
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 180,
-                          child: CategoryPieChart(data: categoryData),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 190,
+                        child: CategoryPieChart(data: categoryData),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GlassPanel(
-                    padding: const EdgeInsets.all(16),
-                    borderRadius: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Stock Activity',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPri(context),
-                          ),
+                );
+
+                final stockActivityCard = GlassPanel(
+                  padding: const EdgeInsets.all(16),
+                  borderRadius: 16,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Stock Activity',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPri(context),
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 180,
-                          child: StockBarChart(data: stockInOutData),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 190,
+                        child: StockBarChart(data: stockInOutData),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                );
+
+                if (isMobile) {
+                  return Column(
+                    children: [
+                      categoryMixCard,
+                      const SizedBox(height: 14),
+                      stockActivityCard,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: categoryMixCard),
+                    const SizedBox(width: 12),
+                    Expanded(child: stockActivityCard),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 14),
 

@@ -13,6 +13,12 @@ class UpdateStock(BaseModel):
     barcode: str = Field(description="The exact alphanumeric barcode of the product extracted from the context.")
     qty_change: int = Field(description="The exact quantity to add (positive) or deduct (negative).")
 
+class CreatePurchaseOrder(BaseModel):
+    supplier_name: str = Field(default="Default Supplier", description="Name of the supplier or vendor.")
+    product_name: str = Field(description="The product name to reorder.")
+    barcode: str = Field(description="Barcode of the product to reorder.")
+    reorder_qty: int = Field(description="Suggested reorder quantity.")
+
 # 2. Specialized System Prompts
 lite_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are the automated inventory ledger for SmartShelfKart. Your ONLY task is tool execution.\n\n"
@@ -21,7 +27,7 @@ lite_prompt = ChatPromptTemplate.from_messages([
                "- barcode (string)\n"
                "- current_stock (integer)\n\n"
                "RULES:\n"
-               "1. Match the user's requested item to the context, extract the exact barcode, and call the UpdateStock tool. Do not guess.\n"
+               "1. Match the user's requested item to the context, extract the exact barcode, and call UpdateStock or CreatePurchaseOrder. Do not guess.\n"
                "2. If the barcode is missing, output exactly one short sentence asking for it (e.g., 'Please provide the barcode for [Product].').\n"
                "3. NO conversational filler. NO greetings."),
     ("user", "Context: {context}\nQuestion: {question}\nAssistant:")
@@ -42,7 +48,7 @@ pro_prompt = ChatPromptTemplate.from_messages([
 llm_lite = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
 llm_pro = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.3)
 
-llm_lite_with_tools = llm_lite.bind_tools([UpdateStock])
+llm_lite_with_tools = llm_lite.bind_tools([UpdateStock, CreatePurchaseOrder])
 
 # 4. Data Layer Retrieval
 def get_retriever():
@@ -148,6 +154,22 @@ def generate(state: GraphState):
                 "qty_change": qty
             })
             generation = f"📦 Stock adjustment prepared for {product_name} (Barcode: {barcode}).\n\n[ACTION: {action_json}]"
+            return {"documents": documents, "question": question, "generation": generation}
+        elif tool_call["name"] == "CreatePurchaseOrder":
+            args = tool_call["args"]
+            product_name = args.get("product_name", "")
+            qty = args.get("reorder_qty", 10)
+            barcode = args.get("barcode", "")
+            supplier = args.get("supplier_name", "Default Supplier")
+            
+            action_json = json.dumps({
+                "type": "create_po", 
+                "barcode": barcode, 
+                "product_name": product_name,
+                "reorder_qty": qty,
+                "supplier": supplier
+            })
+            generation = f"📋 Purchase Order draft created for {product_name} (Qty: {qty}).\n\n[ACTION: {action_json}]"
             return {"documents": documents, "question": question, "generation": generation}
     
     generation = response.content

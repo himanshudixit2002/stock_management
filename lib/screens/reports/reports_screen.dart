@@ -242,38 +242,44 @@ class _ReportsHeader extends StatelessWidget {
                       const SizedBox(width: 10),
 
                       // Date chip — tappable, compact
-                      GestureDetector(
-                        onTap: () => onDateFilter(stockProvider),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryColor
-                                .withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color: AppTheme.primaryColor
-                                    .withValues(alpha: 0.25)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.calendar_today_rounded,
-                                  size: 11,
-                                  color: AppTheme.primaryColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                dateLabel,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.primaryColor,
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: () => onDateFilter(stockProvider),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: AppTheme.primaryColor
+                                      .withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.calendar_today_rounded,
+                                    size: 11,
+                                    color: AppTheme.primaryColor),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    dateLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              Icon(Icons.arrow_drop_down,
-                                  size: 14,
-                                  color: AppTheme.primaryColor),
-                            ],
+                                Icon(Icons.arrow_drop_down,
+                                    size: 14,
+                                    color: AppTheme.primaryColor),
+                              ],
+                            ),
                           ),
                         ),
                       ),

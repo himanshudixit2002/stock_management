@@ -81,6 +81,22 @@ class RagApiService {
     }
   }
 
+  /// Syncs catalog products to the RAG backend vectorstore.
+  static Future<bool> syncCatalogToRag(List<Map<String, dynamic>> products) async {
+    final url = Uri.parse('$_baseUrl/api/ingest');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'products': products}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print("Failed to sync catalog to RAG backend: $e");
+      return false;
+    }
+  }
+
   /// Clears the backend query cache.
   static Future<void> clearCache() async {
     final url = Uri.parse('$_baseUrl/api/cache/clear');

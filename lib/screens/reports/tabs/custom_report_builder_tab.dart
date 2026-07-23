@@ -65,19 +65,27 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Icon(Icons.tune_rounded, color: AppTheme.primaryColor, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Dimension & Grouping Selector',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPri(context),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tune_rounded, color: AppTheme.primaryColor, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Dimension & Grouping Selector',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPri(context),
+                            ),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
                       FilterChip(
                         selected: _enablePoPComparison,
                         label: const Text('Compare PoP'),

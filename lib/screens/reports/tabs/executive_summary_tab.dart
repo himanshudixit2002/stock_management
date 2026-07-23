@@ -239,16 +239,21 @@ class ExecutiveSummaryTab extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white70,
-                  letterSpacing: 0.5,
+              Expanded(
+                child: Text(
+                  title.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white70,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 4),
+              Icon(icon, color: Colors.white, size: 18),
             ],
           ),
           const SizedBox(height: 10),

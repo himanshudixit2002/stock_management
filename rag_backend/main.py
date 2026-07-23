@@ -66,6 +66,28 @@ async def chat_endpoint(request: QueryRequest):
         retries=final_state.get("retries", 0)
     )
 
+class ProductIngestItem(BaseModel):
+    name: str
+    barcode: str
+    stock: int
+    min_threshold: int = 10
+    category: Optional[str] = "General"
+    cost_price: Optional[float] = 0.0
+    selling_price: Optional[float] = 0.0
+    sales_velocity: Optional[int] = 0
+    lead_time_days: Optional[int] = 3
+
+class ProductIngestRequest(BaseModel):
+    products: List[ProductIngestItem]
+
+@app.post("/api/ingest")
+async def ingest_endpoint(request: ProductIngestRequest):
+    from ingest import ingest_custom_products
+    prods = [p.model_dump() for p in request.products]
+    ingest_custom_products(prods)
+    cache_manager.clear()
+    return {"status": "success", "message": f"Ingested {len(prods)} products into ChromaDB vectorstore"}
+
 @app.post("/api/cache/clear")
 def clear_cache():
     cache_manager.clear()

@@ -34,9 +34,14 @@ void main() async {
   };
 
   if (!kIsWeb) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e, stack) {
+      debugPrint('Firebase init failed: $e\n$stack');
+      // Still launch the app — AuthWrapper will show an error/retry screen.
+    }
   }
 
   runApp(const StockManagementApp());

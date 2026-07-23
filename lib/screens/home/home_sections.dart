@@ -19,6 +19,7 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../home_screen.dart';
+import '../ai/rag_chat_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Action card (customizable Quick Actions surface on Home)
@@ -556,6 +557,11 @@ class _InsightsCardState extends State<InsightsCard> {
 
     final insights = <_InsightItem>[
       _InsightItem(
+        Icons.auto_awesome_rounded,
+        '⚡ Ask AI RAG Assistant: Audit & auto-reorder low stock',
+        'ask_ai_rag',
+      ),
+      _InsightItem(
         Icons.warning_amber_rounded,
         'You have $lowStockCount products below reorder level',
         AppRoutes.lowStock,
@@ -577,7 +583,13 @@ class _InsightsCardState extends State<InsightsCard> {
     final current = insights[_index % insights.length];
 
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, current.route),
+      onTap: () {
+        if (current.route == 'ask_ai_rag') {
+          RagChatScreen.open(context);
+        } else {
+          Navigator.pushNamed(context, current.route);
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
