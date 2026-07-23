@@ -59,7 +59,6 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
     }
 
     final avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0.0;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -69,7 +68,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
-            16, 16, 16, 16 + floatingNavContentInset(context) + bottomInset,
+            16, 16, 16, 16 + floatingNavContentInset(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
