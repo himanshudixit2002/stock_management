@@ -101,6 +101,16 @@ def retrieve_node(state: GraphState) -> GraphState:
     question = state["question"]
     provided_context = state.get("provided_context")
 
+    if provided_context and "[REAL_USER_CATALOG:" in provided_context:
+        try:
+            match = re.search(r'\[REAL_USER_CATALOG:\s*(\[.*?\])\s*\]', provided_context, re.DOTALL)
+            if match:
+                catalog_list = json.loads(match.group(1))
+                if isinstance(catalog_list, list) and catalog_list:
+                    db_instance.replace_user_inventory(catalog_list)
+        except Exception as e:
+            print(f"Error loading user catalog into DB: {e}")
+
     documents = []
     if provided_context:
         documents.append(Document(page_content=provided_context))
@@ -114,8 +124,8 @@ def retrieve_node(state: GraphState) -> GraphState:
 
     # Always enrich with live DB state
     all_products = db_instance.get_all_products()
-    db_context_str = "LIVE DATABASE RECORDS:\n" + "\n".join([
-        f"- Product: {p['name']} | Barcode: {p['barcode']} | Stock: {p['stock']} | Min Threshold: {p['min_threshold']} | Location: {p.get('location', 'Main Store')} | Velocity: {p.get('sales_velocity', 0)}/wk"
+    db_context_str = "LIVE USER INVENTORY DATABASE RECORDS:\n" + "\n".join([
+        f"- Product: {p['name']} | Barcode: {p['barcode']} | Stock: {p['stock']} | Min Threshold: {p['min_threshold']} | Category: {p.get('category', 'General')} | Location: {p.get('location', 'Main Store')}"
         for p in all_products
     ])
     documents.append(Document(page_content=db_context_str))

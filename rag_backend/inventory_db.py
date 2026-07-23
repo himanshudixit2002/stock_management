@@ -90,6 +90,31 @@ class InventoryDB:
             self.products[item["barcode"]] = item
         self._save()
 
+    def replace_user_inventory(self, custom_products: List[Dict[str, Any]]):
+        """Replaces in-memory product ledger with real user inventory items from client app."""
+        if not custom_products:
+            return
+        new_dict = {}
+        for item in custom_products:
+            barcode = str(item.get("barcode", "") or item.get("sku", "") or item.get("id", "") or item.get("name", "")).strip()
+            if not barcode:
+                continue
+            new_dict[barcode] = {
+                "barcode": barcode,
+                "name": item.get("name", "Unnamed Product"),
+                "stock": int(item.get("stock", item.get("quantity", 0))),
+                "min_threshold": int(item.get("min_threshold", item.get("lowStockThreshold", 10))),
+                "category": item.get("category", item.get("categoryName", "General")),
+                "cost_price": float(item.get("cost_price", item.get("costPrice", 0.0))),
+                "selling_price": float(item.get("selling_price", item.get("price", item.get("sellingPrice", 0.0)))),
+                "sales_velocity": int(item.get("sales_velocity", 0)),
+                "lead_time_days": int(item.get("lead_time_days", 3)),
+                "location": item.get("location", "Store Main")
+            }
+        if new_dict:
+            self.products = new_dict
+            self._save()
+
     def get_all_products(self) -> List[Dict[str, Any]]:
         return list(self.products.values())
 

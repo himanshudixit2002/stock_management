@@ -27,7 +27,7 @@
     "89010003": {
       "barcode": "89010003",
       "name": "Sparkling Water (Pack of 12)",
-      "stock": 215,
+      "stock": 200,
       "min_threshold": 100,
       "category": "Beverages",
       "cost_price": 4.0,
@@ -135,6 +135,38 @@
       "qty_change": 15,
       "reason": "Rule Action",
       "timestamp": "2026-07-23T14:04:10.047582"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-23T14:17:25.871451"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784796445",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-23T14:17:25.871575"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Rule Action",
+      "timestamp": "2026-07-23T14:17:25.873406"
     }
   ]
 }

@@ -405,17 +405,22 @@ class _RagChatScreenState extends State<RagChatScreen> {
       return;
     }
 
-    // Determine context for backend RAG
-    String intentContext = "[SYSTEM DIRECTIVE: STRICTLY NO PARAGRAPHS! Format answer in 2-3 short, playful, bulleted points (•). Data: Total $totalItems, Low $lowStockCount, Out $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
-    List<dynamic> relevantProducts = allProducts.where((p) => 
-      lowerText.contains(p.name.toLowerCase()) || lowerText.contains(p.barcode.toLowerCase()) || p.categoryName.toLowerCase().contains(lowerText)
-    ).take(5).toList();
+    // Build real user inventory catalog JSON
+    final List<Map<String, dynamic>> userCatalogList = allProducts.map((p) => {
+      'name': p.name,
+      'barcode': p.barcode.isNotEmpty ? p.barcode : p.id,
+      'quantity': p.quantity,
+      'lowStockThreshold': p.lowStockThreshold,
+      'categoryName': p.categoryName,
+      'costPrice': p.costPrice,
+      'price': p.sellingPrice,
+      'location': p.locations.isNotEmpty ? p.locations.first : 'Store Main',
+    }).toList();
 
-    final productContext = relevantProducts.isEmpty ? "" : relevantProducts.map((p) => 
-      '${p.name}(BC:${p.barcode},Qty:${p.quantity},Min:${p.lowStockThreshold})'
-    ).join(' | ');
-
-    final contextText = '$intentContext $productContext'.trim();
+    final String catalogJson = jsonEncode(userCatalogList);
+    String intentContext = "[SYSTEM DIRECTIVE: Ground all answers strictly in the REAL USER INVENTORY catalog below. STRICTLY NO PARAGRAPHS! Format answer in 2-3 short, bulleted points (•). Data: Total $totalItems, Low $lowStockCount, Out $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
+    
+    final contextText = '$intentContext\n[REAL_USER_CATALOG: $catalogJson]'.trim();
 
     final historyMessages = _messages
         .take(_messages.length - 1)
