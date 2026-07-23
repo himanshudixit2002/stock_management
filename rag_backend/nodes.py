@@ -18,6 +18,25 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from state import GraphState
 from inventory_db import db_instance
 
+def extract_text_content(content: Any) -> str:
+    """Helper to safely extract string text from langchain response content."""
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict):
+                if "text" in part:
+                    text_parts.append(part["text"])
+            elif hasattr(part, "get") and part.get("text"):
+                text_parts.append(part.get("text"))
+            elif hasattr(part, "text") and part.text:
+                text_parts.append(part.text)
+        return "".join(text_parts)
+    return str(content)
+
 # ---------------------------------------------------------
 # 1. Action Tool Schemas
 # ---------------------------------------------------------
@@ -298,7 +317,7 @@ def action_agent_node(state: GraphState) -> GraphState:
         state["executed_actions"] = executed_actions
         state["generation"] = generation
     else:
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        content = extract_text_content(response.content)
         state["generation"] = content or "Execution finished with no tool calls."
 
     return state
@@ -344,7 +363,7 @@ def analytics_agent_node(state: GraphState) -> GraphState:
         messages = prompt.format_messages(context=context_str, question=question)
         try:
             response = llm_pro.invoke(messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = extract_text_content(response.content)
         except Exception as e:
             content = f"Analytics calculation error: {str(e)}"
 
@@ -384,7 +403,7 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
         messages = prompt.format_messages(context=docs_text, question=question)
         try:
             response = llm_pro.invoke(messages)
-            content = response.content if isinstance(response.content, str) else str(response.content)
+            content = extract_text_content(response.content)
         except Exception as e:
             content = f"Connection error: {str(e)}"
 
