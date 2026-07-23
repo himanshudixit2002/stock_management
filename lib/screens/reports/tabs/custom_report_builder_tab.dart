@@ -20,6 +20,13 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
   String _groupBy = 'category';
   bool _enablePoPComparison = true;
   String _searchQuery = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,120 +59,138 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
     }
 
     final avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0.0;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return FadeSlideIn(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GlassPanel(
-              padding: const EdgeInsets.all(14),
-              borderRadius: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.tune_rounded, color: AppTheme.primaryColor, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Dimension & Grouping Selector',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textPri(context),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: FadeSlideIn(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 16 + floatingNavContentInset(context) + bottomInset,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GlassPanel(
+                padding: const EdgeInsets.all(14),
+                borderRadius: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.tune_rounded, color: AppTheme.primaryColor, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Dimension & Grouping Selector',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPri(context),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      FilterChip(
-                        selected: _enablePoPComparison,
-                        label: const Text('Compare PoP'),
-                        avatar: Icon(
-                          _enablePoPComparison ? Icons.check_circle_rounded : Icons.circle_outlined,
-                          size: 16,
-                          color: _enablePoPComparison ? Colors.white : AppTheme.textSec(context),
+                          ],
                         ),
-                        onSelected: (val) {
-                          setState(() => _enablePoPComparison = val);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      _buildChip('Category', 'category'),
-                      _buildChip('User / Cashier', 'user'),
-                      _buildChip('Vendor', 'vendor'),
-                      _buildChip('Transaction Type', 'type'),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search groups...',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                        FilterChip(
+                          selected: _enablePoPComparison,
+                          label: const Text('Compare PoP'),
+                          avatar: Icon(
+                            _enablePoPComparison ? Icons.check_circle_rounded : Icons.circle_outlined,
+                            size: 16,
+                            color: _enablePoPComparison ? Colors.white : AppTheme.textSec(context),
+                          ),
+                          onSelected: (val) {
+                            setState(() => _enablePoPComparison = val);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _buildChip('Category', 'category'),
+                        _buildChip('User / Cashier', 'user'),
+                        _buildChip('Vendor', 'vendor'),
+                        _buildChip('Transaction Type', 'type'),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (val) => setState(() => _searchQuery = val),
+                      decoration: InputDecoration(
+                        hintText: 'Search groups...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 16),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                        ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _statBox('Est. Revenue', currency.format(totalRevenue), AppTheme.primaryColor),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _statBox('Est. Profit', currency.format(totalProfit), Colors.teal),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _statBox('Avg Margin', '${avgMargin.toStringAsFixed(1)}%', Colors.purpleAccent),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _statBox('Est. Revenue', currency.format(totalRevenue), AppTheme.primaryColor),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _statBox('Est. Profit', currency.format(totalProfit), Colors.teal),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _statBox('Avg Margin', '${avgMargin.toStringAsFixed(1)}%', Colors.purpleAccent),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            Expanded(
-              child: filteredRows.isEmpty
-                  ? Center(
+              filteredRows.isEmpty
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      alignment: Alignment.center,
                       child: Text(
                         'No matching records found for this dimension',
                         style: TextStyle(color: AppTheme.textSec(context)),
                       ),
                     )
                   : ListView.builder(
-                      padding: EdgeInsets.only(
-                        bottom: floatingNavContentInset(context) + 8,
-                      ),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       itemCount: filteredRows.length,
                       itemBuilder: (context, index) {
                         final row = filteredRows[index];
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: GlassPanel(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             borderRadius: 12,
                             child: ExpansionTile(
                               tilePadding: EdgeInsets.zero,
@@ -188,14 +213,21 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                               ),
                               title: Text(
                                 row.groupName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                               ),
-                              subtitle: Text(
-                                'Rev: ${currency.format(row.salesRevenue)}  |  Profit: ${currency.format(row.profit)} (${row.profitMarginPct.toStringAsFixed(1)}%)',
-                                style: TextStyle(fontSize: 11.5, color: AppTheme.textSec(context)),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  'Rev: ${currency.format(row.salesRevenue)} • Profit: ${currency.format(row.profit)} (${row.profitMarginPct.toStringAsFixed(1)}%)',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                                ),
                               ),
                               trailing: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: row.profit >= 0 ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
@@ -203,7 +235,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                                 child: Text(
                                   '${row.stockOutQty} Out',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.bold,
                                     color: row.profit >= 0 ? Colors.green : Colors.red,
                                   ),
@@ -225,8 +257,8 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                         );
                       },
                     ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
