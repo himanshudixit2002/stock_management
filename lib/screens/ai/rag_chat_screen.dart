@@ -80,6 +80,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
     )
   ];
   bool _isLoading = false;
+  String _lastQuery = '';
   final ScrollController _scrollController = ScrollController();
   final SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
@@ -272,6 +273,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
     HapticFeedback.lightImpact();
 
     setState(() {
+      _lastQuery = text;
       _messages.add(_Message(text, true));
       _isLoading = true;
     });
@@ -621,7 +623,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
                       ),
                     ),
                   ),
-                  if (_isLoading) const _CompactThinkingWidget(),
+                  if (_isLoading) _CompactThinkingWidget(lastQuery: _lastQuery),
                   if (_isListening)
                     _LiveVoiceVisualizerWidget(
                       soundLevel: _soundLevel,
@@ -1678,7 +1680,9 @@ class _VisualLowStockCards extends StatelessWidget {
 }
 
 class _CompactThinkingWidget extends StatefulWidget {
-  const _CompactThinkingWidget();
+  final String lastQuery;
+
+  const _CompactThinkingWidget({required this.lastQuery});
 
   @override
   State<_CompactThinkingWidget> createState() => _CompactThinkingWidgetState();
@@ -1689,23 +1693,13 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
   bool _isExpanded = false;
   Timer? _timer;
 
-  final List<String> _stages = [
-    "Ask AI is thinking...",
-    "Checking inventory...",
-    "Analyzing data...",
-    "Generating response...",
-  ];
-
-  final List<String> _reasoningLogs = [
-    "• Initializing...",
-    "• Scanning...",
-    "• Evaluating...",
-    "• Processing...",
-  ];
+  List<String> _stages = [];
+  List<String> _reasoningLogs = [];
 
   @override
   void initState() {
     super.initState();
+    _initThinkingLogs();
     _timer = Timer.periodic(const Duration(milliseconds: 650), (timer) {
       if (mounted) {
         setState(() {
@@ -1715,6 +1709,64 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
         });
       }
     });
+  }
+
+  void _initThinkingLogs() {
+    final query = widget.lastQuery.toLowerCase();
+    
+    if (query.contains('audit') || query.contains('health') || query.contains('alert') || query.contains('threshold') || query.contains('risk')) {
+      _stages = [
+        "Analyzing inventory catalog...",
+        "Evaluating safety thresholds...",
+        "Identifying low-stock risks...",
+        "Formulating health recommendations...",
+      ];
+      _reasoningLogs = [
+        "• Scanning product ledger database...",
+        "• Mapping safety minimums & current levels...",
+        "• Tagging critical products below thresholds...",
+        "• Creating structured health reports...",
+      ];
+    } else if (query.contains('order') || query.contains('po') || query.contains('purchase') || query.contains('sale') || query.contains('receipt')) {
+      _stages = [
+        "Searching active orders...",
+        "Checking pending transaction receipts...",
+        "Calculating totals & margins...",
+        "Formatting order log table...",
+      ];
+      _reasoningLogs = [
+        "• Querying SalesOrder and PurchaseOrder collections...",
+        "• Checking items against vendor catalogs...",
+        "• Resolving pricing & discounts...",
+        "• Constructing compact layout representation...",
+      ];
+    } else if (query.contains('update') || query.contains('add') || query.contains('deduct') || query.contains('remove') || query.contains('restock')) {
+      _stages = [
+        "Validating stock transaction...",
+        "Writing inventory ledger updates...",
+        "Re-calculating current margins...",
+        "Logging ledger confirmation...",
+      ];
+      _reasoningLogs = [
+        "• Resolving product barcode details...",
+        "• Constructing database ledger update payload...",
+        "• Executing atomic transaction...",
+        "• Logging activity confirmation card...",
+      ];
+    } else {
+      _stages = [
+        "Ask AI is thinking...",
+        "Consulting inventory manual...",
+        "Analyzing metrics context...",
+        "Preparing helpful co-pilot guide...",
+      ];
+      _reasoningLogs = [
+        "• Initializing semantic query embedding...",
+        "• Scanning vector database documentation...",
+        "• Contextualizing inventory metrics...",
+        "• Formatting short, friendly response...",
+      ];
+    }
   }
 
   @override
@@ -1767,10 +1819,10 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                       const SizedBox(width: 8),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 250),
-                        child: Text(
-                          _stages[_currentStepIndex],
-                          key: ValueKey(_currentStepIndex),
-                          style: TextStyle(
+                        child: TypewriterText(
+                          key: ValueKey(_stages[_currentStepIndex]),
+                          text: _stages[_currentStepIndex],
+                          style: const TextStyle(
                             color: AppTheme.primaryColor,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
@@ -1814,16 +1866,24 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                           ),
                           const SizedBox(width: 6),
                           Expanded(
-                            child: Text(
-                              _reasoningLogs[idx],
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: isDone 
-                                    ? AppTheme.textPri(context).withValues(alpha: 0.9) 
-                                    : AppTheme.textSec(context).withValues(alpha: 0.5),
-                                fontWeight: isDone ? FontWeight.w500 : FontWeight.normal,
-                              ),
-                            ),
+                            child: isDone
+                                ? TypewriterText(
+                                    key: ValueKey(_reasoningLogs[idx]),
+                                    text: _reasoningLogs[idx],
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: AppTheme.textPri(context).withValues(alpha: 0.9),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  )
+                                : Text(
+                                    _reasoningLogs[idx],
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: AppTheme.textSec(context).withValues(alpha: 0.5),
+                                      fontWeight: FontWeight.normal,
+                                    ),
+                                  ),
                           ),
                         ],
                       ),
@@ -1836,6 +1896,71 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
         ),
       ),
     );
+  }
+}
+
+class TypewriterText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final Duration duration;
+
+  const TypewriterText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.duration = const Duration(milliseconds: 25),
+  });
+
+  @override
+  State<TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<TypewriterText> {
+  int _charCount = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAnimation();
+  }
+
+  @override
+  void didUpdateWidget(TypewriterText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _startAnimation();
+    }
+  }
+
+  void _startAnimation() {
+    _timer?.cancel();
+    _charCount = 0;
+    _timer = Timer.periodic(widget.duration, (timer) {
+      if (mounted) {
+        setState(() {
+          if (_charCount < widget.text.length) {
+            _charCount++;
+          } else {
+            _timer?.cancel();
+          }
+        });
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayedText = widget.text.substring(0, _charCount);
+    return Text(displayedText, style: widget.style);
   }
 }
 
