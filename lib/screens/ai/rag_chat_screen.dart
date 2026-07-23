@@ -1055,6 +1055,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
     void flushTableBlock() {
       if (currentTableBlock.isNotEmpty) {
         final localHorizController = ScrollController();
+        final localVertController = ScrollController();
         blocks.add(
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -1073,22 +1074,42 @@ class _ChatBubbleState extends State<_ChatBubble> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(9),
-                child: Scrollbar(
-                  controller: localHorizController,
-                  thumbVisibility: true,
-                  thickness: 4.0,
-                  radius: const Radius.circular(2),
-                  child: SingleChildScrollView(
-                    controller: localHorizController,
-                    scrollDirection: Axis.horizontal,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 14.0),
-                      child: MarkdownBody(
-                        data: currentTableBlock.join('\n'),
-                        selectable: false,
-                        shrinkWrap: true,
-                        styleSheet: _getMarkdownStyleSheet(context).copyWith(
-                          tableColumnWidth: const IntrinsicColumnWidth(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: Scrollbar(
+                    controller: localVertController,
+                    thumbVisibility: true,
+                    thickness: 3.5,
+                    radius: const Radius.circular(2),
+                    child: Scrollbar(
+                      controller: localHorizController,
+                      thumbVisibility: true,
+                      thickness: 3.5,
+                      radius: const Radius.circular(2),
+                      notificationPredicate: (n) => n.depth == 0,
+                      child: DragToScrollArea(
+                        horizController: localHorizController,
+                        vertController: localVertController,
+                        child: SingleChildScrollView(
+                          controller: localVertController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          child: SingleChildScrollView(
+                            controller: localHorizController,
+                            scrollDirection: Axis.horizontal,
+                            physics: const ClampingScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(10.0, 6.0, 14.0, 14.0),
+                              child: MarkdownBody(
+                                data: currentTableBlock.join('\n'),
+                                selectable: false,
+                                shrinkWrap: true,
+                                styleSheet: _getMarkdownStyleSheet(context).copyWith(
+                                  tableColumnWidth: const IntrinsicColumnWidth(),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -1923,6 +1944,58 @@ class _SoundWaveBar extends StatelessWidget {
         color: AppTheme.dangerColor,
         borderRadius: BorderRadius.circular(2),
       ),
+    );
+  }
+}
+
+class DragToScrollArea extends StatefulWidget {
+  final Widget child;
+  final ScrollController horizController;
+  final ScrollController vertController;
+
+  const DragToScrollArea({
+    super.key,
+    required this.child,
+    required this.horizController,
+    required this.vertController,
+  });
+
+  @override
+  State<DragToScrollArea> createState() => _DragToScrollAreaState();
+}
+
+class _DragToScrollAreaState extends State<DragToScrollArea> {
+  Offset? _lastOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) {
+        _lastOffset = event.position;
+      },
+      onPointerMove: (event) {
+        if (_lastOffset != null) {
+          final delta = event.position - _lastOffset!;
+          _lastOffset = event.position;
+
+          // Scroll horizontally
+          if (widget.horizController.hasClients) {
+            final hPos = widget.horizController.position;
+            final targetH = hPos.pixels - delta.dx;
+            widget.horizController.jumpTo(targetH.clamp(hPos.minScrollExtent, hPos.maxScrollExtent));
+          }
+
+          // Scroll vertically
+          if (widget.vertController.hasClients) {
+            final vPos = widget.vertController.position;
+            final targetV = vPos.pixels - delta.dy;
+            widget.vertController.jumpTo(targetV.clamp(vPos.minScrollExtent, vPos.maxScrollExtent));
+          }
+        }
+      },
+      onPointerUp: (_) => _lastOffset = null,
+      onPointerCancel: (_) => _lastOffset = null,
+      child: widget.child,
     );
   }
 }
