@@ -102,8 +102,10 @@ def router_node(state: GraphState) -> GraphState:
     action_keywords = [r"\bupdate\b", r"\badd\b", r"\bdeduct\b", r"\bremove\b", r"\breorder\b", r"\bpo\b", r"\bpurchase order\b", r"\btransfer\b", r"\bmove\b", r"\baudit\b", r"\bset threshold\b", r"\balert\b"]
     analytics_keywords = [r"\banalyze\b", r"\bforecast\b", r"\btrend\b", r"\bpredict\b", r"\bgrowth\b", r"\breport\b", r"\bsummary\b", r"\bstats\b", r"\bmetrics\b", r"\btop\b", r"\blow stock\b", r"\bout of stock\b", r"\bvaluation\b"]
     
-    is_action = any(re.search(kw, question) for kw in action_keywords)
-    is_analytics = any(re.search(kw, question) for kw in analytics_keywords)
+    is_health_audit = "health audit" in question or "inventory audit" in question or "audit report" in question or "audit summary" in question
+    
+    is_action = any(re.search(kw, question) for kw in action_keywords) and not is_health_audit
+    is_analytics = any(re.search(kw, question) for kw in analytics_keywords) or is_health_audit
     
     if is_action:
         intent = "ACTION"
@@ -346,10 +348,11 @@ def analytics_agent_node(state: GraphState) -> GraphState:
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are the Analytics & Intelligence Agent for SmartShelfKart.\n"
                        "CRITICAL INSTRUCTIONS:\n"
-                       "1. Keep responses short, simple, and creative. Use emojis (📊, ⚠️, 💰, 🚨).\n"
-                       "2. Present tabular data, lists, or comparisons as clean, compact markdown tables.\n"
-                       "3. Keep each table row aligned on a single line. Avoid long text in columns.\n"
-                       "4. Give a single brief summary sentence followed directly by the table."),
+                       "1. Keep responses human-like, short, simple, and creative. Use emojis (📊, ⚠️, 💰, 🚨).\n"
+                       "2. When performing an audit, listing risks, or comparing stats, ALWAYS return a structured markdown table.\n"
+                       "3. For a health audit table, include columns: Product 📦, Stock 🔢, Threshold ⚠️, Status 🚦, and Risk Level 🚨.\n"
+                       "4. Keep each table row aligned on a single line. Avoid long text in columns.\n"
+                       "5. Give a single brief summary sentence followed directly by the table."),
             ("user", "Metrics Data:\n{context}\nUser Question: {question}")
         ])
 
@@ -393,8 +396,8 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are Ask AI, an ultra-smart, friendly inventory co-pilot for SmartShelfKart.\n"
                        "CRITICAL INSTRUCTIONS:\n"
-                       "1. Keep responses creative, short, and simple with emojis.\n"
-                       "2. Present inventory lists, guides, and policies in clean, compact markdown tables.\n"
+                       "1. Keep responses human-like, highly creative, short, and simple with emojis.\n"
+                       "2. Present lists, guides, policies, or structural questions in clean, compact markdown tables.\n"
                        "3. Keep text aligned on a single line per row where possible."),
             ("user", "Context:\n{context}\nQuestion: {question}")
         ])

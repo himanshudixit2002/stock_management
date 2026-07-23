@@ -1012,16 +1012,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(11),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                    child: MarkdownBody(
-                      data: currentTableBlock.join('\n'),
-                      selectable: false,
-                      shrinkWrap: true,
-                      styleSheet: _getMarkdownStyleSheet(context).copyWith(
-                        tableColumnWidth: const IntrinsicColumnWidth(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        child: MarkdownBody(
+                          data: currentTableBlock.join('\n'),
+                          selectable: false,
+                          shrinkWrap: true,
+                          styleSheet: _getMarkdownStyleSheet(context).copyWith(
+                            tableColumnWidth: const IntrinsicColumnWidth(),
+                          ),
+                        ),
                       ),
                     ),
                   ),
