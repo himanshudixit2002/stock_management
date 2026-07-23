@@ -1137,7 +1137,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final isUser = widget.message.isUser;
     
     final screenWidth = MediaQuery.of(context).size.width;
-    final maxBubbleWidth = screenWidth * 0.82;
+    final maxBubbleWidth = screenWidth * 0.82 > 650 ? 650.0 : screenWidth * 0.82;
 
     final rawText = widget.message.text;
 
