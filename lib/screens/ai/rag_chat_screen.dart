@@ -496,6 +496,31 @@ class _RagChatScreenState extends State<RagChatScreen> {
     });
   }
 
+  void _copyEntireChat() {
+    HapticFeedback.lightImpact();
+    final buffer = StringBuffer();
+    for (final msg in _messages) {
+      final sender = msg.isUser ? "User" : "Ask AI";
+      buffer.writeln("$sender: ${msg.text}\n");
+    }
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text('Entire chat copied to clipboard!', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: Colors.green.shade700,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -536,6 +561,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
                 ),
               ),
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.copy_all_rounded, size: 22),
+                  tooltip: 'Copy Chat',
+                  color: AppTheme.textSec(context),
+                  onPressed: _copyEntireChat,
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline_rounded, size: 22),
                   tooltip: 'Clear Chat',
@@ -1111,8 +1142,18 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final rawText = widget.message.text;
 
     // Format inline bullet items and points/emojis onto clean new lines
-    String formattedText = rawText;
-    formattedText = formattedText.replaceAll(RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'), '\n\$1 ');
+    // We only apply this to non-table lines to avoid breaking table markdown
+    final List<String> rawLines = rawText.split('\n');
+    final List<String> formattedLines = [];
+    for (final line in rawLines) {
+      if (line.contains('|')) {
+        formattedLines.add(line);
+      } else {
+        String processed = line.replaceAll(RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'), '\n\$1 ');
+        formattedLines.add(processed);
+      }
+    }
+    String formattedText = formattedLines.join('\n');
     if (formattedText.startsWith('\n')) {
       formattedText = formattedText.substring(1);
     }
