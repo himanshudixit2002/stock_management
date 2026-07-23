@@ -272,14 +272,6 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
           color: AppTheme.primaryColor,
           title: 'Create Purchase Order',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor),
-            tooltip: 'AI RAG Auto-Fill Reorder',
-            onPressed: _aiAutoFillLowStock,
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
@@ -293,70 +285,6 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
               child: ListView(
                 padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                 children: [
-                  // AI Smart Action Banner
-                  InkWell(
-                    onTap: _aiAutoFillLowStock,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 14),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor.withValues(alpha: 0.15),
-                            AppTheme.accentColor.withValues(alpha: 0.08),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "🤖 AI RAG Smart Auto-Fill",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.textPri(context),
-                                  ),
-                                ),
-                                Text(
-                                  "Automatically add low stock items with optimal reorder quantities",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.textSec(context),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              "Auto-Fill",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                   GlassPanel(
                     borderRadius: 20,
                     padding: const EdgeInsets.all(20),
@@ -481,6 +409,15 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                 ),
                               ),
                             ),
+                            TextButton.icon(
+                              onPressed: _aiAutoFillLowStock,
+                              icon: const Icon(Icons.bolt_rounded, size: 16, color: AppTheme.primaryColor),
+                              label: const Text(
+                                'Auto-Fill Low Stock',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
                             TextButton.icon(
                               onPressed: _addItem,
                               icon: const Icon(Icons.add_rounded, size: 18),

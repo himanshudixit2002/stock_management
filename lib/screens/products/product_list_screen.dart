@@ -194,11 +194,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       ),
                     ),
                     actions: [
-                      IconButton(
-                        icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 22),
-                        tooltip: 'AI Stock Audit & RAG Insights',
-                        onPressed: () => RagChatScreen.open(context),
-                      ),
                       if (canManageProducts)
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),

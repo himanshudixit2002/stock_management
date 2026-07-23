@@ -101,14 +101,6 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
           color: AppTheme.warningColor,
           title: 'Returns',
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor),
-            tooltip: 'AI Return & Damage Claims Analysis',
-            onPressed: () => RagChatScreen.open(context),
-          ),
-          const SizedBox(width: 8),
-        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryColor,
