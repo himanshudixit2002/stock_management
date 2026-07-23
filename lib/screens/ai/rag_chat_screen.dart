@@ -944,28 +944,28 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
   MarkdownStyleSheet _getMarkdownStyleSheet(BuildContext context) {
     return MarkdownStyleSheet(
-      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.4, letterSpacing: 0.1),
-      h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 15),
-      h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
-      h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 14),
-      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
-      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
-      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
-      listIndent: 12.0,
-      listBulletPadding: const EdgeInsets.only(right: 4),
+      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.0, height: 1.35, letterSpacing: 0.1),
+      h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
+      h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.0),
+      h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 13.5),
+      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.0),
+      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.0),
+      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.0, fontWeight: FontWeight.bold),
+      listIndent: 10.0,
+      listBulletPadding: const EdgeInsets.only(right: 3),
       pPadding: EdgeInsets.zero,
       blockSpacing: 4,
       tableBorder: TableBorder(
-        horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
-        verticalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.05), width: 0.5),
-        bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.15), width: 1.0),
-        top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.15), width: 1.0),
-        left: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
-        right: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+        horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
+        verticalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.03), width: 0.5),
+        bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+        top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
+        left: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
+        right: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
       ),
-      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.95), fontSize: 12.0, height: 1.3),
-      tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 12.5, fontWeight: FontWeight.w800),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.95), fontSize: 11.5, height: 1.25),
+      tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 12.0, fontWeight: FontWeight.w800),
       tableColumnWidth: const FlexColumnWidth(),
     );
   }
@@ -994,38 +994,55 @@ class _ChatBubbleState extends State<_ChatBubble> {
     
     void flushTableBlock() {
       if (currentTableBlock.isNotEmpty) {
+        final localHorizController = ScrollController();
+        final localVertController = ScrollController();
         blocks.add(
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
             child: Container(
               decoration: BoxDecoration(
-                color: AppTheme.surface(context).withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2), width: 1),
+                color: AppTheme.surface(context).withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.01),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(9),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: Scrollbar(
+                    controller: localVertController,
+                    thumbVisibility: true,
+                    thickness: 3.5,
+                    radius: const Radius.circular(2),
                     child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                        child: MarkdownBody(
-                          data: currentTableBlock.join('\n'),
-                          selectable: false,
-                          shrinkWrap: true,
-                          styleSheet: _getMarkdownStyleSheet(context).copyWith(
-                            tableColumnWidth: const IntrinsicColumnWidth(),
+                      controller: localVertController,
+                      scrollDirection: Axis.vertical,
+                      child: Scrollbar(
+                        controller: localHorizController,
+                        thumbVisibility: true,
+                        thickness: 3.5,
+                        radius: const Radius.circular(2),
+                        notificationPredicate: (n) => n.depth == 0,
+                        child: SingleChildScrollView(
+                          controller: localHorizController,
+                          scrollDirection: Axis.horizontal,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(10.0, 6.0, 10.0, 14.0),
+                            child: MarkdownBody(
+                              data: currentTableBlock.join('\n'),
+                              selectable: false,
+                              shrinkWrap: true,
+                              styleSheet: _getMarkdownStyleSheet(context).copyWith(
+                                tableColumnWidth: const IntrinsicColumnWidth(),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1106,8 +1123,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
     );
 
     Widget bubble = Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 1.5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       constraints: BoxConstraints(maxWidth: maxBubbleWidth),
       decoration: BoxDecoration(
         gradient: isUser 
@@ -1117,16 +1134,16 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 1),
-        borderRadius: BorderRadius.circular(16).copyWith(
-          bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
-          bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
+        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 0.8),
+        borderRadius: BorderRadius.circular(14).copyWith(
+          bottomRight: isUser ? const Radius.circular(3) : const Radius.circular(14),
+          bottomLeft: isUser ? const Radius.circular(14) : const Radius.circular(3),
         ),
         boxShadow: [
           BoxShadow(
-            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.01),
+            blurRadius: 3,
+            offset: const Offset(0, 1.5),
           )
         ],
       ),
@@ -1135,8 +1152,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
             widget.message.text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14,
-              height: 1.3,
+              fontSize: 13.5,
+              height: 1.25,
               fontWeight: FontWeight.w500,
             ),
           )
