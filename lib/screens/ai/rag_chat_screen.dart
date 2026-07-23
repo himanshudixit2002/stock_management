@@ -590,44 +590,49 @@ class _RagChatScreenState extends State<RagChatScreen> {
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: SafeArea(
           bottom: false,
-          child: Column(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => FocusScope.of(context).unfocus(),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.only(
-                      top: kToolbarHeight + 12,
-                      bottom: 12,
-                      left: 12,
-                      right: 12,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => FocusScope.of(context).unfocus(),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.only(
+                          top: kToolbarHeight + 12,
+                          bottom: 12,
+                          left: 12,
+                          right: 12,
+                        ),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final message = _messages[index];
+                          return _ChatBubble(
+                            message: message,
+                            onActionExecuted: _saveChatHistory,
+                            onQuickPrompt: (prompt) => _sendMessage(prompt),
+                          )
+                              .animate()
+                              .fade(duration: 300.ms)
+                              .slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuad);
+                        },
+                      ),
                     ),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return _ChatBubble(
-                        message: message,
-                        onActionExecuted: _saveChatHistory,
-                        onQuickPrompt: (prompt) => _sendMessage(prompt),
-                      )
-                          .animate()
-                          .fade(duration: 300.ms)
-                          .slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuad);
-                    },
                   ),
-                ),
+                  if (_isLoading) const _CompactThinkingWidget(),
+                  if (_isListening)
+                    _LiveVoiceVisualizerWidget(
+                      soundLevel: _soundLevel,
+                      onDone: _stopListening,
+                      onCancel: _cancelListening,
+                    ),
+                  _buildQuickActions(),
+                  _buildInputArea(context),
+                ],
               ),
-              if (_isLoading) const _CompactThinkingWidget(),
-              if (_isListening)
-                _LiveVoiceVisualizerWidget(
-                  soundLevel: _soundLevel,
-                  onDone: _stopListening,
-                  onCancel: _cancelListening,
-                ),
-              _buildQuickActions(),
-              _buildInputArea(context),
-            ],
+            ),
           ),
         ),
       ),
