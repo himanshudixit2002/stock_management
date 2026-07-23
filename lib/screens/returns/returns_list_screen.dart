@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
@@ -100,6 +101,14 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
           color: AppTheme.warningColor,
           title: 'Returns',
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor),
+            tooltip: 'AI Return & Damage Claims Analysis',
+            onPressed: () => RagChatScreen.open(context),
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryColor,

@@ -194,6 +194,58 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
     });
   }
 
+  void _aiAutoFillLowStock() {
+    final productProvider = context.read<ProductProvider>();
+    final lowStockProducts = productProvider.lowStockProducts;
+
+    if (lowStockProducts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🤖 AI Audit: All products are at healthy stock levels! No items low.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      for (final item in _items) {
+        item.dispose();
+      }
+      _items.clear();
+
+      for (final p in lowStockProducts) {
+        final row = _ItemRow();
+        row.productId = p.id;
+        row.productName = p.name;
+        row.baseUnit = p.baseUnit;
+        row.unitsPerPack = p.unitsPerPack > 0 ? p.unitsPerPack : 1;
+        
+        final neededBase = (p.lowStockThreshold * 2 - p.quantity).clamp(5, 500);
+        final packs = (neededBase / row.unitsPerPack).ceil();
+
+        row.qtyController.text = packs.toString();
+        row.pieceController.text = '0';
+        row.priceController.text = p.costPrice.toStringAsFixed(2);
+        
+        _items.add(row);
+      }
+
+      if (_items.isEmpty) {
+        _items.add(_ItemRow());
+      }
+    });
+
+    HapticFeedback.heavyImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🤖 AI RAG Auto-Filled ${_items.length} low stock items with optimal reorder quantities!'),
+        backgroundColor: AppTheme.primaryColor,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PermissionGate(
@@ -220,6 +272,14 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
           color: AppTheme.primaryColor,
           title: 'Create Purchase Order',
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor),
+            tooltip: 'AI RAG Auto-Fill Reorder',
+            onPressed: _aiAutoFillLowStock,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
@@ -233,6 +293,70 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
               child: ListView(
                 padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
                 children: [
+                  // AI Smart Action Banner
+                  InkWell(
+                    onTap: _aiAutoFillLowStock,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primaryColor.withValues(alpha: 0.15),
+                            AppTheme.accentColor.withValues(alpha: 0.08),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "🤖 AI RAG Smart Auto-Fill",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textPri(context),
+                                  ),
+                                ),
+                                Text(
+                                  "Automatically add low stock items with optimal reorder quantities",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textSec(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              "Auto-Fill",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   GlassPanel(
                     borderRadius: 20,
                     padding: const EdgeInsets.all(20),

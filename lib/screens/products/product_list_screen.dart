@@ -13,6 +13,7 @@ import '../../widgets/provider_error_banner.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/floating_nav_padding.dart';
+import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
@@ -193,6 +194,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       ),
                     ),
                     actions: [
+                      IconButton(
+                        icon: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primaryColor, size: 22),
+                        tooltip: 'AI Stock Audit & RAG Insights',
+                        onPressed: () => RagChatScreen.open(context),
+                      ),
                       if (canManageProducts)
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),

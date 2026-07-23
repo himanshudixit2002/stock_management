@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
@@ -138,6 +139,49 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                 padding: EdgeInsets.fromLTRB(
                   Responsive.horizontalPadding(context),
                   8,
+                  Responsive.horizontalPadding(context),
+                  4,
+                ),
+                child: InkWell(
+                  onTap: () => RagChatScreen.open(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppTheme.indigoColor.withValues(alpha: 0.12),
+                          AppTheme.primaryColor.withValues(alpha: 0.08),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.indigoColor.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.auto_awesome_rounded, color: AppTheme.indigoColor, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "🤖 AI RAG Audit: Click to run deep anomaly & shrink analysis",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPri(context),
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, size: 18, color: AppTheme.indigoColor),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  Responsive.horizontalPadding(context),
+                  0,
                   Responsive.horizontalPadding(context),
                   4,
                 ),
