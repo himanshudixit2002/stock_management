@@ -34,17 +34,18 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
       final realProducts = productProvider.analyticsProducts.map((p) => {
         'id': p.id,
-        'barcode': p.barcode,
+        'barcode': p.barcode.isNotEmpty ? p.barcode : p.id,
         'name': p.name,
         'stock': p.quantity,
         'min_threshold': p.lowStockThreshold,
-        'category': p.categoryName ?? 'General',
+        'category': p.categoryName.isNotEmpty ? p.categoryName : 'General',
         'cost_price': p.costPrice,
-        'selling_price': p.sellingPrice ?? p.price,
-        'sales_velocity': p.salesVelocity ?? 1,
-        'lead_time_days': p.leadTimeDays ?? 3,
-        'location': p.location ?? 'Main Store',
+        'selling_price': p.sellingPrice,
+        'sales_velocity': 5,
+        'lead_time_days': 3,
+        'location': p.locationQuantities.isNotEmpty ? p.locationQuantities.keys.first : 'Main Store',
       }).toList();
+
 
       if (realProducts.isNotEmpty) {
         await AiAgentService.syncUserInventory(realProducts);
