@@ -146,4 +146,45 @@ class RagApiService {
       debugPrint("Failed to clear backend cache: $e");
     }
   }
+
+  /// Streams chunks from the RAG backend via SSE for sub-second visual latency.
+  static Stream<Map<String, dynamic>> askQuestionStream(
+    String question, {
+    String? context,
+    List<Map<String, String>>? history,
+  }) async* {
+    final url = Uri.parse('$_baseUrl/api/chat/stream');
+    try {
+      final request = http.Request('POST', url);
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({
+        'question': question,
+        if (context != null) 'context': context,
+        if (history != null) 'history': history,
+      });
+
+      final client = http.Client();
+      final response = await client.send(request);
+
+      if (response.statusCode == 200) {
+        await for (final chunk in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+          if (chunk.startsWith('data: ')) {
+            final jsonStr = chunk.substring(6).trim();
+            if (jsonStr.isNotEmpty) {
+              try {
+                final data = jsonDecode(jsonStr);
+                yield data as Map<String, dynamic>;
+              } catch (e) {
+                debugPrint("Stream JSON decode error: $e");
+              }
+            }
+          }
+        }
+      } else {
+        yield {'type': 'done', 'answer': 'Error: Server returned ${response.statusCode}'};
+      }
+    } catch (e) {
+      yield {'type': 'done', 'answer': 'Connection error: $e'};
+    }
+  }
 }

@@ -31,6 +31,13 @@ def test_cache_manager():
     assert res == generation, f"Cache hit failed. Expected: {generation}, Got: {res}"
     print("✓ Cache hit verified.")
     
+    # 2b. Test Semantic Cache Hit (Rephrased question)
+    print("Testing semantic cache hit on rephrased question...")
+    rephrased_q = "What is stock for Apples?"
+    res_sem = cache.get(rephrased_q, context, history)
+    assert res_sem == generation, f"Semantic cache hit failed for '{rephrased_q}'"
+    print("✓ Semantic cache hit verified for rephrased question.")
+    
     # 3. Test context invalidation
     print("Testing cache get with modified context (should miss)...")
     new_context = "Apples: 10 units"

@@ -17,6 +17,7 @@ import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/floating_nav_padding.dart';
+import '../../widgets/ai/autonomous_dashboard_widget.dart';
 import 'getting_started_card.dart';
 import 'home_sections.dart';
 import 'today_card.dart';
@@ -79,6 +80,8 @@ class HomeTab extends StatelessWidget {
                 const TodayCard(),
                 const GettingStartedCard(),
                 const SizedBox(height: 14),
+                const AutonomousDashboardWidget(),
+                const SizedBox(height: 14),
                 const FadeSlideIn(index: 3, child: InsightsCard()),
                 const SizedBox(height: 12),
                 const _HomeMoreSection(),
@@ -94,6 +97,7 @@ class HomeTab extends StatelessWidget {
       ),
     );
   }
+
 
   // ---------------------------------------------------------------------------
   // Merged top bar: avatar + greeting + search + notifications (single header)

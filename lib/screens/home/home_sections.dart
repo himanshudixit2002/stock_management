@@ -20,10 +20,12 @@ import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../home_screen.dart';
 import '../ai/rag_chat_screen.dart';
+import '../ai/visual_stock_audit_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Action card (customizable Quick Actions surface on Home)
 // ---------------------------------------------------------------------------
+
 class HomeActionCard extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -558,8 +560,13 @@ class _InsightsCardState extends State<InsightsCard> {
     final insights = <_InsightItem>[
       _InsightItem(
         Icons.auto_awesome_rounded,
-        '⚡ Ask AI RAG Assistant: Audit & auto-reorder low stock',
+        '⚡ Ask AI Agent: Audit & auto-reorder low stock',
         'ask_ai_rag',
+      ),
+      _InsightItem(
+        Icons.camera_alt_rounded,
+        '📸 AI Vision Audit: Count shelf stock via camera',
+        'visual_ai_audit',
       ),
       _InsightItem(
         Icons.warning_amber_rounded,
@@ -586,10 +593,16 @@ class _InsightsCardState extends State<InsightsCard> {
       onTap: () {
         if (current.route == 'ask_ai_rag') {
           RagChatScreen.open(context);
+        } else if (current.route == 'visual_ai_audit') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const VisualStockAuditScreen()),
+          );
         } else {
           Navigator.pushNamed(context, current.route);
         }
       },
+
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(

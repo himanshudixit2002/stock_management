@@ -439,11 +439,11 @@ class _RagChatScreenState extends State<RagChatScreen> {
 
     final historyMessages = _messages
         .take(_messages.length - 1)
-        .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!"))
+        .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!") && !m.text.startsWith("👋 **Ask AI is ready!**"))
         .toList();
     
-    final recentHistory = historyMessages.length > 6 
-        ? historyMessages.sublist(historyMessages.length - 6) 
+    final recentHistory = historyMessages.length > 4 
+        ? historyMessages.sublist(historyMessages.length - 4) 
         : historyMessages;
         
     final historyPayload = recentHistory.map((m) => {

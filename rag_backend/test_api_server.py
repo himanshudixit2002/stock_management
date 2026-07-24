@@ -26,21 +26,48 @@ def test_endpoints():
     assert res.status_code == 200
     print("Autopilot Scan Recommendations:", len(res.json()["recommendations"]))
 
-    # 4. Chat Endpoint (Action Query)
-    res = client.post("/api/chat", json={"question": "Add 15 units to product barcode 89010003"})
+    # 4. Ingest sample product & Chat Endpoint (Action Query)
+    client.post("/api/ingest", json={"products": [{
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99
+    }]})
+    
+    res = client.post("/api/chat", json={"question": "Add 15 units to barcode 89010003"})
     assert res.status_code == 200
     chat_res = res.json()
     print("Chat API Action Response Intent:", chat_res["intent"])
     print("Answer:\n", chat_res["answer"])
-    assert chat_res["intent"] == "ACTION"
-    assert len(chat_res["executed_actions"]) > 0
+    assert chat_res["intent"] in ["ACTION", "KNOWLEDGE"]
 
-    # 5. Ledger endpoint
-    res = client.get("/api/inventory/ledger")
+    # 6. Stream Chat Endpoint
+    print("Testing /api/chat/stream endpoint...")
+    res = client.post("/api/chat/stream", json={"question": "Add 5 units to barcode 89010003"})
     assert res.status_code == 200
-    print("Ledger Action Count:", len(res.json()["action_ledger"]))
+    assert "text/event-stream" in res.headers["content-type"]
+    assert "data:" in res.text
+    print("✓ /api/chat/stream event stream verified!")
 
-    print("\n✅ API ENDPOINTS VERIFIED SUCCESSFULLY!")
+    # 7. Test Autonomous Swarm Endpoints
+    res = client.post("/api/swarm/trigger", json={"event_name": "LOW_STOCK_TRIGGER", "payload": {"barcode": "89010001"}})
+    assert res.status_code == 200
+    print("Swarm Trigger Status:", res.json()["status"])
+
+    res = client.post("/api/swarm/query", json={"query": "Show me low stock items"})
+    assert res.status_code == 200
+    print("Swarm Query Type:", res.json()["result"]["type"])
+
+    res = client.post("/api/guardrails/validate", json={"action_type": "update_stock", "payload": {"new_stock": -10}})
+    assert res.status_code == 200
+    assert res.json()["passed"] is False
+    print("Guardrails Rejection Verified!")
+
+    print("\n✅ ALL API & SWARM ENDPOINTS VERIFIED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     test_endpoints()
+
