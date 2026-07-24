@@ -144,13 +144,13 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                 'Audit Results & Ledger Updates',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.textPri(context),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Audited ${_auditSummary!['audited_items_count']} items at ${_auditSummary!['timestamp']?.toString().split('.').first}',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
               ),
               const SizedBox(height: 12),
 
@@ -161,7 +161,7 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.card(context),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isMatch ? AppTheme.successColor.withValues(alpha: 0.3) : AppTheme.dangerColor.withValues(alpha: 0.3),
@@ -181,15 +181,16 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                           children: [
                             Text(
                               res['product_name'] ?? 'Product',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textPri(context)),
                             ),
                             Text(
                               'Expected: ${res['expected_stock']} | Vision Counted: ${res['visual_counted_stock']}',
-                              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                              style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                             ),
                           ],
                         ),
                       ),
+
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(

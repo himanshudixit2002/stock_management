@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';

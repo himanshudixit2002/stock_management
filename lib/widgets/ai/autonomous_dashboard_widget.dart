@@ -91,14 +91,14 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                       'Autonomous Inventory Engine',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.textPri(context),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Self-operating predictive scans & stock balance active',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.textSec(context),
                       ),
                     ),
                   ],
@@ -111,7 +111,7 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                         height: 18, 
                         child: CircularProgressIndicator(strokeWidth: 2)
                       )
-                    : const Icon(Icons.refresh, color: AppTheme.textSecondary),
+                    : Icon(Icons.refresh, color: AppTheme.textSec(context)),
                 onPressed: _isLoading ? null : _loadAgentData,
                 tooltip: 'Re-run Autonomous AI Audit',
               ),
@@ -120,62 +120,57 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
           const SizedBox(height: 16),
 
           if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Center(
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 12),
-                    Text('Scanning 30-day velocity & inventory anomalies...'),
-                  ],
-                ),
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: CircularProgressIndicator(),
               ),
             )
           else ...[
-            // 1. Anomalies Card (If any critical anomalies exist)
-            if (_anomalies.isNotEmpty) ...[
-              _buildSectionTitle('AI Anomaly & Theft Risk Alerts', Icons.warning_amber_rounded, AppTheme.dangerColor),
-              const SizedBox(height: 8),
-              ..._anomalies.take(2).map((a) => _buildAnomalyCard(a)),
-              const SizedBox(height: 12),
-            ],
+            _buildSectionHeader('Stock Anomalies & Shrinkage', Icons.warning_amber_rounded, AppTheme.dangerColor),
+            const SizedBox(height: 8),
+            if (_anomalies.isEmpty)
+              _buildEmptyTile(context, 'No anomalies or shrinkage spikes detected.')
+            else
+              ..._anomalies.take(2).map((a) => _buildAnomalyCard(context, a)),
 
-            // 2. Autopilot Purchase Recommendations
-            _buildSectionTitle('Proactive Autopilot Reorders (${_autopilotRecs.length})', Icons.shopping_cart_checkout, AppTheme.primaryColor),
+            const SizedBox(height: 14),
+
+            _buildSectionHeader('Proactive Auto-Reorder POs', Icons.shopping_cart_checkout, AppTheme.primaryColor),
             const SizedBox(height: 8),
             if (_autopilotRecs.isEmpty)
-              _buildEmptyTile('All items healthy. No emergency reorders required.')
+              _buildEmptyTile(context, 'All stock levels are optimal. No reorders needed.')
             else
-              ..._autopilotRecs.take(3).map((rec) => _buildAutopilotCard(rec)),
+              ..._autopilotRecs.take(2).map((r) => _buildAutopilotCard(context, r)),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 3. Location Stock Transfer Balances
-            if (_transfers.isNotEmpty) ...[
-              _buildSectionTitle('Cross-Location Stock Transfer Balances', Icons.swap_horiz_rounded, AppTheme.accentColor),
-              const SizedBox(height: 8),
-              ..._transfers.take(2).map((t) => _buildTransferCard(t)),
-              const SizedBox(height: 12),
-            ],
+            _buildSectionHeader('Cross-Location Balance', Icons.swap_horiz_rounded, AppTheme.accentColor),
+            const SizedBox(height: 8),
+            if (_transfers.isEmpty)
+              _buildEmptyTile(context, 'Warehouse & store front stock is balanced.')
+            else
+              ..._transfers.take(2).map((t) => _buildTransferCard(context, t)),
 
-            // 4. Demand Forecast
-            if (_forecasts.isNotEmpty) ...[
-              _buildSectionTitle('30-Day Demand & Run-Out Forecast', Icons.trending_up_rounded, AppTheme.indigoColor),
-              const SizedBox(height: 8),
-              ..._forecasts.take(2).map((f) => _buildForecastCard(f)),
-            ],
+            const SizedBox(height: 14),
+
+            _buildSectionHeader('30-Day Demand Projections', Icons.trending_up_rounded, AppTheme.indigoColor),
+            const SizedBox(height: 8),
+            if (_forecasts.isEmpty)
+              _buildEmptyTile(context, 'No demand velocity data available.')
+            else
+              ..._forecasts.take(2).map((f) => _buildForecastCard(context, f)),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon, Color color) {
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 8),
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 6),
         Text(
           title,
           style: TextStyle(
@@ -188,23 +183,23 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     );
   }
 
-  Widget _buildEmptyTile(String message) {
+  Widget _buildEmptyTile(BuildContext context, String message) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.dividerColor),
+        border: Border.all(color: AppTheme.dividerC(context)),
       ),
       child: Text(
         message,
-        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
       ),
     );
   }
 
-  Widget _buildAnomalyCard(Map<String, dynamic> anomaly) {
+  Widget _buildAnomalyCard(BuildContext context, Map<String, dynamic> anomaly) {
     final isCritical = anomaly['severity'] == 'CRITICAL';
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -228,11 +223,11 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               children: [
                 Text(
                   anomaly['product_name'] ?? 'Product Anomaly',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
                 ),
                 Text(
                   anomaly['description'] ?? '',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                 ),
               ],
             ),
@@ -253,12 +248,12 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     );
   }
 
-  Widget _buildAutopilotCard(Map<String, dynamic> rec) {
+  Widget _buildAutopilotCard(BuildContext context, Map<String, dynamic> rec) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
         boxShadow: [
@@ -279,11 +274,11 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               children: [
                 Text(
                   rec['product_name'] ?? 'Item',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
                 ),
                 Text(
                   'Stock: ${rec['current_stock']} | Velocity: ${rec['weekly_sales_velocity']} units/wk',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                 ),
               ],
             ),
@@ -291,7 +286,6 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-
               Text(
                 '+${rec['suggested_reorder_qty']} units',
                 style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 13),
@@ -307,12 +301,12 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     );
   }
 
-  Widget _buildTransferCard(Map<String, dynamic> t) {
+  Widget _buildTransferCard(BuildContext context, Map<String, dynamic> t) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.2)),
       ),
@@ -326,11 +320,11 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               children: [
                 Text(
                   t['product_name'] ?? 'Product',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
                 ),
                 Text(
                   'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                 ),
               ],
             ),
@@ -340,14 +334,14 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     );
   }
 
-  Widget _buildForecastCard(Map<String, dynamic> f) {
+  Widget _buildForecastCard(BuildContext context, Map<String, dynamic> f) {
     final days = f['days_until_stockout'] ?? 999;
     final isUrgent = days <= 7;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.indigoColor.withValues(alpha: 0.2)),
       ),
@@ -365,11 +359,11 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               children: [
                 Text(
                   f['product_name'] ?? 'Item',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
                 ),
                 Text(
                   '30D Demand: ~${f['projected_30d_demand']} units (${f['daily_sales_rate']} units/day)',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                 ),
               ],
             ),

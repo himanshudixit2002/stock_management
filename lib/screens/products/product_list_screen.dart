@@ -13,7 +13,6 @@ import '../../widgets/provider_error_banner.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/floating_nav_padding.dart';
-import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
