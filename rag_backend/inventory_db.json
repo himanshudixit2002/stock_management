@@ -16,7 +16,7 @@
     "89010003": {
       "barcode": "89010003",
       "name": "Sparkling Water (Pack of 12)",
-      "stock": 145,
+      "stock": 150,
       "min_threshold": 100,
       "category": "Beverages",
       "cost_price": 4.0,
@@ -37,7 +37,7 @@
       "sales_velocity": 40,
       "lead_time_days": 3,
       "location": "Store Front - A1",
-      "last_updated_timestamp": "2026-07-25T00:48:24.624154"
+      "last_updated_timestamp": "2026-07-25T01:41:46.855622"
     },
     "89010002": {
       "barcode": "89010002",
@@ -49,7 +49,8 @@
       "selling_price": 999.0,
       "sales_velocity": 10,
       "lead_time_days": 14,
-      "location": "Warehouse B - Shelf 4"
+      "location": "Warehouse B - Shelf 4",
+      "last_updated_timestamp": "2026-07-25T01:41:45.836349"
     },
     "89010004": {
       "barcode": "89010004",
@@ -72,7 +73,7 @@
       "selling_price": 100.0,
       "sales_velocity": 5,
       "lead_time_days": 3,
-      "last_updated_timestamp": "2026-07-25T00:55:33.924425"
+      "last_updated_timestamp": "2026-07-25T01:41:43.411925"
     },
     "DEAD-SKU-01": {
       "barcode": "DEAD-SKU-01",
@@ -83,7 +84,7 @@
       "selling_price": 30.0,
       "sales_velocity": 0,
       "lead_time_days": 7,
-      "last_updated_timestamp": "2026-07-25T00:55:33.924897"
+      "last_updated_timestamp": "2026-07-25T01:41:43.412421"
     },
     "MARGIN-SKU-02": {
       "barcode": "MARGIN-SKU-02",
@@ -94,7 +95,7 @@
       "selling_price": 100.0,
       "sales_velocity": 2,
       "lead_time_days": 2,
-      "last_updated_timestamp": "2026-07-25T00:55:33.925445"
+      "last_updated_timestamp": "2026-07-25T01:41:43.412802"
     },
     "EXPENSIVE-SKU-100": {
       "barcode": "EXPENSIVE-SKU-100",
@@ -105,7 +106,7 @@
       "selling_price": 1000.0,
       "sales_velocity": 2,
       "lead_time_days": 5,
-      "last_updated_timestamp": "2026-07-25T00:55:33.926980"
+      "last_updated_timestamp": "2026-07-25T01:41:43.418040"
     }
   },
   "action_ledger": [
@@ -690,6 +691,222 @@
       "discrepancy": -2,
       "notes": "Visual AI Camera Audit: Counted 10",
       "timestamp": "2026-07-25T00:57:39.625961"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 10,
+      "new_stock": 0,
+      "qty_change": -10,
+      "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+      "timestamp": "2026-07-25T01:41:37.102779"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 120,
+      "new_stock": 145,
+      "qty_change": 25,
+      "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+      "timestamp": "2026-07-25T01:41:37.103376"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 145,
+      "actual_stock": 150,
+      "discrepancy": 5,
+      "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+      "timestamp": "2026-07-25T01:41:37.103748"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 0,
+      "actual_stock": 12,
+      "discrepancy": 12,
+      "notes": "Visual AI Camera Audit: Counted 12",
+      "timestamp": "2026-07-25T01:41:37.104099"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 145,
+      "actual_stock": 120,
+      "discrepancy": -25,
+      "notes": "Visual AI Camera Audit: Counted 120",
+      "timestamp": "2026-07-25T01:41:37.104443"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 12,
+      "new_stock": 7,
+      "qty_change": -5,
+      "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+      "timestamp": "2026-07-25T01:41:38.543094"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 7,
+      "actual_stock": 10,
+      "discrepancy": 3,
+      "notes": "Visual AI Camera Audit: Counted 10",
+      "timestamp": "2026-07-25T01:41:38.545063"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "TEST-SKU-99",
+      "timestamp": "2026-07-25T01:41:43.411930",
+      "details": {
+        "barcode": "TEST-SKU-99",
+        "name": "Autonomous Test Widget",
+        "stock": 2,
+        "min_threshold": 15,
+        "cost_price": 50.0,
+        "selling_price": 100.0,
+        "sales_velocity": 5,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "DEAD-SKU-01",
+      "timestamp": "2026-07-25T01:41:43.412423",
+      "details": {
+        "barcode": "DEAD-SKU-01",
+        "name": "Dead Stock Gadget",
+        "stock": 40,
+        "min_threshold": 5,
+        "cost_price": 10.0,
+        "selling_price": 30.0,
+        "sales_velocity": 0,
+        "lead_time_days": 7
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "MARGIN-SKU-02",
+      "timestamp": "2026-07-25T01:41:43.412804",
+      "details": {
+        "barcode": "MARGIN-SKU-02",
+        "name": "Low Margin Cable",
+        "stock": 100,
+        "min_threshold": 10,
+        "cost_price": 95.0,
+        "selling_price": 100.0,
+        "sales_velocity": 2,
+        "lead_time_days": 2
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "EXPENSIVE-SKU-100",
+      "timestamp": "2026-07-25T01:41:43.418042",
+      "details": {
+        "barcode": "EXPENSIVE-SKU-100",
+        "name": "High Value Industrial Server",
+        "stock": 1,
+        "min_threshold": 10,
+        "cost_price": 500.0,
+        "selling_price": 1000.0,
+        "sales_velocity": 2,
+        "lead_time_days": 5
+      }
+    },
+    {
+      "action": "APPROVED_REORDER_PO",
+      "user": "MANAGER_HUMAN_APPROVAL",
+      "timestamp": "2026-07-25T01:41:43.419031",
+      "details": {
+        "po_id": "PO-89010001-2848",
+        "product_name": "Fresh Apples (kg)",
+        "barcode": "89010001",
+        "quantity": 2848,
+        "total_cost": 3417.6,
+        "status": "QUEUED_FOR_APPROVAL",
+        "reasons": [
+          "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+        ]
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 10,
+      "new_stock": 0,
+      "qty_change": -10,
+      "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+      "timestamp": "2026-07-25T01:41:45.835844"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 120,
+      "new_stock": 145,
+      "qty_change": 25,
+      "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+      "timestamp": "2026-07-25T01:41:45.836351"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 150,
+      "actual_stock": 150,
+      "discrepancy": 0,
+      "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+      "timestamp": "2026-07-25T01:41:45.836764"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 0,
+      "actual_stock": 12,
+      "discrepancy": 12,
+      "notes": "Visual AI Camera Audit: Counted 12",
+      "timestamp": "2026-07-25T01:41:45.837158"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 145,
+      "actual_stock": 120,
+      "discrepancy": -25,
+      "notes": "Visual AI Camera Audit: Counted 120",
+      "timestamp": "2026-07-25T01:41:45.837572"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 12,
+      "new_stock": 7,
+      "qty_change": -5,
+      "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+      "timestamp": "2026-07-25T01:41:46.855629"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 7,
+      "actual_stock": 10,
+      "discrepancy": 3,
+      "notes": "Visual AI Camera Audit: Counted 10",
+      "timestamp": "2026-07-25T01:41:46.857867"
     }
   ]
 }

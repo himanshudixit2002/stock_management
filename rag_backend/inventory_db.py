@@ -182,17 +182,16 @@ class InventoryDB:
         target_barcode = product["barcode"]
         old_stock = int(product.get("stock", 0))
         new_stock = max(0, old_stock + qty_change)
+
+        if (old_stock + qty_change) < 0:
+            return {
+                "success": False,
+                "error": f"Insufficient stock for {product['name']}. Current stock: {old_stock}, requested deduction: {abs(qty_change)}."
+            }
+
         product["stock"] = new_stock
         product["last_updated_timestamp"] = datetime.now().isoformat()
         self.products[target_barcode] = product
-        if new_stock < 0:
-            return {
-                "success": False,
-                "error": f"Insufficient stock for {product['name']}. Current stock: {product['stock']}, requested deduction: {abs(qty_change)}."
-            }
-
-        old_stock = product["stock"]
-        product["stock"] = new_stock
         
         log_entry = {
             "action": "update_stock",
@@ -215,6 +214,7 @@ class InventoryDB:
             "qty_change": qty_change,
             "action_logged": log_entry
         }
+
 
     def create_purchase_order(self, barcode: str, reorder_qty: int, supplier: str = "Default Supplier") -> Dict[str, Any]:
         product = self.products.get(barcode)
@@ -551,16 +551,38 @@ class InventoryDB:
         """
         text_lower = speech_text.lower().strip()
         all_prods = self.get_all_products()
+        stop_words = {"a", "an", "the", "in", "of", "on", "units", "unit", "to", "for", "from", "at", "by", "with", "add", "deduct", "remove", "damaged", "sold", "received", "restock", "count", "audit", "plus", "minus"}
         
-        # Match target product by name/barcode substring
+        # Match target product by best keyword/substring score
         target_prod = None
+        best_score = 0
+
         for p in all_prods:
-            if p["name"].lower() in text_lower or p["barcode"] in text_lower or any(w in text_lower for w in p["name"].lower().split()):
-                target_prod = p
-                break
+            p_name = p["name"].lower()
+            p_barcode = p["barcode"].lower()
+            score = 0
+            
+            if p_name in text_lower:
+                score += 100
+            if p_barcode and p_barcode in text_lower:
+                score += 150
                 
-        if not target_prod and all_prods:
-            target_prod = all_prods[0]
+            keywords = [w for w in p_name.split() if w not in stop_words and len(w) > 1]
+            matched_kw = sum(1 for kw in keywords if kw in text_lower)
+            if matched_kw > 0:
+                score += (matched_kw * 10)
+
+            if score > best_score:
+                best_score = score
+                target_prod = p
+                
+        if not target_prod or best_score < 10:
+            return {
+                "status": "error",
+                "error": "Product not found",
+                "audio_response_text": f"Could not find any inventory item matching '{speech_text}'."
+            }
+
 
         # Extract numerical quantity using regex
         qty_matches = re.findall(r'\b\d+\b', text_lower)
