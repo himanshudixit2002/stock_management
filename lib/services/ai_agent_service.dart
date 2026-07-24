@@ -162,5 +162,23 @@ class AiAgentService {
     }
     return null;
   }
+
+  /// Syncs user's actual live inventory from client SQLite/Firestore to AI engine.
+  static Future<bool> syncUserInventory(List<Map<String, dynamic>> products) async {
+    if (products.isEmpty) return false;
+    final url = Uri.parse('$_baseUrl/api/inventory/sync');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'products': products}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Error syncing user inventory to AI engine: $e");
+    }
+    return false;
+  }
 }
+
 

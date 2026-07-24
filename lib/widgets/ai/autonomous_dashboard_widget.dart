@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../providers/product_provider.dart';
 import '../../services/ai_agent_service.dart';
 
 class AutonomousDashboardWidget extends StatefulWidget {
@@ -19,11 +21,36 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   @override
   void initState() {
     super.initState();
-    _loadAgentData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAgentData();
+    });
   }
 
   Future<void> _loadAgentData() async {
     setState(() => _isLoading = true);
+
+    // Sync actual live user inventory items from ProductProvider
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final realProducts = productProvider.analyticsProducts.map((p) => {
+        'id': p.id,
+        'barcode': p.barcode,
+        'name': p.name,
+        'stock': p.quantity,
+        'min_threshold': p.lowStockThreshold,
+        'category': p.categoryName ?? 'General',
+        'cost_price': p.costPrice,
+        'selling_price': p.sellingPrice ?? p.price,
+        'sales_velocity': p.salesVelocity ?? 1,
+        'lead_time_days': p.leadTimeDays ?? 3,
+        'location': p.location ?? 'Main Store',
+      }).toList();
+
+      if (realProducts.isNotEmpty) {
+        await AiAgentService.syncUserInventory(realProducts);
+      }
+    } catch (_) {}
+
     final results = await Future.wait([
       AiAgentService.fetchAutopilotRecommendations(),
       AiAgentService.fetchAnomalies(),
@@ -41,6 +68,7 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

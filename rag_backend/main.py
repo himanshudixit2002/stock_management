@@ -421,9 +421,23 @@ def validate_guardrails(request: GuardrailValidationRequest):
         "sanitized_payload": res.sanitized_payload
     }
 
+class InventorySyncRequest(BaseModel):
+    products: List[Dict[str, Any]]
+
+@app.post("/api/inventory/sync")
+def sync_inventory_endpoint(request: InventorySyncRequest):
+    """
+    Syncs live user inventory items from the client app into the AI engine's real-time dataset.
+    """
+    if request.products:
+        db_instance.replace_user_inventory(request.products)
+        semantic_cache.clear()
+    return {"status": "success", "synced_items_count": len(db_instance.products)}
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "mode": "Autonomous Self-Sufficient AI Agent Engine"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
