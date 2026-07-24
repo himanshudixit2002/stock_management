@@ -4,7 +4,8 @@ Fast deterministic algorithms for inventory optimization (EOQ, ROP, Safety Stock
 """
 
 import math
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+
 
 def calculate_eoq(annual_demand: float, ordering_cost: float = 50.0, holding_cost_per_unit: float = 2.0) -> int:
     """
