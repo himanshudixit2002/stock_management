@@ -98,4 +98,69 @@ class AiAgentService {
     }
     return null;
   }
+
+  /// Sends spoken natural language command for hands-free stock mutations.
+  static Future<Map<String, dynamic>?> processVoiceCommand(String speechText) async {
+    final url = Uri.parse('$_baseUrl/api/agent/voice_command');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'speech_text': speechText}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint("Error processing voice command: $e");
+    }
+    return null;
+  }
+
+  /// Triggers full 24/7 background autopilot sweep across all sub-agents.
+  static Future<Map<String, dynamic>?> triggerSwarmAutopilot() async {
+    final url = Uri.parse('$_baseUrl/api/swarm/autopilot');
+    try {
+      final response = await http.post(url);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint("Error triggering swarm autopilot: $e");
+    }
+    return null;
+  }
+
+  /// 1-Click Human Approval for queued high-value Purchase Orders.
+  static Future<Map<String, dynamic>?> approvePendingPo(String poId) async {
+    final url = Uri.parse('$_baseUrl/api/swarm/approve_po');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'po_id': poId}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint("Error approving PO $poId: $e");
+    }
+    return null;
+  }
+
+  /// Fetches statistical safety stock and ABC classification breakdowns.
+  static Future<Map<String, dynamic>?> fetchSafetyStock() async {
+    final url = Uri.parse('$_baseUrl/api/agent/safety_stock');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>?;
+      }
+    } catch (e) {
+      debugPrint("Error fetching safety stock: $e");
+    }
+    return null;
+  }
 }
+
