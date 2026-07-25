@@ -5,17 +5,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import re, hashlib, math
+from typing import List
+
+class LocalDenseEmbeddings:
+    """Fast, deterministic local 384-dim dense embedding model (zero Gemini / external network dependencies)."""
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        return [self._embed(t) for t in texts]
+
+    def embed_query(self, text: str) -> List[float]:
+        return self._embed(text)
+
+    def _embed(self, text: str) -> List[float]:
+        words = re.sub(r'[^\w\s]', '', text.lower()).split()
+        dim = 384
+        vec = [0.0] * dim
+        for w in words:
+            h = int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16)
+            idx = h % dim
+            val = (h % 100) / 100.0 - 0.5
+            vec[idx] += val
+        norm = math.sqrt(sum(v*v for v in vec)) or 1.0
+        return [v / norm for v in vec]
+
 def get_embeddings_instance():
-    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if gemini_key:
-        from langchain_google_genai import GoogleGenerativeAIEmbeddings
-        return GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=gemini_key)
-    else:
-        try:
-            from langchain_community.embeddings import FakeEmbeddings
-            return FakeEmbeddings(size=768)
-        except Exception:
-            return None
+    return LocalDenseEmbeddings()
+
 
 def ingest_data():
     embeddings = get_embeddings_instance()

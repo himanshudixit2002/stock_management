@@ -7,11 +7,107 @@ from datetime import datetime
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "inventory_db.json")
 
+# Initialize Firebase Admin SDK for Cloud Run / Firestore native sync
+db_firestore = None
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(options={'projectId': 'stockmanagement-27af8'})
+    db_firestore = firestore.client()
+    print("[Firestore Native Client] Connected to project 'stockmanagement-27af8'")
+except Exception as e:
+    db_firestore = None
+    print(f"[Firestore Native Client Note] Initialized in offline/local mode: {e}")
+
 class InventoryDB:
     def __init__(self, db_path: str = DB_FILE):
         self.db_path = db_path
         self.company_data: Dict[str, Dict[str, Any]] = {}
         self._load()
+
+    def _sync_from_firestore(self, company_id: str):
+        if not db_firestore or not company_id or company_id == "default":
+            return
+        try:
+            docs = db_firestore.collection("companies").document(company_id).collection("products").limit(500).stream()
+            co = self._get_company_raw(company_id)
+            fetched_products = {}
+            for doc in docs:
+                data = doc.to_dict() or {}
+                doc_id = doc.id
+                barcode = str(data.get("barcode") or doc_id).strip()
+                name = data.get("name") or "Unknown Product"
+                stock = int(data.get("quantity", 0))
+                min_thresh = int(data.get("lowStockThreshold", 10))
+                cat = data.get("categoryName") or data.get("category") or "General"
+                cost = float(data.get("costPrice", 0.0))
+                price = float(data.get("sellingPrice", 0.0))
+                velocity = float(data.get("salesVelocity", 0.0))
+                lead_time = int(data.get("leadTimeDays", 3))
+                loc = data.get("location", "Store Front")
+
+                fetched_products[barcode] = {
+                    "id": doc_id,
+                    "barcode": barcode,
+                    "name": name,
+                    "stock": stock,
+                    "min_threshold": min_thresh,
+                    "category": cat,
+                    "cost_price": cost,
+                    "selling_price": price,
+                    "sales_velocity": velocity,
+                    "lead_time_days": lead_time,
+                    "location": loc,
+                    "last_updated_timestamp": datetime.now().isoformat()
+                }
+
+            if fetched_products:
+                co["products"] = fetched_products
+        except Exception as e:
+            print(f"[Firestore Sync Error] Failed to fetch products for company '{company_id}': {e}")
+
+    def _sync_to_firestore(self, company_id: str, action_type: str, product_data: Dict[str, Any]):
+        if not db_firestore or not company_id or company_id == "default":
+            return
+        try:
+            doc_id = product_data.get("id") or product_data.get("barcode")
+            if not doc_id:
+                return
+            prod_ref = db_firestore.collection("companies").document(company_id).collection("products").document(doc_id)
+            prod_ref.set({
+                "name": product_data.get("name"),
+                "barcode": product_data.get("barcode"),
+                "quantity": product_data.get("stock"),
+                "lowStockThreshold": product_data.get("min_threshold"),
+                "categoryName": product_data.get("category"),
+                "costPrice": product_data.get("cost_price"),
+                "sellingPrice": product_data.get("selling_price"),
+                "updatedAt": datetime.now()
+            }, merge=True)
+
+            tx_ref = db_firestore.collection("companies").document(company_id).collection("transactions").document()
+            tx_ref.set({
+                "type": action_type,
+                "productId": doc_id,
+                "productName": product_data.get("name"),
+                "quantity": product_data.get("stock"),
+                "timestamp": datetime.now(),
+                "performedBy": "AI Agent (Autonomous)"
+            })
+        except Exception as e:
+            print(f"[Firestore Write Error] Sync failed for company '{company_id}': {e}")
+
+    def _get_company_raw(self, company_id: Optional[str] = "default") -> Dict[str, Any]:
+        cid = (company_id or "default").strip()
+        if not cid:
+            cid = "default"
+        if cid not in self.company_data:
+            self.company_data[cid] = {
+                "products": {},
+                "action_ledger": []
+            }
+        return self.company_data[cid]
 
     def _get_company(self, company_id: Optional[str] = "default") -> Dict[str, Any]:
         cid = (company_id or "default").strip()
@@ -22,7 +118,9 @@ class InventoryDB:
                 "products": {},
                 "action_ledger": []
             }
+            self._sync_from_firestore(cid)
         return self.company_data[cid]
+
 
     @property
     def products(self) -> Dict[str, Dict[str, Any]]:
