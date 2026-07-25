@@ -235,14 +235,14 @@ def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]
             content = msg.get("content", "")
             if role in ["assistant", "model"] and ("Action Confirmation Required" in content or "Requested Change" in content):
                 # Extract barcode from previous preview content
-                barcode_match = re.search(r'`(\d{8,14})`', content)
-                qty_match = re.search(r'([+-]\d+)\s*units', content)
+                barcode_match = re.search(r'\|\s*\*\*Barcode\*\*\s*\|\s*`([^`]+)`', content) or re.search(r'`([^`]+)`', content)
+                qty_match = re.search(r'([+-]?\d+)\s*units', content)
                 action_match = re.search(r'Action\*\* \| \*\*(.*?)\*\*', content)
                 if barcode_match:
-                    bc = barcode_match.group(1)
+                    bc = barcode_match.group(1).strip()
                     found_p = db_instance.get_product(bc, company_id=company_id)
                     if found_p:
-                        qty = 10
+                        qty = 1
                         if qty_match:
                             qty = abs(int(qty_match.group(1)))
                         act_type = action_match.group(1) if action_match else "Add Stock"
@@ -291,14 +291,22 @@ def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]
         is_deduct = "Deduct" in act_type
         is_po = "Purchase" in act_type or "PO" in act_type
     else:
-        nums = re.findall(r'\b\d+\b', question)
         target_barcode = str(target_product.get("barcode", "")).strip()
-        qty_nums = [int(n) for n in nums if n != target_barcode]
-        qty = qty_nums[0] if qty_nums else 10
-
+        nums = re.findall(r'\b\d+\b', question)
+        # Filter out numbers matching barcode or unusually long numeric IDs (6+ digits)
+        qty_nums = [int(n) for n in nums if n != target_barcode and len(n) < 6]
+        
         is_add = any(k in q for k in ["add", "increase", "restock"])
         is_deduct = any(k in q for k in ["deduct", "remove", "reduce", "minus"])
         is_po = any(k in q for k in ["reorder", "po", "purchase order"])
+
+        if not qty_nums and not is_confirm_word:
+            return {
+                "tool": "ActionPreview",
+                "preview": f"How many units of **{target_product['name']}** would you like to update? (e.g. 'Add 20 units of {target_product['name']}')",
+                "target": target_product
+            }
+        qty = qty_nums[0] if qty_nums else 1
 
     if not (is_add or is_deduct or is_po or "update" in q or pending_action):
         return None
@@ -332,6 +340,7 @@ def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]
             f"Reply **\"Confirm\"** or **\"Yes, update it\"** to apply this change to your store."
         )
         return {"tool": "ActionPreview", "preview": preview_card, "target": target_product}
+
 
     # If confirmed, execute the live DB mutation
     if is_deduct:

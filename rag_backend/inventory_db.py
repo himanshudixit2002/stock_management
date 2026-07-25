@@ -68,10 +68,10 @@ class InventoryDB:
             print(f"[Firestore Sync Error] Failed to fetch products for company '{company_id}': {e}")
 
     def _sync_to_firestore(self, company_id: str, action_type: str, product_data: Dict[str, Any]):
-        if not db_firestore or not company_id or company_id == "default":
+        if not db_firestore or not company_id:
             return
         try:
-            doc_id = product_data.get("id") or product_data.get("barcode")
+            doc_id = str(product_data.get("id") or product_data.get("barcode") or "").strip()
             if not doc_id:
                 return
             prod_ref = db_firestore.collection("companies").document(company_id).collection("products").document(doc_id)
@@ -83,6 +83,7 @@ class InventoryDB:
                 "categoryName": product_data.get("category"),
                 "costPrice": product_data.get("cost_price"),
                 "sellingPrice": product_data.get("selling_price"),
+                "location": product_data.get("location"),
                 "updatedAt": datetime.now()
             }, merge=True)
 
@@ -95,8 +96,10 @@ class InventoryDB:
                 "timestamp": datetime.now(),
                 "performedBy": "AI Agent (Autonomous)"
             })
+            print(f"[Firestore Sync Success] Updated product '{doc_id}' for company '{company_id}'")
         except Exception as e:
             print(f"[Firestore Write Error] Sync failed for company '{company_id}': {e}")
+
 
     def _get_company_raw(self, company_id: Optional[str] = "default") -> Dict[str, Any]:
         cid = (company_id or "default").strip()
@@ -344,6 +347,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._sync_to_firestore(company_id, "update_stock", product)
         
         return {
             "success": True,
@@ -380,6 +384,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._sync_to_firestore(company_id, "create_purchase_order", product)
 
         return {
             "success": True,
@@ -414,6 +419,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._sync_to_firestore(company_id, "transfer_stock", product)
 
         return {
             "success": True,
@@ -448,6 +454,8 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._sync_to_firestore(company_id, "audit_inventory", product)
+
 
         return {
             "success": True,
