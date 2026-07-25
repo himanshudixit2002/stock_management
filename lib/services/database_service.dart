@@ -389,6 +389,25 @@ class DatabaseService {
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
 
+      final auditRef = _auditLogs.doc();
+      final auditLog = AuditLogModel(
+        id: auditRef.id,
+        action: 'stock_in',
+        entityType: 'Product',
+        entityId: productId,
+        entityName: productName,
+        userId: userId,
+        userName: userName,
+        changes: {
+          'quantityChange': quantity,
+          'location': location,
+          'reason': reason,
+          'vendorName': vendorName,
+        },
+        timestamp: DateTime.now(),
+      );
+      txn.set(auditRef, auditLog.toMap());
+
       final updates = <String, dynamic>{
         'quantity': FieldValue.increment(quantity),
         'locationQuantities.$location': FieldValue.increment(quantity),
@@ -466,6 +485,25 @@ class DatabaseService {
 
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
+
+      final auditRef = _auditLogs.doc();
+      final auditLog = AuditLogModel(
+        id: auditRef.id,
+        action: 'stock_out',
+        entityType: 'Product',
+        entityId: productId,
+        entityName: productName,
+        userId: userId,
+        userName: userName,
+        changes: {
+          'quantityChange': -quantity,
+          'location': location,
+          'reason': reason,
+          'vendorName': vendorName,
+        },
+        timestamp: DateTime.now(),
+      );
+      txn.set(auditRef, auditLog.toMap());
 
       final newLocQty = locQty - quantity;
       final locMap = Map<String, dynamic>.from(
@@ -1481,6 +1519,24 @@ class DatabaseService {
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
 
+      final auditRef = _auditLogs.doc();
+      final auditLog = AuditLogModel(
+        id: auditRef.id,
+        action: 'damage',
+        entityType: 'Product',
+        entityId: productId,
+        entityName: productName,
+        userId: userId,
+        userName: userName,
+        changes: {
+          'quantityChange': -quantity,
+          'location': location,
+          'reason': reason,
+        },
+        timestamp: DateTime.now(),
+      );
+      txn.set(auditRef, auditLog.toMap());
+
       final newLocQty = locQty - quantity;
       final locMap = Map<String, dynamic>.from(
         data['locationQuantities'] ?? {},
@@ -1552,6 +1608,25 @@ class DatabaseService {
 
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
+
+      final auditRef = _auditLogs.doc();
+      final auditLog = AuditLogModel(
+        id: auditRef.id,
+        action: 'transfer',
+        entityType: 'Product',
+        entityId: productId,
+        entityName: productName,
+        userId: userId,
+        userName: userName,
+        changes: {
+          'quantity': quantity,
+          'fromLocation': from,
+          'toLocation': to,
+          'reason': reason,
+        },
+        timestamp: DateTime.now(),
+      );
+      txn.set(auditRef, auditLog.toMap());
 
       final newFromQty = locQty - quantity;
       final locMap = Map<String, dynamic>.from(
@@ -1634,6 +1709,24 @@ class DatabaseService {
 
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
+
+      final auditRef = _auditLogs.doc();
+      final auditLog = AuditLogModel(
+        id: auditRef.id,
+        action: 'adjustment',
+        entityType: 'Product',
+        entityId: productId,
+        entityName: productName,
+        userId: userId,
+        userName: userName,
+        changes: {
+          'adjustmentDelta': adjustmentDelta,
+          'location': location,
+          'reason': reason,
+        },
+        timestamp: DateTime.now(),
+      );
+      txn.set(auditRef, auditLog.toMap());
 
       txn.update(docRef, {
         'locationQuantities': locMap,

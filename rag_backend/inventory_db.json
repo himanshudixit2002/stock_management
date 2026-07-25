@@ -73,7 +73,7 @@
       "selling_price": 100.0,
       "sales_velocity": 5,
       "lead_time_days": 3,
-      "last_updated_timestamp": "2026-07-25T01:41:43.411925"
+      "last_updated_timestamp": "2026-07-25T01:56:27.967178"
     },
     "DEAD-SKU-01": {
       "barcode": "DEAD-SKU-01",
@@ -84,7 +84,7 @@
       "selling_price": 30.0,
       "sales_velocity": 0,
       "lead_time_days": 7,
-      "last_updated_timestamp": "2026-07-25T01:41:43.412421"
+      "last_updated_timestamp": "2026-07-25T01:56:27.967689"
     },
     "MARGIN-SKU-02": {
       "barcode": "MARGIN-SKU-02",
@@ -95,7 +95,7 @@
       "selling_price": 100.0,
       "sales_velocity": 2,
       "lead_time_days": 2,
-      "last_updated_timestamp": "2026-07-25T01:41:43.412802"
+      "last_updated_timestamp": "2026-07-25T01:56:27.968142"
     },
     "EXPENSIVE-SKU-100": {
       "barcode": "EXPENSIVE-SKU-100",
@@ -106,7 +106,7 @@
       "selling_price": 1000.0,
       "sales_velocity": 2,
       "lead_time_days": 5,
-      "last_updated_timestamp": "2026-07-25T01:41:43.418040"
+      "last_updated_timestamp": "2026-07-25T01:56:27.973939"
     }
   },
   "action_ledger": [
@@ -907,6 +907,82 @@
       "discrepancy": 3,
       "notes": "Visual AI Camera Audit: Counted 10",
       "timestamp": "2026-07-25T01:41:46.857867"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "TEST-SKU-99",
+      "timestamp": "2026-07-25T01:56:27.967183",
+      "details": {
+        "barcode": "TEST-SKU-99",
+        "name": "Autonomous Test Widget",
+        "stock": 2,
+        "min_threshold": 15,
+        "cost_price": 50.0,
+        "selling_price": 100.0,
+        "sales_velocity": 5,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "DEAD-SKU-01",
+      "timestamp": "2026-07-25T01:56:27.967696",
+      "details": {
+        "barcode": "DEAD-SKU-01",
+        "name": "Dead Stock Gadget",
+        "stock": 40,
+        "min_threshold": 5,
+        "cost_price": 10.0,
+        "selling_price": 30.0,
+        "sales_velocity": 0,
+        "lead_time_days": 7
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "MARGIN-SKU-02",
+      "timestamp": "2026-07-25T01:56:27.968144",
+      "details": {
+        "barcode": "MARGIN-SKU-02",
+        "name": "Low Margin Cable",
+        "stock": 100,
+        "min_threshold": 10,
+        "cost_price": 95.0,
+        "selling_price": 100.0,
+        "sales_velocity": 2,
+        "lead_time_days": 2
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "EXPENSIVE-SKU-100",
+      "timestamp": "2026-07-25T01:56:27.973941",
+      "details": {
+        "barcode": "EXPENSIVE-SKU-100",
+        "name": "High Value Industrial Server",
+        "stock": 1,
+        "min_threshold": 10,
+        "cost_price": 500.0,
+        "selling_price": 1000.0,
+        "sales_velocity": 2,
+        "lead_time_days": 5
+      }
+    },
+    {
+      "action": "APPROVED_REORDER_PO",
+      "user": "MANAGER_HUMAN_APPROVAL",
+      "timestamp": "2026-07-25T01:56:27.974895",
+      "details": {
+        "po_id": "PO-89010001-2848",
+        "product_name": "Fresh Apples (kg)",
+        "barcode": "89010001",
+        "quantity": 2848,
+        "total_cost": 3417.6,
+        "status": "QUEUED_FOR_APPROVAL",
+        "reasons": [
+          "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+        ]
+      }
     }
   ]
 }

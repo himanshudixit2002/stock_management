@@ -1,6 +1,6 @@
 import json
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 import uvicorn
 from dotenv import load_dotenv
@@ -37,6 +37,7 @@ class QueryRequest(BaseModel):
     question: str
     context: Optional[str] = None
     history: Optional[List[ChatMessage]] = None
+    company_id: Optional[str] = "default"
 
 class QueryResponse(BaseModel):
     answer: str
@@ -50,7 +51,8 @@ from fastapi.responses import StreamingResponse
 import asyncio
 
 @app.post("/api/chat", response_model=QueryResponse)
-async def chat_endpoint(request: QueryRequest):
+async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    cid = x_company_id or request.company_id or "default"
     history_list = [h.model_dump() for h in request.history] if request.history else []
     
     # 1. Check persistent & vector semantic cache for instant response (< 50ms)
@@ -74,7 +76,8 @@ async def chat_endpoint(request: QueryRequest):
         "question": request.question, 
         "retries": 0,
         "provided_context": request.context,
-        "history": history_list
+        "history": history_list,
+        "company_id": cid
     }
 
     # 2. Invoke multi-agent pipeline
@@ -89,7 +92,7 @@ async def chat_endpoint(request: QueryRequest):
     if executed_actions:
         cache_manager.clear()
         semantic_cache.clear()
-        updated_cat = db_instance.get_all_products()
+        updated_cat = db_instance.get_all_products(company_id=cid)
     elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
         cache_manager.set(request.question, request.context, history_list, generation)
         semantic_cache.set(request.question, {"generation": generation, "intent": intent})
@@ -105,7 +108,8 @@ async def chat_endpoint(request: QueryRequest):
 
 
 @app.post("/api/chat/stream")
-async def stream_chat_endpoint(request: QueryRequest):
+async def stream_chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    cid = x_company_id or request.company_id or "default"
     history_list = [h.model_dump() for h in request.history] if request.history else []
     
     async def event_generator():
@@ -128,7 +132,8 @@ async def stream_chat_endpoint(request: QueryRequest):
             "question": request.question, 
             "retries": 0,
             "provided_context": request.context,
-            "history": history_list
+            "history": history_list,
+            "company_id": cid
         }
 
         # Run pipeline in background executor to avoid blocking event loop
@@ -142,7 +147,7 @@ async def stream_chat_endpoint(request: QueryRequest):
 
         if executed_actions:
             cache_manager.clear()
-            updated_cat = db_instance.get_all_products()
+            updated_cat = db_instance.get_all_products(company_id=cid)
         elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
             cache_manager.set(request.question, request.context, history_list, generation)
             updated_cat = None
@@ -175,10 +180,11 @@ class ProductIngestRequest(BaseModel):
     products: List[ProductIngestItem]
 
 @app.post("/api/ingest")
-async def ingest_endpoint(request: ProductIngestRequest):
+async def ingest_endpoint(request: ProductIngestRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    cid = x_company_id or "default"
     prods = [p.model_dump() for p in request.products]
     for p in prods:
-        db_instance.upsert_product(p)
+        db_instance.upsert_product(p, company_id=cid)
     
     # Also index into ChromaDB if available
     try:
@@ -191,13 +197,14 @@ async def ingest_endpoint(request: ProductIngestRequest):
     return {"status": "success", "message": f"Ingested {len(prods)} products into live inventory database & vectorstore."}
 
 @app.get("/api/agent/autopilot")
-def autopilot_scan():
+def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Proactively scans inventory levels, calculates reorder point requirements based on sales velocity and lead times,
     and returns automated purchase recommendations.
     """
-    recommendations = db_instance.run_autopilot_scan()
-    metrics = db_instance.get_analytics_summary()
+    cid = x_company_id or "default"
+    recommendations = db_instance.run_autopilot_scan(company_id=cid)
+    metrics = db_instance.get_analytics_summary(company_id=cid)
     return {
         "status": "success",
         "timestamp": metrics,
@@ -206,11 +213,12 @@ def autopilot_scan():
     }
 
 @app.get("/api/agent/anomalies")
-def detect_anomalies():
+def detect_anomalies(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Scans action ledger and current stock state for anomalies, unexpected shrinkages, and stockout threats.
     """
-    anomalies = db_instance.detect_inventory_anomalies()
+    cid = x_company_id or "default"
+    anomalies = db_instance.detect_inventory_anomalies(company_id=cid)
     return {
         "status": "success",
         "anomalies_count": len(anomalies),
@@ -218,11 +226,12 @@ def detect_anomalies():
     }
 
 @app.get("/api/agent/forecast")
-def predictive_forecast():
+def predictive_forecast(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Returns 30-day predictive time-series demand forecasts, stockout projections, and optimal reorder windows.
     """
-    forecasts = db_instance.get_predictive_demand_forecast()
+    cid = x_company_id or "default"
+    forecasts = db_instance.get_predictive_demand_forecast(company_id=cid)
     return {
         "status": "success",
         "forecasts_count": len(forecasts),
@@ -230,16 +239,17 @@ def predictive_forecast():
     }
 
 @app.get("/api/agent/safety_stock")
-def statistical_safety_stock_endpoint():
+def statistical_safety_stock_endpoint(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Returns statistical safety stock levels and optimal reorder points for all inventory SKUs.
     """
+    cid = x_company_id or "default"
     try:
         from predictive_ml import calculate_statistical_safety_stock, calculate_reorder_point, perform_abc_analysis
     except ImportError:
         from .predictive_ml import calculate_statistical_safety_stock, calculate_reorder_point, perform_abc_analysis
 
-    all_prods = db_instance.get_all_products()
+    all_prods = db_instance.get_all_products(company_id=cid)
     abc_groups = perform_abc_analysis(all_prods)
     
     results = []
@@ -268,11 +278,12 @@ def statistical_safety_stock_endpoint():
 
 
 @app.get("/api/agent/location_balance")
-def location_balance():
+def location_balance(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Analyzes cross-location stock distribution and returns automated stock transfer recommendations.
     """
-    transfers = db_instance.get_cross_location_balance_suggestions()
+    cid = x_company_id or "default"
+    transfers = db_instance.get_cross_location_balance_suggestions(company_id=cid)
     return {
         "status": "success",
         "transfer_suggestions_count": len(transfers),
@@ -287,12 +298,13 @@ class VisualAuditRequest(BaseModel):
     detected_items: List[VisualAuditItem]
 
 @app.post("/api/agent/visual_audit")
-def process_visual_audit(request: VisualAuditRequest):
+def process_visual_audit(request: VisualAuditRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Processes visual camera audit counts against live stock database and logs adjustments.
     """
+    cid = x_company_id or "default"
     items = [i.model_dump() for i in request.detected_items]
-    audit_summary = db_instance.process_visual_audit_photo(items)
+    audit_summary = db_instance.process_visual_audit_photo(items, company_id=cid)
     cache_manager.clear()
     semantic_cache.clear()
     return {
@@ -304,25 +316,28 @@ class VoiceCommandRequest(BaseModel):
     speech_text: str
 
 @app.post("/api/agent/voice_command")
-def process_voice_command_endpoint(request: VoiceCommandRequest):
+def process_voice_command_endpoint(request: VoiceCommandRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Processes hands-free spoken inventory commands and returns atomic stock mutations with text-to-speech audio feedback.
     """
-    res = db_instance.process_voice_command(request.speech_text)
+    cid = x_company_id or "default"
+    res = db_instance.process_voice_command(request.speech_text, company_id=cid)
     cache_manager.clear()
     semantic_cache.clear()
     return res
 
 @app.get("/api/inventory")
-def get_inventory():
+def get_inventory(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """Returns list of all products in the live inventory database."""
-    return {"products": db_instance.get_all_products()}
+    cid = x_company_id or "default"
+    return {"products": db_instance.get_all_products(company_id=cid)}
 
 
 @app.get("/api/inventory/ledger")
-def get_inventory_ledger():
+def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """Returns audit log of all executed stock actions."""
-    return {"action_ledger": db_instance.action_ledger}
+    cid = x_company_id or "default"
+    return {"action_ledger": db_instance._get_company(cid)["action_ledger"]}
 
 @app.post("/api/cache/clear")
 def clear_cache():
@@ -367,7 +382,7 @@ def trigger_swarm_event(request: SwarmEventRequest):
     return {"status": "success", "result": res}
 
 @app.post("/api/swarm/autopilot")
-def run_swarm_autopilot():
+def run_swarm_autopilot(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Triggers full 24/7 background autopilot sweep across all sub-agents (Reorder, Decay/Idle, Supplier Watch).
     """
@@ -406,11 +421,12 @@ def query_swarm(request: SwarmQueryRequest):
 
 
 @app.post("/api/guardrails/validate")
-def validate_guardrails(request: GuardrailValidationRequest):
+def validate_guardrails(request: GuardrailValidationRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Evaluates business policy compliance, spending caps, and safety guardrails on an action payload.
     """
-    item = db_instance.products.get(request.barcode) if request.barcode else None
+    cid = x_company_id or "default"
+    item = db_instance.get_product(request.barcode, company_id=cid) if request.barcode else None
     res = swarm_instance.guardrails.validate_action(request.action_type, request.payload, item)
     return {
         "status": "success",
@@ -425,14 +441,15 @@ class InventorySyncRequest(BaseModel):
     products: List[Dict[str, Any]]
 
 @app.post("/api/inventory/sync")
-def sync_inventory_endpoint(request: InventorySyncRequest):
+def sync_inventory_endpoint(request: InventorySyncRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Syncs live user inventory items from the client app into the AI engine's real-time dataset.
     """
+    cid = x_company_id or "default"
     if request.products:
-        db_instance.replace_user_inventory(request.products)
+        db_instance.replace_user_inventory(request.products, company_id=cid)
         semantic_cache.clear()
-    return {"status": "success", "synced_items_count": len(db_instance.products)}
+    return {"status": "success", "synced_items_count": len(db_instance.get_all_products(company_id=cid))}
 
 @app.get("/health")
 def health_check():

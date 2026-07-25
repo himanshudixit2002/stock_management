@@ -127,6 +127,7 @@ def retrieve_node(state: GraphState) -> GraphState:
     question = state["question"]
     provided_context = state.get("provided_context", "")
     intent = state.get("intent", "KNOWLEDGE")
+    company_id = state.get("company_id", "default")
 
     clean_provided_context = provided_context or ""
 
@@ -136,7 +137,7 @@ def retrieve_node(state: GraphState) -> GraphState:
             if match:
                 catalog_list = json.loads(match.group(1))
                 if isinstance(catalog_list, list) and catalog_list:
-                    db_instance.replace_user_inventory(catalog_list)
+                    db_instance.replace_user_inventory(catalog_list, company_id=company_id)
                 # Strip out raw JSON string from provided context so it doesn't double LLM prompt token size
                 clean_provided_context = provided_context.replace(match.group(0), "").strip()
         except Exception as e:
@@ -156,7 +157,7 @@ def retrieve_node(state: GraphState) -> GraphState:
             print(f"Retriever skipped/failed: {e}")
 
     # Compact live DB record list (avoids token bloat)
-    all_products = db_instance.get_all_products()
+    all_products = db_instance.get_all_products(company_id=company_id)
     if all_products:
         db_context_str = "LIVE USER INVENTORY DATABASE:\n" + "\n".join([
             f"- {p['name']} (BC: {p['barcode']}) | Stock: {p['stock']} | Min: {p['min_threshold']} | Cat: {p.get('category', 'General')}"
@@ -167,10 +168,10 @@ def retrieve_node(state: GraphState) -> GraphState:
     state["documents"] = documents
     return state
 
-def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
+def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]] = None, company_id: str = "default") -> Optional[Dict[str, Any]]:
     """Fallback action tool matcher when running offline or without an active API key."""
     q = question.lower()
-    all_prods = db_instance.get_all_products()
+    all_prods = db_instance.get_all_products(company_id=company_id)
     if not all_prods:
         return None
 
@@ -299,6 +300,7 @@ def action_agent_node(state: GraphState) -> GraphState:
     question = state["question"]
     documents = state["documents"]
     history = state.get("history") or []
+    company_id = state.get("company_id", "default")
     
     context_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
     executed_actions = []
@@ -308,7 +310,7 @@ def action_agent_node(state: GraphState) -> GraphState:
     # Check if real API Key is available
     if not _is_valid_api_key(current_key):
         # Rule-based fallback tool execution (instant < 1ms)
-        fallback_res = _fallback_rule_matcher(question, history)
+        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
         if fallback_res:
             tool_name = fallback_res["tool"]
             if tool_name == "ActionPreview":
@@ -365,7 +367,7 @@ def action_agent_node(state: GraphState) -> GraphState:
         response = llm_action_with_tools.invoke(messages)
     except Exception:
         # Fallback to rule matcher on API model error
-        fallback_res = _fallback_rule_matcher(question, history)
+        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
         if fallback_res:
             tool_name = fallback_res["tool"]
             if tool_name == "ActionPreview":
@@ -391,7 +393,7 @@ def action_agent_node(state: GraphState) -> GraphState:
             target = args.get("barcode_or_name", "")
 
             if t_name == "UpdateStock":
-                res = db_instance.update_stock(target, args.get("qty_change", 0), args.get("reason", "API Action"))
+                res = db_instance.update_stock(target, args.get("qty_change", 0), args.get("reason", "API Action"), company_id=company_id)
                 executed_actions.append({"tool": "UpdateStock", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -400,7 +402,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                     generation = f"Couldn't update stock for {target}: {res.get('error')}"
 
             elif t_name == "CreatePurchaseOrder":
-                res = db_instance.create_purchase_order(target, args.get("reorder_qty", 10), args.get("supplier_name", "Default Supplier"))
+                res = db_instance.create_purchase_order(target, args.get("reorder_qty", 10), args.get("supplier_name", "Default Supplier"), company_id=company_id)
                 executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -409,7 +411,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                     generation = f"Couldn't create purchase order: {res.get('error')}"
 
             elif t_name == "TransferStock":
-                res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1))
+                res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1), company_id=company_id)
                 executed_actions.append({"tool": "TransferStock", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -418,7 +420,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                     generation = f"Couldn't transfer stock: {res.get('error')}"
 
             elif t_name == "AuditInventory":
-                res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"))
+                res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"), company_id=company_id)
                 executed_actions.append({"tool": "AuditInventory", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -429,7 +431,7 @@ def action_agent_node(state: GraphState) -> GraphState:
                     generation = f"Audit logging failed: {res.get('error')}"
 
             elif t_name == "SetReorderAlert":
-                res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10))
+                res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10), company_id=company_id)
                 executed_actions.append({"tool": "SetReorderAlert", "result": res})
                 if res.get("success"):
                     p = res["product"]

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
+import '../../providers/stock_provider.dart';
 import '../../services/ai_agent_service.dart';
 
 class AutonomousDashboardWidget extends StatefulWidget {
@@ -29,23 +30,44 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   Future<void> _loadAgentData() async {
     setState(() => _isLoading = true);
 
-    // Sync actual live user inventory items from ProductProvider
+    // Sync actual live user inventory items from ProductProvider & StockProvider
     try {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
-      final realProducts = productProvider.analyticsProducts.map((p) => {
-        'id': p.id,
-        'barcode': p.barcode.isNotEmpty ? p.barcode : p.id,
-        'name': p.name,
-        'stock': p.quantity,
-        'min_threshold': p.lowStockThreshold,
-        'category': p.categoryName.isNotEmpty ? p.categoryName : 'General',
-        'cost_price': p.costPrice,
-        'selling_price': p.sellingPrice,
-        'sales_velocity': 5,
-        'lead_time_days': 3,
-        'location': p.locationQuantities.isNotEmpty ? p.locationQuantities.keys.first : 'Main Store',
-      }).toList();
+      if (!productProvider.isAnalyticsLoaded) {
+        await productProvider.loadAnalytics();
+      }
 
+      final stockProvider = Provider.of<StockProvider>(context, listen: false);
+      final transactions = stockProvider.allTransactions;
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+
+      final realProducts = productProvider.analyticsProducts.map((p) {
+        final pOut = transactions
+            .where((t) => t.productId == p.id && t.date.isAfter(thirtyDaysAgo))
+            .fold<int>(0, (sum, t) {
+              final typeStr = t.type.toString().toLowerCase();
+              if (typeStr.contains('stockout') || typeStr.contains('damage')) {
+                return sum + t.quantity;
+              }
+              return sum;
+            });
+        final double realVelocity = pOut > 0 ? (pOut / 30.0) : 0.0;
+
+        return {
+          'id': p.id,
+          'barcode': p.barcode.isNotEmpty ? p.barcode : p.id,
+          'name': p.name,
+          'stock': p.quantity,
+          'min_threshold': p.lowStockThreshold,
+          'category': p.categoryName.isNotEmpty ? p.categoryName : 'General',
+          'cost_price': p.costPrice,
+          'selling_price': p.sellingPrice,
+          'sales_velocity': double.parse(realVelocity.toStringAsFixed(2)),
+          'lead_time_days': 3,
+          'location': p.locationQuantities.isNotEmpty ? p.locationQuantities.keys.first : 'Main Store',
+        };
+      }).toList();
 
       if (realProducts.isNotEmpty) {
         await AiAgentService.syncUserInventory(realProducts);

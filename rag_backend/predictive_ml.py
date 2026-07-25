@@ -85,33 +85,50 @@ def predict_30day_demand_forecast(product: Dict[str, Any], days: int = 30) -> Li
 def calculate_stockout_risk_timeline(product: Dict[str, Any]) -> Dict[str, Any]:
     """
     Evaluates exact stockout risk timeline, risk category (CRITICAL / WARNING / OPTIMAL),
-    and monetary revenue at risk.
+    and monetary revenue at risk using real product velocity.
     """
-    stock = product.get("stock", 0)
-    velocity = max(0.1, product.get("sales_velocity", 1.0))
-    lead_time = product.get("lead_time_days", 3)
-    selling_price = product.get("selling_price", product.get("cost_price", 10.0))
+    stock = float(product.get("stock", 0))
+    raw_velocity = float(product.get("sales_velocity", 0.0))
+    lead_time = int(product.get("lead_time_days", 3))
+    selling_price = float(product.get("selling_price", product.get("cost_price", 10.0)))
 
-    days_left = round(stock / velocity, 1) if velocity > 0 else 999.0
-
-    if days_left <= lead_time:
+    if stock == 0:
         risk_level = "CRITICAL"
-        recommendation = f"URGENT: Stockout expected in {days_left} days (Lead time: {lead_time} days). Immediate PO required."
-    elif days_left <= (lead_time * 2):
-        risk_level = "WARNING"
-        recommendation = f"Stockout predicted in {days_left} days. Reorder within 48 hours."
+        days_left = 0.0
+        recommendation = f"URGENT: '{product.get('name')}' is completely out of stock (0 units). Immediate reorder required."
+        unmet_units = max(10, int(product.get("min_threshold", 10)))
+        revenue_at_risk = round(unmet_units * selling_price, 2)
+    elif raw_velocity <= 0.0:
+        min_th = int(product.get("min_threshold", 10))
+        if stock <= min_th:
+            risk_level = "WARNING"
+            days_left = round(stock / 0.5, 1)
+            recommendation = f"Low stock warning: {int(stock)} units remaining (below threshold {min_th})."
+            revenue_at_risk = round(stock * selling_price, 2)
+        else:
+            risk_level = "OPTIMAL"
+            days_left = 999.0
+            recommendation = f"Stock is healthy ({int(stock)} units in stock, zero recent depletion)."
+            revenue_at_risk = 0.0
     else:
-        risk_level = "OPTIMAL"
-        recommendation = f"Stock is optimal ({days_left} days remaining)."
+        days_left = round(stock / raw_velocity, 1)
+        if days_left <= lead_time:
+            risk_level = "CRITICAL"
+            recommendation = f"URGENT: Stockout expected in {days_left} days (Lead time: {lead_time} days). Immediate PO required."
+        elif days_left <= (lead_time * 2):
+            risk_level = "WARNING"
+            recommendation = f"Stockout predicted in {days_left} days. Reorder within 48 hours."
+        else:
+            risk_level = "OPTIMAL"
+            recommendation = f"Stock level is optimal ({days_left} days of inventory remaining at current velocity)."
 
-    # Revenue at risk if stockout occurs during lead time
-    unmet_units = max(0, round((lead_time * velocity) - stock))
-    revenue_at_risk = round(unmet_units * selling_price, 2)
+        unmet_units = max(0, round((lead_time * raw_velocity) - stock))
+        revenue_at_risk = round(unmet_units * selling_price, 2)
 
     return {
         "barcode": product.get("barcode"),
         "name": product.get("name"),
-        "current_stock": stock,
+        "current_stock": int(stock),
         "days_until_stockout": days_left,
         "lead_time_days": lead_time,
         "risk_level": risk_level,

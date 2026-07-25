@@ -917,7 +917,14 @@ class _ChatBubbleState extends State<_ChatBubble> {
       }
       
       try {
-        final product = products.firstWhere((p) => p.barcode == barcode.toString());
+        final String targetStr = barcode.toString().trim().toLowerCase();
+        final product = products.firstWhere(
+          (p) => p.barcode == barcode.toString() || p.id == barcode.toString() || p.name.toLowerCase() == targetStr,
+          orElse: () => products.firstWhere(
+            (p) => (p.name.isNotEmpty && p.name.toLowerCase().contains(targetStr)) || (targetStr.isNotEmpty && targetStr.contains(p.name.toLowerCase())),
+            orElse: () => throw Exception('Product not found'),
+          ),
+        );
         final int change = (qtyChange as num).toInt();
         
         final Map<String, int> locQty = product.locationQuantities;
@@ -953,6 +960,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
         final scaffoldMessenger = ScaffoldMessenger.of(context);
         if (success) {
+          await provider.refreshProducts();
           setState(() {
             widget.message.isActionExecuted = true;
           });

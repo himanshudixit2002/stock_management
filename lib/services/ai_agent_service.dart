@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
+import 'database_service.dart';
 
 class AiAgentService {
   static String get _baseUrl {
@@ -14,11 +15,20 @@ class AiAgentService {
     return 'https://rag-backend-647731796550.asia-south1.run.app';
   }
 
+  static Map<String, String> _getHeaders([String? companyId]) {
+    final cid = companyId ?? DatabaseService().companyId;
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (cid.isNotEmpty) {
+      headers['x-company-id'] = cid;
+    }
+    return headers;
+  }
+
   /// Fetches proactive reorder recommendations calculated via lead-time demand & ROP formulas.
   static Future<List<Map<String, dynamic>>> fetchAutopilotRecommendations() async {
     final url = Uri.parse('$_baseUrl/api/agent/autopilot');
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['recommendations'] as List? ?? [];
@@ -34,7 +44,7 @@ class AiAgentService {
   static Future<List<Map<String, dynamic>>> fetchAnomalies() async {
     final url = Uri.parse('$_baseUrl/api/agent/anomalies');
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['anomalies'] as List? ?? [];
@@ -50,7 +60,7 @@ class AiAgentService {
   static Future<List<Map<String, dynamic>>> fetchDemandForecasts() async {
     final url = Uri.parse('$_baseUrl/api/agent/forecast');
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['forecasts'] as List? ?? [];
@@ -66,7 +76,7 @@ class AiAgentService {
   static Future<List<Map<String, dynamic>>> fetchLocationTransferSuggestions() async {
     final url = Uri.parse('$_baseUrl/api/agent/location_balance');
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['transfer_suggestions'] as List? ?? [];
@@ -84,7 +94,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(),
         body: jsonEncode({
           'detected_items': detectedItems,
         }),
@@ -105,7 +115,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(),
         body: jsonEncode({'speech_text': speechText}),
       );
       if (response.statusCode == 200) {
@@ -121,7 +131,7 @@ class AiAgentService {
   static Future<Map<String, dynamic>?> triggerSwarmAutopilot() async {
     final url = Uri.parse('$_baseUrl/api/swarm/autopilot');
     try {
-      final response = await http.post(url);
+      final response = await http.post(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -137,7 +147,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(),
         body: jsonEncode({'po_id': poId}),
       );
       if (response.statusCode == 200) {
@@ -153,7 +163,7 @@ class AiAgentService {
   static Future<Map<String, dynamic>?> fetchSafetyStock() async {
     final url = Uri.parse('$_baseUrl/api/agent/safety_stock');
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: _getHeaders());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -164,13 +174,13 @@ class AiAgentService {
   }
 
   /// Syncs user's actual live inventory from client SQLite/Firestore to AI engine.
-  static Future<bool> syncUserInventory(List<Map<String, dynamic>> products) async {
+  static Future<bool> syncUserInventory(List<Map<String, dynamic>> products, {String? companyId}) async {
     if (products.isEmpty) return false;
     final url = Uri.parse('$_baseUrl/api/inventory/sync');
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(companyId),
         body: jsonEncode({'products': products}),
       );
       return response.statusCode == 200;

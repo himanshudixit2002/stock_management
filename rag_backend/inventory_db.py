@@ -10,17 +10,52 @@ DB_FILE = os.path.join(os.path.dirname(__file__), "inventory_db.json")
 class InventoryDB:
     def __init__(self, db_path: str = DB_FILE):
         self.db_path = db_path
-        self.products: Dict[str, Dict[str, Any]] = {}
-        self.action_ledger: List[Dict[str, Any]] = []
+        self.company_data: Dict[str, Dict[str, Any]] = {}
         self._load()
+
+    def _get_company(self, company_id: Optional[str] = "default") -> Dict[str, Any]:
+        cid = (company_id or "default").strip()
+        if not cid:
+            cid = "default"
+        if cid not in self.company_data:
+            self.company_data[cid] = {
+                "products": {},
+                "action_ledger": []
+            }
+        return self.company_data[cid]
+
+    @property
+    def products(self) -> Dict[str, Dict[str, Any]]:
+        return self._get_company("default")["products"]
+
+    @products.setter
+    def products(self, value: Dict[str, Dict[str, Any]]):
+        self._get_company("default")["products"] = value
+
+    @property
+    def action_ledger(self) -> List[Dict[str, Any]]:
+        return self._get_company("default")["action_ledger"]
+
+    @action_ledger.setter
+    def action_ledger(self, value: List[Dict[str, Any]]):
+        self._get_company("default")["action_ledger"] = value
 
     def _load(self):
         if os.path.exists(self.db_path):
             try:
                 with open(self.db_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    self.products = data.get("products", {})
-                    self.action_ledger = data.get("action_ledger", [])
+                    if "company_data" in data and isinstance(data["company_data"], dict):
+                        self.company_data = data["company_data"]
+                    else:
+                        prods = data.get("products", {})
+                        ledger = data.get("action_ledger", [])
+                        self.company_data = {
+                            "default": {
+                                "products": prods,
+                                "action_ledger": ledger
+                            }
+                        }
             except Exception as e:
                 print(f"Error loading inventory DB: {e}")
                 self._seed_default_data()
@@ -31,6 +66,7 @@ class InventoryDB:
         try:
             with open(self.db_path, "w", encoding="utf-8") as f:
                 json.dump({
+                    "company_data": self.company_data,
                     "products": self.products,
                     "action_ledger": self.action_ledger
                 }, f, indent=2)
@@ -88,21 +124,24 @@ class InventoryDB:
                 "location": "Chiller 2"
             }
         ]
+        default_company = self._get_company("default")
         for item in default_items:
-            self.products[item["barcode"]] = item
+            default_company["products"][item["barcode"]] = item
         self._save()
 
-    def replace_user_inventory(self, custom_products: List[Dict[str, Any]]):
-        """Replaces in-memory product ledger with real user inventory items from client app while preserving backend updates."""
+    def replace_user_inventory(self, custom_products: List[Dict[str, Any]], company_id: str = "default"):
+        """Replaces in-memory product ledger for a specific company with real user inventory items from client app while preserving backend updates."""
         if not custom_products:
             return
+        company = self._get_company(company_id)
+        current_prods = company["products"]
         new_dict = {}
         for item in custom_products:
             barcode = str(item.get("barcode", "") or item.get("sku", "") or item.get("id", "") or item.get("name", "")).strip()
             if not barcode:
                 continue
             
-            existing = self.products.get(barcode)
+            existing = current_prods.get(barcode)
             stock_val = int(item.get("stock", item.get("quantity", 0)))
             
             # If item was updated on the backend, preserve the backend's updated stock value
@@ -117,7 +156,7 @@ class InventoryDB:
                 "category": item.get("category", item.get("categoryName", "General")),
                 "cost_price": float(item.get("cost_price", item.get("costPrice", 0.0))),
                 "selling_price": float(item.get("selling_price", item.get("price", item.get("sellingPrice", 0.0)))),
-                "sales_velocity": int(item.get("sales_velocity", 0)),
+                "sales_velocity": float(item.get("sales_velocity", 0.0)),
                 "lead_time_days": int(item.get("lead_time_days", 3)),
                 "location": item.get("location", "Store Main")
             }
@@ -125,18 +164,18 @@ class InventoryDB:
                 new_dict[barcode]["last_updated_timestamp"] = existing["last_updated_timestamp"]
                 
         if new_dict:
-            self.products = new_dict
+            company["products"] = new_dict
             self._save()
 
-    def get_all_products(self) -> List[Dict[str, Any]]:
-        return list(self.products.values())
+    def get_all_products(self, company_id: str = "default") -> List[Dict[str, Any]]:
+        return list(self._get_company(company_id)["products"].values())
 
-    def get_product(self, barcode: str) -> Optional[Dict[str, Any]]:
-        return self.products.get(barcode)
+    def get_product(self, barcode: str, company_id: str = "default") -> Optional[Dict[str, Any]]:
+        return self._get_company(company_id)["products"].get(barcode)
 
-    def find_product_by_name(self, name_query: str) -> Optional[Dict[str, Any]]:
+    def find_product_by_name(self, name_query: str, company_id: str = "default") -> Optional[Dict[str, Any]]:
         q = name_query.lower()
-        for p in self.products.values():
+        for p in self.get_all_products(company_id):
             if q in p["name"].lower() or p["name"].lower() in q:
                 return p
         return None
@@ -345,8 +384,8 @@ class InventoryDB:
             "action_logged": log_entry
         }
 
-    def get_analytics_summary(self) -> Dict[str, Any]:
-        all_prods = self.get_all_products()
+    def get_analytics_summary(self, company_id: str = "default") -> Dict[str, Any]:
+        all_prods = self.get_all_products(company_id=company_id)
         total_items = len(all_prods)
         low_stock_items = [p for p in all_prods if p["stock"] <= p.get("min_threshold", 10) and p["stock"] > 0]
         out_of_stock_items = [p for p in all_prods if p["stock"] == 0]
@@ -366,13 +405,13 @@ class InventoryDB:
             "top_velocity_items": high_velocity[:3]
         }
 
-    def run_autopilot_scan(self) -> List[Dict[str, Any]]:
+    def run_autopilot_scan(self, company_id: str = "default") -> List[Dict[str, Any]]:
         """
         Proactively scans all products to find items requiring reorder recommendations.
         Formula: Lead time demand = (weekly_sales_velocity / 7) * lead_time_days
         Suggested reorder = max(min_threshold * 2, lead_time_demand * 2) - current_stock
         """
-        all_prods = self.get_all_products()
+        all_prods = self.get_all_products(company_id=company_id)
         recommendations = []
         for p in all_prods:
             stock = p.get("stock", 0)
@@ -398,15 +437,16 @@ class InventoryDB:
                 })
         return recommendations
 
-    def detect_inventory_anomalies(self) -> List[Dict[str, Any]]:
+    def detect_inventory_anomalies(self, company_id: str = "default") -> List[Dict[str, Any]]:
         """
         Scans stock ledger and inventory state for shrinkages, sudden large drops, or unauthorized stockouts.
         """
         anomalies = []
-        all_prods = self.get_all_products()
+        all_prods = self.get_all_products(company_id=company_id)
+        ledger = self._get_company(company_id)["action_ledger"]
 
         # 1. Check ledger for suspicious high-volume deductions or negative adjustments
-        for log in reversed(self.action_ledger[-50:]):
+        for log in reversed(ledger[-50:]):
             action = log.get("action")
             qty_change = log.get("qty_change", 0)
             disc = log.get("discrepancy", 0)
@@ -444,7 +484,7 @@ class InventoryDB:
 
         return anomalies
 
-    def get_predictive_demand_forecast(self) -> List[Dict[str, Any]]:
+    def get_predictive_demand_forecast(self, company_id: str = "default") -> List[Dict[str, Any]]:
         """
         Calculates 30-day time-series demand forecasts, statistical safety stock, and projected stockout dates.
         """
@@ -454,7 +494,7 @@ class InventoryDB:
             from .predictive_ml import predict_30day_demand_forecast, calculate_statistical_safety_stock, calculate_stockout_risk_timeline
 
         forecasts = []
-        all_prods = self.get_all_products()
+        all_prods = self.get_all_products(company_id=company_id)
 
         for p in all_prods:
             stock = p.get("stock", 0)
@@ -484,11 +524,11 @@ class InventoryDB:
         return sorted(forecasts, key=lambda x: x["days_until_stockout"])
 
 
-    def get_cross_location_balance_suggestions(self) -> List[Dict[str, Any]]:
+    def get_cross_location_balance_suggestions(self, company_id: str = "default") -> List[Dict[str, Any]]:
         """
         Identifies overstocked locations vs understocked locations to create instant stock transfer recommendations.
         """
-        all_prods = self.get_all_products()
+        all_prods = self.get_all_products(company_id=company_id)
         transfers = []
 
         # Find items with high stock in warehouse vs low stock in store front
@@ -510,7 +550,7 @@ class InventoryDB:
 
         return transfers
 
-    def process_visual_audit_photo(self, detected_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def process_visual_audit_photo(self, detected_items: List[Dict[str, Any]], company_id: str = "default") -> Dict[str, Any]:
         """
         Processes visual stock detection counts against expected database values.
         detected_items format: [{"name": "Fresh Apples", "count": 12}, ...]
@@ -519,11 +559,11 @@ class InventoryDB:
         for item in detected_items:
             name_query = item.get("name", "")
             counted_qty = item.get("count", 0)
-            product = self.find_product_by_name(name_query)
+            product = self.find_product_by_name(name_query, company_id=company_id)
 
             if product:
                 disc = counted_qty - product["stock"]
-                audit_res = self.audit_inventory(product["barcode"], counted_qty, f"Visual AI Camera Audit: Counted {counted_qty}")
+                audit_res = self.audit_inventory(product["barcode"], counted_qty, f"Visual AI Camera Audit: Counted {counted_qty}", company_id=company_id)
                 audit_results.append({
                     "product_name": product["name"],
                     "barcode": product["barcode"],
@@ -544,13 +584,13 @@ class InventoryDB:
             "results": audit_results
         }
 
-    def process_voice_command(self, speech_text: str) -> Dict[str, Any]:
+    def process_voice_command(self, speech_text: str, company_id: str = "default") -> Dict[str, Any]:
         """
         Parses spoken natural language commands (e.g. 'Deduct 15 units of Fresh Apples damaged')
         and executes atomic stock mutations with audio confirmation feedback.
         """
         text_lower = speech_text.lower().strip()
-        all_prods = self.get_all_products()
+        all_prods = self.get_all_products(company_id=company_id)
         stop_words = {"a", "an", "the", "in", "of", "on", "units", "unit", "to", "for", "from", "at", "by", "with", "add", "deduct", "remove", "damaged", "sold", "received", "restock", "count", "audit", "plus", "minus"}
         
         # Match target product by best keyword/substring score

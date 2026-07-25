@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
+import 'database_service.dart';
 
 class RagResponse {
   final String text;
@@ -32,6 +33,15 @@ class RagApiService {
     return 'https://rag-backend-647731796550.asia-south1.run.app';
   }
 
+  static Map<String, String> _getHeaders() {
+    final cid = DatabaseService().companyId;
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (cid.isNotEmpty) {
+      headers['x-company-id'] = cid;
+    }
+    return headers;
+  }
+
   /// Sends a question to the RAG backend and returns a parsed RagResponse.
   static Future<RagResponse> askQuestion(
     String question, {
@@ -42,7 +52,7 @@ class RagApiService {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(),
         body: jsonEncode({
           'question': question,
           // ignore: use_null_aware_elements
@@ -127,7 +137,7 @@ class RagApiService {
     try {
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(),
         body: jsonEncode({'products': products}),
       );
       return response.statusCode == 200;
@@ -141,7 +151,7 @@ class RagApiService {
   static Future<void> clearCache() async {
     final url = Uri.parse('$_baseUrl/api/cache/clear');
     try {
-      await http.post(url);
+      await http.post(url, headers: _getHeaders());
     } catch (e) {
       debugPrint("Failed to clear backend cache: $e");
     }
@@ -156,7 +166,7 @@ class RagApiService {
     final url = Uri.parse('$_baseUrl/api/chat/stream');
     try {
       final request = http.Request('POST', url);
-      request.headers['Content-Type'] = 'application/json';
+      _getHeaders().forEach((k, v) => request.headers[k] = v);
       request.body = jsonEncode({
         'question': question,
         if (context != null) 'context': context,
