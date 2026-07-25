@@ -180,8 +180,9 @@ class InventoryDB:
                 return p
         return None
 
-    def upsert_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+    def upsert_product(self, product_data: Dict[str, Any], company_id: str = "default") -> Dict[str, Any]:
         barcode = product_data.get("barcode")
+
         if not barcode:
             raise ValueError("Barcode is required for upserting a product.")
         
@@ -211,10 +212,11 @@ class InventoryDB:
         return log_entry
 
 
-    def update_stock(self, barcode: str, qty_change: int, reason: str = "Manual Adjustment") -> Dict[str, Any]:
-        product = self.products.get(barcode)
+    def update_stock(self, barcode: str, qty_change: int, reason: str = "Manual Adjustment", company_id: str = "default") -> Dict[str, Any]:
+        company = self._get_company(company_id)
+        product = company["products"].get(barcode)
         if not product:
-            product = self.find_product_by_name(barcode)
+            product = self.find_product_by_name(barcode, company_id=company_id)
         if not product:
             return {"success": False, "error": f"Product not found: {barcode}"}
         
@@ -230,7 +232,7 @@ class InventoryDB:
 
         product["stock"] = new_stock
         product["last_updated_timestamp"] = datetime.now().isoformat()
-        self.products[target_barcode] = product
+        company["products"][target_barcode] = product
         
         log_entry = {
             "action": "update_stock",
@@ -242,7 +244,7 @@ class InventoryDB:
             "reason": reason,
             "timestamp": datetime.now().isoformat()
         }
-        self.action_ledger.append(log_entry)
+        company["action_ledger"].append(log_entry)
         self._save()
         
         return {
@@ -255,10 +257,11 @@ class InventoryDB:
         }
 
 
-    def create_purchase_order(self, barcode: str, reorder_qty: int, supplier: str = "Default Supplier") -> Dict[str, Any]:
-        product = self.products.get(barcode)
+    def create_purchase_order(self, barcode: str, reorder_qty: int, supplier: str = "Default Supplier", company_id: str = "default") -> Dict[str, Any]:
+        company = self._get_company(company_id)
+        product = company["products"].get(barcode)
         if not product:
-            product = self.find_product_by_name(barcode)
+            product = self.find_product_by_name(barcode, company_id=company_id)
             if not product:
                 return {"success": False, "error": f"Product '{barcode}' not found."}
 
@@ -277,7 +280,7 @@ class InventoryDB:
             "status": "DRAFT",
             "timestamp": datetime.now().isoformat()
         }
-        self.action_ledger.append(log_entry)
+        company["action_ledger"].append(log_entry)
         self._save()
 
         return {
@@ -290,10 +293,11 @@ class InventoryDB:
             "action_logged": log_entry
         }
 
-    def transfer_stock(self, barcode: str, from_loc: str, to_loc: str, qty: int) -> Dict[str, Any]:
-        product = self.products.get(barcode)
+    def transfer_stock(self, barcode: str, from_loc: str, to_loc: str, qty: int, company_id: str = "default") -> Dict[str, Any]:
+        company = self._get_company(company_id)
+        product = company["products"].get(barcode)
         if not product:
-            product = self.find_product_by_name(barcode)
+            product = self.find_product_by_name(barcode, company_id=company_id)
             if not product:
                 return {"success": False, "error": f"Product '{barcode}' not found."}
 
@@ -310,7 +314,7 @@ class InventoryDB:
             "qty": qty,
             "timestamp": datetime.now().isoformat()
         }
-        self.action_ledger.append(log_entry)
+        company["action_ledger"].append(log_entry)
         self._save()
 
         return {
@@ -322,10 +326,11 @@ class InventoryDB:
             "action_logged": log_entry
         }
 
-    def audit_inventory(self, barcode: str, actual_stock: int, notes: str = "Physical Audit") -> Dict[str, Any]:
-        product = self.products.get(barcode)
+    def audit_inventory(self, barcode: str, actual_stock: int, notes: str = "Physical Audit", company_id: str = "default") -> Dict[str, Any]:
+        company = self._get_company(company_id)
+        product = company["products"].get(barcode)
         if not product:
-            product = self.find_product_by_name(barcode)
+            product = self.find_product_by_name(barcode, company_id=company_id)
             if not product:
                 return {"success": False, "error": f"Product '{barcode}' not found."}
 
@@ -343,7 +348,7 @@ class InventoryDB:
             "notes": notes,
             "timestamp": datetime.now().isoformat()
         }
-        self.action_ledger.append(log_entry)
+        company["action_ledger"].append(log_entry)
         self._save()
 
         return {
@@ -355,10 +360,12 @@ class InventoryDB:
             "action_logged": log_entry
         }
 
-    def set_min_threshold(self, barcode: str, new_threshold: int) -> Dict[str, Any]:
-        product = self.products.get(barcode)
+    def set_min_threshold(self, barcode: str, new_threshold: int, company_id: str = "default") -> Dict[str, Any]:
+        company = self._get_company(company_id)
+        product = company["products"].get(barcode)
         if not product:
-            product = self.find_product_by_name(barcode)
+            product = self.find_product_by_name(barcode, company_id=company_id)
+
             if not product:
                 return {"success": False, "error": f"Product '{barcode}' not found."}
 
@@ -373,8 +380,9 @@ class InventoryDB:
             "new_threshold": new_threshold,
             "timestamp": datetime.now().isoformat()
         }
-        self.action_ledger.append(log_entry)
+        company["action_ledger"].append(log_entry)
         self._save()
+
 
         return {
             "success": True,

@@ -56,9 +56,9 @@ async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Hea
     history_list = [h.model_dump() for h in request.history] if request.history else []
     
     # 1. Check persistent & vector semantic cache for instant response (< 50ms)
-    cached_val = cache_manager.get(request.question, request.context, history_list)
+    cached_val = cache_manager.get(request.question, request.context, history_list, company_id=cid)
     if not cached_val:
-        semantic_res = semantic_cache.get(request.question)
+        semantic_res = semantic_cache.get(request.question, company_id=cid)
         if semantic_res and isinstance(semantic_res, dict):
             cached_val = semantic_res.get("generation")
 
@@ -90,12 +90,12 @@ async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Hea
     updated_cat = None
     # 3. If actions executed (stock mutated), invalidate stale cache & return updated catalog
     if executed_actions:
-        cache_manager.clear()
-        semantic_cache.clear()
+        cache_manager.clear(company_id=cid)
+        semantic_cache.clear(company_id=cid)
         updated_cat = db_instance.get_all_products(company_id=cid)
     elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
-        cache_manager.set(request.question, request.context, history_list, generation)
-        semantic_cache.set(request.question, {"generation": generation, "intent": intent})
+        cache_manager.set(request.question, request.context, history_list, generation, company_id=cid)
+        semantic_cache.set(request.question, {"generation": generation, "intent": intent}, company_id=cid)
 
     return QueryResponse(
         answer=generation,
@@ -114,7 +114,7 @@ async def stream_chat_endpoint(request: QueryRequest, x_company_id: Optional[str
     
     async def event_generator():
         # 1. Check cache for instant streaming (< 5ms)
-        cached_val = cache_manager.get(request.question, request.context, history_list)
+        cached_val = cache_manager.get(request.question, request.context, history_list, company_id=cid)
         if cached_val:
             yield f"data: {json.dumps({'type': 'status', 'message': 'Cache hit - instant response'})}\n\n"
             # Stream words progressively to simulate instant fluid typing
@@ -146,13 +146,16 @@ async def stream_chat_endpoint(request: QueryRequest, x_company_id: Optional[str
         analytics_data = final_state.get("analytics_data")
 
         if executed_actions:
-            cache_manager.clear()
+            cache_manager.clear(company_id=cid)
+            semantic_cache.clear(company_id=cid)
             updated_cat = db_instance.get_all_products(company_id=cid)
         elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
-            cache_manager.set(request.question, request.context, history_list, generation)
+            cache_manager.set(request.question, request.context, history_list, generation, company_id=cid)
+            semantic_cache.set(request.question, {"generation": generation, "intent": intent}, company_id=cid)
             updated_cat = None
         else:
             updated_cat = None
+
 
         # Stream out response
         words = generation.split(" ")
@@ -193,8 +196,10 @@ async def ingest_endpoint(request: ProductIngestRequest, x_company_id: Optional[
     except Exception as e:
         print(f"Vector ingest warning: {e}")
         
-    cache_manager.clear()
+    cache_manager.clear(company_id=cid)
+    semantic_cache.clear(company_id=cid)
     return {"status": "success", "message": f"Ingested {len(prods)} products into live inventory database & vectorstore."}
+
 
 @app.get("/api/agent/autopilot")
 def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-company-id")):

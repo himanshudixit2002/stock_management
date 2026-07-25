@@ -1,6 +1,6 @@
 """
 Vector-based Semantic & Intent Cache for Sub-50ms Response Times.
-Stores past agent execution graphs, queries, vector representations, and action responses.
+Stores past agent execution graphs, queries, vector representations, and action responses per company_id.
 """
 
 import time
@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List
 class SemanticCacheManager:
     """
     Sub-50ms Ultra-Fast Vector-Semantic & Intent Cache.
-    Supports embedding-vector similarity, exact hash matching, and automatic TTL invalidation.
+    Supports tenant-isolated embedding-vector similarity, exact hash matching, and automatic TTL invalidation.
     """
     def __init__(self, ttl_seconds: int = 600, similarity_threshold: float = 0.80):
         self.cache: Dict[str, Dict[str, Any]] = {}
@@ -54,27 +54,31 @@ class SemanticCacheManager:
         jaccard = len(set1.intersection(set2)) / len(set1.union(set2)) if (set1 and set2) else 0.0
         return 0.7 * dot + 0.3 * jaccard
 
-
-    def get(self, query_or_intent: str) -> Optional[Dict[str, Any]]:
+    def get(self, query_or_intent: str, company_id: str = "default") -> Optional[Dict[str, Any]]:
+        cid = (company_id or "default").strip()
         norm_q = self._normalize(query_or_intent)
+        cache_key = f"cid:{cid}:{norm_q}"
         now = time.time()
 
         # 1. Fast exact match check
-        if norm_q in self.cache:
-            entry = self.cache[norm_q]
+        if cache_key in self.cache:
+            entry = self.cache[cache_key]
             if now - entry["timestamp"] < self.ttl_seconds:
                 self.hit_count += 1
                 return entry["data"]
             else:
-                del self.cache[norm_q]
+                del self.cache[cache_key]
 
-        # 2. Vector Cosine Similarity Check over active cache entries
+        # 2. Vector Cosine Similarity Check over active cache entries for THIS company_id ONLY
         query_vec = self._get_vector(query_or_intent)
         best_score = 0.0
         best_data = None
         expired_keys: List[str] = []
+        prefix = f"cid:{cid}:"
 
         for key, entry in self.cache.items():
+            if not key.startswith(prefix):
+                continue
             if now - entry["timestamp"] >= self.ttl_seconds:
                 expired_keys.append(key)
                 continue
@@ -94,18 +98,28 @@ class SemanticCacheManager:
         self.miss_count += 1
         return None
 
-    def set(self, query_or_intent: str, data: Dict[str, Any]):
+    def set(self, query_or_intent: str, data: Dict[str, Any], company_id: str = "default"):
+        cid = (company_id or "default").strip()
         norm_q = self._normalize(query_or_intent)
+        cache_key = f"cid:{cid}:{norm_q}"
         vec = self._get_vector(query_or_intent)
-        self.cache[norm_q] = {
+        self.cache[cache_key] = {
             "timestamp": time.time(),
             "vector": vec,
             "data": data,
+            "company_id": cid,
             "original_query": query_or_intent
         }
 
-    def clear(self):
-        self.cache.clear()
+    def clear(self, company_id: Optional[str] = None):
+        if company_id:
+            cid = (company_id or "default").strip()
+            prefix = f"cid:{cid}:"
+            keys_to_del = [k for k in self.cache if k.startswith(prefix)]
+            for k in keys_to_del:
+                del self.cache[k]
+        else:
+            self.cache.clear()
 
     def get_stats(self) -> Dict[str, Any]:
         total = self.hit_count + self.miss_count
@@ -117,4 +131,3 @@ class SemanticCacheManager:
             "hit_rate_pct": round(hit_rate, 2),
             "ttl_seconds": self.ttl_seconds
         }
-

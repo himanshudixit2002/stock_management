@@ -33,7 +33,8 @@ def test_pipeline_action_routing():
     print("\n--- 2. Testing LangGraph Agent Pipeline Routing ---")
     
     # Action Query
-    state_action = rag_pipeline.invoke({"question": "Add 30 units to Fresh Apples barcode 89010001"})
+    state_action = rag_pipeline.invoke({"question": "Confirm and add 30 units to Fresh Apples barcode 89010001"})
+
     print("\nAction Query Output:")
     print("Intent:", state_action.get("intent"))
     print("Generation:\n", state_action.get("generation"))

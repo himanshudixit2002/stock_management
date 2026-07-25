@@ -20,6 +20,7 @@ class CacheManager:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS query_cache (
                     cache_key TEXT PRIMARY KEY,
+                    company_id TEXT DEFAULT 'default',
                     question TEXT NOT NULL,
                     context TEXT NOT NULL,
                     history TEXT,
@@ -27,13 +28,23 @@ class CacheManager:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            # Create index for fast retrieval
+            # Ensure company_id column exists if table was previously created without it
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(query_cache)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if "company_id" not in cols:
+                try:
+                    conn.execute("ALTER TABLE query_cache ADD COLUMN company_id TEXT DEFAULT 'default'")
+                except Exception as e:
+                    print(f"Cache DB schema migration note: {e}")
+
             conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON query_cache (cache_key)")
 
-    def _compute_key(self, question: str, context: Optional[str], history: Optional[list]) -> str:
+    def _compute_key(self, question: str, context: Optional[str], history: Optional[list], company_id: str = "default") -> str:
         history_str = json.dumps(history or [], sort_keys=True)
         context_str = context or ""
-        raw_str = f"q:{question.strip().lower()}|c:{context_str}|h:{history_str}"
+        cid = (company_id or "default").strip()
+        raw_str = f"cid:{cid}|q:{question.strip().lower()}|c:{context_str}|h:{history_str}"
         return hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
 
     def _tokenize(self, text: str) -> set:
@@ -62,9 +73,9 @@ class CacheManager:
         
         return 0.8 * jaccard + 0.2 * seq_ratio
 
-    def get(self, question: str, context: Optional[str], history: Optional[list]) -> Optional[str]:
-        # 1. Fast exact hash check (< 2ms)
-        key = self._compute_key(question, context, history)
+    def get(self, question: str, context: Optional[str], history: Optional[list], company_id: str = "default") -> Optional[str]:
+        cid = (company_id or "default").strip()
+        key = self._compute_key(question, context, history, company_id=cid)
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -76,11 +87,11 @@ class CacheManager:
                 if row:
                     return row[0]
                 
-                # 2. Semantic similarity scan over existing questions if no exact hash match
+                # 2. Semantic similarity scan over existing questions FOR THIS company_id ONLY
                 context_str = context or ""
                 history_str = json.dumps(history or [], sort_keys=True)
                 
-                cursor.execute("SELECT question, context, history, generation FROM query_cache")
+                cursor.execute("SELECT question, context, history, generation FROM query_cache WHERE company_id = ?", (cid,))
                 rows = cursor.fetchall()
                 
                 best_score = 0.0
@@ -100,33 +111,28 @@ class CacheManager:
             print(f"Cache read error: {e}")
         return None
 
-    def _has_id_col(self, conn) -> bool:
-        try:
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(query_cache)")
-            cols = [row[1] for row in cursor.fetchall()]
-            return "id" in cols
-        except Exception:
-            return False
-
-    def set(self, question: str, context: Optional[str], history: Optional[list], generation: str):
-        key = self._compute_key(question, context, history)
+    def set(self, question: str, context: Optional[str], history: Optional[list], generation: str, company_id: str = "default"):
+        cid = (company_id or "default").strip()
+        key = self._compute_key(question, context, history, company_id=cid)
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO query_cache (cache_key, question, context, history, generation)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO query_cache (cache_key, company_id, question, context, history, generation)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (key, question.strip().lower(), context or "", json.dumps(history or [], sort_keys=True), generation)
+                    (key, cid, question.strip().lower(), context or "", json.dumps(history or [], sort_keys=True), generation)
                 )
         except Exception as e:
             print(f"Cache write error: {e}")
 
-    def clear(self):
+    def clear(self, company_id: Optional[str] = None):
         try:
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute("DELETE FROM query_cache")
+                if company_id:
+                    conn.execute("DELETE FROM query_cache WHERE company_id = ?", ((company_id or 'default').strip(),))
+                else:
+                    conn.execute("DELETE FROM query_cache")
         except Exception as e:
             print(f"Cache clear error: {e}")
 
@@ -143,5 +149,3 @@ class CacheManager:
                 }
         except Exception as e:
             return {"persistent_entries": 0, "error": str(e)}
-
-

@@ -10,6 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -70,26 +71,67 @@ class SetReorderAlert(BaseModel):
 # 2. LLM Initialization & Tool Binding
 # ---------------------------------------------------------
 
-api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "MOCK_KEY_FOR_INIT"
-
-llm_action = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0, google_api_key=api_key)
-llm_pro = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.2, google_api_key=api_key)
-
 ACTION_TOOLS = [UpdateStock, CreatePurchaseOrder, TransferStock, AuditInventory, SetReorderAlert]
-llm_action_with_tools = llm_action.bind_tools(ACTION_TOOLS)
+
+def get_active_llm(temperature: float = 0.0, bind_tools_list: Optional[List[Any]] = None):
+    """
+    Factory function returning the active LLM instance.
+    Prioritizes Tinker AI (OpenAI-compatible), falling back to Google Gemini.
+    """
+    tinker_key = os.environ.get("TINKER_API_KEY")
+    tinker_base_url = os.environ.get("TINKER_BASE_URL", "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1")
+    tinker_model = os.environ.get("TINKER_MODEL", "tinker://default")
+    
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+    if tinker_key and _is_valid_api_key(tinker_key):
+        try:
+            llm = ChatOpenAI(
+                model=tinker_model,
+                temperature=temperature,
+                openai_api_key=tinker_key,
+                openai_api_base=tinker_base_url
+            )
+            if bind_tools_list:
+                return llm.bind_tools(bind_tools_list)
+            return llm
+        except Exception as e:
+            print(f"[LLM Factory] Tinker AI init error: {e}")
+
+    if gemini_key and _is_valid_api_key(gemini_key):
+        try:
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                temperature=temperature,
+                google_api_key=gemini_key
+            )
+            if bind_tools_list:
+                return llm.bind_tools(bind_tools_list)
+            return llm
+        except Exception as e:
+            print(f"[LLM Factory] Gemini init error: {e}")
+
+    return None
 
 # ---------------------------------------------------------
 # 3. Vectorstore Retriever
 # ---------------------------------------------------------
 
 def get_retriever():
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=api_key)
-    vectorstore = Chroma(
-        collection_name="stock_inventory",
-        embedding_function=embeddings,
-        persist_directory="./chroma_db"
-    )
-    return vectorstore.as_retriever(search_kwargs={"k": 3})
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if gemini_key and _is_valid_api_key(gemini_key):
+        try:
+            embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=gemini_key)
+            vectorstore = Chroma(
+                collection_name="stock_inventory",
+                embedding_function=embeddings,
+                persist_directory="./chroma_db"
+            )
+            return vectorstore.as_retriever(search_kwargs={"k": 3})
+        except Exception as e:
+            print(f"Retriever initialization warning: {e}")
+    return None
+
 
 # ---------------------------------------------------------
 # 4. Multi-Agent Graph Nodes
@@ -305,10 +347,10 @@ def action_agent_node(state: GraphState) -> GraphState:
     context_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
     executed_actions = []
     
-    current_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or api_key
+    active_llm = get_active_llm(temperature=0, bind_tools_list=ACTION_TOOLS)
 
-    # Check if real API Key is available
-    if not _is_valid_api_key(current_key):
+    # Check if active LLM is available
+    if not active_llm:
         # Rule-based fallback tool execution (instant < 1ms)
         fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
         if fallback_res:
@@ -364,8 +406,10 @@ def action_agent_node(state: GraphState) -> GraphState:
     messages.append(HumanMessage(content=question))
 
     try:
-        response = llm_action_with_tools.invoke(messages)
-    except Exception:
+        response = active_llm.invoke(messages)
+    except Exception as e:
+        print(f"[Action Node] LLM invoke failed, using fallback: {e}")
+
         # Fallback to rule matcher on API model error
         fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
         if fallback_res:
@@ -447,21 +491,23 @@ def action_agent_node(state: GraphState) -> GraphState:
 
     return state
 
-def _is_valid_api_key(key: str) -> bool:
-    """Validates if a real Google Gemini API key is present."""
-    if not key or key in ["MOCK_KEY_FOR_INIT", "your_gemini_api_key_here", "YOUR_GEMINI_API_KEY"]:
+def _is_valid_api_key(key: Optional[str]) -> bool:
+    """Validates if a real API key (Tinker AI or Google Gemini) is present."""
+    if not key or key in ["MOCK_KEY_FOR_INIT", "your_gemini_api_key_here", "YOUR_GEMINI_API_KEY", "your_tinker_api_key_here"]:
         return False
-    if len(key) < 20 or not key.startswith("AIza"):
-        return False
-    return True
+    key_str = str(key).strip()
+    if key_str.startswith("tml-") or key_str.startswith("AIza") or len(key_str) >= 20:
+        return True
+    return False
 
-def _generate_instant_table_response(question: str, metrics: Dict[str, Any], autopilot_recs: List[Dict[str, Any]]) -> Optional[str]:
+
+def _generate_instant_table_response(question: str, metrics: Dict[str, Any], autopilot_recs: List[Dict[str, Any]], company_id: str = "default") -> Optional[str]:
     """Generates instant (< 1ms) markdown table responses for standard audit, order log, reorder, and metric queries."""
     q = question.lower()
 
     # 1. Reorder / What to order next queries
     if any(k in q for k in ["order next", "what to order", "reorder next", "what to buy", "reorder suggestion", "autopilot"]):
-        recs = autopilot_recs or db_instance.run_autopilot_scan()
+        recs = autopilot_recs or db_instance.run_autopilot_scan(company_id=company_id)
         if not recs:
             return "Great news! All products are well-stocked right now. No immediate reorders needed."
         
@@ -480,7 +526,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
     
     # 2. Order Log / Ledger / Purchase Order History
     if any(k in q for k in ["order log", "log table", "ledger", "transaction history", "po log", "order history", "action ledger", "audit log", "recent actions"]):
-        ledger = db_instance.action_ledger
+        ledger = db_instance._get_company(company_id)["action_ledger"]
         if not ledger:
             return "Here is your order log: No transactions recorded yet."
         
@@ -516,9 +562,10 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
 
     # 3. Inventory Health Audit / Stock Audit Report
     if any(k in q for k in ["inventory audit", "stock audit", "health audit", "audit report", "audit table"]):
-        all_prods = db_instance.get_all_products()
+        all_prods = db_instance.get_all_products(company_id=company_id)
         if not all_prods:
             return "No products found in inventory to audit."
+
         
         # Deduplicate by barcode
         seen_barcodes = set()
@@ -626,11 +673,12 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
 def analytics_agent_node(state: GraphState) -> GraphState:
     """Calculates live analytics, stockout risks, and financial valuations from DB."""
     question = state["question"]
-    metrics = db_instance.get_analytics_summary()
-    autopilot_recs = db_instance.run_autopilot_scan()
+    company_id = state.get("company_id", "default")
+    metrics = db_instance.get_analytics_summary(company_id=company_id)
+    autopilot_recs = db_instance.run_autopilot_scan(company_id=company_id)
 
     # Fast-path check: Return instant (< 1ms) markdown table if question matches table/order log requests
-    instant_table = _generate_instant_table_response(question, metrics, autopilot_recs)
+    instant_table = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
 
     if instant_table:
         content = instant_table
@@ -675,7 +723,7 @@ def analytics_agent_node(state: GraphState) -> GraphState:
             content = extract_text_content(response.content)
         except Exception:
             # Fallback to instant table summary if API call fails
-            content = _generate_instant_table_response("summary", metrics, autopilot_recs) or "Inventory analytics updated."
+            content = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "Inventory analytics updated."
 
     stats_payload = {
         "total": metrics["total_products"],
@@ -694,13 +742,15 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
     """Handles policy, general guidance, and standard knowledge questions."""
     question = state["question"]
     documents = state["documents"]
+    company_id = state.get("company_id", "default")
     docs_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
 
-    metrics = db_instance.get_analytics_summary()
-    autopilot_recs = db_instance.run_autopilot_scan()
+    metrics = db_instance.get_analytics_summary(company_id=company_id)
+    autopilot_recs = db_instance.run_autopilot_scan(company_id=company_id)
 
     # Check for instant table response match first
-    instant_table = _generate_instant_table_response(question, metrics, autopilot_recs)
+    instant_table = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
+
     if instant_table:
         state["generation"] = instant_table
         return state
@@ -734,41 +784,44 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
             "| **Business Intelligence** | Provide actionable growth strategies and stock analytics |\n\n"
             "Ask me a question or tell me what action to take!"
         )
-    elif _is_valid_api_key(current_key):
-        llm_knowledge = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3, google_api_key=current_key)
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a warm, sharp, highly intelligent business and stock management assistant helping a store owner.\n"
-                       "CRITICAL INSTRUCTIONS:\n"
-                       "1. Directly answer the user's specific question with practical, intelligent advice.\n"
-                       "2. Speak naturally like a human colleague—warm, practical, concise, and clear.\n"
-                       "3. Strictly NO AI clichés, no generic disclaimers ('As an AI...', 'I cannot...').\n"
-                       "4. Do NOT use bloated emojis in table cells or headers.\n"
-                       "5. Format structural lists or guides in clean markdown tables or short bullet points."),
-            ("user", "Context:\n{context}\nQuestion: {question}")
-        ])
-        
-        messages = prompt.format_messages(context=docs_text, question=question)
-        try:
-            response = llm_knowledge.invoke(messages)
-            content = extract_text_content(response.content)
-        except Exception:
+    else:
+        llm_knowledge = get_active_llm(temperature=0.3)
+        if llm_knowledge:
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", "You are a warm, sharp, highly intelligent business and stock management assistant helping a store owner.\n"
+                           "CRITICAL INSTRUCTIONS:\n"
+                           "1. Directly answer the user's specific question with practical, intelligent advice.\n"
+                           "2. Speak naturally like a human colleague—warm, practical, concise, and clear.\n"
+                           "3. Strictly NO AI clichés, no generic disclaimers ('As an AI...', 'I cannot...').\n"
+                           "4. Do NOT use bloated emojis in table cells or headers.\n"
+                           "5. Format structural lists or guides in clean markdown tables or short bullet points."),
+                ("user", "Context:\n{context}\nQuestion: {question}")
+            ])
+            
+            messages = prompt.format_messages(context=docs_text, question=question)
+            try:
+                response = llm_knowledge.invoke(messages)
+                content = extract_text_content(response.content)
+            except Exception as e:
+                print(f"[Knowledge Node] LLM invoke failed: {e}")
+                content = (
+                    "Here is an overview of your store operations:\n\n"
+                    f"- **Registered Products**: **{metrics['total_products']}** items\n"
+                    f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
+                    f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
+                    f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
+                    "How can I assist you with your inventory or sales plan?"
+                )
+        else:
             content = (
-                "Here is an overview of your store operations:\n\n"
+                "Here is your current store overview:\n\n"
                 f"- **Registered Products**: **{metrics['total_products']}** items\n"
                 f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
                 f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
                 f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
-                "How can I assist you with your inventory or sales plan?"
+                "Tell me if you'd like me to perform an audit, restock low items, or update stock!"
             )
-    else:
-        content = (
-            "Here is your current store overview:\n\n"
-            f"- **Registered Products**: **{metrics['total_products']}** items\n"
-            f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
-            f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
-            f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
-            "Tell me if you'd like me to perform an audit, restock low items, or update stock!"
-        )
+
 
     state["generation"] = content
     return state

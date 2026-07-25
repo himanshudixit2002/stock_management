@@ -1,4 +1,1545 @@
 {
+  "company_data": {
+    "default": {
+      "products": {
+        "996012517768": {
+          "barcode": "996012517768",
+          "name": "Cannula Standard",
+          "stock": 25,
+          "min_threshold": 10,
+          "category": "General",
+          "cost_price": 0.0,
+          "selling_price": 0.0,
+          "sales_velocity": 0,
+          "lead_time_days": 3,
+          "location": "Store Main",
+          "last_updated_timestamp": "2026-07-25T00:27:33.282277"
+        },
+        "89010003": {
+          "barcode": "89010003",
+          "name": "Sparkling Water (Pack of 12)",
+          "stock": 200,
+          "min_threshold": 100,
+          "category": "Beverages",
+          "cost_price": 4.0,
+          "selling_price": 8.99,
+          "sales_velocity": 0,
+          "lead_time_days": 3,
+          "location": "Store Front - C3",
+          "last_updated_timestamp": "2026-07-25T22:04:53.504238"
+        },
+        "89010001": {
+          "barcode": "89010001",
+          "name": "Fresh Apples (kg)",
+          "stock": 70,
+          "min_threshold": 50,
+          "category": "Produce",
+          "cost_price": 1.2,
+          "selling_price": 2.5,
+          "sales_velocity": 40,
+          "lead_time_days": 3,
+          "location": "Store Front - A1",
+          "last_updated_timestamp": "2026-07-25T22:04:51.535420"
+        },
+        "89010002": {
+          "barcode": "89010002",
+          "name": "Pro Laptops (15-inch)",
+          "stock": 100,
+          "min_threshold": 20,
+          "category": "Electronics",
+          "cost_price": 650.0,
+          "selling_price": 999.0,
+          "sales_velocity": 10,
+          "lead_time_days": 14,
+          "location": "Warehouse B - Shelf 4"
+        },
+        "89010004": {
+          "barcode": "89010004",
+          "name": "Organic Whole Milk (1L)",
+          "stock": 8,
+          "min_threshold": 30,
+          "category": "Dairy",
+          "cost_price": 1.5,
+          "selling_price": 2.99,
+          "sales_velocity": 25,
+          "lead_time_days": 2,
+          "location": "Chiller 2"
+        },
+        "TEST-SKU-99": {
+          "barcode": "TEST-SKU-99",
+          "name": "Autonomous Test Widget",
+          "stock": 2,
+          "min_threshold": 15,
+          "cost_price": 50.0,
+          "selling_price": 100.0,
+          "sales_velocity": 5,
+          "lead_time_days": 3,
+          "last_updated_timestamp": "2026-07-25T22:00:18.471718"
+        },
+        "DEAD-SKU-01": {
+          "barcode": "DEAD-SKU-01",
+          "name": "Dead Stock Gadget",
+          "stock": 40,
+          "min_threshold": 5,
+          "cost_price": 10.0,
+          "selling_price": 30.0,
+          "sales_velocity": 0,
+          "lead_time_days": 7,
+          "last_updated_timestamp": "2026-07-25T22:00:18.473005"
+        },
+        "MARGIN-SKU-02": {
+          "barcode": "MARGIN-SKU-02",
+          "name": "Low Margin Cable",
+          "stock": 100,
+          "min_threshold": 10,
+          "cost_price": 95.0,
+          "selling_price": 100.0,
+          "sales_velocity": 2,
+          "lead_time_days": 2,
+          "last_updated_timestamp": "2026-07-25T22:00:18.474350"
+        },
+        "EXPENSIVE-SKU-100": {
+          "barcode": "EXPENSIVE-SKU-100",
+          "name": "High Value Industrial Server",
+          "stock": 1,
+          "min_threshold": 10,
+          "cost_price": 500.0,
+          "selling_price": 1000.0,
+          "sales_velocity": 2,
+          "lead_time_days": 5,
+          "last_updated_timestamp": "2026-07-25T22:00:18.477316"
+        }
+      },
+      "action_ledger": [
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-23T14:03:52.556498"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784795632",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-23T14:03:52.556600"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-23T14:03:52.558623"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784795632",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "reorder_qty": 10,
+          "supplier": "Auto Supplier",
+          "unit_cost": 1.2,
+          "total_cost": 12.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-23T14:03:52.559327"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-23T14:04:04.420364"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784795644",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-23T14:04:04.420686"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-23T14:04:04.422191"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 200,
+          "new_stock": 215,
+          "qty_change": 15,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-23T14:04:10.047582"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-23T14:17:25.871451"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784796445",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-23T14:17:25.871575"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-23T14:17:25.873406"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 200,
+          "new_stock": 215,
+          "qty_change": 15,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-24T23:30:17.456668"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 215,
+          "new_stock": 230,
+          "qty_change": 15,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-24T23:31:43.492924"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 230,
+          "new_stock": 245,
+          "qty_change": 15,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-24T23:41:38.662364"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 245,
+          "new_stock": 260,
+          "qty_change": 15,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-24T23:46:43.315253"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 70,
+          "new_stock": 80,
+          "qty_change": 10,
+          "reason": "Rule Action",
+          "timestamp": "2026-07-24T23:57:47.460826"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 80,
+          "new_stock": 90,
+          "qty_change": 10,
+          "reason": "Quick Action",
+          "timestamp": "2026-07-24T23:57:59.198534"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "996012517768",
+          "product_name": "Cannula Standard",
+          "old_stock": 15,
+          "new_stock": 25,
+          "qty_change": 10,
+          "reason": "Quick Action",
+          "timestamp": "2026-07-24T23:58:03.748310"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "227449754451",
+          "product_name": "Cotton Roll Basic",
+          "old_stock": 6,
+          "new_stock": 16,
+          "qty_change": 10,
+          "reason": "Quick Action",
+          "timestamp": "2026-07-25T00:07:16.537243"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "996012517768",
+          "product_name": "Cannula Standard",
+          "old_stock": 15,
+          "new_stock": 25,
+          "qty_change": 10,
+          "reason": "Quick Action",
+          "timestamp": "2026-07-25T00:07:16.539904"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "227449754451",
+          "product_name": "Cotton Roll Basic",
+          "old_stock": 6,
+          "new_stock": 16,
+          "qty_change": 10,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T00:10:02.306472"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "996012517768",
+          "product_name": "Cannula Standard",
+          "old_stock": 15,
+          "new_stock": 25,
+          "qty_change": 10,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T00:18:09.333903"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "996012517768",
+          "product_name": "Cannula Standard",
+          "old_stock": 15,
+          "new_stock": 25,
+          "qty_change": 10,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T00:18:23.787026"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "996012517768",
+          "product_name": "Cannula Standard",
+          "old_stock": 25,
+          "new_stock": 25,
+          "qty_change": 10,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T00:27:33.282282"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:38:18.787330",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:38:26.708156",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:38:55.415691",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T00:48:24.624160"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784920704",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T00:48:24.624392"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "actual_stock": 15,
+          "discrepancy": -25,
+          "notes": "Visual AI Camera Audit: Counted 15",
+          "timestamp": "2026-07-25T00:48:28.535682"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:51:22.472085",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:51:33.480555",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T00:51:50.388344",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T00:55:21.039984",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T00:55:21.040534",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T00:55:21.040845",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T00:55:21.044331",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T00:55:33.924429",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T00:55:33.924899",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T00:55:33.925446",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T00:55:33.926981",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T00:55:33.927831",
+          "details": {
+            "po_id": "PO-89010001-2848",
+            "product_name": "Fresh Apples (kg)",
+            "barcode": "89010001",
+            "quantity": 2848,
+            "total_cost": 3417.6,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 190,
+          "new_stock": 190,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T00:57:38.173783"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 215,
+          "new_stock": 215,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T00:57:38.174240"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 215,
+          "actual_stock": 150,
+          "discrepancy": -65,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T00:57:38.174592"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "actual_stock": 12,
+          "discrepancy": -3,
+          "notes": "Visual AI Camera Audit: Counted 12",
+          "timestamp": "2026-07-25T00:57:38.174958"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 100,
+          "actual_stock": 120,
+          "discrepancy": 20,
+          "notes": "Visual AI Camera Audit: Counted 120",
+          "timestamp": "2026-07-25T00:57:38.175463"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 145,
+          "new_stock": 145,
+          "qty_change": -5,
+          "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+          "timestamp": "2026-07-25T00:57:39.623845"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 12,
+          "actual_stock": 10,
+          "discrepancy": -2,
+          "notes": "Visual AI Camera Audit: Counted 10",
+          "timestamp": "2026-07-25T00:57:39.625961"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 10,
+          "new_stock": 0,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T01:41:37.102779"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 120,
+          "new_stock": 145,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T01:41:37.103376"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 145,
+          "actual_stock": 150,
+          "discrepancy": 5,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T01:41:37.103748"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 0,
+          "actual_stock": 12,
+          "discrepancy": 12,
+          "notes": "Visual AI Camera Audit: Counted 12",
+          "timestamp": "2026-07-25T01:41:37.104099"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 145,
+          "actual_stock": 120,
+          "discrepancy": -25,
+          "notes": "Visual AI Camera Audit: Counted 120",
+          "timestamp": "2026-07-25T01:41:37.104443"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 12,
+          "new_stock": 7,
+          "qty_change": -5,
+          "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+          "timestamp": "2026-07-25T01:41:38.543094"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 7,
+          "actual_stock": 10,
+          "discrepancy": 3,
+          "notes": "Visual AI Camera Audit: Counted 10",
+          "timestamp": "2026-07-25T01:41:38.545063"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T01:41:43.411930",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T01:41:43.412423",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T01:41:43.412804",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T01:41:43.418042",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T01:41:43.419031",
+          "details": {
+            "po_id": "PO-89010001-2848",
+            "product_name": "Fresh Apples (kg)",
+            "barcode": "89010001",
+            "quantity": 2848,
+            "total_cost": 3417.6,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 10,
+          "new_stock": 0,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T01:41:45.835844"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 120,
+          "new_stock": 145,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T01:41:45.836351"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 150,
+          "actual_stock": 150,
+          "discrepancy": 0,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T01:41:45.836764"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 0,
+          "actual_stock": 12,
+          "discrepancy": 12,
+          "notes": "Visual AI Camera Audit: Counted 12",
+          "timestamp": "2026-07-25T01:41:45.837158"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 145,
+          "actual_stock": 120,
+          "discrepancy": -25,
+          "notes": "Visual AI Camera Audit: Counted 120",
+          "timestamp": "2026-07-25T01:41:45.837572"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 12,
+          "new_stock": 7,
+          "qty_change": -5,
+          "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+          "timestamp": "2026-07-25T01:41:46.855629"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 7,
+          "actual_stock": 10,
+          "discrepancy": 3,
+          "notes": "Visual AI Camera Audit: Counted 10",
+          "timestamp": "2026-07-25T01:41:46.857867"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T01:56:27.967183",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T01:56:27.967696",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T01:56:27.968144",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T01:56:27.973941",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T01:56:27.974895",
+          "details": {
+            "po_id": "PO-89010001-2848",
+            "product_name": "Fresh Apples (kg)",
+            "barcode": "89010001",
+            "quantity": 2848,
+            "total_cost": 3417.6,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T21:59:17.881274"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784996957",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T21:59:17.882186"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T21:59:39.036960"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784996979",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T21:59:39.037899"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T21:59:39.619953"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T21:59:43.757968",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T21:59:49.601796",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T21:59:49.603104",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T21:59:49.604282",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T21:59:49.606595",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T21:59:49.608155",
+          "details": {
+            "po_id": "PO-89010004-2014",
+            "product_name": "Organic Whole Milk (1L)",
+            "barcode": "89010004",
+            "quantity": 2014,
+            "total_cost": 3021.0,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3021.00 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 70,
+          "new_stock": 60,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T21:59:52.703000"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 100,
+          "new_stock": 125,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T21:59:52.704130"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 200,
+          "actual_stock": 150,
+          "discrepancy": -50,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T21:59:52.705141"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 60,
+          "new_stock": 50,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T22:00:12.748230"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 125,
+          "new_stock": 150,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T22:00:12.749373"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 150,
+          "actual_stock": 150,
+          "discrepancy": 0,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T22:00:12.750451"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 50,
+          "actual_stock": 12,
+          "discrepancy": -38,
+          "notes": "Visual AI Camera Audit: Counted 12",
+          "timestamp": "2026-07-25T22:00:12.751467"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 150,
+          "actual_stock": 120,
+          "discrepancy": -30,
+          "notes": "Visual AI Camera Audit: Counted 120",
+          "timestamp": "2026-07-25T22:00:12.752460"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 12,
+          "new_stock": 7,
+          "qty_change": -5,
+          "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+          "timestamp": "2026-07-25T22:00:14.208172"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 7,
+          "actual_stock": 10,
+          "discrepancy": 3,
+          "notes": "Visual AI Camera Audit: Counted 10",
+          "timestamp": "2026-07-25T22:00:14.211032"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T22:00:18.471723",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T22:00:18.473008",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T22:00:18.474351",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T22:00:18.477319",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T22:00:18.479165",
+          "details": {
+            "po_id": "PO-89010001-2848",
+            "product_name": "Fresh Apples (kg)",
+            "barcode": "89010001",
+            "quantity": 2848,
+            "total_cost": 3417.6,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 10,
+          "new_stock": 0,
+          "qty_change": -10,
+          "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+          "timestamp": "2026-07-25T22:00:21.524106"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 120,
+          "new_stock": 145,
+          "qty_change": 25,
+          "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+          "timestamp": "2026-07-25T22:00:21.525448"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010003",
+          "product_name": "Sparkling Water (Pack of 12)",
+          "old_stock": 150,
+          "actual_stock": 150,
+          "discrepancy": 0,
+          "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+          "timestamp": "2026-07-25T22:00:21.526852"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 0,
+          "actual_stock": 12,
+          "discrepancy": 12,
+          "notes": "Visual AI Camera Audit: Counted 12",
+          "timestamp": "2026-07-25T22:00:21.528045"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010002",
+          "product_name": "Pro Laptops (15-inch)",
+          "old_stock": 145,
+          "actual_stock": 120,
+          "discrepancy": -25,
+          "notes": "Visual AI Camera Audit: Counted 120",
+          "timestamp": "2026-07-25T22:00:21.529282"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 12,
+          "new_stock": 7,
+          "qty_change": -5,
+          "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+          "timestamp": "2026-07-25T22:00:22.788673"
+        },
+        {
+          "action": "audit_inventory",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 7,
+          "actual_stock": 10,
+          "discrepancy": 3,
+          "notes": "Visual AI Camera Audit: Counted 10",
+          "timestamp": "2026-07-25T22:00:22.791695"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T22:00:24.170277"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784997024",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T22:00:24.171738"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T22:00:25.239514"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T22:00:26.868680",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T22:00:31.985621",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T22:03:51.097090"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784997231",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T22:03:51.098368"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T22:03:52.281322"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T22:03:54.030333",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T22:04:50.449475"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784997290",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T22:04:50.450855"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T22:04:51.535460"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T22:04:53.504244",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
+        }
+      ]
+    }
+  },
   "products": {
     "996012517768": {
       "barcode": "996012517768",
@@ -16,7 +1557,7 @@
     "89010003": {
       "barcode": "89010003",
       "name": "Sparkling Water (Pack of 12)",
-      "stock": 150,
+      "stock": 200,
       "min_threshold": 100,
       "category": "Beverages",
       "cost_price": 4.0,
@@ -24,12 +1565,12 @@
       "sales_velocity": 0,
       "lead_time_days": 3,
       "location": "Store Front - C3",
-      "last_updated_timestamp": "2026-07-25T00:57:39.623837"
+      "last_updated_timestamp": "2026-07-25T22:04:53.504238"
     },
     "89010001": {
       "barcode": "89010001",
       "name": "Fresh Apples (kg)",
-      "stock": 10,
+      "stock": 70,
       "min_threshold": 50,
       "category": "Produce",
       "cost_price": 1.2,
@@ -37,20 +1578,19 @@
       "sales_velocity": 40,
       "lead_time_days": 3,
       "location": "Store Front - A1",
-      "last_updated_timestamp": "2026-07-25T01:41:46.855622"
+      "last_updated_timestamp": "2026-07-25T22:04:51.535420"
     },
     "89010002": {
       "barcode": "89010002",
       "name": "Pro Laptops (15-inch)",
-      "stock": 120,
+      "stock": 100,
       "min_threshold": 20,
       "category": "Electronics",
       "cost_price": 650.0,
       "selling_price": 999.0,
       "sales_velocity": 10,
       "lead_time_days": 14,
-      "location": "Warehouse B - Shelf 4",
-      "last_updated_timestamp": "2026-07-25T01:41:45.836349"
+      "location": "Warehouse B - Shelf 4"
     },
     "89010004": {
       "barcode": "89010004",
@@ -73,7 +1613,7 @@
       "selling_price": 100.0,
       "sales_velocity": 5,
       "lead_time_days": 3,
-      "last_updated_timestamp": "2026-07-25T01:56:27.967178"
+      "last_updated_timestamp": "2026-07-25T22:00:18.471718"
     },
     "DEAD-SKU-01": {
       "barcode": "DEAD-SKU-01",
@@ -84,7 +1624,7 @@
       "selling_price": 30.0,
       "sales_velocity": 0,
       "lead_time_days": 7,
-      "last_updated_timestamp": "2026-07-25T01:56:27.967689"
+      "last_updated_timestamp": "2026-07-25T22:00:18.473005"
     },
     "MARGIN-SKU-02": {
       "barcode": "MARGIN-SKU-02",
@@ -95,7 +1635,7 @@
       "selling_price": 100.0,
       "sales_velocity": 2,
       "lead_time_days": 2,
-      "last_updated_timestamp": "2026-07-25T01:56:27.968142"
+      "last_updated_timestamp": "2026-07-25T22:00:18.474350"
     },
     "EXPENSIVE-SKU-100": {
       "barcode": "EXPENSIVE-SKU-100",
@@ -106,7 +1646,7 @@
       "selling_price": 1000.0,
       "sales_velocity": 2,
       "lead_time_days": 5,
-      "last_updated_timestamp": "2026-07-25T01:56:27.973939"
+      "last_updated_timestamp": "2026-07-25T22:00:18.477316"
     }
   },
   "action_ledger": [
@@ -982,6 +2522,558 @@
         "reasons": [
           "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
         ]
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T21:59:17.881274"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784996957",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T21:59:17.882186"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T21:59:39.036960"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784996979",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T21:59:39.037899"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Quick Action (Confirmed)",
+      "timestamp": "2026-07-25T21:59:39.619953"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T21:59:43.757968",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "TEST-SKU-99",
+      "timestamp": "2026-07-25T21:59:49.601796",
+      "details": {
+        "barcode": "TEST-SKU-99",
+        "name": "Autonomous Test Widget",
+        "stock": 2,
+        "min_threshold": 15,
+        "cost_price": 50.0,
+        "selling_price": 100.0,
+        "sales_velocity": 5,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "DEAD-SKU-01",
+      "timestamp": "2026-07-25T21:59:49.603104",
+      "details": {
+        "barcode": "DEAD-SKU-01",
+        "name": "Dead Stock Gadget",
+        "stock": 40,
+        "min_threshold": 5,
+        "cost_price": 10.0,
+        "selling_price": 30.0,
+        "sales_velocity": 0,
+        "lead_time_days": 7
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "MARGIN-SKU-02",
+      "timestamp": "2026-07-25T21:59:49.604282",
+      "details": {
+        "barcode": "MARGIN-SKU-02",
+        "name": "Low Margin Cable",
+        "stock": 100,
+        "min_threshold": 10,
+        "cost_price": 95.0,
+        "selling_price": 100.0,
+        "sales_velocity": 2,
+        "lead_time_days": 2
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "EXPENSIVE-SKU-100",
+      "timestamp": "2026-07-25T21:59:49.606595",
+      "details": {
+        "barcode": "EXPENSIVE-SKU-100",
+        "name": "High Value Industrial Server",
+        "stock": 1,
+        "min_threshold": 10,
+        "cost_price": 500.0,
+        "selling_price": 1000.0,
+        "sales_velocity": 2,
+        "lead_time_days": 5
+      }
+    },
+    {
+      "action": "APPROVED_REORDER_PO",
+      "user": "MANAGER_HUMAN_APPROVAL",
+      "timestamp": "2026-07-25T21:59:49.608155",
+      "details": {
+        "po_id": "PO-89010004-2014",
+        "product_name": "Organic Whole Milk (1L)",
+        "barcode": "89010004",
+        "quantity": 2014,
+        "total_cost": 3021.0,
+        "status": "QUEUED_FOR_APPROVAL",
+        "reasons": [
+          "Total PO cost $3021.00 exceeds auto-approval threshold of $1000.00."
+        ]
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 70,
+      "new_stock": 60,
+      "qty_change": -10,
+      "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+      "timestamp": "2026-07-25T21:59:52.703000"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 100,
+      "new_stock": 125,
+      "qty_change": 25,
+      "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+      "timestamp": "2026-07-25T21:59:52.704130"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 200,
+      "actual_stock": 150,
+      "discrepancy": -50,
+      "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+      "timestamp": "2026-07-25T21:59:52.705141"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 60,
+      "new_stock": 50,
+      "qty_change": -10,
+      "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+      "timestamp": "2026-07-25T22:00:12.748230"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 125,
+      "new_stock": 150,
+      "qty_change": 25,
+      "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+      "timestamp": "2026-07-25T22:00:12.749373"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 150,
+      "actual_stock": 150,
+      "discrepancy": 0,
+      "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+      "timestamp": "2026-07-25T22:00:12.750451"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 50,
+      "actual_stock": 12,
+      "discrepancy": -38,
+      "notes": "Visual AI Camera Audit: Counted 12",
+      "timestamp": "2026-07-25T22:00:12.751467"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 150,
+      "actual_stock": 120,
+      "discrepancy": -30,
+      "notes": "Visual AI Camera Audit: Counted 120",
+      "timestamp": "2026-07-25T22:00:12.752460"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 12,
+      "new_stock": 7,
+      "qty_change": -5,
+      "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+      "timestamp": "2026-07-25T22:00:14.208172"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 7,
+      "actual_stock": 10,
+      "discrepancy": 3,
+      "notes": "Visual AI Camera Audit: Counted 10",
+      "timestamp": "2026-07-25T22:00:14.211032"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "TEST-SKU-99",
+      "timestamp": "2026-07-25T22:00:18.471723",
+      "details": {
+        "barcode": "TEST-SKU-99",
+        "name": "Autonomous Test Widget",
+        "stock": 2,
+        "min_threshold": 15,
+        "cost_price": 50.0,
+        "selling_price": 100.0,
+        "sales_velocity": 5,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "DEAD-SKU-01",
+      "timestamp": "2026-07-25T22:00:18.473008",
+      "details": {
+        "barcode": "DEAD-SKU-01",
+        "name": "Dead Stock Gadget",
+        "stock": 40,
+        "min_threshold": 5,
+        "cost_price": 10.0,
+        "selling_price": 30.0,
+        "sales_velocity": 0,
+        "lead_time_days": 7
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "MARGIN-SKU-02",
+      "timestamp": "2026-07-25T22:00:18.474351",
+      "details": {
+        "barcode": "MARGIN-SKU-02",
+        "name": "Low Margin Cable",
+        "stock": 100,
+        "min_threshold": 10,
+        "cost_price": 95.0,
+        "selling_price": 100.0,
+        "sales_velocity": 2,
+        "lead_time_days": 2
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "EXPENSIVE-SKU-100",
+      "timestamp": "2026-07-25T22:00:18.477319",
+      "details": {
+        "barcode": "EXPENSIVE-SKU-100",
+        "name": "High Value Industrial Server",
+        "stock": 1,
+        "min_threshold": 10,
+        "cost_price": 500.0,
+        "selling_price": 1000.0,
+        "sales_velocity": 2,
+        "lead_time_days": 5
+      }
+    },
+    {
+      "action": "APPROVED_REORDER_PO",
+      "user": "MANAGER_HUMAN_APPROVAL",
+      "timestamp": "2026-07-25T22:00:18.479165",
+      "details": {
+        "po_id": "PO-89010001-2848",
+        "product_name": "Fresh Apples (kg)",
+        "barcode": "89010001",
+        "quantity": 2848,
+        "total_cost": 3417.6,
+        "status": "QUEUED_FOR_APPROVAL",
+        "reasons": [
+          "Total PO cost $3417.60 exceeds auto-approval threshold of $1000.00."
+        ]
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 10,
+      "new_stock": 0,
+      "qty_change": -10,
+      "reason": "Voice AI Deduction: Deduct 10 units of Fresh Apples damaged",
+      "timestamp": "2026-07-25T22:00:21.524106"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 120,
+      "new_stock": 145,
+      "qty_change": 25,
+      "reason": "Voice AI Addition: Add 25 units of Pro Laptops received",
+      "timestamp": "2026-07-25T22:00:21.525448"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010003",
+      "product_name": "Sparkling Water (Pack of 12)",
+      "old_stock": 150,
+      "actual_stock": 150,
+      "discrepancy": 0,
+      "notes": "Voice AI Audit: Audit Sparkling Water count 150",
+      "timestamp": "2026-07-25T22:00:21.526852"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 0,
+      "actual_stock": 12,
+      "discrepancy": 12,
+      "notes": "Visual AI Camera Audit: Counted 12",
+      "timestamp": "2026-07-25T22:00:21.528045"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010002",
+      "product_name": "Pro Laptops (15-inch)",
+      "old_stock": 145,
+      "actual_stock": 120,
+      "discrepancy": -25,
+      "notes": "Visual AI Camera Audit: Counted 120",
+      "timestamp": "2026-07-25T22:00:21.529282"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 12,
+      "new_stock": 7,
+      "qty_change": -5,
+      "reason": "Voice AI Deduction: Deduct 5 boxes of Fresh Apples",
+      "timestamp": "2026-07-25T22:00:22.788673"
+    },
+    {
+      "action": "audit_inventory",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 7,
+      "actual_stock": 10,
+      "discrepancy": 3,
+      "notes": "Visual AI Camera Audit: Counted 10",
+      "timestamp": "2026-07-25T22:00:22.791695"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T22:00:24.170277"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784997024",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T22:00:24.171738"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Quick Action (Confirmed)",
+      "timestamp": "2026-07-25T22:00:25.239514"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T22:00:26.868680",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T22:00:31.985621",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T22:03:51.097090"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784997231",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T22:03:51.098368"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Quick Action (Confirmed)",
+      "timestamp": "2026-07-25T22:03:52.281322"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T22:03:54.030333",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T22:04:50.449475"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784997290",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T22:04:50.450855"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Quick Action (Confirmed)",
+      "timestamp": "2026-07-25T22:04:51.535460"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T22:04:53.504244",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
       }
     }
   ]

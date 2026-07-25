@@ -1,20 +1,29 @@
 import os
 from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 
 load_dotenv()
 
+def get_embeddings_instance():
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if gemini_key:
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        return GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=gemini_key)
+    else:
+        try:
+            from langchain_community.embeddings import FakeEmbeddings
+            return FakeEmbeddings(size=768)
+        except Exception:
+            return None
+
 def ingest_data():
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        print("ERROR: GEMINI_API_KEY / GOOGLE_API_KEY not found in environment. Please add it to your .env file.")
+    embeddings = get_embeddings_instance()
+    if not embeddings:
+        print("ERROR: No valid embedding configuration found. Ingestion skipped.")
         return
 
-    print("Initializing Google Generative AI Embeddings and VectorStore...")
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    
-    # Initialize ChromaDB
+    print("Initializing Embeddings and VectorStore...")
     vectorstore = Chroma(
         collection_name="stock_inventory",
         embedding_function=embeddings,
@@ -46,11 +55,11 @@ def ingest_custom_products(products_list):
     Each item in products_list should be a dict with keys:
     'name', 'barcode', 'stock', 'min_threshold', 'category', 'cost_price', 'selling_price', 'sales_velocity', 'lead_time_days'
     """
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        print("ERROR: GEMINI_API_KEY / GOOGLE_API_KEY not found.")
+    embeddings = get_embeddings_instance()
+    if not embeddings:
+        print("ERROR: No valid embedding configuration found. Custom product ingestion skipped.")
         return
 
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
     vectorstore = Chroma(
         collection_name="stock_inventory",
         embedding_function=embeddings,
