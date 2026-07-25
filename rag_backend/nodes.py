@@ -117,7 +117,7 @@ def get_active_llm(temperature: float = 0.0, bind_tools_list: Optional[List[Any]
 # 3. Vectorstore Retriever
 # ---------------------------------------------------------
 
-def get_retriever():
+def get_retriever(company_id: str = "default"):
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if gemini_key and _is_valid_api_key(gemini_key):
         try:
@@ -127,7 +127,8 @@ def get_retriever():
                 embedding_function=embeddings,
                 persist_directory="./chroma_db"
             )
-            return vectorstore.as_retriever(search_kwargs={"k": 3})
+            cid = (company_id or "default").strip()
+            return vectorstore.as_retriever(search_kwargs={"k": 3, "filter": {"company_id": cid}})
         except Exception as e:
             print(f"Retriever initialization warning: {e}")
     return None
@@ -192,11 +193,12 @@ def retrieve_node(state: GraphState) -> GraphState:
     # Fast path: Only call vector embedding search for KNOWLEDGE intent when no clean context exists
     if intent == "KNOWLEDGE" and not clean_provided_context:
         try:
-            if api_key != "MOCK_KEY_FOR_INIT":
-                retriever = get_retriever()
+            retriever = get_retriever(company_id=company_id)
+            if retriever:
                 documents.extend(retriever.invoke(question))
         except Exception as e:
             print(f"Retriever skipped/failed: {e}")
+
 
     # Compact live DB record list (avoids token bloat)
     all_products = db_instance.get_all_products(company_id=company_id)

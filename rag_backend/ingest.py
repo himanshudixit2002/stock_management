@@ -49,7 +49,7 @@ def ingest_data():
     vectorstore.add_documents(documents)
     print(f"Successfully ingested {len(documents)} documents into ChromaDB!")
 
-def ingest_custom_products(products_list):
+def ingest_custom_products(products_list, company_id: str = "default"):
     """
     Ingests a list of custom product dicts into ChromaDB vectorstore.
     Each item in products_list should be a dict with keys:
@@ -67,6 +67,7 @@ def ingest_custom_products(products_list):
     )
 
     documents = []
+    cid = (company_id or "default").strip()
     for item in products_list:
         content = (
             f"Product: {item.get('name', 'Unknown')}. Barcode: {item.get('barcode', 'N/A')}. "
@@ -76,13 +77,14 @@ def ingest_custom_products(products_list):
         )
         doc = Document(
             page_content=content,
-            metadata={"category": item.get('category', 'General'), "barcode": item.get('barcode', '')}
+            metadata={"category": item.get('category', 'General'), "barcode": item.get('barcode', ''), "company_id": cid}
         )
         documents.append(doc)
 
     if documents:
         vectorstore.add_documents(documents)
-        print(f"Successfully ingested {len(documents)} custom product documents into ChromaDB!")
+        print(f"Successfully ingested {len(documents)} custom product documents for company '{cid}' into ChromaDB!")
+
 
 if __name__ == "__main__":
     ingest_data()

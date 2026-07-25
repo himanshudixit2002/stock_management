@@ -192,7 +192,8 @@ async def ingest_endpoint(request: ProductIngestRequest, x_company_id: Optional[
     # Also index into ChromaDB if available
     try:
         from ingest import ingest_custom_products
-        ingest_custom_products(prods)
+        ingest_custom_products(prods, company_id=cid)
+
     except Exception as e:
         print(f"Vector ingest warning: {e}")
         
