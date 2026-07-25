@@ -22,14 +22,6 @@ class RagResponse {
 
 class RagApiService {
   static String get _baseUrl {
-    if (kDebugMode) {
-      // Local development
-      if (!kIsWeb && Platform.isAndroid) {
-        return 'http://10.0.2.2:8000';
-      }
-      return 'http://localhost:8000'; 
-    }
-    // Production Cloud Run URL
     return 'https://rag-backend-647731796550.asia-south1.run.app';
   }
 
@@ -42,94 +34,102 @@ class RagApiService {
     return headers;
   }
 
-  /// Sends a question to the RAG backend and returns a parsed RagResponse.
+  /// Sends a question to the RAG backend with automatic retry and returns a parsed RagResponse.
   static Future<RagResponse> askQuestion(
     String question, {
     String? context,
     List<Map<String, String>>? history,
   }) async {
     final url = Uri.parse('$_baseUrl/api/chat');
-    try {
-      final response = await http.post(
-        url,
-        headers: _getHeaders(),
-        body: jsonEncode({
-          'question': question,
-          // ignore: use_null_aware_elements
-          if (context != null) 'context': context,
-          // ignore: use_null_aware_elements
-          if (history != null) 'history': history,
-        }),
-      );
+    
+    // Attempt up to 2 times to handle transient cold-starts or network blips gracefully
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        final response = await http.post(
+          url,
+          headers: _getHeaders(),
+          body: jsonEncode({
+            'question': question,
+            // ignore: use_null_aware_elements
+            if (context != null) 'context': context,
+            // ignore: use_null_aware_elements
+            if (history != null) 'history': history,
+          }),
+        );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        String rawAnswer = data['answer'] ?? 'Received empty answer from server.';
-        final String? intent = data['intent'];
-        final List<dynamic>? executedActions = data['executed_actions'];
-        
-        // Parse action block
-        Map<String, dynamic>? actionPayload;
-        final actionRegex = RegExp(r'\[ACTION:\s*({.*?})\s*\]', dotAll: true);
-        final match = actionRegex.firstMatch(rawAnswer);
-        if (match != null) {
-          try {
-            actionPayload = jsonDecode(match.group(1)!);
-            rawAnswer = rawAnswer.replaceFirst(match.group(0)!, '').trim();
-          } catch (e) {
-            debugPrint("Failed to parse action JSON: $e");
-          }
-        }
-
-        // If backend executed an action directly, synthesize actionPayload for UI card
-        if (actionPayload == null && executedActions != null && executedActions.isNotEmpty) {
-          final firstAction = executedActions.first;
-          if (firstAction is Map) {
-            final tool = firstAction['tool'];
-            final res = firstAction['result'];
-            if (res is Map && res['success'] == true) {
-              final prod = res['product'] ?? {};
-              final oldStock = res['old_stock'];
-              final newStock = res['new_stock'];
-              final calculatedQty = (newStock is num && oldStock is num) ? (newStock - oldStock).toInt() : null;
-              actionPayload = {
-                'type': tool == 'CreatePurchaseOrder' ? 'create_po' : 'update_stock',
-                'barcode': prod['barcode'] ?? res['barcode'] ?? '',
-                'product_name': prod['name'] ?? res['product_name'] ?? '',
-                'qty_change': res['qty_change'] ?? calculatedQty ?? res['reorder_qty'] ?? 0,
-                'is_executed': true,
-              };
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          String rawAnswer = data['answer'] ?? 'Received empty answer from server.';
+          final String? intent = data['intent'];
+          final List<dynamic>? executedActions = data['executed_actions'];
+          
+          // Parse action block
+          Map<String, dynamic>? actionPayload;
+          final actionRegex = RegExp(r'\[ACTION:\s*({.*?})\s*\]', dotAll: true);
+          final match = actionRegex.firstMatch(rawAnswer);
+          if (match != null) {
+            try {
+              actionPayload = jsonDecode(match.group(1)!);
+              rawAnswer = rawAnswer.replaceFirst(match.group(0)!, '').trim();
+            } catch (e) {
+              debugPrint("Failed to parse action JSON: $e");
             }
           }
-        }
 
-        // Parse stats block
-        Map<String, dynamic>? statsPayload;
-        final statsRegex = RegExp(r'\[STATS:\s*({.*?})\s*\]', dotAll: true);
-        final statsMatch = statsRegex.firstMatch(rawAnswer);
-        if (statsMatch != null) {
-          try {
-            statsPayload = jsonDecode(statsMatch.group(1)!);
-            rawAnswer = rawAnswer.replaceFirst(statsMatch.group(0)!, '').trim();
-          } catch (e) {
-            debugPrint("Failed to parse stats JSON: $e");
+          // If backend executed an action directly, synthesize actionPayload for UI card
+          if (actionPayload == null && executedActions != null && executedActions.isNotEmpty) {
+            final firstAction = executedActions.first;
+            if (firstAction is Map) {
+              final tool = firstAction['tool'];
+              final res = firstAction['result'];
+              if (res is Map && res['success'] == true) {
+                final prod = res['product'] ?? {};
+                final oldStock = res['old_stock'];
+                final newStock = res['new_stock'];
+                final calculatedQty = (newStock is num && oldStock is num) ? (newStock - oldStock).toInt() : null;
+                actionPayload = {
+                  'type': tool == 'CreatePurchaseOrder' ? 'create_po' : 'update_stock',
+                  'barcode': prod['barcode'] ?? res['barcode'] ?? '',
+                  'product_name': prod['name'] ?? res['product_name'] ?? '',
+                  'qty_change': res['qty_change'] ?? calculatedQty ?? res['reorder_qty'] ?? 0,
+                  'is_executed': true,
+                };
+              }
+            }
           }
+
+          // Parse stats block
+          Map<String, dynamic>? statsPayload;
+          final statsRegex = RegExp(r'\[STATS:\s*({.*?})\s*\]', dotAll: true);
+          final statsMatch = statsRegex.firstMatch(rawAnswer);
+          if (statsMatch != null) {
+            try {
+              statsPayload = jsonDecode(statsMatch.group(1)!);
+              rawAnswer = rawAnswer.replaceFirst(statsMatch.group(0)!, '').trim();
+            } catch (e) {
+              debugPrint("Failed to parse stats JSON: $e");
+            }
+          }
+          
+          return RagResponse(
+            rawAnswer, 
+            actionPayload, 
+            statsPayload: statsPayload,
+            executedActions: executedActions,
+            intent: intent,
+          );
         }
-        
-        return RagResponse(
-          rawAnswer, 
-          actionPayload, 
-          statsPayload: statsPayload,
-          executedActions: executedActions,
-          intent: intent,
-        );
-      } else {
-        return RagResponse('Error: Server returned status ${response.statusCode}', null);
+      } catch (e) {
+        debugPrint("Ask AI attempt ${attempt + 1} failed: $e");
+        if (attempt < 1) {
+          await Future.delayed(const Duration(milliseconds: 1000));
+          continue;
+        }
       }
-    } catch (e) {
-      return RagResponse('Connection error: Could not reach the Cloud Run backend ($e).', null);
     }
+    return RagResponse('Connection temporary delayed. Please tap send again!', null);
   }
+
 
   /// Syncs catalog products to the RAG backend vectorstore.
   static Future<bool> syncCatalogToRag(List<Map<String, dynamic>> products) async {

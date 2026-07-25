@@ -6,14 +6,9 @@ import 'database_service.dart';
 
 class AiAgentService {
   static String get _baseUrl {
-    if (kDebugMode) {
-      if (!kIsWeb && Platform.isAndroid) {
-        return 'http://10.0.2.2:8000';
-      }
-      return 'http://localhost:8000';
-    }
     return 'https://rag-backend-647731796550.asia-south1.run.app';
   }
+
 
   static Map<String, String> _getHeaders([String? companyId]) {
     final cid = companyId ?? DatabaseService().companyId;

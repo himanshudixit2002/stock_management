@@ -688,9 +688,12 @@ def analytics_agent_node(state: GraphState) -> GraphState:
     # Fast-path check: Return instant (< 1ms) markdown table if question matches table/order log requests
     instant_table = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
 
+    tinker_key = os.environ.get("TINKER_API_KEY")
+
     if instant_table:
         content = instant_table
-    elif not _is_valid_api_key(api_key):
+    elif not _is_valid_api_key(tinker_key):
+
         content = (
             f"Here's your latest inventory snapshot:\n\n"
             f"| Metric | Value |\n"
@@ -764,7 +767,8 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
         return state
 
     q = question.lower()
-    current_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or api_key
+    tinker_key = os.environ.get("TINKER_API_KEY")
+
 
     # 1. Business Growth / Revenue / Sales Strategy Questions
     if any(k in q for k in ["increase my business", "grow", "growth", "boost sales", "revenue", "strategy", "improve sales", "marketing", "20%"]):
