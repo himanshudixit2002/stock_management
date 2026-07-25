@@ -380,11 +380,12 @@ class GuardrailValidationRequest(BaseModel):
     barcode: Optional[str] = None
 
 @app.post("/api/swarm/trigger")
-def trigger_swarm_event(request: SwarmEventRequest):
+def trigger_swarm_event(request: SwarmEventRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Triggers an autonomous background event loop in the multi-agent swarm.
     """
-    res = swarm_instance.process_event_trigger(request.event_name, request.payload)
+    cid = x_company_id or "default"
+    res = swarm_instance.process_event_trigger(request.event_name, request.payload, company_id=cid)
     return {"status": "success", "result": res}
 
 @app.post("/api/swarm/autopilot")
@@ -392,7 +393,8 @@ def run_swarm_autopilot(x_company_id: Optional[str] = Header(None, alias="x-comp
     """
     Triggers full 24/7 background autopilot sweep across all sub-agents (Reorder, Decay/Idle, Supplier Watch).
     """
-    res = swarm_instance.run_full_autopilot_sweep()
+    cid = x_company_id or "default"
+    res = swarm_instance.run_full_autopilot_sweep(company_id=cid)
     return {"status": "success", "sweep_results": res, "pending_pos": swarm_instance.pending_pos}
 
 @app.get("/api/swarm/logs")
@@ -418,12 +420,14 @@ def approve_pending_po_endpoint(request: POApprovalRequest):
     return res
 
 @app.post("/api/swarm/query")
-def query_swarm(request: SwarmQueryRequest):
+def query_swarm(request: SwarmQueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     """
     Ultra-fast query processing via semantic cache and vectorized pandas code engine.
     """
-    res = swarm_instance.process_query(request.query)
+    cid = x_company_id or "default"
+    res = swarm_instance.process_query(request.query, company_id=cid)
     return {"status": "success", "result": res}
+
 
 
 @app.post("/api/guardrails/validate")

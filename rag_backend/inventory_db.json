@@ -26,7 +26,7 @@
           "sales_velocity": 0,
           "lead_time_days": 3,
           "location": "Store Front - C3",
-          "last_updated_timestamp": "2026-07-25T22:35:00.326625"
+          "last_updated_timestamp": "2026-07-25T22:46:47.003041"
         },
         "89010001": {
           "barcode": "89010001",
@@ -39,7 +39,7 @@
           "sales_velocity": 40,
           "lead_time_days": 3,
           "location": "Store Front - A1",
-          "last_updated_timestamp": "2026-07-25T22:34:59.057080"
+          "last_updated_timestamp": "2026-07-25T22:46:45.790772"
         },
         "89010002": {
           "barcode": "89010002",
@@ -74,7 +74,7 @@
           "selling_price": 100.0,
           "sales_velocity": 5,
           "lead_time_days": 3,
-          "last_updated_timestamp": "2026-07-25T22:00:18.471718"
+          "last_updated_timestamp": "2026-07-25T22:46:42.662385"
         },
         "DEAD-SKU-01": {
           "barcode": "DEAD-SKU-01",
@@ -85,7 +85,7 @@
           "selling_price": 30.0,
           "sales_velocity": 0,
           "lead_time_days": 7,
-          "last_updated_timestamp": "2026-07-25T22:00:18.473005"
+          "last_updated_timestamp": "2026-07-25T22:46:42.664154"
         },
         "MARGIN-SKU-02": {
           "barcode": "MARGIN-SKU-02",
@@ -96,7 +96,7 @@
           "selling_price": 100.0,
           "sales_velocity": 2,
           "lead_time_days": 2,
-          "last_updated_timestamp": "2026-07-25T22:00:18.474350"
+          "last_updated_timestamp": "2026-07-25T22:46:42.665771"
         },
         "EXPENSIVE-SKU-100": {
           "barcode": "EXPENSIVE-SKU-100",
@@ -107,7 +107,7 @@
           "selling_price": 1000.0,
           "sales_velocity": 2,
           "lead_time_days": 5,
-          "last_updated_timestamp": "2026-07-25T22:00:18.477316"
+          "last_updated_timestamp": "2026-07-25T22:46:42.670986"
         }
       },
       "action_ledger": [
@@ -1728,6 +1728,130 @@
             "sales_velocity": 0,
             "lead_time_days": 3
           }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "TEST-SKU-99",
+          "timestamp": "2026-07-25T22:46:42.662392",
+          "details": {
+            "barcode": "TEST-SKU-99",
+            "name": "Autonomous Test Widget",
+            "stock": 2,
+            "min_threshold": 15,
+            "cost_price": 50.0,
+            "selling_price": 100.0,
+            "sales_velocity": 5,
+            "lead_time_days": 3
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "DEAD-SKU-01",
+          "timestamp": "2026-07-25T22:46:42.664159",
+          "details": {
+            "barcode": "DEAD-SKU-01",
+            "name": "Dead Stock Gadget",
+            "stock": 40,
+            "min_threshold": 5,
+            "cost_price": 10.0,
+            "selling_price": 30.0,
+            "sales_velocity": 0,
+            "lead_time_days": 7
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "MARGIN-SKU-02",
+          "timestamp": "2026-07-25T22:46:42.665775",
+          "details": {
+            "barcode": "MARGIN-SKU-02",
+            "name": "Low Margin Cable",
+            "stock": 100,
+            "min_threshold": 10,
+            "cost_price": 95.0,
+            "selling_price": 100.0,
+            "sales_velocity": 2,
+            "lead_time_days": 2
+          }
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "EXPENSIVE-SKU-100",
+          "timestamp": "2026-07-25T22:46:42.670989",
+          "details": {
+            "barcode": "EXPENSIVE-SKU-100",
+            "name": "High Value Industrial Server",
+            "stock": 1,
+            "min_threshold": 10,
+            "cost_price": 500.0,
+            "selling_price": 1000.0,
+            "sales_velocity": 2,
+            "lead_time_days": 5
+          }
+        },
+        {
+          "action": "APPROVED_REORDER_PO",
+          "user": "MANAGER_HUMAN_APPROVAL",
+          "timestamp": "2026-07-25T22:46:42.673145",
+          "details": {
+            "po_id": "PO-89010004-2014",
+            "product_name": "Organic Whole Milk (1L)",
+            "barcode": "89010004",
+            "quantity": 2014,
+            "total_cost": 3021.0,
+            "status": "QUEUED_FOR_APPROVAL",
+            "reasons": [
+              "Total PO cost $3021.00 exceeds auto-approval threshold of $1000.00."
+            ]
+          }
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 15,
+          "new_stock": 40,
+          "qty_change": 25,
+          "reason": "Restock batch",
+          "timestamp": "2026-07-25T22:46:44.692670"
+        },
+        {
+          "action": "create_purchase_order",
+          "po_id": "PO-1784999804",
+          "barcode": "89010004",
+          "product_name": "Organic Whole Milk (1L)",
+          "reorder_qty": 50,
+          "supplier": "Dairy Supplier",
+          "unit_cost": 1.5,
+          "total_cost": 75.0,
+          "status": "DRAFT",
+          "timestamp": "2026-07-25T22:46:44.694295"
+        },
+        {
+          "action": "update_stock",
+          "barcode": "89010001",
+          "product_name": "Fresh Apples (kg)",
+          "old_stock": 40,
+          "new_stock": 70,
+          "qty_change": 30,
+          "reason": "Quick Action (Confirmed)",
+          "timestamp": "2026-07-25T22:46:45.790791"
+        },
+        {
+          "action": "upsert_product",
+          "barcode": "89010003",
+          "timestamp": "2026-07-25T22:46:47.003048",
+          "details": {
+            "name": "Sparkling Water (Pack of 12)",
+            "barcode": "89010003",
+            "stock": 200,
+            "min_threshold": 100,
+            "category": "Beverages",
+            "cost_price": 4.0,
+            "selling_price": 8.99,
+            "sales_velocity": 0,
+            "lead_time_days": 3
+          }
         }
       ]
     }
@@ -1757,7 +1881,7 @@
       "sales_velocity": 0,
       "lead_time_days": 3,
       "location": "Store Front - C3",
-      "last_updated_timestamp": "2026-07-25T22:35:00.326625"
+      "last_updated_timestamp": "2026-07-25T22:46:47.003041"
     },
     "89010001": {
       "barcode": "89010001",
@@ -1770,7 +1894,7 @@
       "sales_velocity": 40,
       "lead_time_days": 3,
       "location": "Store Front - A1",
-      "last_updated_timestamp": "2026-07-25T22:34:59.057080"
+      "last_updated_timestamp": "2026-07-25T22:46:45.790772"
     },
     "89010002": {
       "barcode": "89010002",
@@ -1805,7 +1929,7 @@
       "selling_price": 100.0,
       "sales_velocity": 5,
       "lead_time_days": 3,
-      "last_updated_timestamp": "2026-07-25T22:00:18.471718"
+      "last_updated_timestamp": "2026-07-25T22:46:42.662385"
     },
     "DEAD-SKU-01": {
       "barcode": "DEAD-SKU-01",
@@ -1816,7 +1940,7 @@
       "selling_price": 30.0,
       "sales_velocity": 0,
       "lead_time_days": 7,
-      "last_updated_timestamp": "2026-07-25T22:00:18.473005"
+      "last_updated_timestamp": "2026-07-25T22:46:42.664154"
     },
     "MARGIN-SKU-02": {
       "barcode": "MARGIN-SKU-02",
@@ -1827,7 +1951,7 @@
       "selling_price": 100.0,
       "sales_velocity": 2,
       "lead_time_days": 2,
-      "last_updated_timestamp": "2026-07-25T22:00:18.474350"
+      "last_updated_timestamp": "2026-07-25T22:46:42.665771"
     },
     "EXPENSIVE-SKU-100": {
       "barcode": "EXPENSIVE-SKU-100",
@@ -1838,7 +1962,7 @@
       "selling_price": 1000.0,
       "sales_velocity": 2,
       "lead_time_days": 5,
-      "last_updated_timestamp": "2026-07-25T22:00:18.477316"
+      "last_updated_timestamp": "2026-07-25T22:46:42.670986"
     }
   },
   "action_ledger": [
@@ -3448,6 +3572,130 @@
       "action": "upsert_product",
       "barcode": "89010003",
       "timestamp": "2026-07-25T22:35:00.326632",
+      "details": {
+        "name": "Sparkling Water (Pack of 12)",
+        "barcode": "89010003",
+        "stock": 200,
+        "min_threshold": 100,
+        "category": "Beverages",
+        "cost_price": 4.0,
+        "selling_price": 8.99,
+        "sales_velocity": 0,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "TEST-SKU-99",
+      "timestamp": "2026-07-25T22:46:42.662392",
+      "details": {
+        "barcode": "TEST-SKU-99",
+        "name": "Autonomous Test Widget",
+        "stock": 2,
+        "min_threshold": 15,
+        "cost_price": 50.0,
+        "selling_price": 100.0,
+        "sales_velocity": 5,
+        "lead_time_days": 3
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "DEAD-SKU-01",
+      "timestamp": "2026-07-25T22:46:42.664159",
+      "details": {
+        "barcode": "DEAD-SKU-01",
+        "name": "Dead Stock Gadget",
+        "stock": 40,
+        "min_threshold": 5,
+        "cost_price": 10.0,
+        "selling_price": 30.0,
+        "sales_velocity": 0,
+        "lead_time_days": 7
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "MARGIN-SKU-02",
+      "timestamp": "2026-07-25T22:46:42.665775",
+      "details": {
+        "barcode": "MARGIN-SKU-02",
+        "name": "Low Margin Cable",
+        "stock": 100,
+        "min_threshold": 10,
+        "cost_price": 95.0,
+        "selling_price": 100.0,
+        "sales_velocity": 2,
+        "lead_time_days": 2
+      }
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "EXPENSIVE-SKU-100",
+      "timestamp": "2026-07-25T22:46:42.670989",
+      "details": {
+        "barcode": "EXPENSIVE-SKU-100",
+        "name": "High Value Industrial Server",
+        "stock": 1,
+        "min_threshold": 10,
+        "cost_price": 500.0,
+        "selling_price": 1000.0,
+        "sales_velocity": 2,
+        "lead_time_days": 5
+      }
+    },
+    {
+      "action": "APPROVED_REORDER_PO",
+      "user": "MANAGER_HUMAN_APPROVAL",
+      "timestamp": "2026-07-25T22:46:42.673145",
+      "details": {
+        "po_id": "PO-89010004-2014",
+        "product_name": "Organic Whole Milk (1L)",
+        "barcode": "89010004",
+        "quantity": 2014,
+        "total_cost": 3021.0,
+        "status": "QUEUED_FOR_APPROVAL",
+        "reasons": [
+          "Total PO cost $3021.00 exceeds auto-approval threshold of $1000.00."
+        ]
+      }
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 15,
+      "new_stock": 40,
+      "qty_change": 25,
+      "reason": "Restock batch",
+      "timestamp": "2026-07-25T22:46:44.692670"
+    },
+    {
+      "action": "create_purchase_order",
+      "po_id": "PO-1784999804",
+      "barcode": "89010004",
+      "product_name": "Organic Whole Milk (1L)",
+      "reorder_qty": 50,
+      "supplier": "Dairy Supplier",
+      "unit_cost": 1.5,
+      "total_cost": 75.0,
+      "status": "DRAFT",
+      "timestamp": "2026-07-25T22:46:44.694295"
+    },
+    {
+      "action": "update_stock",
+      "barcode": "89010001",
+      "product_name": "Fresh Apples (kg)",
+      "old_stock": 40,
+      "new_stock": 70,
+      "qty_change": 30,
+      "reason": "Quick Action (Confirmed)",
+      "timestamp": "2026-07-25T22:46:45.790791"
+    },
+    {
+      "action": "upsert_product",
+      "barcode": "89010003",
+      "timestamp": "2026-07-25T22:46:47.003048",
       "details": {
         "name": "Sparkling Water (Pack of 12)",
         "barcode": "89010003",

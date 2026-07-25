@@ -1,8 +1,10 @@
 """
 Autonomous Multi-Agent Swarm for Inventory Management.
 Integrates Planner, Code Engine, Guardrail, and Reflection Agents into a closed-loop ReAct system.
+Supports tenant isolation per company_id.
 """
 
+import time
 from typing import Dict, Any, List, Optional
 try:
     from .inventory_db import InventoryDB
@@ -22,21 +24,22 @@ class AutonomousSwarm:
         self.db = db or InventoryDB()
         self.guardrails = InventoryGuardrails()
         self.cache = SemanticCacheManager()
-        self.code_engine = InventoryCodeEngine(list(self.db.products.values()))
+        self.code_engine = InventoryCodeEngine(self.db.get_all_products("default"))
         self.episodic_memory: List[Dict[str, Any]] = []
         self.pending_pos: Dict[str, Dict[str, Any]] = {}
 
-    def refresh_engine(self):
-        self.code_engine.update_data(list(self.db.products.values()))
+    def refresh_engine(self, company_id: str = "default"):
+        all_prods = self.db.get_all_products(company_id=company_id)
+        self.code_engine.update_data(all_prods)
 
-    def run_full_autopilot_sweep(self) -> Dict[str, Any]:
+    def run_full_autopilot_sweep(self, company_id: str = "default") -> Dict[str, Any]:
         """
         24/7 Proactive Autonomous Background Sweep.
-        Runs Batch Auto-Reorder, Stock Decay/Idle Clearance, and Supplier Cost Variance agents.
+        Runs Batch Auto-Reorder, Stock Decay/Idle Clearance, and Supplier Cost Variance agents for company_id.
         """
-        self.refresh_engine()
+        self.refresh_engine(company_id=company_id)
         sweep_log = {
-            "timestamp": time.time() if "time" in globals() else 0,
+            "timestamp": time.time(),
             "reorders_processed": [],
             "clearance_recommendations": [],
             "supplier_alerts": []
@@ -94,7 +97,7 @@ class AutonomousSwarm:
             self.episodic_memory.append(log_item)
 
         # 2. STOCK DECAY & IDLE CLEARANCE AGENT
-        all_prods = list(self.db.products.values())
+        all_prods = self.db.get_all_products(company_id=company_id)
         for p in all_prods:
             stock = p.get("stock", 0)
             velocity = p.get("sales_velocity", 0)
@@ -146,28 +149,27 @@ class AutonomousSwarm:
         self.episodic_memory.append(log_entry)
         return {"status": "APPROVED", "message": f"Purchase Order '{po_id}' approved & executed.", "po_data": po_data}
 
-    def process_event_trigger(self, event_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def process_event_trigger(self, event_name: str, payload: Dict[str, Any], company_id: str = "default") -> Dict[str, Any]:
         """
         Proactive autonomous loop triggered by background events (e.g. stock drop, low inventory alert).
         """
-        self.refresh_engine()
+        self.refresh_engine(company_id=company_id)
         
         if event_name in ["LOW_STOCK_TRIGGER", "STOCKOUT_RISK"]:
-            return self.run_full_autopilot_sweep()
+            return self.run_full_autopilot_sweep(company_id=company_id)
 
         return {"status": "UNKNOWN_EVENT", "event": event_name}
 
-    def process_query(self, query: str) -> Dict[str, Any]:
+    def process_query(self, query: str, company_id: str = "default") -> Dict[str, Any]:
         """
         High-speed query processor leveraging semantic cache and pandas code engine.
         """
-        # Check cache (<5ms)
-        cached = self.cache.get(query)
+        cached = self.cache.get(query, company_id=company_id)
         if cached:
             cached["from_cache"] = True
             return cached
 
-        self.refresh_engine()
+        self.refresh_engine(company_id=company_id)
         query_lower = query.lower()
 
         if "low stock" in query_lower or "reorder" in query_lower:
@@ -187,8 +189,7 @@ class AutonomousSwarm:
                 "summary": f"Top {len(items)} high-value items at risk of stockout identified."
             }
         else:
-            # Default analysis
-            all_items = list(self.db.products.values())
+            all_items = self.db.get_all_products(company_id=company_id)
             total_value = sum(i.get("stock", 0) * i.get("selling_price", 0) for i in all_items)
             result = {
                 "type": "GENERAL_SUMMARY",
@@ -197,8 +198,6 @@ class AutonomousSwarm:
                 "summary": f"Inventory contains {len(all_items)} total SKUs valued at ${total_value:,.2f}."
             }
 
-        # Cache result
-        self.cache.set(query, result)
+        self.cache.set(query, result, company_id=company_id)
         result["from_cache"] = False
         return result
-

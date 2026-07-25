@@ -240,7 +240,7 @@ def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]
                 action_match = re.search(r'Action\*\* \| \*\*(.*?)\*\*', content)
                 if barcode_match:
                     bc = barcode_match.group(1)
-                    found_p = db_instance.get_product(bc)
+                    found_p = db_instance.get_product(bc, company_id=company_id)
                     if found_p:
                         qty = 10
                         if qty_match:
@@ -335,14 +335,15 @@ def _fallback_rule_matcher(question: str, history: Optional[List[Dict[str, Any]]
 
     # If confirmed, execute the live DB mutation
     if is_deduct:
-        res = db_instance.update_stock(target_product["barcode"], -qty, "Quick Action (Confirmed)")
+        res = db_instance.update_stock(target_product["barcode"], -qty, "Quick Action (Confirmed)", company_id=company_id)
         return {"tool": "UpdateStock", "res": res, "qty": -qty}
     elif is_po:
-        res = db_instance.create_purchase_order(target_product["barcode"], qty, "Auto Supplier")
+        res = db_instance.create_purchase_order(target_product["barcode"], qty, "Auto Supplier", company_id=company_id)
         return {"tool": "CreatePurchaseOrder", "res": res, "qty": qty}
     else:
-        res = db_instance.update_stock(target_product["barcode"], qty, "Quick Action (Confirmed)")
+        res = db_instance.update_stock(target_product["barcode"], qty, "Quick Action (Confirmed)", company_id=company_id)
         return {"tool": "UpdateStock", "res": res, "qty": qty}
+
 
 def action_agent_node(state: GraphState) -> GraphState:
     """Executes tools against live Inventory DB and logs ledger mutations."""
