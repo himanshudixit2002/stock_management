@@ -523,7 +523,70 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
     """Generates instant (< 1ms) markdown table responses for standard audit, order log, reorder, and metric queries."""
     q = question.lower()
 
-    # 1. Reorder / What to order next queries
+    # 0. Single Top Priority Item to Buy / Order
+    if any(k in q for k in ["exact one product", "one product", "exact product", "single product", "single item", "what to buy now", "should buy now", "top product to buy", "which product to buy", "exact item", "should buy", "what exact product"]):
+        recs = autopilot_recs or db_instance.run_autopilot_scan(company_id=company_id)
+        all_prods = db_instance.get_all_products(company_id=company_id)
+        
+        target_item = None
+        if recs:
+            target_item = recs[0]
+            name = target_item.get("product_name") or target_item.get("name")
+            barcode = target_item.get("barcode")
+            stock = target_item.get("current_stock", target_item.get("stock", 0))
+            suggested_qty = target_item.get("suggested_reorder_qty", 10)
+            urgency = str(target_item.get("urgency", "HIGH")).upper()
+        elif all_prods:
+            sorted_prods = sorted(all_prods, key=lambda x: int(x.get("stock", 0)))
+            top_p = sorted_prods[0]
+            name = top_p.get("name")
+            barcode = top_p.get("barcode")
+            stock = int(top_p.get("stock", 0))
+            threshold = int(top_p.get("min_threshold", 10))
+            suggested_qty = max(10, threshold * 2 - stock)
+            urgency = "CRITICAL (Stockout)" if stock == 0 else "HIGH (Low Stock)"
+        else:
+            return "No inventory items found in your store to analyze."
+
+        return (
+            f"### Priority Purchase Recommendation\n\n"
+            f"Based on your real-time inventory analysis, the **#1 exact product** you should buy right now is:\n\n"
+            f"| Detail | Value |\n"
+            f"| :--- | :--- |\n"
+            f"| **Product** | **{name}** |\n"
+            f"| **Barcode** | `{barcode}` |\n"
+            f"| **Current Stock** | **{stock} units** |\n"
+            f"| **Suggested Reorder** | **+{suggested_qty} units** |\n"
+            f"| **Urgency Level** | **{urgency}** |\n\n"
+            f"Would you like me to create a purchase order for **{name}**? Reply **\"Add {suggested_qty} units of {name}\"** to proceed."
+        )
+
+    # 1. Business Growth / Revenue Strategy tailored to real store inventory
+    if any(k in q for k in ["grow my business", "grow business", "growth strategy", "boost sales", "increase revenue", "grow revenue", "help me grow", "growth plan"]):
+        low_count = metrics.get("low_stock_count", 0)
+        out_count = metrics.get("out_of_stock_count", 0)
+        total_prods = metrics.get("total_products", 0)
+        total_val = metrics.get("total_inventory_value", 0.0)
+        
+        top_risk_name = "your low stock SKUs"
+        if autopilot_recs:
+            top_risk_name = f"'{autopilot_recs[0].get('product_name')}'"
+        elif metrics.get("low_stock_items"):
+            top_risk_name = f"'{metrics['low_stock_items'][0].get('name')}'"
+
+        return (
+            f"Here are 5 high-impact growth strategies tailored to your store (**{total_prods} SKUs**, **${total_val:,.2f}** inventory valuation):\n\n"
+            f"| Strategy | Actionable Execution for Your Store | Expected Impact |\n"
+            f"| :--- | :--- | :--- |\n"
+            f"| **1. Prevent Stockout Losses** | Restock your **{low_count + out_count} at-risk items** (like {top_risk_name}) before sales drop | **+8% Revenue** |\n"
+            f"| **2. Strategic Product Bundling** | Pair slow-moving stock with top-selling essentials at a 5% discount | **+5% Basket Value** |\n"
+            f"| **3. Optimize Supplier Lead Times** | Negotiate shorter vendor fulfillment windows for fast movers | **+4% Cash Flow** |\n"
+            f"| **4. Re-order Reminders** | Send automated replenishment alerts for high-turnover consumables | **+3% Repeat Purchase** |\n"
+            f"| **5. Liquidate Dead Stock** | Clearance-sale slow-moving items with zero sales in 60+ days | **Instant Cash Recovery** |\n\n"
+            f"Would you like me to analyze your top-selling products or generate purchase orders for your {low_count + out_count} low-stock items?"
+        )
+
+    # 2. Reorder / What to order next queries
     if any(k in q for k in ["order next", "what to order", "reorder next", "what to buy", "reorder suggestion", "autopilot"]):
         recs = autopilot_recs or db_instance.run_autopilot_scan(company_id=company_id)
         if not recs:
@@ -542,7 +605,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
         )
         return table
     
-    # 2. Order Log / Ledger / Purchase Order History
+    # 3. Order Log / Ledger / Purchase Order History
     if any(k in q for k in ["order log", "log table", "ledger", "transaction history", "po log", "order history", "action ledger", "audit log", "recent actions"]):
         ledger = db_instance._get_company(company_id)["action_ledger"]
         if not ledger:
@@ -578,7 +641,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
         )
         return table
 
-    # 3. Inventory Health Audit / Stock Audit Report
+    # 4. Inventory Health Audit / Stock Audit Report
     if any(k in q for k in ["inventory audit", "stock audit", "health audit", "audit report", "audit table"]):
         all_prods = db_instance.get_all_products(company_id=company_id)
         if not all_prods:
@@ -648,7 +711,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
         )
         return table
 
-    # 4. Low Stock / Out of Stock List / Reorder Alert
+    # 5. Low Stock / Out of Stock List / Reorder Alert
     if any(k in q for k in ["low stock", "out of stock", "reorder list", "stock alert", "low stock list", "stockout"]):
         low_items = metrics.get("low_stock_items", [])
         out_items = metrics.get("out_of_stock_items", [])
@@ -671,7 +734,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
         )
         return table
 
-    # 5. Summary / Metrics / Valuation Snapshot
+    # 6. Summary / Metrics / Valuation Snapshot
     if any(k in q for k in ["summary", "snapshot", "stats", "metrics", "valuation"]):
         table = (
             f"Here is your real-time **Inventory Summary & Valuation**:\n\n"
@@ -687,6 +750,7 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
         return table
 
     return None
+
 
 def analytics_agent_node(state: GraphState) -> GraphState:
     """Calculates live analytics, stockout risks, and financial valuations from DB."""
@@ -826,27 +890,32 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
                 content = extract_text_content(response.content)
             except Exception as e:
                 print(f"[Knowledge Node] LLM invoke failed: {e}")
+                content = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
+                if not content:
+                    content = (
+                        "Here is an overview of your store operations:\n\n"
+                        f"- **Registered Products**: **{metrics['total_products']}** items\n"
+                        f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
+                        f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
+                        f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
+                        "How can I assist you with your inventory or sales plan?"
+                    )
+        else:
+            content = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
+            if not content:
                 content = (
-                    "Here is an overview of your store operations:\n\n"
+                    "Here is your current store overview:\n\n"
                     f"- **Registered Products**: **{metrics['total_products']}** items\n"
                     f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
                     f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
                     f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
-                    "How can I assist you with your inventory or sales plan?"
+                    "Tell me if you'd like me to perform an audit, restock low items, or update stock!"
                 )
-        else:
-            content = (
-                "Here is your current store overview:\n\n"
-                f"- **Registered Products**: **{metrics['total_products']}** items\n"
-                f"- **Low Stock Warnings**: **{metrics['low_stock_count']}** items\n"
-                f"- **Out of Stock**: **{metrics['out_of_stock_count']}** items\n"
-                f"- **Inventory Valuation**: **${metrics['total_inventory_value']:,.2f}**\n\n"
-                "Tell me if you'd like me to perform an audit, restock low items, or update stock!"
-            )
 
 
     state["generation"] = content
     return state
+
 
 # Compatibility aliases
 retrieve = retrieve_node
