@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_vertexai import ChatVertexAI
 from langchain_openai import ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -19,7 +21,7 @@ from state import GraphState
 from inventory_db import db_instance
 
 class LocalDenseEmbeddings:
-    """Fast, deterministic local 384-dim dense embedding model (zero Gemini / external network dependencies)."""
+    """Fast, deterministic local 384-dim dense embedding model (fallback)."""
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         return [self._embed(t) for t in texts]
 
@@ -97,8 +99,39 @@ ACTION_TOOLS = [UpdateStock, CreatePurchaseOrder, TransferStock, AuditInventory,
 def get_active_llm(temperature: float = 0.0, bind_tools_list: Optional[List[Any]] = None):
     """
     Factory function returning the active LLM instance.
-    Uses Tinker AI (OpenAI-compatible) exclusively.
+    Prioritizes Google Gemini AI (via ChatGoogleGenerativeAI or ChatVertexAI).
     """
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+    # 1. Google Gemini via ChatGoogleGenerativeAI (if API key available)
+    if gemini_key and _is_valid_api_key(gemini_key):
+        try:
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                temperature=temperature,
+                google_api_key=gemini_key
+            )
+            if bind_tools_list:
+                return llm.bind_tools(bind_tools_list)
+            return llm
+        except Exception as e:
+            print(f"[LLM Factory] Gemini init error: {e}")
+
+    # 2. Google Gemini via ChatVertexAI (Automatic GCP Service Account IAM on Cloud Run)
+    try:
+        llm = ChatVertexAI(
+            model_name="gemini-1.5-flash",
+            project="stockmanagement-27af8",
+            location="asia-south1",
+            temperature=temperature
+        )
+        if bind_tools_list:
+            return llm.bind_tools(bind_tools_list)
+        return llm
+    except Exception as e:
+        print(f"[LLM Factory] Vertex AI init error: {e}")
+
+    # 3. Tinker AI Fallback
     tinker_key = os.environ.get("TINKER_API_KEY")
     tinker_base_url = os.environ.get("TINKER_BASE_URL", "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1")
     tinker_model = os.environ.get("TINKER_MODEL", "tinker://default")
@@ -124,6 +157,20 @@ def get_active_llm(temperature: float = 0.0, bind_tools_list: Optional[List[Any]
 # ---------------------------------------------------------
 
 def get_retriever(company_id: str = "default"):
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if gemini_key and _is_valid_api_key(gemini_key):
+        try:
+            embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2", google_api_key=gemini_key)
+            vectorstore = Chroma(
+                collection_name="stock_inventory",
+                embedding_function=embeddings,
+                persist_directory="./chroma_db"
+            )
+            cid = (company_id or "default").strip()
+            return vectorstore.as_retriever(search_kwargs={"k": 3, "filter": {"company_id": cid}})
+        except Exception as e:
+            print(f"Retriever Gemini initialization warning: {e}")
+
     try:
         embeddings = LocalDenseEmbeddings()
         vectorstore = Chroma(
@@ -134,8 +181,9 @@ def get_retriever(company_id: str = "default"):
         cid = (company_id or "default").strip()
         return vectorstore.as_retriever(search_kwargs={"k": 3, "filter": {"company_id": cid}})
     except Exception as e:
-        print(f"Retriever initialization warning: {e}")
+        print(f"Retriever local initialization warning: {e}")
     return None
+
 
 
 
@@ -509,13 +557,14 @@ def action_agent_node(state: GraphState) -> GraphState:
     return state
 
 def _is_valid_api_key(key: Optional[str]) -> bool:
-    """Validates if a real Tinker AI API key is present."""
-    if not key or key in ["MOCK_KEY_FOR_INIT", "your_tinker_api_key_here"]:
+    """Validates if a real API key (Google Gemini or Tinker AI) is present."""
+    if not key or key in ["MOCK_KEY_FOR_INIT", "your_gemini_api_key_here", "YOUR_GEMINI_API_KEY", "your_tinker_api_key_here"]:
         return False
     key_str = str(key).strip()
-    if key_str.startswith("tml-") or len(key_str) >= 20:
+    if key_str.startswith("AIza") or key_str.startswith("tml-") or len(key_str) >= 20:
         return True
     return False
+
 
 
 
