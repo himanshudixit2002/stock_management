@@ -19,6 +19,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from state import GraphState
 from inventory_db import db_instance
+from guardrails import InventoryGuardrails
+from predictive_ml import perform_abc_analysis, calculate_stockout_risk_timeline, predict_30day_demand_forecast
 
 class LocalDenseEmbeddings:
     """Fast, deterministic local 384-dim dense embedding model (fallback)."""
@@ -192,7 +194,7 @@ def get_retriever(company_id: str = "default"):
 # ---------------------------------------------------------
 
 def router_node(state: GraphState) -> GraphState:
-    """Classifies user intent into ACTION, ANALYTICS, or KNOWLEDGE using word-boundary matching."""
+    """Classifies user intent into ACTION, ANALYTICS, or KNOWLEDGE using fast regex heuristics for instant responses."""
     question = state["question"].lower()
     
     action_keywords = [
@@ -201,7 +203,13 @@ def router_node(state: GraphState) -> GraphState:
         r"\bset threshold\b", r"\balert\b", r"\bconfirm\b", r"\byes\b", r"\bproceed\b", 
         r"\bapprove\b", r"\bdo it\b", r"\bapply\b"
     ]
-    analytics_keywords = [r"\banalyze\b", r"\bforecast\b", r"\btrend\b", r"\bpredict\b", r"\bgrowth\b", r"\breport\b", r"\bsummary\b", r"\bstats\b", r"\bmetrics\b", r"\btop\b", r"\blow stock\b", r"\bout of stock\b", r"\bvaluation\b", r"\border log\b", r"\blog\b", r"\bledger\b", r"\bhistory\b", r"\btransactions\b", r"\btable\b"]
+    analytics_keywords = [
+        r"\banalyze\b", r"\bforecast\b", r"\btrend\b", r"\bpredict\b", r"\bgrowth\b", 
+        r"\breport\b", r"\bsummary\b", r"\bstats\b", r"\bmetrics\b", r"\btop\b", 
+        r"\blow stock\b", r"\bout of stock\b", r"\bvaluation\b", r"\border log\b", 
+        r"\blog\b", r"\bledger\b", r"\bhistory\b", r"\btransactions\b", r"\btable\b", 
+        r"\brisk\b", r"\babc\b", r"\bcategorize\b"
+    ]
     
     is_health_audit = ("health audit" in question or "inventory audit" in question or "audit report" in question or "audit summary" in question or "order log" in question or "log table" in question) and not any(re.search(kw, question) for kw in [r"\bconfirm\b", r"\byes\b", r"\bproceed\b", r"\bapprove\b"])
     
@@ -496,13 +504,25 @@ def action_agent_node(state: GraphState) -> GraphState:
         return state
 
     if hasattr(response, "tool_calls") and response.tool_calls:
+        guardrails = InventoryGuardrails()
         for tool_call in response.tool_calls:
             t_name = tool_call["name"]
             args = tool_call["args"]
             target = args.get("barcode_or_name", "")
+            
+            target_product = db_instance.get_product(target, company_id=company_id)
 
             if t_name == "UpdateStock":
-                res = db_instance.update_stock(target, args.get("qty_change", 0), args.get("reason", "API Action"), company_id=company_id)
+                qty_change = args.get("qty_change", 0)
+                if target_product:
+                    new_stock = target_product.get("stock", 0) + qty_change
+                    validation = guardrails.validate_action("update_stock", {"new_stock": new_stock}, target_product)
+                    if not validation.passed:
+                        executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
+                        generation = f"Action blocked by safety guardrails: {validation.reasons[0]}"
+                        continue
+
+                res = db_instance.update_stock(target, qty_change, args.get("reason", "API Action"), company_id=company_id)
                 executed_actions.append({"tool": "UpdateStock", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -511,7 +531,15 @@ def action_agent_node(state: GraphState) -> GraphState:
                     generation = f"Couldn't update stock for {target}: {res.get('error')}"
 
             elif t_name == "CreatePurchaseOrder":
-                res = db_instance.create_purchase_order(target, args.get("reorder_qty", 10), args.get("supplier_name", "Default Supplier"), company_id=company_id)
+                reorder_qty = args.get("reorder_qty", 10)
+                if target_product:
+                    validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
+                    if not validation.passed:
+                        executed_actions.append({"tool": "CreatePurchaseOrder", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
+                        generation = f"Action blocked by safety guardrails: {validation.reasons[0]}"
+                        continue
+                        
+                res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
                 executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
                 if res.get("success"):
                     p = res["product"]
@@ -802,61 +830,55 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
 
 
 def analytics_agent_node(state: GraphState) -> GraphState:
-    """Calculates live analytics, stockout risks, and financial valuations from DB."""
+    """Calculates live analytics, stockout risks, and financial valuations from DB and uses LLM to answer."""
     question = state["question"]
     company_id = state.get("company_id", "default")
     metrics = db_instance.get_analytics_summary(company_id=company_id)
     autopilot_recs = db_instance.run_autopilot_scan(company_id=company_id)
+    all_products = db_instance.get_all_products(company_id=company_id)
 
-    # Fast-path check: Return instant (< 1ms) markdown table if question matches table/order log requests
-    instant_table = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
+    # Compute ML analytics
+    abc_analysis = perform_abc_analysis(all_products)
+    risk_timelines = [calculate_stockout_risk_timeline(p) for p in all_products if p.get("stock", 0) <= p.get("min_threshold", 10)]
 
-    tinker_key = os.environ.get("TINKER_API_KEY")
-
-    if instant_table:
-        content = instant_table
-    elif not _is_valid_api_key(tinker_key):
-
-        content = (
-            f"Here's your latest inventory snapshot:\n\n"
-            f"| Metric | Value |\n"
-            f"| :--- | :--- |\n"
-            f"| Registered Products | **{metrics['total_products']}** items |\n"
-            f"| Low Stock Alerts | **{metrics['low_stock_count']}** warnings |\n"
-            f"| Out of Stock | **{metrics['out_of_stock_count']}** items |\n"
-            f"| Valuation (Selling) | **${metrics['total_inventory_value']:,.2f}** |\n"
-            f"| Valuation (Cost Basis) | **${metrics['total_cost_value']:,.2f}** |\n"
-            f"| Autopilot Restocks | **{len(autopilot_recs)}** suggestions |"
-        )
+    llm_pro = get_active_llm(temperature=0.2)
+    if not llm_pro:
+        content = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "Inventory analytics updated."
     else:
         context_str = (
             f"INVENTORY METRICS SUMMARY:\n"
             f"- Total Products: {metrics['total_products']}\n"
             f"- Low Stock Count: {metrics['low_stock_count']}\n"
             f"- Out of Stock Count: {metrics['out_of_stock_count']}\n"
-            f"- Total Selling Valuation: ${metrics['total_inventory_value']}\n"
-            f"- Total Cost Valuation: ${metrics['total_cost_value']}\n"
-            f"- Low Stock Products: {[p['name'] + ' (Stock: ' + str(p['stock']) + ')' for p in metrics['low_stock_items']]}\n"
-            f"- Autopilot Reorder Recommendations: {autopilot_recs}\n"
+            f"- Total Selling Valuation: ${metrics['total_inventory_value']:,.2f}\n"
+            f"- Total Cost Valuation: ${metrics['total_cost_value']:,.2f}\n"
+            f"- Autopilot Reorder Recommendations: {autopilot_recs}\n\n"
+            f"MACHINE LEARNING INSIGHTS:\n"
+            f"- ABC Analysis (Top 80% Rev, Middle 15%, Bottom 5%):\n"
+            f"  - Category A count: {len(abc_analysis['A'])}\n"
+            f"  - Category B count: {len(abc_analysis['B'])}\n"
+            f"  - Category C count: {len(abc_analysis['C'])}\n"
+            f"- Stockout Risks (Critical/Warning):\n"
+            f"  {json.dumps(risk_timelines, indent=2)}\n"
         )
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a warm, sharp inventory manager reviewing store metrics with a colleague.\n"
+            ("system", "You are a sharp, analytical inventory manager.\n"
                        "CRITICAL INSTRUCTIONS:\n"
-                       "1. Sound natural, human, conversational, and helpful.\n"
-                       "2. Strictly NO AI clichés, no generic disclaimers ('As an AI model', 'Based on the provided metrics', or 'I am programmed to').\n"
-                       "3. Do NOT use bloated emojis in table cells or headers.\n"
-                       "4. Present data tables cleanly using standard markdown format.\n"
-                       "5. Start with a warm 1-sentence intro followed directly by the data table."),
-            ("user", "Metrics Data:\n{context}\nUser Question: {question}")
+                       "1. Answer the user's specific analytics question based on the provided metrics and ML insights.\n"
+                       "2. If they ask for tables, summaries, or reports, generate clean markdown tables.\n"
+                       "3. If they ask about stockout risks or ABC analysis, use the provided ML insights to answer.\n"
+                       "4. Never hallucinate data. If data is not present, say so clearly.\n"
+                       "5. Strictly NO AI clichés ('As an AI', etc.)."),
+            ("user", "Metrics & ML Data:\n{context}\nUser Question: {question}")
         ])
 
         messages = prompt.format_messages(context=context_str, question=question)
         try:
             response = llm_pro.invoke(messages)
             content = extract_text_content(response.content)
-        except Exception:
-            # Fallback to instant table summary if API call fails
+        except Exception as e:
+            print(f"[Analytics Node] LLM invoke failed: {e}")
             content = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "Inventory analytics updated."
 
     stats_payload = {
@@ -922,18 +944,24 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
     else:
         llm_knowledge = get_active_llm(temperature=0.3)
         if llm_knowledge:
+            company_data = db_instance._get_company(company_id=company_id)
+            action_ledger = company_data.get("action_ledger", [])
+            recent_ledger = list(reversed(action_ledger[-15:]))
+            
+            context_str = docs_text + "\n\n" + f"RECENT TRANSACTION HISTORY (Action Ledger):\n{json.dumps(recent_ledger, indent=2)}"
+
             prompt = ChatPromptTemplate.from_messages([
                 ("system", "You are a warm, sharp, highly intelligent business and stock management assistant helping a store owner.\n"
                            "CRITICAL INSTRUCTIONS:\n"
                            "1. Directly answer the user's specific question with practical, intelligent advice.\n"
                            "2. Speak naturally like a human colleague—warm, practical, concise, and clear.\n"
-                           "3. Strictly NO AI clichés, no generic disclaimers ('As an AI...', 'I cannot...').\n"
-                           "4. Do NOT use bloated emojis in table cells or headers.\n"
+                           "3. Use the RECENT TRANSACTION HISTORY to answer questions about past actions, purchase orders, or stock changes.\n"
+                           "4. Strictly NO AI clichés, no generic disclaimers ('As an AI...', 'I cannot...').\n"
                            "5. Format structural lists or guides in clean markdown tables or short bullet points."),
                 ("user", "Context:\n{context}\nQuestion: {question}")
             ])
             
-            messages = prompt.format_messages(context=docs_text, question=question)
+            messages = prompt.format_messages(context=context_str, question=question)
             try:
                 response = llm_knowledge.invoke(messages)
                 content = extract_text_content(response.content)

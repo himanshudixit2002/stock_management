@@ -67,32 +67,58 @@ class InventoryDB:
         except Exception as e:
             print(f"[Firestore Sync Error] Failed to fetch products for company '{company_id}': {e}")
 
-    def _sync_to_firestore(self, company_id: str, action_type: str, product_data: Dict[str, Any]):
+    def _sync_to_firestore(self, company_id: str, action_type: str, product_data: Dict[str, Any], qty_change: int = 0, from_loc: str = None, to_loc: str = None):
         if not db_firestore or not company_id:
             return
         try:
+            from firebase_admin import firestore
             doc_id = str(product_data.get("id") or product_data.get("barcode") or "").strip()
             if not doc_id:
                 return
             prod_ref = db_firestore.collection("companies").document(company_id).collection("products").document(doc_id)
-            prod_ref.set({
+            
+            update_data = {
                 "name": product_data.get("name"),
                 "barcode": product_data.get("barcode"),
-                "quantity": product_data.get("stock"),
                 "lowStockThreshold": product_data.get("min_threshold"),
                 "categoryName": product_data.get("category"),
                 "costPrice": product_data.get("cost_price"),
                 "sellingPrice": product_data.get("selling_price"),
-                "location": product_data.get("location"),
                 "updatedAt": datetime.now()
-            }, merge=True)
+            }
+            loc = product_data.get("location", "Store Front")
 
+            if action_type in ["update_stock", "voice_add", "voice_deduct"] and qty_change != 0:
+                update_data["quantity"] = firestore.Increment(qty_change)
+                update_data[f"locationQuantities.{loc}"] = firestore.Increment(qty_change)
+                update_data["location"] = loc
+            elif action_type == "transfer_stock" and from_loc and to_loc:
+                update_data[f"locationQuantities.{from_loc}"] = firestore.Increment(-qty_change)
+                update_data[f"locationQuantities.{to_loc}"] = firestore.Increment(qty_change)
+                update_data["location"] = to_loc
+            elif action_type == "audit_inventory" or (action_type == "replace_user_inventory"):
+                # Complete override for audit and generic replacements
+                update_data["quantity"] = product_data.get("stock")
+                update_data[f"locationQuantities.{loc}"] = product_data.get("stock")
+                update_data["location"] = loc
+            
+            prod_ref.set(update_data, merge=True)
+
+            flutter_type = "adjustment"
+            if action_type == "create_purchase_order" or "add" in action_type:
+                flutter_type = "stock_in"
+            elif "deduct" in action_type:
+                flutter_type = "stock_out"
+            elif action_type == "transfer_stock":
+                flutter_type = "transfer"
+            
             tx_ref = db_firestore.collection("companies").document(company_id).collection("transactions").document()
             tx_ref.set({
-                "type": action_type,
+                "type": flutter_type,
                 "productId": doc_id,
                 "productName": product_data.get("name"),
-                "quantity": product_data.get("stock"),
+                "quantity": abs(qty_change) if qty_change else product_data.get("stock"),
+                "location": to_loc if action_type == "transfer_stock" else loc,
                 "timestamp": datetime.now(),
                 "performedBy": "AI Agent (Autonomous)"
             })
@@ -250,6 +276,7 @@ class InventoryDB:
                 stock_val = existing["stock"]
 
             new_dict[barcode] = {
+                "id": str(item.get("id", "")).strip() or barcode,
                 "barcode": barcode,
                 "name": item.get("name", "Unnamed Product"),
                 "stock": stock_val,
@@ -347,7 +374,14 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
-        self._sync_to_firestore(company_id, "update_stock", product)
+        
+        sync_action = "update_stock"
+        if "add" in reason.lower():
+            sync_action = "voice_add"
+        elif "deduct" in reason.lower() or "damage" in reason.lower():
+            sync_action = "voice_deduct"
+            
+        self._sync_to_firestore(company_id, sync_action, product, qty_change=qty_change)
         
         return {
             "success": True,
@@ -419,7 +453,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
-        self._sync_to_firestore(company_id, "transfer_stock", product)
+        self._sync_to_firestore(company_id, "transfer_stock", product, qty_change=qty, from_loc=from_loc, to_loc=to_loc)
 
         return {
             "success": True,
@@ -454,7 +488,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
-        self._sync_to_firestore(company_id, "audit_inventory", product)
+        self._sync_to_firestore(company_id, "audit_inventory", product, qty_change=discrepancy)
 
 
         return {

@@ -73,7 +73,7 @@ class StockTransactionModel {
       'adjustment' => TransactionType.adjustment,
       'hold' => TransactionType.hold,
       'hold_release' => TransactionType.holdRelease,
-      _ => TransactionType.stockIn,
+      _ => TransactionType.adjustment,
     };
   }
 
