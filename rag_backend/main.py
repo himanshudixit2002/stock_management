@@ -38,6 +38,7 @@ class QueryRequest(BaseModel):
     context: Optional[str] = None
     history: Optional[List[ChatMessage]] = None
     company_id: Optional[str] = "default"
+    business_type: Optional[str] = "retail_store"
 
 class QueryResponse(BaseModel):
     answer: str
@@ -77,7 +78,8 @@ async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Hea
         "retries": 0,
         "provided_context": request.context,
         "history": history_list,
-        "company_id": cid
+        "company_id": cid,
+        "business_type": request.business_type or "retail_store"
     }
 
     # 2. Invoke multi-agent pipeline
@@ -133,7 +135,8 @@ async def stream_chat_endpoint(request: QueryRequest, x_company_id: Optional[str
             "retries": 0,
             "provided_context": request.context,
             "history": history_list,
-            "company_id": cid
+            "company_id": cid,
+            "business_type": request.business_type or "retail_store"
         }
 
         # Run pipeline in background executor to avoid blocking event loop

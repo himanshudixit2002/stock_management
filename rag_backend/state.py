@@ -17,3 +17,10 @@ class GraphState(TypedDict):
     executed_actions: Optional[List[Dict[str, Any]]]
     analytics_data: Optional[Dict[str, Any]]
     structured_payload: Optional[Dict[str, Any]]
+    
+    # Business context
+    company_id: Optional[str]
+    business_type: Optional[str]  # retail_store, restaurant, clinic, warehouse, manufacturer
+    
+    # Structured confirmation state (replaces fragile markdown-regex parsing)
+    pending_action: Optional[Dict[str, Any]]

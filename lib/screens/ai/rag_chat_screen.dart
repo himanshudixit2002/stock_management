@@ -420,22 +420,10 @@ class _RagChatScreenState extends State<RagChatScreen> {
       return;
     }
 
-    // Build real user inventory catalog JSON
-    final List<Map<String, dynamic>> userCatalogList = allProducts.map((p) => {
-      'name': p.name,
-      'barcode': p.barcode.isNotEmpty ? p.barcode : p.id,
-      'quantity': p.quantity,
-      'lowStockThreshold': p.lowStockThreshold,
-      'categoryName': p.categoryName,
-      'costPrice': p.costPrice,
-      'price': p.sellingPrice,
-      'location': p.locations.isNotEmpty ? p.locations.first : 'Store Main',
-    }).toList();
-
-    final String catalogJson = jsonEncode(userCatalogList);
-    String intentContext = "[SYSTEM DIRECTIVE: Ground all answers strictly in the REAL USER INVENTORY catalog below. STRICTLY NO PARAGRAPHS! Format answer in 2-3 short, bulleted points (•). Data: Total $totalItems, Low $lowStockCount, Out $outOfStockCount, Pending SO $pendingSales, Pending PO $pendingPurchase]";
+    // Lightweight stats context — backend already has full inventory via /api/inventory/sync
+    String intentContext = "INVENTORY STATS: Total Products: $totalItems, Low Stock Alerts: $lowStockCount, Out of Stock: $outOfStockCount, Pending Sales Orders: $pendingSales, Pending Purchase Orders: $pendingPurchase";
     
-    final contextText = '$intentContext\n[REAL_USER_CATALOG: $catalogJson]'.trim();
+    final contextText = intentContext;
 
     final historyMessages = _messages
         .take(_messages.length - 1)
