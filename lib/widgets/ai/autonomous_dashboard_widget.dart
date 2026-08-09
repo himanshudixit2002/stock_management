@@ -74,21 +74,28 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
       }
     } catch (_) {}
 
-    final results = await Future.wait([
-      AiAgentService.fetchAutopilotRecommendations(),
-      AiAgentService.fetchAnomalies(),
-      AiAgentService.fetchDemandForecasts(),
-      AiAgentService.fetchLocationTransferSuggestions(),
-    ]);
+    try {
+      final results = await Future.wait([
+        AiAgentService.fetchAutopilotRecommendations(),
+        AiAgentService.fetchAnomalies(),
+        AiAgentService.fetchDemandForecasts(),
+        AiAgentService.fetchLocationTransferSuggestions(),
+      ]);
 
-    if (mounted) {
-      setState(() {
-        _autopilotRecs = results[0];
-        _anomalies = results[1];
-        _forecasts = results[2];
-        _transfers = results[3];
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _autopilotRecs = results[0];
+          _anomalies = results[1];
+          _forecasts = results[2];
+          _transfers = results[3];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Autonomous dashboard load error: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -182,8 +189,17 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
             const SizedBox(height: 8),
             if (_anomalies.isEmpty)
               _buildEmptyTile(context, 'No anomalies or shrinkage spikes detected.')
-            else
+            else ...[
               ..._anomalies.take(2).map((a) => _buildAnomalyCard(context, a)),
+              if (_anomalies.length > 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '+ ${_anomalies.length - 2} more',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 14),
 
@@ -191,8 +207,17 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
             const SizedBox(height: 8),
             if (_autopilotRecs.isEmpty)
               _buildEmptyTile(context, 'All stock levels are optimal. No reorders needed.')
-            else
+            else ...[
               ..._autopilotRecs.take(2).map((r) => _buildAutopilotCard(context, r)),
+              if (_autopilotRecs.length > 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '+ ${_autopilotRecs.length - 2} more',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 14),
 
@@ -200,8 +225,17 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
             const SizedBox(height: 8),
             if (_transfers.isEmpty)
               _buildEmptyTile(context, 'Warehouse & store front stock is balanced.')
-            else
+            else ...[
               ..._transfers.take(2).map((t) => _buildTransferCard(context, t)),
+              if (_transfers.length > 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '+ ${_transfers.length - 2} more',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 14),
 
@@ -209,8 +243,17 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
             const SizedBox(height: 8),
             if (_forecasts.isEmpty)
               _buildEmptyTile(context, 'No demand velocity data available.')
-            else
+            else ...[
               ..._forecasts.take(2).map((f) => _buildForecastCard(context, f)),
+              if (_forecasts.length > 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '+ ${_forecasts.length - 2} more',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                  ),
+                ),
+            ],
           ],
         ],
       ),
@@ -334,18 +377,22 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '+${rec['suggested_reorder_qty']} units',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 13),
-              ),
-              const Text(
-                'AI Draft PO',
-                style: TextStyle(fontSize: 10, color: AppTheme.textMuted),
-              ),
-            ],
+          Flexible(
+            flex: 0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '+${rec['suggested_reorder_qty']} units',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Text(
+                  'AI Draft PO',
+                  style: TextStyle(fontSize: 10, color: AppTheme.textMuted),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -376,6 +423,8 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                 Text(
                   'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
                   style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -426,7 +475,7 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              '$days Days Stock',
+              days >= 999 ? 'Stable' : '$days Days',
               style: TextStyle(
                 color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
                 fontWeight: FontWeight.bold,

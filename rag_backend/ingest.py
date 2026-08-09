@@ -29,6 +29,13 @@ class LocalDenseEmbeddings:
         return [v / norm for v in vec]
 
 def get_embeddings_instance():
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if gemini_key:
+        try:
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            return GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=gemini_key)
+        except Exception as e:
+            print(f"Ingest Gemini embedding init warning: {e}")
     return LocalDenseEmbeddings()
 
 

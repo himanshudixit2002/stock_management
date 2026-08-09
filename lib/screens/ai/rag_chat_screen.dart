@@ -182,16 +182,21 @@ class _RagChatScreenState extends State<RagChatScreen> {
     if (mounted) setState(() {});
   }
 
-  void _startListening() async {
+  /// Shared speech initialization — eliminates duplicated init logic.
+  Future<bool> _ensureSpeechReady() async {
     if (!_speechEnabled) {
       _speechEnabled = await _speechToText.initialize();
-      if (!_speechEnabled) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone access unavailable.')));
-        }
-        return;
+      if (!_speechEnabled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone not available.')),
+        );
       }
     }
+    return _speechEnabled;
+  }
+
+  void _startListening() async {
+    if (!await _ensureSpeechReady()) return;
 
     _baseText = _controller.text.trim();
     _soundLevel = 0.0;
@@ -281,66 +286,6 @@ class _RagChatScreenState extends State<RagChatScreen> {
     
     if (predefinedText == null) _controller.clear();
     
-    // Zero-token Interceptor for greetings
-    final greetings = ['hi', 'hello', 'hey', 'help', 'who are you', 'how are you', 'namaste', 'kaise ho', 'kya haal', 'aur batao'];
-    if (greetings.contains(lowerText)) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (mounted) {
-        HapticFeedback.mediumImpact();
-        setState(() {
-          _messages.add(_Message(
-            "👋 **Hey buddy! What's cookin'?** ⚡\n\n"
-            "• 📊 **Stock Snapshot**: Get instant totals\n"
-            "• 🔥 **Low Stock Alert**: Catch items running out\n"
-            "• 📦 **Smart Action**: Update quantities fast",
-            false,
-          ));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-        _saveChatHistory();
-      }
-      return;
-    }
-
-    // Zero-token Interceptor for navigation
-    if (lowerText.contains('open ') || lowerText.contains('go to ') || lowerText.contains('show me ')) {
-      String? target;
-      if (lowerText.contains('billing') || lowerText.contains('pos') || lowerText.contains('sale')) target = 'billing';
-      else if (lowerText.contains('order')) target = 'orders';
-      else if (lowerText.contains('product') || lowerText.contains('item')) target = 'products';
-      else if (lowerText.contains('audit') || lowerText.contains('stock take')) target = 'audit';
-      else if (lowerText.contains('report')) target = 'reports';
-
-      if (target != null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (mounted) {
-          HapticFeedback.mediumImpact();
-          setState(() {
-            _messages.add(_Message(
-              "🚀 **Boom! Teleporting you to $target...**",
-              false,
-              actionPayload: {'type': 'navigate', 'target': target},
-            ));
-            _isLoading = false;
-          });
-          _scrollToBottom();
-          _saveChatHistory();
-          
-          // Actually perform the navigation!
-          String route = '/home';
-          if (target == 'billing') route = '/billing/invoices';
-          else if (target == 'orders') route = '/orders/sales';
-          else if (target == 'products') route = '/products';
-          else if (target == 'audit') route = '/stock-take';
-          else if (target == 'reports') route = '/reports';
-          
-          Navigator.pushNamed(context, route);
-        }
-        return;
-      }
-    }
-
     // Fetch live products for analytics context
     final provider = context.read<ProductProvider>();
     final salesProvider = context.read<SalesOrderProvider>();
@@ -366,72 +311,34 @@ class _RagChatScreenState extends State<RagChatScreen> {
       'pending_so': pendingSales,
       'pending_po': pendingPurchase,
     };
-    
-    // Check if user requested summary or low stock alerts locally for instantaneous human response with visual widgets
-    if (lowerText.contains('summary') || lowerText.contains('overview') || lowerText.contains('total') || lowerText.contains('stats') || lowerText.contains('kitna') || lowerText.contains('sab batao') || lowerText.contains('pura stock')) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (mounted) {
-        HapticFeedback.mediumImpact();
-        setState(() {
-          _messages.add(_Message(
-            "⚡ **Inventory Pulse**\n\n"
-            "| Metric 📈 | Count 🔢 |\n"
-            "| :--- | :--- |\n"
-            "| 📦 Registered Products | **$totalItems** items |\n"
-            "| ⚠️ Low Stock Alerts | **$lowStockCount** warning(s) |\n"
-            "| ⏳ Pending Orders | **${pendingSales + pendingPurchase}** order(s) |",
-            false,
-            statsPayload: statsMap,
-          ));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-        _saveChatHistory();
+
+    final lowItemsPayloadList = lowStockProducts.take(8).map((p) => {
+      'name': p.name,
+      'quantity': p.quantity,
+      'lowStockThreshold': p.lowStockThreshold,
+      'barcode': p.barcode,
+      'categoryName': p.categoryName,
+    }).toList();
+
+    // Enriched context containing inventory stats, low stock items, and pending orders
+    final StringBuffer contextBuffer = StringBuffer();
+    contextBuffer.writeln("INVENTORY STATS: Total Products: $totalItems | Low Stock Alerts: $lowStockCount | Out of Stock: $outOfStockCount | Pending Sales Orders: $pendingSales | Pending Purchase Orders: $pendingPurchase");
+    if (lowStockProducts.isNotEmpty) {
+      contextBuffer.writeln("LOW STOCK ITEMS:");
+      for (final p in lowStockProducts.take(10)) {
+        contextBuffer.writeln("- ${p.name} (Barcode: ${p.barcode}) | Stock: ${p.quantity}/${p.lowStockThreshold} | Cat: ${p.categoryName}");
       }
-      return;
     }
-
-    if (lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai') || lowerText.contains('mangwana')) {
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (mounted) {
-        HapticFeedback.mediumImpact();
-        final lowItemsList = lowStockProducts.take(8).map((p) => {
-          'name': p.name,
-          'quantity': p.quantity,
-          'lowStockThreshold': p.lowStockThreshold,
-          'barcode': p.barcode,
-          'categoryName': p.categoryName,
-        }).toList();
-
-        setState(() {
-          _messages.add(_Message(
-            lowItemsList.isEmpty 
-                ? "🎉 **Woohoo! All stock levels are super healthy!**" 
-                : "🔥 **${lowItemsList.length} Item(s) Need Restocking!**\n• Tap any card below to restock in 1 click:",
-            false,
-            statsPayload: statsMap,
-            lowStockItemsPayload: lowItemsList,
-          ));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-        _saveChatHistory();
-      }
-      return;
-    }
-
-    // Lightweight stats context — backend already has full inventory via /api/inventory/sync
-    String intentContext = "INVENTORY STATS: Total Products: $totalItems, Low Stock Alerts: $lowStockCount, Out of Stock: $outOfStockCount, Pending Sales Orders: $pendingSales, Pending Purchase Orders: $pendingPurchase";
     
-    final contextText = intentContext;
+    final contextText = contextBuffer.toString();
 
     final historyMessages = _messages
         .take(_messages.length - 1)
         .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!") && !m.text.startsWith("👋 **Ask AI is ready!**"))
         .toList();
     
-    final recentHistory = historyMessages.length > 4 
-        ? historyMessages.sublist(historyMessages.length - 4) 
+    final recentHistory = historyMessages.length > 10 
+        ? historyMessages.sublist(historyMessages.length - 10) 
         : historyMessages;
         
     final historyPayload = recentHistory.map((m) => {
@@ -448,12 +355,14 @@ class _RagChatScreenState extends State<RagChatScreen> {
 
       if (mounted) {
         HapticFeedback.mediumImpact();
+        final isLowStockQuery = lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai');
         setState(() {
           _messages.add(_Message(
             response.text, 
             false, 
             actionPayload: response.actionPayload,
             statsPayload: response.statsPayload ?? statsMap,
+            lowStockItemsPayload: isLowStockQuery && lowItemsPayloadList.isNotEmpty ? lowItemsPayloadList : null,
             isActionExecuted: response.actionPayload?['is_executed'] ?? false,
           ));
           _isLoading = false;
@@ -630,55 +539,33 @@ class _RagChatScreenState extends State<RagChatScreen> {
   }
 
   Widget _buildQuickActions() {
+    const actions = [
+      ('⚡ Stock Snapshot', Icons.bolt_rounded, 'Give me a summary of my inventory'),
+      ('🤖 AI Stock Audit', Icons.auto_awesome_rounded, 'Perform a full AI inventory health audit and flag risks'),
+      ('🔥 Low Stock Alert', Icons.local_fire_department_rounded, 'What items are low in stock?'),
+      ('📋 Auto Reorder PO', Icons.add_shopping_cart_rounded, 'Create a purchase order for low stock items'),
+      ('📦 Smart Restock', Icons.inventory_2_rounded, 'What should I order next?'),
+      ('🔮 30-Day Demand Forecast', Icons.trending_up_rounded, 'Forecast inventory demand for the next 30 days'),
+      ('🎯 Pending Orders', Icons.track_changes_rounded, 'Show me pending sales orders'),
+    ];
     return Container(
-      height: 34,
       margin: const EdgeInsets.only(bottom: 6),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          _QuickActionChip(
-            label: "⚡ Stock Snapshot",
-            icon: Icons.bolt_rounded,
-            onTap: () => _sendMessage("Give me a summary of my inventory"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "🤖 AI Stock Audit",
-            icon: Icons.auto_awesome_rounded,
-            onTap: () => _sendMessage("Perform a full AI inventory health audit and flag risks"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "🔥 Low Stock Alert",
-            icon: Icons.local_fire_department_rounded,
-            onTap: () => _sendMessage("What items are low in stock?"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "📋 Auto Reorder PO",
-            icon: Icons.add_shopping_cart_rounded,
-            onTap: () => _sendMessage("Create a purchase order for low stock items"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "📦 Smart Restock",
-            icon: Icons.inventory_2_rounded,
-            onTap: () => _sendMessage("What should I order next?"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "🔮 30-Day Demand Forecast",
-            icon: Icons.trending_up_rounded,
-            onTap: () => _sendMessage("Forecast inventory demand for the next 30 days"),
-          ),
-          const SizedBox(width: 8),
-          _QuickActionChip(
-            label: "🎯 Pending Orders",
-            icon: Icons.track_changes_rounded,
-            onTap: () => _sendMessage("Show me pending sales orders"),
-          ),
-        ],
+      child: SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemCount: actions.length,
+          itemBuilder: (context, index) {
+            final (label, icon, prompt) = actions[index];
+            return _QuickActionChip(
+              label: label,
+              icon: icon,
+              onTap: () => _sendMessage(prompt),
+            );
+          },
+        ),
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.4, end: 0, curve: Curves.easeOutQuart);
   }
@@ -762,15 +649,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
                         color: _isListening ? AppTheme.dangerColor : AppTheme.textSec(context).withValues(alpha: 0.7),
                       ),
                       onPressed: () async {
-                        if (!_speechEnabled) {
-                          _speechEnabled = await _speechToText.initialize();
-                          if (!_speechEnabled) {
-                             if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone not available.')));
-                             }
-                             return;
-                          }
-                        }
+                        if (!await _ensureSpeechReady()) return;
                         _speechToText.isNotListening ? _startListening() : _stopListening();
                       },
                     ),
@@ -978,13 +857,13 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
   MarkdownStyleSheet _getMarkdownStyleSheet(BuildContext context) {
     return MarkdownStyleSheet(
-      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.0, height: 1.35, letterSpacing: 0.1),
+      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.4, letterSpacing: 0.1),
       h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
       h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.0),
       h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 13.5),
-      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.0),
-      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.0),
-      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.0, fontWeight: FontWeight.bold),
+      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
+      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
+      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
       listIndent: 10.0,
       listBulletPadding: const EdgeInsets.only(right: 3),
       pPadding: EdgeInsets.zero,
@@ -1072,8 +951,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(9),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 280),
                   child: Scrollbar(
                     controller: localVertController,
                     thumbVisibility: true,
@@ -1146,20 +1025,22 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final isUser = widget.message.isUser;
     
     final screenWidth = MediaQuery.of(context).size.width;
-    final maxBubbleWidth = screenWidth * 0.82 > 650 ? 650.0 : screenWidth * 0.82;
+    final maxBubbleWidth = (screenWidth * 0.82 - 44).clamp(200.0, 650.0);
 
     final rawText = widget.message.text;
 
-    // Format inline bullet items and points/emojis onto clean new lines
-    // We only apply this to non-table lines to avoid breaking table markdown
+    // Format inline bullet items — only split on actual standalone bullet patterns,
+    // not random inline emojis that would break normal sentences.
     final List<String> rawLines = rawText.split('\n');
     final List<String> formattedLines = [];
     for (final line in rawLines) {
       if (line.contains('|')) {
+        // Table lines — leave untouched
         formattedLines.add(line);
       } else {
+        // Only split when a bullet-like pattern (• or emoji followed by bold text) appears mid-line
         String processed = line.replaceAllMapped(
-          RegExp(r'\s*([•⚡📋🔍📦📊⚠️💰🚨🚦🤖👋🛠️🚀💵])\s+'),
+          RegExp(r'(?<=\S)\s+(•)\s+'),
           (match) => '\n${match.group(1)} ',
         );
         formattedLines.add(processed);
@@ -1180,7 +1061,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
           }
           return trimmed;
         })
-        .where((line) => line.isNotEmpty)
+        // Preserve empty lines for paragraph spacing
         .join('\n');
 
     Widget bubbleContent = SelectionArea(
@@ -1188,8 +1069,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
     );
 
     Widget bubble = Container(
-      margin: const EdgeInsets.symmetric(vertical: 1.5),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       constraints: BoxConstraints(maxWidth: maxBubbleWidth),
       decoration: BoxDecoration(
         gradient: isUser 
@@ -1217,8 +1098,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
             widget.message.text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 13.5,
-              height: 1.25,
+              fontSize: 14,
+              height: 1.3,
               fontWeight: FontWeight.w500,
             ),
           )
@@ -1272,7 +1153,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
         final String btnText = isPo ? "Open PO Draft" : "Confirm & Execute";
 
         Widget actionCard = Container(
-          margin: const EdgeInsets.only(top: 6, bottom: 4),
+          margin: const EdgeInsets.only(top: 8, bottom: 4),
           padding: const EdgeInsets.all(12),
           constraints: BoxConstraints(maxWidth: maxBubbleWidth),
           decoration: BoxDecoration(
@@ -1487,16 +1368,15 @@ class _VisualStatsHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // Metric Chips
-          Row(
+          // Metric chips — data-driven with Wrap for mobile responsiveness
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
             children: [
-              Expanded(child: _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined)),
-              const SizedBox(width: 4),
-              Expanded(child: _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded)),
-              const SizedBox(width: 4),
-              Expanded(child: _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined)),
-              const SizedBox(width: 4),
-              Expanded(child: _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded)),
+              _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined),
+              _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded),
+              _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined),
+              _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded),
             ],
           ),
         ],
@@ -1841,7 +1721,6 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.all(10),
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
                 decoration: BoxDecoration(
                   color: AppTheme.bg(context).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
