@@ -117,7 +117,10 @@ class SetReorderAlert(BaseModel):
 # 2. LLM Initialization & Tool Binding
 # ---------------------------------------------------------
 
-ACTION_TOOLS = [query_inventory_state, predict_demand_velocity, draft_purchase_order, simulate_financial_impact, detect_anomalies, UpdateStock, CreatePurchaseOrder, TransferStock, AuditInventory, SetReorderAlert]
+ACTION_TOOLS = [UpdateStock, CreatePurchaseOrder, TransferStock, AuditInventory, SetReorderAlert]
+CONTROLLER_TOOLS = [query_inventory_state, predict_demand_velocity, draft_purchase_order, simulate_financial_impact, detect_anomalies]
+EXECUTION_TOOLS = ACTION_TOOLS + CONTROLLER_TOOLS
+ANALYTICS_TOOLS = [query_inventory_state, predict_demand_velocity, detect_anomalies]
 
 def get_active_llm(temperature: float = 0.0, bind_tools_list: Optional[List[Any]] = None):
     """
@@ -215,79 +218,70 @@ def get_retriever(company_id: str = "default"):
 # ---------------------------------------------------------
 
 def router_node(state: GraphState) -> GraphState:
-    """2-tier intent classifier: instant regex for obvious patterns, LLM for everything else."""
+    """Router that relies primarily on LLM for accurate intent classification, with regex fallback."""
     question = state["question"]
     q = question.lower().strip()
+    history = state.get("history") or []
     
-    # ── Tier 1: Instant zero-cost classification (< 1ms) ──
-    
-    # Confirmations → always ACTION (continuing a previous action)
-    confirm_words = ["confirm", "yes", "proceed", "do it", "apply", "ok", "sure", "approve", "haan", "kar do", "haa"]
-    if any(q == w or q.startswith(w + " ") or q.endswith(" " + w) for w in confirm_words) or q in confirm_words:
-        state["intent"] = "ACTION"
-        return state
-    
-    # Greetings → KNOWLEDGE
-    greetings = ["hi", "hello", "hey", "help", "who are you", "what can you do", "namaste"]
-    if q in greetings:
-        state["intent"] = "KNOWLEDGE"
-        return state
-    
-    # Strong action verbs → ACTION (covers "add 50 units", "deduct sugar", "restock", etc.)
-    strong_action = [
-        r"\b(add|deduct|remove|reduce|increase|restock)\b.*\b\d+\b",  # verb + number
-        r"\b\d+\b.*\b(add|deduct|remove|reduce|increase|restock)\b",  # number + verb
-        r"\b(update stock|create po|purchase order|transfer stock|set threshold|set alert)\b",
-        r"\b(reorder|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
-    ]
-    if any(re.search(p, q) for p in strong_action):
-        state["intent"] = "ACTION"
-        return state
-    
-    # Strong controller patterns -> CONTROLLER
-    strong_controller = [
-        r"\b(finance|financial|margin|cash flow|working capital|po|purchase order|anomaly|anomalies|shrinkage|deadstock|controller|operations)\b",
-    ]
-    if any(re.search(p, q) for p in strong_controller):
-        state["intent"] = "CONTROLLER"
-        return state
+    # ── Contextual History Check ──
+    if history:
+        last_msg = history[-1]
+        if last_msg.get("role") in ["assistant", "model"]:
+            last_content = last_msg.get("content", "").lower()
+            if any(phrase in last_content for phrase in ["quantity", "how many", "which product", "product name", "tell me the product", "please try again with"]):
+                state["intent"] = "EXECUTION"
+                return state
 
-    # Strong analytics patterns → ANALYTICS
-    strong_analytics = [
-        r"\b(analyze|forecast|predict|trend|report|summary|stats|metrics|valuation)\b",
-        r"\b(low stock|out of stock|stockout|health audit|inventory audit|audit report)\b",
-        r"\b(abc analysis|risk|order log|ledger|history|transactions|what to order|what to buy)\b",
-        r"\b(grow|growth|revenue|boost sales)\b",
-    ]
-    if any(re.search(p, q) for p in strong_analytics):
-        state["intent"] = "ANALYTICS"
-        return state
-    
-    # ── Tier 2: LLM-powered classification for ambiguous queries ──
+    # ── Tier 1: LLM-powered classification ──
     try:
         classifier_llm = get_active_llm(temperature=0)
         if classifier_llm:
             classify_prompt = (
                 "Classify this inventory management query into exactly one category.\n"
-                "ACTION = user wants to modify inventory (add/deduct stock, create PO, transfer, audit physical count, set threshold)\n"
+                "EXECUTION = user wants to modify inventory (add/deduct stock, create PO, transfer, set threshold) or run controller simulations (financial impact, anomalies).\n"
                 "ANALYTICS = user wants reports, analysis, stock status, recommendations, forecasts, what to order\n"
                 "KNOWLEDGE = general questions, greetings, how-to, advice, what-if scenarios\n\n"
                 f"Query: \"{question}\"\n\n"
-                "Respond with ONLY one word: ACTION, ANALYTICS, or KNOWLEDGE"
+                "Respond with ONLY one word: EXECUTION, ANALYTICS, or KNOWLEDGE"
             )
             response = classifier_llm.invoke([HumanMessage(content=classify_prompt)])
             result = extract_text_content(response.content).strip().upper()
-            if "ACTION" in result:
-                state["intent"] = "ACTION"
+            if "EXECUTION" in result or "ACTION" in result or "CONTROLLER" in result:
+                state["intent"] = "EXECUTION"
             elif "ANALYTICS" in result:
                 state["intent"] = "ANALYTICS"
             else:
                 state["intent"] = "KNOWLEDGE"
             return state
     except Exception as e:
-        print(f"[Router] LLM classification failed, defaulting to KNOWLEDGE: {e}")
-    
-    # Fallback: default to KNOWLEDGE
+        print(f"[Router] LLM classification failed, defaulting to regex fallback: {e}")
+
+    # ── Tier 2: Regex Fallback ──
+    confirm_words = ["confirm", "yes", "proceed", "do it", "apply", "ok", "sure", "approve"]
+    if any(q == w or q.startswith(w + " ") or q.endswith(" " + w) for w in confirm_words) or q in confirm_words:
+        state["intent"] = "EXECUTION"
+        return state
+        
+    strong_action = [
+        r"\b(add|deduct|remove|reduce|increase|restock)\b.*\b\d+\b",
+        r"\b\d+\b.*\b(add|deduct|remove|reduce|increase|restock)\b",
+        r"\b(update stock|create po|purchase order|transfer stock|set threshold|set alert)\b",
+        r"\b(reorder|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
+        r"\b(finance|financial|margin|cash flow|working capital|po|purchase order|anomaly|anomalies|shrinkage|deadstock|controller|operations)\b",
+    ]
+    import re
+    if any(re.search(p, q) for p in strong_action):
+        state["intent"] = "EXECUTION"
+        return state
+        
+    strong_analytics = [
+        r"\b(analyze|forecast|predict|trend|report|summary|stats|metrics|valuation)\b",
+        r"\b(low stock|out of stock|stockout|health audit|inventory audit|audit report)\b",
+    ]
+    if any(re.search(p, q) for p in strong_analytics):
+        state["intent"] = "ANALYTICS"
+        return state
+        
     state["intent"] = "KNOWLEDGE"
     return state
 
@@ -543,8 +537,8 @@ def _get_business_prompt_context(business_type: str) -> str:
     return prompts.get(business_type, prompts["retail_store"])
 
 
-def action_agent_node(state: GraphState) -> GraphState:
-    """Executes inventory actions via LLM tool calling or deterministic fallback. Direct and precise."""
+def execution_agent_node(state: GraphState) -> GraphState:
+    """Unified execution agent that handles both standard actions and complex controller simulations."""
     question = state["question"]
     documents = state["documents"]
     history = state.get("history") or []
@@ -554,54 +548,22 @@ def action_agent_node(state: GraphState) -> GraphState:
     context_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
     executed_actions = []
     
-    active_llm = get_active_llm(temperature=0, bind_tools_list=ACTION_TOOLS)
+    active_llm = get_active_llm(temperature=0, bind_tools_list=EXECUTION_TOOLS)
 
-    # Check if active LLM is available
     if not active_llm:
-        # Rule-based fallback tool execution (instant < 1ms)
-        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
-        if fallback_res:
-            tool_name = fallback_res["tool"]
-            if tool_name == "ActionPreview":
-                generation = fallback_res["preview"]
-            else:
-                res = fallback_res["res"]
-                executed_actions.append({"tool": tool_name, "result": res})
-                if res.get("success"):
-                    p = res.get("product", {})
-                    if tool_name == "UpdateStock":
-                        generation = f"Done. **{p.get('name')}**: {res['old_stock']} → **{res['new_stock']} units**."
-                    elif tool_name == "CreatePurchaseOrder":
-                        generation = f"PO **{res['po_id']}** created: **{res['reorder_qty']} units** of **{p.get('name')}** — Est. **${res.get('total_cost', 0):,.2f}**."
-                    else:
-                        generation = f"Done. **{p.get('name')}** updated."
-                else:
-                    generation = f"Failed: {res.get('error')}"
-        else:
-            generation = "Tell me the product and quantity. Example: *Add 50 units of Cannula Standard*"
-            
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
+        state["generation"] = "Execution agent requires an active LLM."
         return state
 
     biz_context = _get_business_prompt_context(business_type)
     system_prompt = (
-        f"You are a precision inventory executor for {biz_context}.\n"
-        f"You have LIVE access to the inventory database and these action tools:\n"
-        f"- UpdateStock(barcode_or_name, qty_change, reason) — positive qty to add, negative to deduct\n"
-        f"- CreatePurchaseOrder(barcode_or_name, reorder_qty, supplier_name)\n"
-        f"- TransferStock(barcode_or_name, from_location, to_location, qty)\n"
-        f"- AuditInventory(barcode_or_name, actual_stock, notes)\n"
-        f"- SetReorderAlert(barcode_or_name, new_min_threshold)\n\n"
+        f"You are a unified execution & controller agent for {biz_context}.\n"
+        f"You have LIVE access to the database via tools to execute actions or simulate financial impacts.\n"
         f"INVENTORY DATA:\n{context_text}\n\n"
-        f"RULES — follow these STRICTLY:\n"
-        f"1. When the user wants to modify stock and gives product + quantity: CALL THE TOOL IMMEDIATELY. Use the exact barcode from the inventory data above.\n"
-        f"2. When the user says 'confirm', 'yes', 'proceed', 'do it': Look at chat history for the pending action and EXECUTE IT NOW via tool call.\n"
-        f"3. If the user asks to modify stock but didn't specify quantity: Ask for quantity in ONE short sentence.\n"
-        f"4. If the user mentions a product not in the inventory data: Say the product was not found. Suggest close matches if any.\n"
-        f"5. After execution, respond in ONE sentence: what was done + the new stock level.\n"
-        f"6. NEVER say 'As an AI', 'I recommend', 'I suggest'. Just execute or ask the missing detail.\n"
-        f"7. NEVER repeat the entire inventory list. Only reference the specific product being acted on."
+        f"RULES:\n"
+        f"1. If the user wants to add/deduct stock, call UpdateStock.\n"
+        f"2. If the user wants to simulate finances, call simulate_financial_impact.\n"
+        f"3. Do not ask for confirmation unless critical details (like quantity) are missing.\n"
+        f"4. After executing tools, summarize the result concisely."
     )
 
     messages = [SystemMessage(content=system_prompt)]
@@ -614,346 +576,110 @@ def action_agent_node(state: GraphState) -> GraphState:
             messages.append(AIMessage(content=c))
     messages.append(HumanMessage(content=question))
 
-    try:
-        response = active_llm.invoke(messages)
-    except Exception as e:
-        print(f"[Action Node] LLM invoke failed, using fallback: {e}")
-
-        # Fallback to rule matcher on API model error
-        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
-        if fallback_res:
-            tool_name = fallback_res["tool"]
-            if tool_name == "ActionPreview":
-                generation = fallback_res["preview"]
-            else:
-                res = fallback_res["res"]
-                executed_actions.append({"tool": tool_name, "result": res})
-                if res.get("success"):
-                    p = res.get("product", {})
-                    generation = f"Done. **{p.get('name')}**: {res['old_stock']} → **{res['new_stock']} units**."
-                else:
-                    generation = f"Failed: {res.get('error')}"
-        else:
-            generation = "Action failed. Please try again with product name and quantity."
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
-        return state
-
-    if hasattr(response, "tool_calls") and response.tool_calls:
+    from langchain_core.messages import ToolMessage
+    generation = "Action failed."
+    for _ in range(5):
+        try:
+            response = active_llm.invoke(messages)
+        except Exception as e:
+            print(f"[Execution Node] LLM invoke failed: {e}")
+            break
+            
+        messages.append(response)
+        
+        if not hasattr(response, "tool_calls") or not response.tool_calls:
+            generation = extract_text_content(response.content)
+            break
+            
         guardrails = InventoryGuardrails()
         for tool_call in response.tool_calls:
             t_name = tool_call["name"]
             args = tool_call["args"]
             target = args.get("barcode_or_name", "")
-            
             target_product = db_instance.get_product(target, company_id=company_id)
-
+            
+            tool_result_str = ""
             if t_name == "UpdateStock":
                 qty_change = args.get("qty_change", 0)
                 if target_product:
                     new_stock = target_product.get("stock", 0) + qty_change
                     validation = guardrails.validate_action("update_stock", {"new_stock": new_stock}, target_product)
                     if not validation.passed:
-                        executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
-                        generation = f"Blocked: {validation.reasons[0]}"
+                        tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
+                        executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": tool_result_str}})
+                        messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
                         continue
-
                 res = db_instance.update_stock(target, qty_change, args.get("reason", "AI Action"), company_id=company_id)
                 executed_actions.append({"tool": "UpdateStock", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Done. **{p['name']}**: {res['old_stock']} → **{res['new_stock']} units**."
-                else:
-                    generation = f"Failed to update {target}: {res.get('error')}"
-
-            elif t_name == "CreatePurchaseOrder":
+                tool_result_str = str(res)
+                
+            elif t_name == "CreatePurchaseOrder" or t_name == "draft_purchase_order":
                 reorder_qty = args.get("reorder_qty", 10)
                 if target_product:
                     validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
                     if not validation.passed:
-                        executed_actions.append({"tool": "CreatePurchaseOrder", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
-                        generation = f"Blocked: {validation.reasons[0]}"
+                        tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
+                        executed_actions.append({"tool": t_name, "result": {"success": False, "error": tool_result_str}})
+                        messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
                         continue
-                        
                 res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
-                executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"PO **{res['po_id']}** created: **{res['reorder_qty']} units** of **{p['name']}** from **{res['supplier']}** — **${res['total_cost']:.2f}**."
-                else:
-                    generation = f"PO creation failed: {res.get('error')}"
-
+                executed_actions.append({"tool": t_name, "result": res})
+                tool_result_str = str(res)
+                
             elif t_name == "TransferStock":
                 res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1), company_id=company_id)
                 executed_actions.append({"tool": "TransferStock", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Transferred **{res['qty']} units** of **{p['name']}** → **{res['to_location']}**."
-                else:
-                    generation = f"Transfer failed: {res.get('error')}"
-
+                tool_result_str = str(res)
+                
             elif t_name == "AuditInventory":
                 res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"), company_id=company_id)
                 executed_actions.append({"tool": "AuditInventory", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    disc = res['discrepancy']
-                    disc_str = f"+{disc}" if disc > 0 else f"{disc}"
-                    generation = f"Audit done. **{p['name']}**: adjusted to **{res['actual_stock']} units** (diff: **{disc_str}**)."
-                else:
-                    generation = f"Audit failed: {res.get('error')}"
-
+                tool_result_str = str(res)
+                
             elif t_name == "SetReorderAlert":
                 res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10), company_id=company_id)
                 executed_actions.append({"tool": "SetReorderAlert", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Alert set. **{p['name']}** threshold: {res['old_threshold']} → **{res['new_threshold']} units**."
-                else:
-                    generation = f"Threshold update failed: {res.get('error')}"
-
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
-    else:
-        content = extract_text_content(response.content)
-        state["generation"] = content or "Ready. Tell me the product and action."
-
-    return state
-
-
-def controller_agent_node(state: GraphState) -> GraphState:
-    """Executes inventory actions via LLM tool calling or deterministic fallback. Direct and precise."""
-    question = state["question"]
-    documents = state["documents"]
-    history = state.get("history") or []
-    company_id = state.get("company_id", "default")
-    business_type = state.get("business_type", "retail_store")
-    
-    context_text = "\n\n".join(doc.page_content for doc in documents if hasattr(doc, 'page_content'))
-    executed_actions = []
-    
-    active_llm = get_active_llm(temperature=0, bind_tools_list=ACTION_TOOLS)
-
-    # Check if active LLM is available
-    if not active_llm:
-        # Rule-based fallback tool execution (instant < 1ms)
-        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
-        if fallback_res:
-            tool_name = fallback_res["tool"]
-            if tool_name == "ActionPreview":
-                generation = fallback_res["preview"]
-            else:
-                res = fallback_res["res"]
-                executed_actions.append({"tool": tool_name, "result": res})
-                if res.get("success"):
-                    p = res.get("product", {})
-                    if tool_name == "UpdateStock":
-                        generation = f"Done. **{p.get('name')}**: {res['old_stock']} → **{res['new_stock']} units**."
-                    elif tool_name == "CreatePurchaseOrder":
-                        generation = f"PO **{res['po_id']}** created: **{res['reorder_qty']} units** of **{p.get('name')}** — Est. **${res.get('total_cost', 0):,.2f}**."
-                    else:
-                        generation = f"Done. **{p.get('name')}** updated."
-                else:
-                    generation = f"Failed: {res.get('error')}"
-        else:
-            generation = "Tell me the product and quantity. Example: *Add 50 units of Cannula Standard*"
-            
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
-        return state
-
-    biz_context = _get_business_prompt_context(business_type)
-    system_prompt = (
-        f"Role:\n"
-        f"You are the primary AI Controller for smartshelfkart (acting for {biz_context}). Your mandate is to autonomously manage physical inventory, execute supply chain actions, and optimize the financial health of the business. You act as a bridge between warehouse operations and corporate finance.\n\n"
-        f"Core Directives:\n"
-        f"1. Zero Hallucination: Never guess stock levels, vendor lead times, or financial metrics. You must ALWAYS use your tools to fetch live data before analyzing a situation or taking action.\n"
-        f"2. Financial Grounding: Treat every physical inventory movement as a financial event. Whenever you evaluate stock levels or propose a reorder, you must automatically calculate and report the impact on Working Capital and immediate Cash Flow.\n"
-        f"3. Proactive Execution: If you detect a critical anomaly (e.g., sudden demand spike, deadstock tying up capital, or projected stockout), do not just report the problem. Formulate a solution, draft the necessary operational actions (such as generating a Purchase Order), and present the complete package for human approval.\n"
-        f"4. Data-Driven Forecasting: When predicting growth or future demand, cross-reference historical sales velocity with current market variables. Express financial predictions in clear probabilities and confidence intervals.\n\n"
-        f"Available Tools (Function Calling):\n"
-        f"- query_inventory_state: Fetch real-time stock, allocated units, and reorder thresholds.\n"
-        f"- predict_demand_velocity: Run ML forecasting on specific SKUs or categories.\n"
-        f"- draft_purchase_order: Create a PO based on supplier data and current shortages.\n"
-        f"- simulate_financial_impact: Calculate how an inventory decision impacts quarterly margins, cash flow, and growth.\n"
-        f"- detect_anomalies: Scan for shrinkage, unusual sales dips, or deadstock.\n\n"
-        f"Reasoning Protocol (ReAct Framework):\n"
-        f"For every request, you must follow this internal loop before responding to the user:\n"
-        f"1. Thought: Analyze the request. What live inventory or financial data do I need?\n"
-        f"2. Action: Execute the necessary tool(s) to gather data.\n"
-        f"3. Observation: Analyze the returned data against the business goals.\n"
-        f"4. Final Answer: Deliver a concise, mathematically sound response. Always summarize the operational action taken and its financial justification. Use tables for multi-variable comparisons.\n\n"
-        f"INVENTORY DATA CONTEXT:\n{context_text}"
-    )
-
-    messages = [SystemMessage(content=system_prompt)]
-    for msg in history:
-        r = msg.get("role")
-        c = msg.get("content", "")
-        if r == "user":
-            messages.append(HumanMessage(content=c))
-        elif r in ["assistant", "model"]:
-            messages.append(AIMessage(content=c))
-    messages.append(HumanMessage(content=question))
-
-    try:
-        response = active_llm.invoke(messages)
-    except Exception as e:
-        print(f"[Controller Node] LLM invoke failed, using fallback: {e}")
-
-        # Fallback to rule matcher on API model error
-        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
-        if fallback_res:
-            tool_name = fallback_res["tool"]
-            if tool_name == "ActionPreview":
-                generation = fallback_res["preview"]
-            else:
-                res = fallback_res["res"]
-                executed_actions.append({"tool": tool_name, "result": res})
-                if res.get("success"):
-                    p = res.get("product", {})
-                    generation = f"Done. **{p.get('name')}**: {res['old_stock']} → **{res['new_stock']} units**."
-                else:
-                    generation = f"Failed: {res.get('error')}"
-        else:
-            generation = "Action failed. Please try again with product name and quantity."
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
-        return state
-
-    if hasattr(response, "tool_calls") and response.tool_calls:
-        guardrails = InventoryGuardrails()
-        for tool_call in response.tool_calls:
-            t_name = tool_call["name"]
-            args = tool_call["args"]
-            target = args.get("barcode_or_name", "")
-            
-            target_product = db_instance.get_product(target, company_id=company_id)
-
-            if t_name == "query_inventory_state":
+                tool_result_str = str(res)
+                
+            elif t_name == "query_inventory_state":
                 if target_product:
                     res = {"success": True, "stock": target_product.get("stock"), "min_threshold": target_product.get("min_threshold"), "selling_price": target_product.get("selling_price")}
-                    generation = f"**{target_product['name']}**: {res['stock']} units in stock (Threshold: {res['min_threshold']})."
                 else:
-                    generation = f"Product {target} not found."
-                executed_actions.append({"tool": "query_inventory_state", "result": res if target_product else {"error": "not found"}})
+                    res = {"error": "not found"}
+                executed_actions.append({"tool": "query_inventory_state", "result": res})
+                tool_result_str = str(res)
 
             elif t_name == "predict_demand_velocity":
                 forecast = db_instance.get_predictive_demand_forecast(company_id=company_id)
                 f_item = next((f for f in forecast if f["barcode"] == target), None)
-                if f_item:
-                    generation = f"Forecast for **{f_item['name']}**: 30-day demand is ~{f_item['predicted_30_day_demand']} units. Stockout risk: {f_item['stockout_risk_percentage']}%."
-                else:
-                    generation = f"No forecast available for {target}."
-                executed_actions.append({"tool": "predict_demand_velocity", "result": f_item if f_item else {"error": "not found"}})
+                res = f_item if f_item else {"error": "not found"}
+                executed_actions.append({"tool": "predict_demand_velocity", "result": res})
+                tool_result_str = str(res)
 
             elif t_name == "simulate_financial_impact":
                 qty = args.get("qty", 1)
-                action_type = args.get("action_type", "reorder")
                 if target_product:
                     cost = target_product.get("cost_price", 0) * qty
                     sell = target_product.get("selling_price", 0) * qty
                     margin = sell - cost
-                    generation = f"Financial Impact of {action_type} {qty} units of **{target_product['name']}**: Capital tied up: **${cost:.2f}**. Potential Margin: **${margin:.2f}**."
+                    res = {"cost": cost, "margin": margin}
                 else:
-                    generation = f"Cannot simulate impact, product {target} not found."
-                executed_actions.append({"tool": "simulate_financial_impact", "result": {"cost": cost, "margin": margin} if target_product else {"error": "not found"}})
-
-            elif t_name == "draft_purchase_order":
-                reorder_qty = args.get("reorder_qty", 10)
-                if target_product:
-                    validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
-                    if not validation.passed:
-                        executed_actions.append({"tool": "draft_purchase_order", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
-                        generation = f"PO Blocked: {validation.reasons[0]}"
-                        continue
-                        
-                res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
-                executed_actions.append({"tool": "draft_purchase_order", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Drafted PO **{res['po_id']}**: **{res['reorder_qty']} units** of **{p['name']}** from **{res['supplier']}** — **${res['total_cost']:.2f}**. Awaiting approval."
-                else:
-                    generation = f"PO creation failed: {res.get('error')}"
+                    res = {"error": "not found"}
+                executed_actions.append({"tool": "simulate_financial_impact", "result": res})
+                tool_result_str = str(res)
 
             elif t_name == "detect_anomalies":
                 anomalies = db_instance.detect_inventory_anomalies(company_id=company_id)
-                if anomalies:
-                    generation = f"Detected {len(anomalies)} anomalies. Examples: " + ", ".join([f"{a['product']} ({a['anomaly_type']})" for a in anomalies[:3]])
-                else:
-                    generation = "No inventory anomalies detected."
-                executed_actions.append({"tool": "detect_anomalies", "result": {"anomalies": anomalies}})
+                res = {"anomalies": anomalies}
+                executed_actions.append({"tool": "detect_anomalies", "result": res})
+                tool_result_str = str(res)
+            else:
+                tool_result_str = f"Unknown tool: {t_name}"
+                
+            messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
 
-            elif t_name == "UpdateStock":
-                qty_change = args.get("qty_change", 0)
-                if target_product:
-                    new_stock = target_product.get("stock", 0) + qty_change
-                    validation = guardrails.validate_action("update_stock", {"new_stock": new_stock}, target_product)
-                    if not validation.passed:
-                        executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
-                        generation = f"Blocked: {validation.reasons[0]}"
-                        continue
-
-                res = db_instance.update_stock(target, qty_change, args.get("reason", "AI Action"), company_id=company_id)
-                executed_actions.append({"tool": "UpdateStock", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Done. **{p['name']}**: {res['old_stock']} → **{res['new_stock']} units**."
-                else:
-                    generation = f"Failed to update {target}: {res.get('error')}"
-
-            elif t_name == "CreatePurchaseOrder":
-                reorder_qty = args.get("reorder_qty", 10)
-                if target_product:
-                    validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
-                    if not validation.passed:
-                        executed_actions.append({"tool": "CreatePurchaseOrder", "result": {"success": False, "error": " Guardrail Blocked: " + " ".join(validation.reasons)}})
-                        generation = f"Blocked: {validation.reasons[0]}"
-                        continue
-                        
-                res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
-                executed_actions.append({"tool": "CreatePurchaseOrder", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"PO **{res['po_id']}** created: **{res['reorder_qty']} units** of **{p['name']}** from **{res['supplier']}** — **${res['total_cost']:.2f}**."
-                else:
-                    generation = f"PO creation failed: {res.get('error')}"
-
-            elif t_name == "TransferStock":
-                res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1), company_id=company_id)
-                executed_actions.append({"tool": "TransferStock", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Transferred **{res['qty']} units** of **{p['name']}** → **{res['to_location']}**."
-                else:
-                    generation = f"Transfer failed: {res.get('error')}"
-
-            elif t_name == "AuditInventory":
-                res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"), company_id=company_id)
-                executed_actions.append({"tool": "AuditInventory", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    disc = res['discrepancy']
-                    disc_str = f"+{disc}" if disc > 0 else f"{disc}"
-                    generation = f"Audit done. **{p['name']}**: adjusted to **{res['actual_stock']} units** (diff: **{disc_str}**)."
-                else:
-                    generation = f"Audit failed: {res.get('error')}"
-
-            elif t_name == "SetReorderAlert":
-                res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10), company_id=company_id)
-                executed_actions.append({"tool": "SetReorderAlert", "result": res})
-                if res.get("success"):
-                    p = res["product"]
-                    generation = f"Alert set. **{p['name']}** threshold: {res['old_threshold']} → **{res['new_threshold']} units**."
-                else:
-                    generation = f"Threshold update failed: {res.get('error')}"
-
-        state["executed_actions"] = executed_actions
-        state["generation"] = generation
-    else:
-        content = extract_text_content(response.content)
-        state["generation"] = content or "Ready. Tell me the product and action."
-
+    state["executed_actions"] = executed_actions
+    state["generation"] = generation
     return state
 
 def _is_valid_api_key(key: Optional[str]) -> bool:
@@ -1288,13 +1014,14 @@ def _generate_instant_table_response(question: str, metrics: Dict[str, Any], aut
 
 
 def analytics_agent_node(state: GraphState) -> GraphState:
-    """Data-driven analytics with LLM formatting. Concise tables, not essays."""
+    """Data-driven analytics with LLM formatting and tool calling. Concise tables, not essays."""
     question = state["question"]
     company_id = state.get("company_id", "default")
     business_type = state.get("business_type", "retail_store")
+    history = state.get("history") or []
     metrics = db_instance.get_analytics_summary(company_id=company_id)
     autopilot_recs = db_instance.run_autopilot_scan(company_id=company_id)
-    all_products = db_instance.get_all_products(company_id=company_id)
+    executed_actions = []
 
     # Check for instant zero-cost table response first
     instant = _generate_instant_table_response(question, metrics, autopilot_recs, company_id=company_id)
@@ -1310,43 +1037,91 @@ def analytics_agent_node(state: GraphState) -> GraphState:
         state["generation"] = instant + f"\n\n[STATS: {json.dumps(stats_payload)}]"
         return state
 
-    # Compute ML analytics
-    abc_analysis = perform_abc_analysis(all_products)
-    risk_timelines = [calculate_stockout_risk_timeline(p) for p in all_products if p.get("stock", 0) <= p.get("min_threshold", 10)]
-
-    llm_pro = get_active_llm(temperature=0.1)
-    if not llm_pro:
+    active_llm = get_active_llm(temperature=0.1, bind_tools_list=ANALYTICS_TOOLS)
+    if not active_llm:
         content = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "No analytics LLM available."
-    else:
-        biz_context = _get_business_prompt_context(business_type)
-        context_str = (
-            f"METRICS:\n"
-            f"- Products: {metrics['total_products']} | Low: {metrics['low_stock_count']} | Out: {metrics['out_of_stock_count']}\n"
-            f"- Selling Value: ${metrics['total_inventory_value']:,.2f} | Cost Value: ${metrics['total_cost_value']:,.2f}\n"
-            f"- Reorder Recommendations: {len(autopilot_recs)} items\n\n"
-            f"ABC ANALYSIS: A={len(abc_analysis['A'])}, B={len(abc_analysis['B'])}, C={len(abc_analysis['C'])}\n\n"
-            f"STOCKOUT RISKS:\n{json.dumps(risk_timelines[:10], indent=1)}\n\n"
-            f"REORDER RECOMMENDATIONS:\n{json.dumps(autopilot_recs[:10], indent=1)}\n"
-        )
+        stats_payload = {
+            "total": metrics["total_products"],
+            "low": metrics["low_stock_count"],
+            "out": metrics["out_of_stock_count"],
+            "total_value": metrics["total_inventory_value"],
+            "autopilot_recommendations_count": len(autopilot_recs)
+        }
+        state["analytics_data"] = metrics
+        state["generation"] = content + f"\n\n[STATS: {json.dumps(stats_payload)}]"
+        return state
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", f"You are a data analyst for {biz_context}.\n"
-                       f"RULES:\n"
-                       f"1. Answer the user's question using ONLY the provided data. No hallucination.\n"
-                       f"2. Use markdown tables for any list > 2 items. Keep tables clean.\n"
-                       f"3. Maximum 3 short paragraphs. Lead with the key number.\n"
-                       f"4. If asked for a recommendation, give ONE clear action with specific product names and quantities.\n"
-                       f"5. No fluff. No 'As an AI'. No generic advice. Data only."),
-            ("user", "Data:\n{context}\n\nQuestion: {question}")
-        ])
+    biz_context = _get_business_prompt_context(business_type)
+    system_prompt = (
+        f"You are a data analyst for {biz_context}.\n"
+        f"METRICS:\n"
+        f"- Products: {metrics['total_products']} | Low: {metrics['low_stock_count']} | Out: {metrics['out_of_stock_count']}\n"
+        f"- Selling Value: ${metrics['total_inventory_value']:,.2f} | Cost Value: ${metrics['total_cost_value']:,.2f}\n"
+        f"RULES:\n"
+        f"1. You have tools to query the database. USE THEM if the user asks for specific forecasts, anomalies, or product states.\n"
+        f"2. Answer the user's question using ONLY the provided data. No hallucination.\n"
+        f"3. Use markdown tables for any list > 2 items. Keep tables clean.\n"
+        f"4. Maximum 3 short paragraphs. Lead with the key number.\n"
+        f"5. No fluff. No 'As an AI'. No generic advice. Data only."
+    )
 
-        messages = prompt.format_messages(context=context_str, question=question)
+    messages = [SystemMessage(content=system_prompt)]
+    for msg in history:
+        r = msg.get("role")
+        c = msg.get("content", "")
+        if r == "user":
+            messages.append(HumanMessage(content=c))
+        elif r in ["assistant", "model"]:
+            messages.append(AIMessage(content=c))
+    messages.append(HumanMessage(content=question))
+
+    from langchain_core.messages import ToolMessage
+    generation = "Analytics failed."
+    for _ in range(5):
         try:
-            response = llm_pro.invoke(messages)
-            content = extract_text_content(response.content)
+            response = active_llm.invoke(messages)
         except Exception as e:
             print(f"[Analytics Node] LLM invoke failed: {e}")
-            content = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "Analytics unavailable."
+            generation = _generate_instant_table_response("summary", metrics, autopilot_recs, company_id=company_id) or "Analytics unavailable."
+            break
+            
+        messages.append(response)
+        
+        if not hasattr(response, "tool_calls") or not response.tool_calls:
+            generation = extract_text_content(response.content)
+            break
+            
+        for tool_call in response.tool_calls:
+            t_name = tool_call["name"]
+            args = tool_call["args"]
+            target = args.get("barcode_or_name", "")
+            target_product = db_instance.get_product(target, company_id=company_id)
+            
+            tool_result_str = ""
+            if t_name == "query_inventory_state":
+                if target_product:
+                    res = {"success": True, "stock": target_product.get("stock"), "min_threshold": target_product.get("min_threshold"), "selling_price": target_product.get("selling_price")}
+                else:
+                    res = {"error": "not found"}
+                executed_actions.append({"tool": "query_inventory_state", "result": res})
+                tool_result_str = str(res)
+
+            elif t_name == "predict_demand_velocity":
+                forecast = db_instance.get_predictive_demand_forecast(company_id=company_id)
+                f_item = next((f for f in forecast if f["barcode"] == target), None)
+                res = f_item if f_item else {"error": "not found"}
+                executed_actions.append({"tool": "predict_demand_velocity", "result": res})
+                tool_result_str = str(res)
+
+            elif t_name == "detect_anomalies":
+                anomalies = db_instance.detect_inventory_anomalies(company_id=company_id)
+                res = {"anomalies": anomalies}
+                executed_actions.append({"tool": "detect_anomalies", "result": res})
+                tool_result_str = str(res)
+            else:
+                tool_result_str = f"Unknown tool: {t_name}"
+                
+            messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
 
     stats_payload = {
         "total": metrics["total_products"],
@@ -1355,10 +1130,11 @@ def analytics_agent_node(state: GraphState) -> GraphState:
         "total_value": metrics["total_inventory_value"],
         "autopilot_recommendations_count": len(autopilot_recs)
     }
-    content += f"\n\n[STATS: {json.dumps(stats_payload)}]"
+    generation += f"\n\n[STATS: {json.dumps(stats_payload)}]"
 
     state["analytics_data"] = metrics
-    state["generation"] = content
+    state["generation"] = generation
+    state["executed_actions"] = executed_actions
     return state
 
 def knowledge_agent_node(state: GraphState) -> GraphState:
@@ -1445,4 +1221,4 @@ def knowledge_agent_node(state: GraphState) -> GraphState:
 
 # Compatibility aliases
 retrieve = retrieve_node
-generate = action_agent_node
+generate = execution_agent_node

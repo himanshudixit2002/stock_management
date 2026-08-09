@@ -132,14 +132,24 @@ class AutonomousSwarm:
 
         return sweep_log
 
-    def approve_pending_po(self, po_id: str) -> Dict[str, Any]:
+    def approve_pending_po(self, po_id: str, company_id: str = "default") -> Dict[str, Any]:
         """
         1-Click Human Approval for queued high-value Purchase Orders.
         """
         if po_id not in self.pending_pos:
             return {"status": "ERROR", "message": f"PO ID '{po_id}' not found in pending queue."}
         
-        po_data = self.pending_pos.pop(po_id)
+        po_data = self.pending_pos[po_id]
+        
+        # Pre-validation check: Does the product still exist?
+        barcode = po_data.get("barcode")
+        if barcode:
+            product = self.db.get_product(barcode, company_id=company_id)
+            if not product:
+                return {"status": "ERROR", "message": f"Cannot approve PO '{po_id}': Product '{barcode}' no longer exists in inventory."}
+                
+        self.pending_pos.pop(po_id)
+        
         self.db.add_action_log(
             action_type="APPROVED_REORDER_PO",
             details=po_data,

@@ -82,13 +82,13 @@ class RagApiService {
             if (firstAction is Map) {
               final tool = firstAction['tool'];
               final res = firstAction['result'];
-              if (res is Map && res['success'] == true) {
+              if (res is Map && res['success'] == true && ['CreatePurchaseOrder', 'UpdateStock', 'draft_purchase_order'].contains(tool)) {
                 final prod = res['product'] ?? {};
                 final oldStock = res['old_stock'];
                 final newStock = res['new_stock'];
                 final calculatedQty = (newStock is num && oldStock is num) ? (newStock - oldStock).toInt() : null;
                 actionPayload = {
-                  'type': tool == 'CreatePurchaseOrder' ? 'create_po' : 'update_stock',
+                  'type': (tool == 'CreatePurchaseOrder' || tool == 'draft_purchase_order') ? 'create_po' : 'update_stock',
                   'barcode': prod['barcode'] ?? res['barcode'] ?? '',
                   'product_name': prod['name'] ?? res['product_name'] ?? '',
                   'qty_change': res['qty_change'] ?? calculatedQty ?? res['reorder_qty'] ?? 0,
@@ -183,6 +183,15 @@ class RagApiService {
             if (jsonStr.isNotEmpty) {
               try {
                 final data = jsonDecode(jsonStr);
+                if (data['type'] == 'delta') {
+                    // Quick strip of [STATS] or [ACTION] tags that might bleed through
+                    String content = data['content'] ?? '';
+                    content = content.replaceAll(RegExp(r'\[STATS:.*\]', dotAll: true), '');
+                    content = content.replaceAll(RegExp(r'\[ACTION:.*\]', dotAll: true), '');
+                    content = content.replaceAll('[STATS:', '');
+                    content = content.replaceAll('[ACTION:', '');
+                    data['content'] = content;
+                }
                 yield data as Map<String, dynamic>;
               } catch (e) {
                 debugPrint("Stream JSON decode error: $e");

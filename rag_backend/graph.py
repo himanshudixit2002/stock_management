@@ -3,8 +3,7 @@ from state import GraphState
 from nodes import (
     router_node,
     retrieve_node,
-    action_agent_node,
-    controller_agent_node,
+    execution_agent_node,
     analytics_agent_node,
     knowledge_agent_node
 )
@@ -12,10 +11,8 @@ from nodes import (
 def route_intent(state: GraphState) -> str:
     """Conditional edge router based on evaluated intent."""
     intent = state.get("intent", "KNOWLEDGE")
-    if intent == "ACTION":
-        return "action_agent"
-    elif intent == "CONTROLLER":
-        return "controller_agent"
+    if intent == "EXECUTION":
+        return "execution_agent"
     elif intent == "ANALYTICS":
         return "analytics_agent"
     else:
@@ -26,8 +23,7 @@ workflow = StateGraph(GraphState)
 # Add nodes
 workflow.add_node("router", router_node)
 workflow.add_node("retrieve", retrieve_node)
-workflow.add_node("action_agent", action_agent_node)
-workflow.add_node("controller_agent", controller_agent_node)
+workflow.add_node("execution_agent", execution_agent_node)
 workflow.add_node("analytics_agent", analytics_agent_node)
 workflow.add_node("knowledge_agent", knowledge_agent_node)
 
@@ -40,15 +36,13 @@ workflow.add_conditional_edges(
     "retrieve",
     route_intent,
     {
-        "action_agent": "action_agent",
-        "controller_agent": "controller_agent",
+        "execution_agent": "execution_agent",
         "analytics_agent": "analytics_agent",
         "knowledge_agent": "knowledge_agent"
     }
 )
 
-workflow.add_edge("action_agent", END)
-workflow.add_edge("controller_agent", END)
+workflow.add_edge("execution_agent", END)
 workflow.add_edge("analytics_agent", END)
 workflow.add_edge("knowledge_agent", END)
 
