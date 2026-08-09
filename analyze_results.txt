@@ -1,0 +1,125 @@
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.76 available)
+  archive 3.6.1 (4.0.9 available)
+  async 2.13.0 (2.13.1 available)
+  characters 1.4.0 (1.4.1 available)
+  cli_util 0.4.2 (0.5.2 available)
+  cloud_firestore 5.6.12 (6.8.0 available)
+  cloud_firestore_platform_interface 6.6.12 (8.0.6 available)
+  cloud_firestore_web 4.4.12 (5.7.2 available)
+  code_assets 1.0.0 (1.2.1 available)
+  connectivity_plus 7.1.1 (7.3.1 available)
+  cross_file 0.3.5+2 (0.3.5+4 available)
+  csv 6.0.0 (8.0.0 available)
+  cupertino_icons 1.0.8 (1.0.9 available)
+  dbus 0.7.12 (0.7.14 available)
+  equatable 2.0.8 (2.1.0 available)
+  file_picker 8.3.7 (11.0.3 available)
+  firebase_auth 5.7.0 (6.5.7 available)
+  firebase_auth_platform_interface 7.7.3 (9.0.6 available)
+  firebase_auth_web 5.15.3 (6.2.6 available)
+  firebase_core 3.15.2 (4.13.0 available)
+  firebase_core_platform_interface 6.0.2 (8.1.0 available)
+  firebase_core_web 2.24.1 (3.10.0 available)
+  fl_chart 0.70.2 (1.2.0 available)
+  flutter_markdown 0.7.7+1 (discontinued replaced by flutter_markdown_plus)
+  flutter_plugin_android_lifecycle 2.0.33 (2.0.35 available)
+  hooks 1.0.1 (2.1.0 available)
+  image 4.3.0 (4.9.1 available)
+  intl 0.20.2 (0.20.3 available)
+  json_annotation 4.11.0 (4.12.0 available)
+  lottie 3.3.0 (3.5.1 available)
+  matcher 0.12.17 (0.12.20 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.19.0 available)
+  mobile_scanner 7.2.0 (7.4.0 available)
+  native_toolchain_c 0.17.4 (0.19.3 available)
+  objective_c 9.3.0 (9.5.0 available)
+  package_info_plus 8.3.1 (10.2.1 available)
+  package_info_plus_platform_interface 3.2.1 (4.1.0 available)
+  path_provider 2.1.5 (2.1.6 available)
+  path_provider_android 2.2.22 (2.3.1 available)
+  path_provider_linux 2.2.1 (2.2.2 available)
+  path_provider_platform_interface 2.1.2 (2.1.3 available)
+  pdf 3.11.3 (3.13.0 available)
+  printing 5.14.2 (5.15.0 available)
+  qr 3.0.2 (4.0.0 available)
+  share_plus 10.1.4 (13.3.0 available)
+  share_plus_platform_interface 5.0.2 (7.2.0 available)
+  shared_preferences 2.5.4 (2.5.5 available)
+  shared_preferences_android 2.4.21 (2.4.27 available)
+  shared_preferences_platform_interface 2.4.1 (2.4.2 available)
+  test_api 0.7.7 (0.7.13 available)
+  url_launcher_android 6.3.28 (6.3.32 available)
+  url_launcher_web 2.4.2 (2.4.3 available)
+  uuid 4.5.3 (4.6.0 available)
+  vector_math 2.2.0 (2.4.2 available)
+  vm_service 15.0.2 (15.2.0 available)
+  win32 5.15.0 (6.4.0 available)
+  xml 6.6.1 (7.0.1 available)
+Got dependencies!
+1 package is discontinued.
+57 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing stock_management...                                   
+
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/app.dart:729:39 • use_build_context_synchronously
+   info • Missing type annotation • lib/config/router.dart:113:30 • strict_top_level_inference
+   info • Unnecessary use of multiple underscores • lib/screens/ai/rag_chat_screen.dart:588:33 • unnecessary_underscores
+   info • Don't use 'BuildContext's across async gaps • lib/screens/ai/rag_chat_screen.dart:858:56 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/ai/rag_chat_screen.dart:876:32 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/billing/create_invoice_screen.dart:335:23 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/billing/invoice_detail_screen.dart:924:29 • use_build_context_synchronously
+   info • Unnecessary use of multiple underscores • lib/screens/billing/invoice_list_screen.dart:420:35 • unnecessary_underscores
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:76:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:80:25 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:113:37 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:117:19 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:183:37 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:187:19 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:205:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:211:7 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:281:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:285:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:317:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:321:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:352:19 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/company/company_switcher_screen.dart:358:19 • use_build_context_synchronously
+   info • Unnecessary use of multiple underscores • lib/screens/customers/customer_list_screen.dart:460:57 • unnecessary_underscores
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/inventory/stock_take_count_screen.dart:118:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/inventory/stock_take_count_screen.dart:120:25 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/inventory/stock_take_count_screen.dart:155:18 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/inventory/stock_take_count_screen.dart:158:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/inventory/stock_take_count_screen.dart:168:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/inventory/stock_take_count_screen.dart:173:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/inventory/stock_take_count_screen.dart:174:9 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/orders/create_purchase_order_screen.dart:325:33 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/orders/create_purchase_order_screen.dart:331:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/orders/create_purchase_order_screen.dart:342:41 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/orders/create_sales_order_screen.dart:275:33 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/orders/create_sales_order_screen.dart:281:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/orders/create_sales_order_screen.dart:292:41 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/products/add_edit_product_screen.dart:348:29 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/products/add_edit_product_screen.dart:364:31 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/products/add_edit_product_screen.dart:725:49 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/products/add_edit_product_screen.dart:874:41 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/returns/create_return_screen.dart:541:57 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/returns/create_return_screen.dart:547:45 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/returns/create_return_screen.dart:558:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/returns/create_return_screen.dart:605:57 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/returns/create_return_screen.dart:611:45 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/returns/create_return_screen.dart:622:43 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/settings/settings_screen.dart:827:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/settings/settings_screen.dart:852:27 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps • lib/screens/settings/settings_screen.dart:877:27 • use_build_context_synchronously
+  error • All final variables must be initialized, but 'initiallyExpanded' isn't • lib/screens/settings/settings_screen.dart:2533:9 • final_not_initialized_constructor
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/stock/stock_in_screen.dart:169:26 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/vendors/vendor_detail_screen.dart:1065:37 • use_build_context_synchronously
+   info • Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check • lib/screens/vendors/vendor_detail_screen.dart:1070:37 • use_build_context_synchronously
+warning • The name kIsWeb is shown, but isn't used • lib/services/ai_agent_service.dart:2:47 • unused_shown_name
+warning • The name kDebugMode is shown, but isn't used • lib/services/ai_agent_service.dart:2:55 • unused_shown_name
+warning • The name kIsWeb is shown, but isn't used • lib/services/rag_api_service.dart:2:47 • unused_shown_name
+warning • The name kDebugMode is shown, but isn't used • lib/services/rag_api_service.dart:2:55 • unused_shown_name
+   info • Don't use 'BuildContext's across async gaps • lib/widgets/ai/autonomous_dashboard_widget.dart:40:56 • use_build_context_synchronously
+
