@@ -524,7 +524,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                           interval: 15,
                                           getTitlesWidget: (v, meta) {
                                             final day = v.toInt();
-                                            if (day == 0)
+                                            if (day == 0) {
                                               return Text(
                                                 '30d ago',
                                                 style: TextStyle(
@@ -534,7 +534,8 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                                   ),
                                                 ),
                                               );
-                                            if (day == 30)
+                                            }
+                                            if (day == 30) {
                                               return Text(
                                                 'Today',
                                                 style: TextStyle(
@@ -544,7 +545,8 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                                   ),
                                                 ),
                                               );
-                                            if (day == 60)
+                                            }
+                                            if (day == 60) {
                                               return Text(
                                                 '+30d',
                                                 style: TextStyle(
@@ -554,6 +556,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                                   ),
                                                 ),
                                               );
+                                            }
                                             return const SizedBox.shrink();
                                           },
                                         ),

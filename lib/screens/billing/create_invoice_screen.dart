@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -793,7 +794,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<int>(
-            value: termOptions.contains(_paymentTermDays)
+            initialValue: termOptions.contains(_paymentTermDays)
                 ? _paymentTermDays
                 : null,
             decoration: InputDecoration(

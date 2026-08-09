@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -937,7 +938,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         bottom: 16,
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        value: _selectedBaseUnit,
+                                        initialValue: _selectedBaseUnit,
                                         decoration: const InputDecoration(
                                           labelText: 'Base Unit',
                                           prefixIcon: Icon(
@@ -965,7 +966,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         bottom: 16,
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        value: _selectedPackUnit,
+                                        initialValue: _selectedPackUnit,
                                         decoration: const InputDecoration(
                                           labelText: 'Pack Unit',
                                           prefixIcon: Icon(

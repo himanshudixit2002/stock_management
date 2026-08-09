@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
@@ -317,7 +316,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: DropdownButtonFormField<int>(
-                              value: _paymentTermDays,
+                              initialValue: _paymentTermDays,
                               decoration: InputDecoration(
                                 labelText: 'Default Terms',
                                 isDense: true,

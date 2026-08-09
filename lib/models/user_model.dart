@@ -157,10 +157,10 @@ class UserModel {
     if (map['companyMemberships'] != null &&
         map['companyMemberships'] is List) {
       memberships = (map['companyMemberships'] as List)
-          .where((e) => e is Map)
+          .whereType<Map>()
           .map(
             (e) =>
-                CompanyMembership.fromMap(Map<String, dynamic>.from(e as Map)),
+                CompanyMembership.fromMap(Map<String, dynamic>.from(e)),
           )
           .toList();
     }

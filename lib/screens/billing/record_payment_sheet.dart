@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -155,8 +154,9 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                 validator: (v) {
                   final amt = double.tryParse(v ?? '');
                   if (amt == null || amt <= 0) return 'Enter a valid amount';
-                  if (amt > widget.amountDue + 0.01)
+                  if (amt > widget.amountDue + 0.01) {
                     return 'Cannot exceed amount due';
+                  }
                   return null;
                 },
               ),
@@ -234,8 +234,9 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now(),
                       );
-                      if (picked != null && mounted)
+                      if (picked != null && mounted) {
                         setState(() => _date = picked);
+                      }
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(

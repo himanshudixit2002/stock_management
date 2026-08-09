@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../ai/rag_chat_screen.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/theme.dart';
@@ -81,15 +80,19 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
   IconData _actionIcon(String action) {
     final a = action.toLowerCase();
-    if (a.contains('create') || a.contains('add'))
+    if (a.contains('create') || a.contains('add')) {
       return Icons.add_circle_rounded;
+    }
     if (a.contains('update') || a.contains('edit')) return Icons.edit_rounded;
-    if (a.contains('delete') || a.contains('remove'))
+    if (a.contains('delete') || a.contains('remove')) {
       return Icons.delete_rounded;
-    if (a.contains('stock_in') || a.contains('receive'))
+    }
+    if (a.contains('stock_in') || a.contains('receive')) {
       return Icons.archive_rounded;
-    if (a.contains('stock_out') || a.contains('dispatch'))
+    }
+    if (a.contains('stock_out') || a.contains('dispatch')) {
       return Icons.unarchive_rounded;
+    }
     if (a.contains('transfer')) return Icons.swap_horiz_rounded;
     if (a.contains('damage')) return Icons.report_problem_rounded;
     return Icons.history_rounded;
@@ -98,8 +101,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   Color _actionColor(String action) {
     final a = action.toLowerCase();
     if (a.contains('create') || a.contains('add')) return AppTheme.successColor;
-    if (a.contains('delete') || a.contains('remove'))
+    if (a.contains('delete') || a.contains('remove')) {
       return AppTheme.dangerColor;
+    }
     if (a.contains('damage')) return AppTheme.dangerColor;
     if (a.contains('update') || a.contains('edit')) return AppTheme.infoColor;
     if (a.contains('transfer')) return AppTheme.indigoColor;

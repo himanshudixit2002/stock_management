@@ -77,10 +77,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           return false;
         }
       }
-      if (_statusFilter == _StatusFilter.activeOnly && !c.isActive)
+      if (_statusFilter == _StatusFilter.activeOnly && !c.isActive) {
         return false;
-      if (_statusFilter == _StatusFilter.inactiveOnly && c.isActive)
+      }
+      if (_statusFilter == _StatusFilter.inactiveOnly && c.isActive) {
         return false;
+      }
       if (_hasOrdersOnly && c.totalOrders <= 0) return false;
       return true;
     }).toList();

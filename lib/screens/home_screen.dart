@@ -630,7 +630,7 @@ class _ShellTab {
 class _RailQuickActionsButton extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _RailQuickActionsButton({super.key, required this.onTap});
+  const _RailQuickActionsButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -691,7 +691,6 @@ class _QuickActionTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _QuickActionTile({
-    super.key,
     required this.feature,
     required this.color,
     required this.onTap,

@@ -498,8 +498,9 @@ class StockProvider extends ChangeNotifier {
 
     int stockIn = 0, stockOut = 0, damage = 0, transfer = 0, count = 0;
     for (final t in _recentTransactions) {
-      if (t.date.isBefore(prevStartDay) || !t.date.isBefore(prevEndExcl))
+      if (t.date.isBefore(prevStartDay) || !t.date.isBefore(prevEndExcl)) {
         continue;
+      }
       if (_filterUserId.isNotEmpty && t.userId != _filterUserId) continue;
       if (_filterVendorId.isNotEmpty && t.vendorId != _filterVendorId) continue;
       if (_filterProductId.isNotEmpty) {

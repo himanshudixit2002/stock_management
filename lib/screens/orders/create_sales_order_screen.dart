@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -473,8 +474,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                           ],
                                           onChanged: (_) => setState(() {}),
                                           validator: (v) {
-                                            if (item.productId == null)
+                                            if (item.productId == null) {
                                               return null;
+                                            }
                                             final packs =
                                                 int.tryParse(v ?? '') ?? 0;
                                             final pieces = int.tryParse(
@@ -487,8 +489,9 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                               unitsPerPack:
                                                   item.unitsPerPack,
                                             );
-                                            if (baseQty <= 0)
+                                            if (baseQty <= 0) {
                                               return 'Required';
+                                            }
                                             if (baseQty > item.availableStock) {
                                               return 'Max ${item.availableStock}';
                                             }

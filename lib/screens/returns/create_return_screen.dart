@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -818,8 +819,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                                 .digitsOnly,
                                           ],
                                           validator: (v) {
-                                            if (item.productId == null)
+                                            if (item.productId == null) {
                                               return null;
+                                            }
                                             final baseQty = toBaseQuantity(
                                               packs:
                                                   int.tryParse(v ?? '') ?? 0,
@@ -830,8 +832,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                               unitsPerPack:
                                                   item.unitsPerPack,
                                             );
-                                            if (baseQty <= 0)
+                                            if (baseQty <= 0) {
                                               return 'Required';
+                                            }
                                             return null;
                                           },
                                         ),

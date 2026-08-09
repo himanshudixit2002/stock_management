@@ -24,12 +24,15 @@ class ValuationTrendsScreen extends StatelessWidget {
   }
 
   String _fmtCompact(double v) {
-    if (v >= 1e7)
+    if (v >= 1e7) {
       return '${AppTheme.currencySymbol}${(v / 1e7).toStringAsFixed(1)}Cr';
-    if (v >= 1e5)
+    }
+    if (v >= 1e5) {
       return '${AppTheme.currencySymbol}${(v / 1e5).toStringAsFixed(1)}L';
-    if (v >= 1e3)
+    }
+    if (v >= 1e3) {
       return '${AppTheme.currencySymbol}${(v / 1e3).toStringAsFixed(1)}K';
+    }
     return '${AppTheme.currencySymbol}${v.toInt()}';
   }
 

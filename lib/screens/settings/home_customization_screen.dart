@@ -291,8 +291,9 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
                 },
                 itemBuilder: (context, index) {
                   final action = HomeActionsRegistry.getById(_selected[index]);
-                  if (action == null)
+                  if (action == null) {
                     return const SizedBox.shrink(key: ValueKey('empty'));
+                  }
                   return _SelectedTile(
                     key: ValueKey(action.id),
                     action: action,

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
 import 'database_service.dart';
@@ -169,8 +168,8 @@ class RagApiService {
       _getHeaders().forEach((k, v) => request.headers[k] = v);
       request.body = jsonEncode({
         'question': question,
-        if (context != null) 'context': context,
-        if (history != null) 'history': history,
+        'context': ?context,
+        'history': ?history,
       });
 
       final client = http.Client();

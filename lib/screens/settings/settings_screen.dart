@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2534,7 +2535,7 @@ class _SettingsSectionBlock extends StatefulWidget {
     required this.title,
     required this.accentColor,
     required this.children,
-    this.initiallyExpanded = true,
+    this.initiallyExpanded = false,
   });
 
   @override

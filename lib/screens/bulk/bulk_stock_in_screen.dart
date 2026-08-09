@@ -290,11 +290,13 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                               .digitsOnly,
                                         ],
                                         validator: (v) {
-                                          if (v == null || v.isEmpty)
+                                          if (v == null || v.isEmpty) {
                                             return 'Required';
+                                          }
                                           final qty = int.tryParse(v);
-                                          if (qty == null || qty <= 0)
+                                          if (qty == null || qty <= 0) {
                                             return 'Invalid';
+                                          }
                                           return null;
                                         },
                                       ),
@@ -302,7 +304,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: DropdownButtonFormField<String>(
-                                        value: row.location,
+                                        initialValue: row.location,
                                         decoration: const InputDecoration(
                                           labelText: 'Location *',
                                           isDense: true,
@@ -318,8 +320,9 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                         onChanged: (v) =>
                                             setState(() => row.location = v),
                                         validator: (v) {
-                                          if (v == null || v.isEmpty)
+                                          if (v == null || v.isEmpty) {
                                             return 'Required';
+                                          }
                                           return null;
                                         },
                                       ),

@@ -510,7 +510,7 @@ class SalesOrderDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (primaryAction != null) primaryAction,
+        ?primaryAction,
         if (primaryAction != null && showCancel) const SizedBox(height: 12),
         if (showCancel)
           OutlinedButton.icon(

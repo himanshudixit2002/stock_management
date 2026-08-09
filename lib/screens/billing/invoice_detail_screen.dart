@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -236,7 +237,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                 ),
                 child: ShimmerButton(
                   label:
-                      'Record Payment (${sym}${_numFormat.format(invoice.amountDue)} due)',
+                      'Record Payment ($sym${_numFormat.format(invoice.amountDue)} due)',
                   icon: Icons.payment_rounded,
                   onPressed: () => _showPaymentSheet(context, invoice),
                 ),

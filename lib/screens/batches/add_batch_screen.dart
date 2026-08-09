@@ -277,11 +277,13 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                           ),
                           keyboardType: TextInputType.number,
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty)
+                            if (v == null || v.trim().isEmpty) {
                               return 'Required';
+                            }
                             final n = int.tryParse(v.trim());
-                            if (n == null || n <= 0)
+                            if (n == null || n <= 0) {
                               return 'Enter a valid quantity';
+                            }
                             return null;
                           },
                         ),
