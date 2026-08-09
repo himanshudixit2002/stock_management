@@ -178,14 +178,44 @@ class _RagChatScreenState extends State<RagChatScreen> {
   double _soundLevel = 0.0;
 
   void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize();
+    _speechEnabled = await _speechToText.initialize(
+      onStatus: (status) {
+        if (mounted) {
+          setState(() {
+            _isListening = (status == 'listening');
+          });
+        }
+      },
+      onError: (errorNotification) {
+        if (mounted) {
+          setState(() {
+            _isListening = false;
+          });
+        }
+      },
+    );
     if (mounted) setState(() {});
   }
 
   /// Shared speech initialization — eliminates duplicated init logic.
   Future<bool> _ensureSpeechReady() async {
     if (!_speechEnabled) {
-      _speechEnabled = await _speechToText.initialize();
+      _speechEnabled = await _speechToText.initialize(
+        onStatus: (status) {
+          if (mounted) {
+            setState(() {
+              _isListening = (status == 'listening');
+            });
+          }
+        },
+        onError: (errorNotification) {
+          if (mounted) {
+            setState(() {
+              _isListening = false;
+            });
+          }
+        },
+      );
       if (!_speechEnabled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Microphone not available.')),

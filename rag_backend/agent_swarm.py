@@ -5,6 +5,7 @@ Supports tenant isolation per company_id.
 """
 
 import time
+import collections
 from typing import Dict, Any, List, Optional
 try:
     from .inventory_db import InventoryDB
@@ -25,7 +26,7 @@ class AutonomousSwarm:
         self.guardrails = InventoryGuardrails()
         self.cache = SemanticCacheManager()
         self.code_engine = InventoryCodeEngine(self.db.get_all_products("default"))
-        self.episodic_memory: List[Dict[str, Any]] = []
+        self.episodic_memory: collections.deque = collections.deque(maxlen=200)
         self.pending_pos: Dict[str, Dict[str, Any]] = {}
 
     def refresh_engine(self, company_id: str = "default"):

@@ -191,12 +191,14 @@ class InventoryDB:
 
     def _save(self):
         try:
-            with open(self.db_path, "w", encoding="utf-8") as f:
+            temp_path = self.db_path + ".tmp"
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump({
                     "company_data": self.company_data,
                     "products": self.products,
                     "action_ledger": self.action_ledger
                 }, f, indent=2)
+            os.replace(temp_path, self.db_path)
         except Exception as e:
             print(f"Error saving inventory DB: {e}")
 
@@ -295,8 +297,9 @@ class InventoryDB:
             company["products"] = new_dict
             self._save()
 
-    def get_all_products(self, company_id: str = "default") -> List[Dict[str, Any]]:
-        return list(self._get_company(company_id)["products"].values())
+    def get_all_products(self, company_id: str = "default", limit: int = 10000, offset: int = 0) -> List[Dict[str, Any]]:
+        prods = list(self._get_company(company_id)["products"].values())
+        return prods[offset:offset + limit]
 
     def get_product(self, barcode: str, company_id: str = "default") -> Optional[Dict[str, Any]]:
         return self._get_company(company_id)["products"].get(barcode)

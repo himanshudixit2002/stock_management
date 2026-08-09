@@ -82,8 +82,9 @@ async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Hea
         "business_type": request.business_type or "retail_store"
     }
 
-    # 2. Invoke multi-agent pipeline
-    final_state = rag_pipeline.invoke(inputs)
+    # 2. Invoke multi-agent pipeline asynchronously to avoid blocking FastAPI event loop
+    loop = asyncio.get_event_loop()
+    final_state = await loop.run_in_executor(None, rag_pipeline.invoke, inputs)
     generation = final_state.get("generation", "No response generated.")
     intent = final_state.get("intent", "KNOWLEDGE")
     executed_actions = final_state.get("executed_actions", [])
