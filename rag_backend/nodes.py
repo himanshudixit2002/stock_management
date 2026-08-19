@@ -218,7 +218,7 @@ def get_retriever(company_id: str = "default"):
 # ---------------------------------------------------------
 
 def router_node(state: GraphState) -> GraphState:
-    """Router that relies primarily on LLM for accurate intent classification, with regex fallback."""
+    """Fast, low-cost intent router prioritizing zero-token regex matching before any LLM fallback."""
     question = state["question"]
     q = question.lower().strip()
     history = state.get("history") or []
@@ -232,31 +232,7 @@ def router_node(state: GraphState) -> GraphState:
                 state["intent"] = "EXECUTION"
                 return state
 
-    # ── Tier 1: LLM-powered classification ──
-    try:
-        classifier_llm = get_active_llm(temperature=0)
-        if classifier_llm:
-            classify_prompt = (
-                "Classify this inventory management query into exactly one category.\n"
-                "EXECUTION = user wants to modify inventory (add/deduct stock, create PO, transfer, set threshold) or run controller simulations (financial impact, anomalies).\n"
-                "ANALYTICS = user wants reports, analysis, stock status, recommendations, forecasts, what to order\n"
-                "KNOWLEDGE = general questions, greetings, how-to, advice, what-if scenarios\n\n"
-                f"Query: \"{question}\"\n\n"
-                "Respond with ONLY one word: EXECUTION, ANALYTICS, or KNOWLEDGE"
-            )
-            response = classifier_llm.invoke([HumanMessage(content=classify_prompt)])
-            result = extract_text_content(response.content).strip().upper()
-            if "EXECUTION" in result or "ACTION" in result or "CONTROLLER" in result:
-                state["intent"] = "EXECUTION"
-            elif "ANALYTICS" in result:
-                state["intent"] = "ANALYTICS"
-            else:
-                state["intent"] = "KNOWLEDGE"
-            return state
-    except Exception as e:
-        print(f"[Router] LLM classification failed, defaulting to regex fallback: {e}")
-
-    # ── Tier 2: Regex Fallback ──
+    # ── Tier 1: Instant Zero-Cost Regex & Keyword Matching ──
     confirm_words = ["confirm", "yes", "proceed", "do it", "apply", "ok", "sure", "approve"]
     if any(q == w or q.startswith(w + " ") or q.endswith(" " + w) for w in confirm_words) or q in confirm_words:
         state["intent"] = "EXECUTION"
@@ -269,7 +245,6 @@ def router_node(state: GraphState) -> GraphState:
         r"\b(reorder|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
         r"\b(finance|financial|margin|cash flow|working capital|po|purchase order|anomaly|anomalies|shrinkage|deadstock|controller|operations)\b",
     ]
-    import re
     if any(re.search(p, q) for p in strong_action):
         state["intent"] = "EXECUTION"
         return state
@@ -281,7 +256,8 @@ def router_node(state: GraphState) -> GraphState:
     if any(re.search(p, q) for p in strong_analytics):
         state["intent"] = "ANALYTICS"
         return state
-        
+
+    # ── Tier 2: Default to KNOWLEDGE without extra LLM classification call ──
     state["intent"] = "KNOWLEDGE"
     return state
 
