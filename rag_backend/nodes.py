@@ -232,32 +232,36 @@ def router_node(state: GraphState) -> GraphState:
                 state["intent"] = "EXECUTION"
                 return state
 
-    # ── Tier 1: Instant Zero-Cost Regex & Keyword Matching ──
+    # ── Tier 1: Confirmation of Pending Action ──
     confirm_words = ["confirm", "yes", "proceed", "do it", "apply", "ok", "sure", "approve"]
     if any(q == w or q.startswith(w + " ") or q.endswith(" " + w) for w in confirm_words) or q in confirm_words:
         state["intent"] = "EXECUTION"
         return state
         
-    strong_action = [
-        r"\b(add|deduct|remove|reduce|increase|restock)\b.*\b\d+\b",
-        r"\b\d+\b.*\b(add|deduct|remove|reduce|increase|restock)\b",
-        r"\b(update stock|create po|purchase order|transfer stock|set threshold|set alert)\b",
-        r"\b(reorder|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
-        r"\b(finance|financial|margin|cash flow|working capital|po|purchase order|anomaly|anomalies|shrinkage|deadstock|controller|operations)\b",
-    ]
-    if any(re.search(p, q) for p in strong_action):
-        state["intent"] = "EXECUTION"
-        return state
-        
+    # ── Tier 2: Strong Analytics Patterns ──
     strong_analytics = [
-        r"\b(analyze|forecast|predict|trend|report|summary|stats|metrics|valuation)\b",
-        r"\b(low stock|out of stock|stockout|health audit|inventory audit|audit report)\b",
+        r"\b(analyze|forecast|predict|trend|report|summary|stats|metrics|valuation|worth)\b",
+        r"\b(low stock|out of stock|stockout|health audit|inventory audit|audit report|reorder list)\b",
+        r"\b(top\s+\d+|highest\s+stock|best\s+seller|deadstock|slow\s+moving)\b",
+        r"\b(show\s+(all|inventory|products|catalog|items))\b",
     ]
     if any(re.search(p, q) for p in strong_analytics):
         state["intent"] = "ANALYTICS"
         return state
 
-    # ── Tier 2: Default to KNOWLEDGE without extra LLM classification call ──
+    # ── Tier 3: Strong Action / Mutation Patterns ──
+    strong_action = [
+        r"\b(add|deduct|remove|reduce|increase|restock)\b.*\b\d+\b",
+        r"\b\d+\b.*\b(add|deduct|remove|reduce|increase|restock)\b",
+        r"\b(update stock|create po|purchase order|transfer stock|set threshold|set alert)\b",
+        r"\b(reorder|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
+        r"\b(simulate\s+(finance|financial|margin|cash flow))\b",
+    ]
+    if any(re.search(p, q) for p in strong_action):
+        state["intent"] = "EXECUTION"
+        return state
+
+    # ── Tier 4: Default to KNOWLEDGE without extra LLM classification call ──
     state["intent"] = "KNOWLEDGE"
     return state
 
@@ -554,105 +558,122 @@ def execution_agent_node(state: GraphState) -> GraphState:
 
     from langchain_core.messages import ToolMessage
     generation = "Action failed."
-    for _ in range(5):
-        try:
-            response = active_llm.invoke(messages)
-        except Exception as e:
-            print(f"[Execution Node] LLM invoke failed: {e}")
-            break
+    if active_llm:
+        for _ in range(5):
+            try:
+                response = active_llm.invoke(messages)
+            except Exception as e:
+                print(f"[Execution Node] LLM invoke failed: {e}")
+                generation = "Action failed."
+                break
+                
+            messages.append(response)
             
-        messages.append(response)
-        
-        if not hasattr(response, "tool_calls") or not response.tool_calls:
-            generation = extract_text_content(response.content)
-            break
-            
-        guardrails = InventoryGuardrails()
-        for tool_call in response.tool_calls:
-            t_name = tool_call["name"]
-            args = tool_call["args"]
-            target = args.get("barcode_or_name", "")
-            target_product = db_instance.get_product(target, company_id=company_id)
-            
-            tool_result_str = ""
-            if t_name == "UpdateStock":
-                qty_change = args.get("qty_change", 0)
-                if target_product:
-                    new_stock = target_product.get("stock", 0) + qty_change
-                    validation = guardrails.validate_action("update_stock", {"new_stock": new_stock}, target_product)
-                    if not validation.passed:
-                        tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
-                        executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": tool_result_str}})
-                        messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
-                        continue
-                res = db_instance.update_stock(target, qty_change, args.get("reason", "AI Action"), company_id=company_id)
-                executed_actions.append({"tool": "UpdateStock", "result": res})
-                tool_result_str = str(res)
+            if not hasattr(response, "tool_calls") or not response.tool_calls:
+                generation = extract_text_content(response.content)
+                break
                 
-            elif t_name == "CreatePurchaseOrder" or t_name == "draft_purchase_order":
-                reorder_qty = args.get("reorder_qty", 10)
-                if target_product:
-                    validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
-                    if not validation.passed:
-                        tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
-                        executed_actions.append({"tool": t_name, "result": {"success": False, "error": tool_result_str}})
-                        messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
-                        continue
-                res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
-                executed_actions.append({"tool": t_name, "result": res})
-                tool_result_str = str(res)
+            guardrails = InventoryGuardrails()
+            for tool_call in response.tool_calls:
+                t_name = tool_call["name"]
+                args = tool_call["args"]
+                target = args.get("barcode_or_name", "")
+                target_product = db_instance.get_product(target, company_id=company_id)
                 
-            elif t_name == "TransferStock":
-                res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1), company_id=company_id)
-                executed_actions.append({"tool": "TransferStock", "result": res})
-                tool_result_str = str(res)
-                
-            elif t_name == "AuditInventory":
-                res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"), company_id=company_id)
-                executed_actions.append({"tool": "AuditInventory", "result": res})
-                tool_result_str = str(res)
-                
-            elif t_name == "SetReorderAlert":
-                res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10), company_id=company_id)
-                executed_actions.append({"tool": "SetReorderAlert", "result": res})
-                tool_result_str = str(res)
-                
-            elif t_name == "query_inventory_state":
-                if target_product:
-                    res = {"success": True, "stock": target_product.get("stock"), "min_threshold": target_product.get("min_threshold"), "selling_price": target_product.get("selling_price")}
+                tool_result_str = ""
+                if t_name == "UpdateStock":
+                    qty_change = args.get("qty_change", 0)
+                    if target_product:
+                        new_stock = target_product.get("stock", 0) + qty_change
+                        validation = guardrails.validate_action("update_stock", {"new_stock": new_stock}, target_product)
+                        if not validation.passed:
+                            tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
+                            executed_actions.append({"tool": "UpdateStock", "result": {"success": False, "error": tool_result_str}})
+                            messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
+                            continue
+                    res = db_instance.update_stock(target, qty_change, args.get("reason", "AI Action"), company_id=company_id)
+                    executed_actions.append({"tool": "UpdateStock", "result": res})
+                    tool_result_str = str(res)
+                    
+                elif t_name == "CreatePurchaseOrder" or t_name == "draft_purchase_order":
+                    reorder_qty = args.get("reorder_qty", 10)
+                    if target_product:
+                        validation = guardrails.validate_action("create_reorder_po", {"quantity": reorder_qty}, target_product)
+                        if not validation.passed:
+                            tool_result_str = " Guardrail Blocked: " + " ".join(validation.reasons)
+                            executed_actions.append({"tool": t_name, "result": {"success": False, "error": tool_result_str}})
+                            messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
+                            continue
+                    res = db_instance.create_purchase_order(target, reorder_qty, args.get("supplier_name", "Default Supplier"), company_id=company_id)
+                    executed_actions.append({"tool": t_name, "result": res})
+                    tool_result_str = str(res)
+                    
+                elif t_name == "TransferStock":
+                    res = db_instance.transfer_stock(target, args.get("from_location", "Main Store"), args.get("to_location", "Warehouse"), args.get("qty", 1), company_id=company_id)
+                    executed_actions.append({"tool": "TransferStock", "result": res})
+                    tool_result_str = str(res)
+                    
+                elif t_name == "AuditInventory":
+                    res = db_instance.audit_inventory(target, args.get("actual_stock", 0), args.get("notes", "Physical Audit"), company_id=company_id)
+                    executed_actions.append({"tool": "AuditInventory", "result": res})
+                    tool_result_str = str(res)
+                    
+                elif t_name == "SetReorderAlert":
+                    res = db_instance.set_min_threshold(target, args.get("new_min_threshold", 10), company_id=company_id)
+                    executed_actions.append({"tool": "SetReorderAlert", "result": res})
+                    tool_result_str = str(res)
+                    
+                elif t_name == "query_inventory_state":
+                    if target_product:
+                        res = {"success": True, "stock": target_product.get("stock"), "min_threshold": target_product.get("min_threshold"), "selling_price": target_product.get("selling_price")}
+                    else:
+                        res = {"error": "not found"}
+                    executed_actions.append({"tool": "query_inventory_state", "result": res})
+                    tool_result_str = str(res)
+
+                elif t_name == "predict_demand_velocity":
+                    forecast = db_instance.get_predictive_demand_forecast(company_id=company_id)
+                    f_item = next((f for f in forecast if f["barcode"] == target), None)
+                    res = f_item if f_item else {"error": "not found"}
+                    executed_actions.append({"tool": "predict_demand_velocity", "result": res})
+                    tool_result_str = str(res)
+
+                elif t_name == "simulate_financial_impact":
+                    qty = args.get("qty", 1)
+                    if target_product:
+                        cost = target_product.get("cost_price", 0) * qty
+                        sell = target_product.get("selling_price", 0) * qty
+                        margin = sell - cost
+                        res = {"cost": cost, "margin": margin}
+                    else:
+                        res = {"error": "not found"}
+                    executed_actions.append({"tool": "simulate_financial_impact", "result": res})
+                    tool_result_str = str(res)
+
+                elif t_name == "detect_anomalies":
+                    anomalies = db_instance.detect_inventory_anomalies(company_id=company_id)
+                    res = {"anomalies": anomalies}
+                    executed_actions.append({"tool": "detect_anomalies", "result": res})
+                    tool_result_str = str(res)
                 else:
-                    res = {"error": "not found"}
-                executed_actions.append({"tool": "query_inventory_state", "result": res})
-                tool_result_str = str(res)
+                    tool_result_str = f"Unknown tool: {t_name}"
+                    
+                messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
 
-            elif t_name == "predict_demand_velocity":
-                forecast = db_instance.get_predictive_demand_forecast(company_id=company_id)
-                f_item = next((f for f in forecast if f["barcode"] == target), None)
-                res = f_item if f_item else {"error": "not found"}
-                executed_actions.append({"tool": "predict_demand_velocity", "result": res})
-                tool_result_str = str(res)
-
-            elif t_name == "simulate_financial_impact":
-                qty = args.get("qty", 1)
-                if target_product:
-                    cost = target_product.get("cost_price", 0) * qty
-                    sell = target_product.get("selling_price", 0) * qty
-                    margin = sell - cost
-                    res = {"cost": cost, "margin": margin}
-                else:
-                    res = {"error": "not found"}
-                executed_actions.append({"tool": "simulate_financial_impact", "result": res})
-                tool_result_str = str(res)
-
-            elif t_name == "detect_anomalies":
-                anomalies = db_instance.detect_inventory_anomalies(company_id=company_id)
-                res = {"anomalies": anomalies}
-                executed_actions.append({"tool": "detect_anomalies", "result": res})
-                tool_result_str = str(res)
-            else:
-                tool_result_str = f"Unknown tool: {t_name}"
-                
-            messages.append(ToolMessage(content=tool_result_str, tool_call_id=tool_call["id"]))
+    # ── Fallback Rule Matcher if LLM failed or produced no actions ──
+    if not executed_actions or generation == "Action failed.":
+        fallback_res = _fallback_rule_matcher(question, history, company_id=company_id)
+        if fallback_res:
+            tool = fallback_res.get("tool")
+            if tool == "ActionPreview":
+                generation = fallback_res.get("preview", "")
+            elif tool in ["UpdateStock", "CreatePurchaseOrder"]:
+                res = fallback_res.get("res", {})
+                executed_actions.append({"tool": tool, "result": res})
+                generation = res.get("message", "Stock updated successfully.")
+            elif tool:
+                executed_actions.append({"tool": tool, "result": fallback_res})
+                generation = "Action executed successfully."
 
     state["executed_actions"] = executed_actions
     state["generation"] = generation

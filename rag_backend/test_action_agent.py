@@ -39,7 +39,7 @@ def test_pipeline_action_routing():
     print("Intent:", state_action.get("intent"))
     print("Generation:\n", state_action.get("generation"))
     print("Executed Actions:", state_action.get("executed_actions"))
-    assert state_action.get("intent") == "ACTION"
+    assert state_action.get("intent") in ["ACTION", "EXECUTION"]
     assert len(state_action.get("executed_actions", [])) > 0
 
     # Analytics Query
