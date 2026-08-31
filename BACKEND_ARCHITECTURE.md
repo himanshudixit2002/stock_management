@@ -1,110 +1,176 @@
-# 🧠 SmartShelfKart: Autonomous Backend Architecture
+# SmartShelfKart — Inventory Agent Backend
 
-Welcome to the technical design document for the **SmartShelfKart Backend**. This system goes far beyond a simple API; it is a **multi-agent, autonomous workflow engine** powered by LangGraph, Google Vertex AI (`gemini-1.5-pro`), and Firebase.
+The assistant answers questions about live inventory, and executes stock changes
+on request. It is built around one principle: **inventory is structured,
+relational, numeric data, so the agent queries it rather than retrieving it.**
 
-This document outlines the system's core capabilities, the flow of intelligence, and the specialized agents that drive warehouse operations and financial health.
-
----
-
-## 🌟 1. System Overview
-
-At the heart of the system lies a **LangGraph StateGraph**, which orchestrates a team of specialized AI agents. Instead of relying on a single, massive prompt that degrades over time, incoming requests are intelligently routed to highly specialized "expert" nodes based on intent.
-
-> [!TIP]
-> **Why LangGraph?**  
-> By using a graph-based state machine, we can maintain strict control over agent loops, prevent infinite loops, and inject custom guardrails before executing physical database mutations.
-
-### Tech Stack
-- **Orchestration**: LangGraph / LangChain
-- **Intelligence**: Google Vertex AI (`gemini-1.5-pro`)
-- **Database / State**: Firebase Firestore
-- **Deployment**: Google Cloud Run (Serverless, Auto-scaling)
-- **API Protocol**: FastAPI (HTTP / Server-Sent Events for streaming)
+Vector search is deliberately absent from the request path. Embedding a stock
+table and hoping cosine similarity surfaces the right row is strictly worse than
+reading the row. A small optional doc store remains available for genuine prose
+(policies, how-tos) — the one thing retrieval is actually good at here.
 
 ---
 
-## 🚦 2. The Intelligence Pipeline
-
-Every query entering the `/api/chat` endpoint travels through a strict, multi-stage pipeline.
+## 1. Request flow
 
 ```mermaid
 graph TD
-    A[User Request] --> B(Router Node)
-    B -->|Intent: ACTION| C[Retrieval Node]
-    B -->|Intent: CONTROLLER| C
-    B -->|Intent: ANALYTICS| C
-    B -->|Intent: KNOWLEDGE| C
-    
-    C --> D{Agent Routing}
-    
-    D -->|Basic Operations| E[Action Agent]
-    D -->|Finance & Supply Chain| F[Controller Agent]
-    D -->|Data & Forecasting| G[Analytics Agent]
-    D -->|General Info| H[Knowledge Agent]
-    
-    E --> I((Firebase Database))
-    F --> I
-    G --> I
+    A[Request] --> B{Answer cache<br/>keyed on inventory fingerprint}
+    B -->|hit| Z[Response]
+    B -->|miss| C{Deterministic answer bank}
+    C -->|match: 0 tokens, ~1ms| Z
+    C -->|no match| D[Router]
+    D -->|regex tiers, 0 tokens| E[Fact layer]
+    D -->|ambiguous tail: flash-lite| E
+    E --> F{Intent}
+    F -->|EXECUTION| G[Execution agent]
+    F -->|ANALYTICS| H[Analytics agent]
+    F -->|KNOWLEDGE| I[Knowledge agent]
+    G --> J[Preview -> confirm -> Firestore write]
+    H --> Z
+    I --> Z
+    J --> Z
 ```
 
-### Stage 1: The Router Node
-Before engaging expensive LLMs, the **Router Node** acts as the gatekeeper. It uses a hybrid approach:
-1. **Instant Regex Matching**: For commands like *"add 50 units"* or *"what is our cash flow"*, it instantly flags the intent.
-2. **LLM Classification (Fallback)**: If the request is ambiguous, a fast, zero-temperature LLM call classifies the intent perfectly.
+---
 
-### Stage 2: The Retrieval Node
-Context is king. Before any agent thinks, the system queries the **Inventory DB** to fetch real-time state. This guarantees **Zero Hallucination**—the AI always knows exactly what is currently sitting on the warehouse shelves before it speaks.
+## 2. The fact layer (`facts.py`)
+
+Everything the agent says is grounded in an `InventoryFacts` snapshot, built per
+company and TTL-cached (45s by default).
+
+**Sources** — pulled from Firestore in parallel:
+- `companies/{id}/products` — live stock, held quantity, thresholds, prices
+- `companies/{id}/transactions` — the last 90 days of stock movements
+- `companies/{id}/vendors` — real supplier lead times
+
+**Derived per product:**
+
+| Field | How |
+| :--- | :--- |
+| `daily_burn_rate` | stock-out units over the window ÷ window days |
+| `demand_std_dev` | true σ of daily out-quantities, zero-days included |
+| `days_of_supply` | quantity ÷ burn rate |
+| `available_qty` | quantity − heldQuantity (stock the app has already reserved) |
+| `lead_time_days` | joined from the product's preferred vendor |
+| `safety_stock` | Z × σ × √(lead time), Z = 1.65 for a 95% fill rate |
+| `reorder_point` | burn × lead time + safety stock |
+| `health` | at_risk / dead_stock / overstocked / optimal |
+
+The burn-rate and health math deliberately mirrors
+`lib/services/report_analytics_service.dart::computeInventoryHealthForecasts`,
+so the assistant and the app's Reports screen quote identical numbers.
+`test_facts.py` asserts that parity.
+
+> Before this existed, `sales_velocity` was read from a product field the app
+> never writes, so it was `0.0` for every SKU. Every forecast, reorder
+> suggestion, ABC classification and stockout projection was computed on zeros.
+
+**Fingerprint.** Each snapshot carries a content hash of the inventory state.
+The answer cache keys on it, so any stock change rotates the key on every
+instance at once — staleness is structurally impossible rather than
+TTL-dependent.
 
 ---
 
-## 🤖 3. The Autonomous Agents (The Swarm)
+## 3. Product resolution (`resolver.py`)
 
-Once the context is loaded and the intent is known, the request is handed to one of our highly specialized AI personas.
+One ranked matcher shared by chat, voice, and visual audit: exact barcode →
+exact name → normalised name → IDF-weighted token overlap → fuzzy ratio.
 
-### A. The Action Agent 🛠️
-**Role:** The Warehouse Worker.
-**Purpose:** Handles direct, unambiguous commands (e.g., *"Restock 50 units of Cannula"*). It maps directly to basic Firebase mutations without overthinking.
+**Ambiguity is a first-class outcome.** When two products score within a hair of
+each other, the agent asks which one rather than guessing. Words that nearly
+every product shares ("standard", "basic") carry no identifying weight.
 
-### B. The Controller Agent 📈 (The Star)
-**Role:** Autonomous Operations & Finance Controller.
-**Purpose:** Acts as a bridge between warehouse ops and corporate finance. It uses the strict **ReAct Framework** (Thought → Action → Observation → Final Answer) to analyze situations before acting.
-**Core Directives:**
-- **Financial Grounding**: Treats every physical move as a financial event, calculating Working Capital impacts.
-- **Proactive Execution**: Detects anomalies and automatically drafts Purchase Orders to prevent stockouts.
-- **Tools Equipped:**
-  - `query_inventory_state`: Fetches exact stock and thresholds.
-  - `predict_demand_velocity`: ML-based 30-day forecasting.
-  - `draft_purchase_order`: Generates POs with safety guardrails.
-  - `simulate_financial_impact`: Calculates margins and capital tied up.
-  - `detect_anomalies`: Scans for shrinkage and deadstock.
-
-> [!IMPORTANT]  
-> The Controller Agent is forbidden from guessing. It *must* invoke its tools to fetch live data before drafting a Purchase Order.
-
-### C. The Analytics Agent 📊
-**Role:** The Data Scientist.
-**Purpose:** Handles queries requiring deep data manipulation, ABC analysis, historical trend reporting, and complex ledger audits.
-
-### D. The Knowledge Agent 📚
-**Role:** The General Assistant.
-**Purpose:** Handles standard Q&A, greetings, and queries that don't require database mutations or complex math.
+> The three matchers this replaced each picked the first product whose name
+> contained a query word — which is how "add 50 cannula" silently updated
+> Cannula 18G when the user meant 20G.
 
 ---
 
-## 🛡️ 4. Security & Guardrails
+## 4. Answering, cheapest path first
 
-We do not let autonomous AI run wild. The backend implements strict guardrails:
-1. **Validation Checks**: When the Controller drafts a Purchase Order, the `guardrails.validate_action()` function intercepts the request. It ensures the reorder quantity does not exceed maximum capacity constraints.
-2. **Read-Only vs Write Tools**: Only specific agents are given tools capable of mutating the database.
-3. **IAM Constraints**: The Google Cloud Run service account is strictly scoped to its specific Firestore instance.
+1. **Answer cache** — fingerprint-keyed, so hits are frequent and never stale.
+2. **Deterministic bank** (`deterministic.py`) — audits, reorder lists, low
+   stock, dead stock, valuations, stockout projections, top-N, single-SKU
+   lookups. Zero tokens, about a millisecond, cannot hallucinate a number. In
+   practice this serves the large majority of real questions.
+3. **Router** — regex tiers cost nothing; only the genuinely ambiguous tail
+   reaches a flash-lite classifier, and those classifications are cached.
+4. **Agents** — `gemini-2.5-flash` with structured tools over the fact layer.
+
+### Model tiers (`llm.py`, all env-overridable)
+
+| Tier | Default | Used for |
+| :--- | :--- | :--- |
+| `ROUTER_MODEL` | `gemini-2.5-flash-lite` | intent classification, disambiguation |
+| `AGENT_MODEL` | `gemini-2.5-flash` | analytics, execution, tool calling |
+| `HEAVY_MODEL` | `gemini-2.5-pro` | opt-in, multi-step strategic asks |
+
+`GET /api/cache/stats` reports per-tier call and token counts, and which
+provider actually served requests.
+
+### Context budget
+- History capped at 6 turns with rendered tables stripped (one audit table runs
+  to hundreds of tokens; ten turns of them crowd out the live data).
+- Product context is resolver-bounded, not "the whole catalog".
 
 ---
 
-## 🚀 5. Deployment Architecture
+## 5. Writes (`writes.py`)
 
-> [!NOTE]  
-> The backend is fully containerized and runs entirely serverless.
+Mutations go straight to Firestore against the product's real document id,
+inside a transaction, so concurrent updates cannot lose each other or drive
+stock negative.
 
-1. **Docker Container**: Packages the LangGraph pipeline and Python dependencies.
-2. **Google Cloud Run**: Automatically scales from 0 to N instances based on API traffic. Handles HTTPS termination and routing securely.
-3. **Continuous Integration**: The `deploy_backend.sh` script automates the build and traffic routing seamlessly.
+**Confirm before write.** A mutation produces a preview card and a structured
+pending action held server-side against `(company_id, session_id)`. Confirming
+executes exactly what was previewed.
+
+> This replaces a flow that rendered a markdown table and then, on the next
+> turn, scraped its own rendered output back out with regexes to decide what to
+> execute.
+
+Transaction documents are written with the field names the app actually reads
+(`date`, `userId`, `userName`, `reason`) — the previous `timestamp` /
+`performedBy` shape meant AI movements carried the wrong date, no attribution,
+and polluted the ledger the fact layer now derives demand from.
+
+Guardrails (`guardrails.py`) validate quantity ceilings, spend limits and
+negative-stock floors *before* the preview is shown.
+
+---
+
+## 6. Streaming
+
+`/api/chat/stream` forwards real model tokens as they arrive via
+`astream_events`, so time-to-first-token is a few hundred milliseconds. The
+graph is async end to end; blocking Firestore reads are pushed off the event
+loop with `asyncio.to_thread`.
+
+Deterministic answers and confirmation previews never touch a model, so they are
+emitted directly. `[STATS:…]` and similar machine-readable trailers are kept out
+of the visible token stream and delivered only in the final `answer`.
+
+---
+
+## 7. Tests
+
+| Suite | Covers |
+| :--- | :--- |
+| `test_facts.py` | burn rate, σ, days of cover, health quadrants, ATP, fingerprints — asserts Dart parity |
+| `test_resolver.py` | ambiguity, barcode precedence, natural phrasing, rejection of nonsense |
+| `test_cache.py` | hits, fingerprint invalidation, tenant isolation, mutations never cached |
+| `test_pipeline.py` | routing, execution context, deterministic answers, confirm/cancel flow |
+| `test_api_server.py` | endpoint contracts, SSE, guardrail rejection |
+| `test_phase2/3/4` | swarm, predictive ML, voice and visual audit |
+
+`deploy_backend.sh` runs the first five and aborts the deploy on failure.
+
+---
+
+## 8. Deployment
+
+Cloud Run, `asia-south1`, `--min-instances=1` (no cold starts) and `--cpu-boost`.
+Set `GEMINI_API_KEY` explicitly rather than relying on the fall-through to
+Vertex, so provider attribution is unambiguous.

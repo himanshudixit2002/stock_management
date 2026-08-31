@@ -1,28 +1,27 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'database_service.dart';
+import 'ai_backend.dart';
 
 class AiAgentService {
-  static String get _baseUrl {
-    return 'https://rag-backend-647731796550.asia-south1.run.app';
-  }
+  // Base URL and header construction live in AiBackend so there is exactly one
+  // definition of how this app talks to the assistant. They were previously
+  // duplicated here with *different* behaviour when the company id was missing
+  // — this service dropped the header and let the request through, which is how
+  // header-less requests reached the backend and came back with demo data.
 
-
-  static Map<String, String> _getHeaders([String? companyId]) {
-    final cid = companyId ?? DatabaseService().companyId;
-    final headers = <String, String>{'Content-Type': 'application/json'};
-    if (cid.isNotEmpty) {
-      headers['x-company-id'] = cid;
-    }
-    return headers;
-  }
+  /// Whether a workspace is known yet. These endpoints feed dashboards, so
+  /// without one there is nothing meaningful to fetch and callers get an empty
+  /// result rather than an exception or another tenant's data.
+  static bool get _ready => DatabaseService().companyId.isNotEmpty;
 
   /// Fetches proactive reorder recommendations calculated via lead-time demand & ROP formulas.
   static Future<List<Map<String, dynamic>>> fetchAutopilotRecommendations() async {
-    final url = Uri.parse('$_baseUrl/api/agent/autopilot');
+    if (!_ready) return [];
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/autopilot');
     try {
-      final response = await http.get(url, headers: _getHeaders());
+      final response = await http.get(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['recommendations'] as List? ?? [];
@@ -36,9 +35,10 @@ class AiAgentService {
 
   /// Scans ledger and stock metrics for shrinkages and anomalous stockouts.
   static Future<List<Map<String, dynamic>>> fetchAnomalies() async {
-    final url = Uri.parse('$_baseUrl/api/agent/anomalies');
+    if (!_ready) return [];
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/anomalies');
     try {
-      final response = await http.get(url, headers: _getHeaders());
+      final response = await http.get(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['anomalies'] as List? ?? [];
@@ -52,9 +52,10 @@ class AiAgentService {
 
   /// Retrieves 30-day time-series demand forecasts & stockout day projections.
   static Future<List<Map<String, dynamic>>> fetchDemandForecasts() async {
-    final url = Uri.parse('$_baseUrl/api/agent/forecast');
+    if (!_ready) return [];
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/forecast');
     try {
-      final response = await http.get(url, headers: _getHeaders());
+      final response = await http.get(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['forecasts'] as List? ?? [];
@@ -68,9 +69,10 @@ class AiAgentService {
 
   /// Gets automated cross-location stock transfer recommendations.
   static Future<List<Map<String, dynamic>>> fetchLocationTransferSuggestions() async {
-    final url = Uri.parse('$_baseUrl/api/agent/location_balance');
+    if (!_ready) return [];
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/location_balance');
     try {
-      final response = await http.get(url, headers: _getHeaders());
+      final response = await http.get(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['transfer_suggestions'] as List? ?? [];
@@ -84,11 +86,12 @@ class AiAgentService {
 
   /// Submits visual camera detection counts to compare with expected stock and record audit.
   static Future<Map<String, dynamic>?> submitVisualAudit(List<Map<String, dynamic>> detectedItems) async {
-    final url = Uri.parse('$_baseUrl/api/agent/visual_audit');
+    if (!_ready) return null;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/visual_audit');
     try {
       final response = await http.post(
         url,
-        headers: _getHeaders(),
+        headers: AiBackend.headers(),
         body: jsonEncode({
           'detected_items': detectedItems,
         }),
@@ -105,11 +108,12 @@ class AiAgentService {
 
   /// Sends spoken natural language command for hands-free stock mutations.
   static Future<Map<String, dynamic>?> processVoiceCommand(String speechText) async {
-    final url = Uri.parse('$_baseUrl/api/agent/voice_command');
+    if (!_ready) return null;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/voice_command');
     try {
       final response = await http.post(
         url,
-        headers: _getHeaders(),
+        headers: AiBackend.headers(),
         body: jsonEncode({'speech_text': speechText}),
       );
       if (response.statusCode == 200) {
@@ -123,9 +127,10 @@ class AiAgentService {
 
   /// Triggers full 24/7 background autopilot sweep across all sub-agents.
   static Future<Map<String, dynamic>?> triggerSwarmAutopilot() async {
-    final url = Uri.parse('$_baseUrl/api/swarm/autopilot');
+    if (!_ready) return null;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/swarm/autopilot');
     try {
-      final response = await http.post(url, headers: _getHeaders());
+      final response = await http.post(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -137,11 +142,12 @@ class AiAgentService {
 
   /// 1-Click Human Approval for queued high-value Purchase Orders.
   static Future<Map<String, dynamic>?> approvePendingPo(String poId) async {
-    final url = Uri.parse('$_baseUrl/api/swarm/approve_po');
+    if (!_ready) return null;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/swarm/approve_po');
     try {
       final response = await http.post(
         url,
-        headers: _getHeaders(),
+        headers: AiBackend.headers(),
         body: jsonEncode({'po_id': poId}),
       );
       if (response.statusCode == 200) {
@@ -155,9 +161,10 @@ class AiAgentService {
 
   /// Fetches statistical safety stock and ABC classification breakdowns.
   static Future<Map<String, dynamic>?> fetchSafetyStock() async {
-    final url = Uri.parse('$_baseUrl/api/agent/safety_stock');
+    if (!_ready) return null;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/agent/safety_stock');
     try {
-      final response = await http.get(url, headers: _getHeaders());
+      final response = await http.get(url, headers: AiBackend.headers());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -170,11 +177,12 @@ class AiAgentService {
   /// Syncs user's actual live inventory from client SQLite/Firestore to AI engine.
   static Future<bool> syncUserInventory(List<Map<String, dynamic>> products, {String? companyId}) async {
     if (products.isEmpty) return false;
-    final url = Uri.parse('$_baseUrl/api/inventory/sync');
+    if (!_ready && companyId == null) return false;
+    final url = Uri.parse('${AiBackend.baseUrl}/api/inventory/sync');
     try {
       final response = await http.post(
         url,
-        headers: _getHeaders(companyId),
+        headers: AiBackend.headers(companyId),
         body: jsonEncode({'products': products}),
       );
       return response.statusCode == 200;

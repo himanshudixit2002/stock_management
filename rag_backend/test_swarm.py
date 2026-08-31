@@ -4,7 +4,8 @@ Unit test for Autonomous Swarm, Guardrails, Predictive ML, and Code Engine.
 
 from agent_swarm import AutonomousSwarm
 from guardrails import InventoryGuardrails
-from predictive_ml import calculate_eoq, calculate_reorder_point, perform_abc_analysis
+import testkit  # noqa: F401  (sets OFFLINE_MODE before anything loads)
+from predictive_ml import calculate_eoq, calculate_reorder_point
 
 def test_predictive_ml():
     eoq = calculate_eoq(annual_demand=1000, ordering_cost=50, holding_cost_per_unit=5)
@@ -40,19 +41,22 @@ def test_swarm_event_trigger():
     assert "status" in res
     print(f"✓ Autonomous Swarm trigger output: {res['status']}")
 
-def test_swarm_semantic_query():
+def test_swarm_query():
     swarm = AutonomousSwarm()
-    res1 = swarm.process_query("Show me low stock items")
-    assert res1["from_cache"] is False
+    res = swarm.process_query("Show me low stock items")
+    assert res["type"] == "LOW_STOCK_ANALYSIS"
+    assert "count" in res
 
-    # Second call should hit semantic cache
-    res2 = swarm.process_query("Show me low stock items")
-    assert res2["from_cache"] is True
-    print("✓ Semantic Cache lookup test passed (<1ms response).")
+    # These are sub-millisecond pandas queries over the fact snapshot. They used
+    # to be cached behind a bag-of-words similarity check, which risked serving
+    # one query's answer for another's to save work that was never expensive.
+    res2 = swarm.process_query("What is at risk right now?")
+    assert res2["type"] == "RISK_ANALYSIS"
+    print("✓ Swarm query engine returns the right analysis per query.")
 
 if __name__ == "__main__":
     test_predictive_ml()
     test_guardrails()
     test_swarm_event_trigger()
-    test_swarm_semantic_query()
+    test_swarm_query()
     print("All Autonomous AI backend tests passed successfully!")

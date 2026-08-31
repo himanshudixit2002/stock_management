@@ -57,3 +57,9 @@ ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
 rag_backend/chroma_db/
 
+
+# AI backend runtime artifacts — regenerated on every run, never source of truth
+rag_backend/cache.db
+rag_backend/inventory_db.json
+rag_backend/__pycache__/
+rag_backend/venv/

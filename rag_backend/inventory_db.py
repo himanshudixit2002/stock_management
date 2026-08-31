@@ -45,7 +45,15 @@ class InventoryDB:
                 price = float(data.get("sellingPrice", 0.0))
                 velocity = float(data.get("salesVelocity", 0.0))
                 lead_time = int(data.get("leadTimeDays", 3))
-                loc = data.get("location", "Store Front")
+                loc_quantities = {
+                    str(k): int(v or 0)
+                    for k, v in (data.get("locationQuantities") or {}).items()
+                }
+                loc = (
+                    max(loc_quantities, key=lambda k: loc_quantities[k])
+                    if loc_quantities
+                    else data.get("location", "Store Front")
+                )
 
                 fetched_products[barcode] = {
                     "id": doc_id,
@@ -59,6 +67,8 @@ class InventoryDB:
                     "sales_velocity": velocity,
                     "lead_time_days": lead_time,
                     "location": loc,
+                    "location_quantities": loc_quantities,
+                    "held_quantity": int(data.get("heldQuantity", 0) or 0),
                     "last_updated_timestamp": datetime.now().isoformat()
                 }
 
@@ -119,8 +129,17 @@ class InventoryDB:
                 "productName": product_data.get("name"),
                 "quantity": abs(qty_change) if qty_change else product_data.get("stock"),
                 "location": to_loc if action_type == "transfer_stock" else loc,
-                "timestamp": datetime.now(),
-                "performedBy": "AI Agent (Autonomous)"
+                # `date`, `userId` and `userName` are the field names
+                # StockTransactionModel.fromMap reads. Writing `timestamp` /
+                # `performedBy` meant AI movements showed the wrong date, no
+                # attribution, and polluted the ledger the fact layer derives
+                # demand from.
+                "date": datetime.now(),
+                "userId": "ai_agent",
+                "userName": "Ask AI",
+                "reason": product_data.get("_reason", "AI action"),
+                "vendorId": "",
+                "vendorName": "",
             })
             print(f"[Firestore Sync Success] Updated product '{doc_id}' for company '{company_id}'")
         except Exception as e:
@@ -185,10 +204,6 @@ class InventoryDB:
                         }
             except Exception as e:
                 print(f"Error loading inventory DB: {e}")
-                self._seed_default_data()
-        else:
-            self._seed_default_data()
-
     def _save(self):
         try:
             temp_path = self.db_path + ".tmp"
@@ -202,62 +217,6 @@ class InventoryDB:
         except Exception as e:
             print(f"Error saving inventory DB: {e}")
 
-    def _seed_default_data(self):
-        default_items = [
-            {
-                "barcode": "89010001",
-                "name": "Fresh Apples (kg)",
-                "stock": 15,
-                "min_threshold": 50,
-                "category": "Produce",
-                "cost_price": 1.20,
-                "selling_price": 2.50,
-                "sales_velocity": 40,
-                "lead_time_days": 3,
-                "location": "Store Front - A1"
-            },
-            {
-                "barcode": "89010002",
-                "name": "Pro Laptops (15-inch)",
-                "stock": 100,
-                "min_threshold": 20,
-                "category": "Electronics",
-                "cost_price": 650.00,
-                "selling_price": 999.00,
-                "sales_velocity": 10,
-                "lead_time_days": 14,
-                "location": "Warehouse B - Shelf 4"
-            },
-            {
-                "barcode": "89010003",
-                "name": "Sparkling Water (Pack of 12)",
-                "stock": 200,
-                "min_threshold": 100,
-                "category": "Beverages",
-                "cost_price": 4.00,
-                "selling_price": 8.99,
-                "sales_velocity": 150,
-                "lead_time_days": 1,
-                "location": "Store Front - C3"
-            },
-            {
-                "barcode": "89010004",
-                "name": "Organic Whole Milk (1L)",
-                "stock": 8,
-                "min_threshold": 30,
-                "category": "Dairy",
-                "cost_price": 1.50,
-                "selling_price": 2.99,
-                "sales_velocity": 25,
-                "lead_time_days": 2,
-                "location": "Chiller 2"
-            }
-        ]
-        default_company = self._get_company("default")
-        for item in default_items:
-            default_company["products"][item["barcode"]] = item
-        self._save()
-
     def replace_user_inventory(self, custom_products: List[Dict[str, Any]], company_id: str = "default"):
         """Replaces in-memory product ledger for a specific company with real user inventory items from client app while preserving backend updates."""
         if not custom_products:
@@ -270,12 +229,11 @@ class InventoryDB:
             if not barcode:
                 continue
             
-            existing = current_prods.get(barcode)
+            # The client (and behind it, Firestore) is the source of truth.
+            # This used to keep the backend's own stock value whenever it had
+            # ever written to the product, which made the AI's view diverge
+            # permanently from the app's.
             stock_val = int(item.get("stock", item.get("quantity", 0)))
-            
-            # If item was updated on the backend, preserve the backend's updated stock value
-            if existing and "last_updated_timestamp" in existing:
-                stock_val = existing["stock"]
 
             new_dict[barcode] = {
                 "id": str(item.get("id", "")).strip() or barcode,
@@ -288,14 +246,14 @@ class InventoryDB:
                 "selling_price": float(item.get("selling_price", item.get("price", item.get("sellingPrice", 0.0)))),
                 "sales_velocity": float(item.get("sales_velocity", 0.0)),
                 "lead_time_days": int(item.get("lead_time_days", 3)),
-                "location": item.get("location", "Store Main")
+                "held_quantity": int(item.get("held_quantity", item.get("heldQuantity", 0))),
+                "location": item.get("location", "Store Main"),
             }
-            if existing and "last_updated_timestamp" in existing:
-                new_dict[barcode]["last_updated_timestamp"] = existing["last_updated_timestamp"]
                 
         if new_dict:
             company["products"] = new_dict
             self._save()
+            self._invalidate(company_id)
 
     def get_all_products(self, company_id: str = "default", limit: int = 10000, offset: int = 0) -> List[Dict[str, Any]]:
         prods = list(self._get_company(company_id)["products"].values())
@@ -377,6 +335,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._invalidate(company_id)
         
         sync_action = "update_stock"
         if "add" in reason.lower():
@@ -421,6 +380,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._invalidate(company_id)
         self._sync_to_firestore(company_id, "create_purchase_order", product)
 
         return {
@@ -456,6 +416,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._invalidate(company_id)
         self._sync_to_firestore(company_id, "transfer_stock", product, qty_change=qty, from_loc=from_loc, to_loc=to_loc)
 
         return {
@@ -491,6 +452,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
+        self._invalidate(company_id)
         self._sync_to_firestore(company_id, "audit_inventory", product, qty_change=discrepancy)
 
 
@@ -525,7 +487,7 @@ class InventoryDB:
         }
         company["action_ledger"].append(log_entry)
         self._save()
-
+        self._invalidate(company_id)
 
         return {
             "success": True,
@@ -556,150 +518,13 @@ class InventoryDB:
             "top_velocity_items": high_velocity[:3]
         }
 
-    def run_autopilot_scan(self, company_id: str = "default") -> List[Dict[str, Any]]:
-        """
-        Proactively scans all products to find items requiring reorder recommendations.
-        Formula: Lead time demand = (weekly_sales_velocity / 7) * lead_time_days
-        Suggested reorder = max(min_threshold * 2, lead_time_demand * 2) - current_stock
-        """
-        all_prods = self.get_all_products(company_id=company_id)
-        recommendations = []
-        for p in all_prods:
-            stock = p.get("stock", 0)
-            threshold = p.get("min_threshold", 10)
-            velocity = p.get("sales_velocity", 0)
-            lead_days = p.get("lead_time_days", 3)
-
-            daily_velocity = velocity / 7.0
-            lead_time_demand = daily_velocity * lead_days
-
-            if stock <= threshold or stock <= lead_time_demand:
-                target_stock = max(threshold * 2, int(lead_time_demand * 2))
-                suggested_reorder = max(10, target_stock - stock)
-                recommendations.append({
-                    "barcode": p["barcode"],
-                    "product_name": p["name"],
-                    "current_stock": stock,
-                    "min_threshold": threshold,
-                    "weekly_sales_velocity": velocity,
-                    "lead_time_days": lead_days,
-                    "suggested_reorder_qty": suggested_reorder,
-                    "urgency": "HIGH" if stock == 0 else "MEDIUM"
-                })
-        return recommendations
-
-    def detect_inventory_anomalies(self, company_id: str = "default") -> List[Dict[str, Any]]:
-        """
-        Scans stock ledger and inventory state for shrinkages, sudden large drops, or unauthorized stockouts.
-        """
-        anomalies = []
-        all_prods = self.get_all_products(company_id=company_id)
-        ledger = self._get_company(company_id)["action_ledger"]
-
-        # 1. Check ledger for suspicious high-volume deductions or negative adjustments
-        for log in reversed(ledger[-50:]):
-            action = log.get("action")
-            qty_change = log.get("qty_change", 0)
-            disc = log.get("discrepancy", 0)
-
-            if action == "update_stock" and qty_change < -20:
-                anomalies.append({
-                    "type": "HIGH_SHRINKAGE_SPIKE",
-                    "product_name": log.get("product_name"),
-                    "barcode": log.get("barcode"),
-                    "severity": "CRITICAL",
-                    "description": f"Unusual sudden deduction of {abs(qty_change)} units logged.",
-                    "timestamp": log.get("timestamp")
-                })
-            elif action == "audit_inventory" and abs(disc) > 10:
-                anomalies.append({
-                    "type": "LARGE_AUDIT_DISCREPANCY",
-                    "product_name": log.get("product_name"),
-                    "barcode": log.get("barcode"),
-                    "severity": "HIGH",
-                    "description": f"Physical count discrepancy of {disc:+d} units detected.",
-                    "timestamp": log.get("timestamp")
-                })
-
-        # 2. Check current stock state for anomalous zero-stock on high velocity items
-        for p in all_prods:
-            if p.get("stock", 0) == 0 and p.get("sales_velocity", 0) > 30:
-                anomalies.append({
-                    "type": "UNEXPECTED_HIGH_VELOCITY_STOCKOUT",
-                    "product_name": p["name"],
-                    "barcode": p["barcode"],
-                    "severity": "CRITICAL",
-                    "description": f"High velocity item ({p['sales_velocity']} units/wk) is completely out of stock!",
-                    "timestamp": datetime.now().isoformat()
-                })
-
-        return anomalies
-
-    def get_predictive_demand_forecast(self, company_id: str = "default") -> List[Dict[str, Any]]:
-        """
-        Calculates 30-day time-series demand forecasts, statistical safety stock, and projected stockout dates.
-        """
-        try:
-            from predictive_ml import predict_30day_demand_forecast, calculate_statistical_safety_stock, calculate_stockout_risk_timeline
-        except ImportError:
-            from .predictive_ml import predict_30day_demand_forecast, calculate_statistical_safety_stock, calculate_stockout_risk_timeline
-
-        forecasts = []
-        all_prods = self.get_all_products(company_id=company_id)
-
-        for p in all_prods:
-            stock = p.get("stock", 0)
-            velocity = p.get("sales_velocity", 1.0)
-            lead_days = p.get("lead_time_days", 3)
-
-            forecast_curve = predict_30day_demand_forecast(p, days=30)
-            risk_info = calculate_stockout_risk_timeline(p)
-            stat_safety_stock = calculate_statistical_safety_stock(velocity, lead_days)
-
-            total_30d_demand = sum(f["projected_daily_demand"] for f in forecast_curve)
-
-            forecasts.append({
-                "barcode": p["barcode"],
-                "product_name": p["name"],
-                "current_stock": stock,
-                "daily_sales_rate": round(velocity, 2),
-                "statistical_safety_stock": stat_safety_stock,
-                "projected_30d_demand": round(total_30d_demand, 1),
-                "days_until_stockout": risk_info["days_until_stockout"],
-                "risk_level": risk_info["risk_level"],
-                "revenue_at_risk": risk_info["revenue_at_risk"],
-                "recommendation": risk_info["recommendation"],
-                "daily_forecast_trajectory": forecast_curve[:7]  # First 7 days preview
-            })
-
-        return sorted(forecasts, key=lambda x: x["days_until_stockout"])
-
-
-    def get_cross_location_balance_suggestions(self, company_id: str = "default") -> List[Dict[str, Any]]:
-        """
-        Identifies overstocked locations vs understocked locations to create instant stock transfer recommendations.
-        """
-        all_prods = self.get_all_products(company_id=company_id)
-        transfers = []
-
-        # Find items with high stock in warehouse vs low stock in store front
-        for p in all_prods:
-            loc = p.get("location", "Store Front")
-            stock = p.get("stock", 0)
-            th = p.get("min_threshold", 10)
-
-            if "Warehouse" in loc and stock > (th * 3):
-                # Warehouse has excess stock
-                transfers.append({
-                    "barcode": p["barcode"],
-                    "product_name": p["name"],
-                    "from_location": loc,
-                    "to_location": "Store Front - Main Shelf",
-                    "suggested_transfer_qty": int(stock * 0.4),
-                    "reason": "Balance excess warehouse stock to store front shelf"
-                })
-
-        return transfers
+    # run_autopilot_scan / detect_inventory_anomalies /
+    # get_predictive_demand_forecast / get_cross_location_balance_suggestions
+    # lived here. They computed on a `sales_velocity` field the app never
+    # writes (so always 0.0), and disagreed with predictive_ml about whether
+    # that field was weekly or daily. The endpoints that used them now read
+    # `facts.py`, which derives real daily burn rates from the transaction
+    # ledger. See BACKEND_ARCHITECTURE.md section 2.
 
     def process_visual_audit_photo(self, detected_items: List[Dict[str, Any]], company_id: str = "default") -> Dict[str, Any]:
         """
@@ -735,12 +560,41 @@ class InventoryDB:
             "results": audit_results
         }
 
+    @staticmethod
+    def _sanitize_speech_text(speech_text: str) -> str:
+        """Cleans and deduplicates spoken speech text and maps spoken numbers."""
+        if not speech_text:
+            return ""
+        
+        num_map = {
+            "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+            "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+            "ten": "10", "eleven": "11", "twelve": "12", "thirteen": "13",
+            "fourteen": "14", "fifteen": "15", "sixteen": "16", "seventeen": "17",
+            "eighteen": "18", "nineteen": "19", "twenty": "20", "thirty": "30",
+            "forty": "40", "fifty": "50", "sixty": "60", "seventy": "70",
+            "eighty": "80", "ninety": "90", "hundred": "100"
+        }
+        
+        words = re.findall(r'[a-zA-Z0-9]+', speech_text.lower())
+        if not words:
+            return ""
+            
+        cleaned_words = []
+        for w in words:
+            mapped_word = num_map.get(w, w)
+            if cleaned_words and cleaned_words[-1] == mapped_word:
+                continue
+            cleaned_words.append(mapped_word)
+            
+        return " ".join(cleaned_words)
+
     def process_voice_command(self, speech_text: str, company_id: str = "default") -> Dict[str, Any]:
         """
         Parses spoken natural language commands (e.g. 'Deduct 15 units of Fresh Apples damaged')
         and executes atomic stock mutations with audio confirmation feedback.
         """
-        text_lower = speech_text.lower().strip()
+        text_lower = self._sanitize_speech_text(speech_text)
         all_prods = self.get_all_products(company_id=company_id)
         stop_words = {"a", "an", "the", "in", "of", "on", "units", "unit", "to", "for", "from", "at", "by", "with", "add", "deduct", "remove", "damaged", "sold", "received", "restock", "count", "audit", "plus", "minus"}
         
@@ -784,28 +638,45 @@ class InventoryDB:
         is_audit = any(w in text_lower for w in ["audit", "count", "physical"])
 
         if is_audit and target_prod:
-            res = self.audit_inventory(target_prod["barcode"], qty, f"Voice AI Audit: {speech_text}")
-            audio_text = f"Voice Audit Completed: {target_prod['name']} stock updated to {qty} units."
+            res = self.audit_inventory(target_prod["barcode"], qty, f"Voice AI Audit: {speech_text}", company_id=company_id)
+            if res.get("success", False):
+                audio_text = f"Voice Audit Completed: {target_prod['name']} stock updated to {qty} units."
+                status = "success"
+            else:
+                audio_text = f"Could not audit {target_prod['name']}: {res.get('error', 'Audit failed')}."
+                status = "error"
             return {
-                "status": "success",
+                "status": status,
                 "action": "voice_audit",
                 "audio_response_text": audio_text,
                 "execution_result": res
             }
         elif is_deduct and target_prod:
-            res = self.update_stock(target_prod["barcode"], -qty, f"Voice AI Deduction: {speech_text}")
-            audio_text = f"Updated: Deducted {qty} units of {target_prod['name']}. Remaining stock: {res['product']['stock']}."
+            res = self.update_stock(target_prod["barcode"], -qty, f"Voice AI Deduction: {speech_text}", company_id=company_id)
+            if res.get("success", False):
+                new_stk = res.get("new_stock", res.get("product", {}).get("stock", 0))
+                audio_text = f"Updated: Deducted {qty} units of {target_prod['name']}. Remaining stock: {new_stk}."
+                status = "success"
+            else:
+                audio_text = f"Could not deduct {qty} units of {target_prod['name']}: {res.get('error', 'Insufficient stock')}."
+                status = "error"
             return {
-                "status": "success",
+                "status": status,
                 "action": "voice_deduct",
                 "audio_response_text": audio_text,
                 "execution_result": res
             }
         elif (is_add or not is_deduct) and target_prod:
-            res = self.update_stock(target_prod["barcode"], qty, f"Voice AI Addition: {speech_text}")
-            audio_text = f"Updated: Added {qty} units to {target_prod['name']}. Total stock: {res['product']['stock']}."
+            res = self.update_stock(target_prod["barcode"], qty, f"Voice AI Addition: {speech_text}", company_id=company_id)
+            if res.get("success", False):
+                new_stk = res.get("new_stock", res.get("product", {}).get("stock", 0))
+                audio_text = f"Updated: Added {qty} units to {target_prod['name']}. Total stock: {new_stk}."
+                status = "success"
+            else:
+                audio_text = f"Could not add {qty} units to {target_prod['name']}: {res.get('error', 'Update failed')}."
+                status = "error"
             return {
-                "status": "success",
+                "status": status,
                 "action": "voice_add",
                 "audio_response_text": audio_text,
                 "execution_result": res
@@ -816,6 +687,16 @@ class InventoryDB:
             "audio_response_text": f"Could not match product in speech command: '{speech_text}'. Please specify product name.",
             "execution_result": None
         }
+
+    def _invalidate(self, company_id: str) -> None:
+        """Rotate the cached fact snapshot after a local write."""
+        try:
+            from facts import fact_store
+
+            fact_store.bump(company_id)
+        except Exception:
+            pass
+
 
 db_instance = InventoryDB()
 

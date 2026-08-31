@@ -54,14 +54,25 @@ class _Message {
   final Map<String, dynamic>? actionPayload;
   final Map<String, dynamic>? statsPayload;
   final List<Map<String, dynamic>>? lowStockItemsPayload;
+
+  /// Products the assistant could not tell apart. Rendered as tappable chips so
+  /// the user picks the SKU instead of the assistant guessing.
+  final List<Map<String, dynamic>>? clarificationOptions;
+  final Map<String, dynamic>? pendingAction;
+  final String? responseKind;
   bool isActionExecuted;
+  bool isStreaming;
 
   _Message(
     this.text,
     this.isUser, {
+    this.isStreaming = false,
     this.actionPayload,
     this.statsPayload,
     this.lowStockItemsPayload,
+    this.clarificationOptions,
+    this.pendingAction,
+    this.responseKind,
     this.isActionExecuted = false,
   });
 }
@@ -94,7 +105,40 @@ class _RagChatScreenState extends State<RagChatScreen> {
     _focusNode.addListener(_onFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadChatHistory();
+      _syncCatalogToAssistant();
     });
+  }
+
+  /// Pushes the live catalog to the assistant when the chat opens.
+  ///
+  /// The backend reads Firestore directly, so this is a freshness shortcut
+  /// rather than a correctness requirement — but it means the first question of
+  /// a session never races the backend's own refresh.
+  Future<void> _syncCatalogToAssistant() async {
+    try {
+      final provider = context.read<ProductProvider>();
+      if (!provider.isAnalyticsLoaded) {
+        await provider.loadAnalytics();
+      }
+      final products = provider.analyticsProducts
+          .map((p) => {
+                'id': p.id,
+                'barcode': p.barcode,
+                'name': p.name,
+                'stock': p.quantity,
+                'heldQuantity': p.heldQuantity,
+                'min_threshold': p.lowStockThreshold,
+                'category': p.categoryName,
+                'cost_price': p.costPrice,
+                'selling_price': p.sellingPrice,
+              })
+          .toList();
+      if (products.isNotEmpty) {
+        await RagApiService.syncCatalogToRag(products);
+      }
+    } catch (e) {
+      debugPrint("Ask AI: catalog sync on open failed: $e");
+    }
   }
 
   void _onFocusChange() {
@@ -128,6 +172,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
         'actionPayload': m.actionPayload,
         'statsPayload': m.statsPayload,
         'lowStockItemsPayload': m.lowStockItemsPayload,
+        'clarificationOptions': m.clarificationOptions,
         'isActionExecuted': m.isActionExecuted,
       })).toList();
       
@@ -161,6 +206,11 @@ class _RagChatScreenState extends State<RagChatScreen> {
                   : null,
               lowStockItemsPayload: json['lowStockItemsPayload'] != null
                   ? (json['lowStockItemsPayload'] as List)
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList()
+                  : null,
+              clarificationOptions: json['clarificationOptions'] != null
+                  ? (json['clarificationOptions'] as List)
                       .map((e) => Map<String, dynamic>.from(e))
                       .toList()
                   : null,
@@ -226,6 +276,42 @@ class _RagChatScreenState extends State<RagChatScreen> {
     return _speechEnabled;
   }
 
+  /// Cleans recognized speech by collapsing consecutive duplicate words
+  /// and eliminating repeating phrase loops.
+  String _cleanSpeechText(String text) {
+    if (text.trim().isEmpty) return '';
+    
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.isEmpty) return '';
+    
+    final cleaned = <String>[];
+    for (int i = 0; i < words.length; i++) {
+      final current = words[i].trim();
+      if (current.isEmpty) continue;
+      
+      // Collapse adjacent identical words (case-insensitive)
+      if (cleaned.isNotEmpty && cleaned.last.toLowerCase() == current.toLowerCase()) {
+        continue;
+      }
+      cleaned.add(current);
+    }
+    
+    // Check and collapse repeating 2-word to 4-word phrase loops (e.g. "add 10 apples add 10 apples")
+    if (cleaned.length >= 4) {
+      for (int phraseLen = 2; phraseLen <= 4; phraseLen++) {
+        if (cleaned.length >= phraseLen * 2) {
+          final p1 = cleaned.sublist(cleaned.length - phraseLen * 2, cleaned.length - phraseLen).map((w) => w.toLowerCase()).join(' ');
+          final p2 = cleaned.sublist(cleaned.length - phraseLen).map((w) => w.toLowerCase()).join(' ');
+          if (p1 == p2) {
+            cleaned.removeRange(cleaned.length - phraseLen, cleaned.length);
+            break;
+          }
+        }
+      }
+    }
+    return cleaned.join(' ');
+  }
+
   void _startListening() async {
     if (!await _ensureSpeechReady()) return;
 
@@ -239,7 +325,10 @@ class _RagChatScreenState extends State<RagChatScreen> {
       await _speechToText.listen(
         onResult: (result) {
           if (!mounted) return;
-          final recognized = result.recognizedWords.trim();
+          final raw = result.recognizedWords.trim();
+          if (raw.isEmpty) return;
+
+          final recognized = _cleanSpeechText(raw);
           if (recognized.isEmpty) return;
 
           setState(() {
@@ -258,10 +347,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
           }
         },
         listenOptions: SpeechListenOptions(
-          listenMode: ListenMode.dictation,
+          listenMode: ListenMode.confirmation,
           cancelOnError: true,
           partialResults: true,
         ),
+        pauseFor: const Duration(seconds: 2),
+        listenFor: const Duration(seconds: 30),
         onSoundLevelChange: (level) {
           if (mounted) {
             setState(() {
@@ -363,55 +454,131 @@ class _RagChatScreenState extends State<RagChatScreen> {
     
     final contextText = contextBuffer.toString();
 
-    final historyMessages = _messages
-        .take(_messages.length - 1)
-        .where((m) => !m.text.startsWith("Hey! I'm **Ask AI**") && !m.text.startsWith("Greetings!") && !m.text.startsWith("👋 **Ask AI is ready!**"))
-        .toList();
-    
-    final recentHistory = historyMessages.length > 10 
-        ? historyMessages.sublist(historyMessages.length - 10) 
-        : historyMessages;
-        
-    final historyPayload = recentHistory.map((m) => {
-      'role': m.isUser ? 'user' : 'model',
-      'content': m.text,
-    }).toList();
+    final historyPayload = _buildHistoryPayload();
+
+    final isLowStockQuery = lowerText.contains('low') ||
+        lowerText.contains('restock') ||
+        lowerText.contains('out of stock') ||
+        lowerText.contains('khatam') ||
+        lowerText.contains('kam hai');
+
+    // Stream the answer so the first words appear in a few hundred
+    // milliseconds instead of after the whole response has been generated.
+    final buffer = StringBuffer();
+    var placeholderIndex = -1;
+    RagResponse? finalResponse;
 
     try {
-      final response = await RagApiService.askQuestion(
+      final stream = RagApiService.askQuestionStream(
         text,
         context: contextText.isNotEmpty ? contextText : "No inventory data found.",
         history: historyPayload,
       );
 
-      if (mounted) {
-        HapticFeedback.mediumImpact();
-        final isLowStockQuery = lowerText.contains('low') || lowerText.contains('restock') || lowerText.contains('out of stock') || lowerText.contains('khatam') || lowerText.contains('kam hai');
-        setState(() {
-          _messages.add(_Message(
-            response.text, 
-            false, 
-            actionPayload: response.actionPayload,
-            statsPayload: response.statsPayload ?? statsMap,
-            lowStockItemsPayload: isLowStockQuery && lowItemsPayloadList.isNotEmpty ? lowItemsPayloadList : null,
-            isActionExecuted: response.actionPayload?['is_executed'] ?? false,
-          ));
-          _isLoading = false;
-        });
-        _scrollToBottom();
-        _saveChatHistory();
+      await for (final event in stream) {
+        if (!mounted) return;
+        final type = event['type'];
+
+        if (type == 'delta') {
+          buffer.write(event['content'] ?? '');
+          setState(() {
+            if (placeholderIndex == -1) {
+              _messages.add(_Message(buffer.toString(), false, isStreaming: true));
+              placeholderIndex = _messages.length - 1;
+              _isLoading = false;
+            } else {
+              _messages[placeholderIndex] =
+                  _Message(buffer.toString(), false, isStreaming: true);
+            }
+          });
+          _scrollToBottom();
+        } else if (type == 'reset') {
+          // Streaming dropped mid-answer and is being retried over plain HTTP.
+          // Drop the partial text so it can't run into the final answer.
+          buffer.clear();
+          if (placeholderIndex >= 0 && placeholderIndex < _messages.length) {
+            setState(() {
+              _messages[placeholderIndex] = _Message('', false);
+              _isLoading = true;
+            });
+          }
+        } else if (type == 'done') {
+          finalResponse = event['response'] as RagResponse?;
+        }
       }
     } catch (e) {
-      if (mounted) {
-        HapticFeedback.heavyImpact();
-        setState(() {
-          _messages.add(_Message("Sorry, I couldn't reach the server. Please ensure the backend is running.", false));
-          _isLoading = false;
-        });
-        _saveChatHistory();
-      }
+      debugPrint("Ask AI stream error: $e");
     }
+
+    if (!mounted) return;
+
+    finalResponse ??= buffer.isNotEmpty
+        ? RagResponse(buffer.toString(), null)
+        : const RagResponse(
+            "Sorry, I couldn't reach the assistant. Please try again.",
+            null,
+          );
+
+    HapticFeedback.mediumImpact();
+    final message = _Message(
+      finalResponse.text,
+      false,
+      actionPayload: finalResponse.actionPayload,
+      statsPayload: finalResponse.statsPayload ?? statsMap,
+      lowStockItemsPayload:
+          isLowStockQuery && lowItemsPayloadList.isNotEmpty ? lowItemsPayloadList : null,
+      clarificationOptions: finalResponse.clarificationOptions,
+      pendingAction: finalResponse.pendingAction,
+      responseKind: finalResponse.responseKind,
+      isActionExecuted: finalResponse.actionPayload?['is_executed'] ?? false,
+    );
+
+    setState(() {
+      if (placeholderIndex >= 0 && placeholderIndex < _messages.length) {
+        _messages[placeholderIndex] = message;
+      } else {
+        _messages.add(message);
+      }
+      _isLoading = false;
+    });
+    _saveChatHistory();
     _scrollToBottom();
+  }
+
+  /// Builds the history the backend sees.
+  ///
+  /// Rendered markdown tables are stripped: a single audit table runs to
+  /// hundreds of tokens, and ten turns of them crowd the live inventory data
+  /// out of the context window. The backend regenerates any table it needs from
+  /// current facts anyway.
+  List<Map<String, String>> _buildHistoryPayload() {
+    final tableLine = RegExp(r'^\s*\|.*\|\s*$', multiLine: true);
+    final tagged = RegExp(r'\[(?:STATS|ACTION|PENDING):.*?\]', dotAll: true);
+    final blankRuns = RegExp(r'\n{3,}');
+
+    final conversation = _messages
+        .take(_messages.length - 1)
+        .where((m) =>
+            !m.text.startsWith("Hey! I'm **Ask AI**") &&
+            !m.text.startsWith("Greetings!") &&
+            !m.text.startsWith("👋 **Ask AI is ready!**"))
+        .toList();
+
+    final recent = conversation.length > 12
+        ? conversation.sublist(conversation.length - 12)
+        : conversation;
+
+    final payload = <Map<String, String>>[];
+    for (final m in recent) {
+      var content = m.text.replaceAll(tagged, '').replaceAll(tableLine, '');
+      content = content.replaceAll(blankRuns, '\n\n').trim();
+      if (content.isEmpty) continue;
+      if (content.length > 600) {
+        content = '${content.substring(0, 600).trimRight()}...';
+      }
+      payload.add({'role': m.isUser ? 'user' : 'model', 'content': content});
+    }
+    return payload;
   }
 
   void _scrollToBottom() {
@@ -1082,7 +1249,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
       formattedText = formattedText.substring(1);
     }
 
-    final cleanMarkdownText = formattedText
+    var cleanMarkdownText = formattedText
         .split('\n')
         .map((line) {
           final trimmed = line.trim();
@@ -1094,6 +1261,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
         })
         // Preserve empty lines for paragraph spacing
         .join('\n');
+
+    if (widget.message.isStreaming) {
+      cleanMarkdownText += ' ▌';
+    }
 
     Widget bubbleContent = SelectionArea(
       child: _buildAdvancedMarkdownContent(context, cleanMarkdownText),
@@ -1150,6 +1321,35 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   onRestockTap: (item) {
                     if (widget.onQuickPrompt != null) {
                       widget.onQuickPrompt!("Add 10 units of ${item['name']} (Barcode: ${item['barcode']})");
+                    }
+                  },
+                ),
+              ],
+              if (widget.message.responseKind == 'preview' &&
+                  widget.message.pendingAction != null) ...[
+                const SizedBox(height: 8),
+                _ConfirmActionCard(
+                  action: widget.message.pendingAction!,
+                  onDecision: (confirmed) {
+                    widget.onQuickPrompt?.call(confirmed ? 'confirm' : 'cancel');
+                  },
+                ),
+              ],
+              if (widget.message.responseKind == 'no_history') ...[
+                const SizedBox(height: 8),
+                _NoHistoryCallToAction(
+                  onAction: (prompt) => widget.onQuickPrompt?.call(prompt),
+                ),
+              ],
+              if (widget.message.clarificationOptions != null &&
+                  widget.message.clarificationOptions!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _ClarificationChips(
+                  options: widget.message.clarificationOptions!,
+                  onSelected: (option) {
+                    if (widget.onQuickPrompt != null) {
+                      // Answer with the barcode: it resolves unambiguously.
+                      widget.onQuickPrompt!("${option['barcode']}");
                     }
                   },
                 ),
@@ -2027,6 +2227,363 @@ class _DragToScrollAreaState extends State<DragToScrollArea> {
       onPointerUp: (_) => _lastOffset = null,
       onPointerCancel: (_) => _lastOffset = null,
       child: widget.child,
+    );
+  }
+}
+
+/// Tappable product chips shown when the assistant could not tell two similar
+/// SKUs apart. Picking one replies with its barcode, which always resolves.
+class _ClarificationChips extends StatelessWidget {
+  final List<Map<String, dynamic>> options;
+  final void Function(Map<String, dynamic> option) onSelected;
+
+  const _ClarificationChips({required this.options, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pick one:',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSec(context),
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final name = option['name']?.toString() ?? 'Unknown';
+            final stock = option['stock'];
+            // Real catalogs contain distinct products sharing a name, so the
+            // name alone can leave two chips looking identical. Show the
+            // barcode whenever it is the only thing telling them apart.
+            final barcode = option['barcode']?.toString() ?? '';
+            final nameIsAmbiguous = options
+                    .where((o) => o['name']?.toString() == name)
+                    .length >
+                1;
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSelected(option);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              name,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPri(context),
+                              ),
+                            ),
+                            if (nameIsAmbiguous && barcode.isNotEmpty)
+                              Text(
+                                barcode,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ],
+                                  color: AppTheme.textSec(context),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (stock != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '$stock',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSec(context),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+
+class _PreviewActionCard extends StatefulWidget {
+  final Map<String, dynamic> pendingAction;
+  final Function(String) onAction;
+  
+  const _PreviewActionCard({required this.pendingAction, required this.onAction});
+
+  @override
+  State<_PreviewActionCard> createState() => _PreviewActionCardState();
+}
+
+class _PreviewActionCardState extends State<_PreviewActionCard> {
+  bool _responded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final qty = widget.pendingAction['qty_change'] ?? 0;
+    final productName = widget.pendingAction['product_name'] ?? 'Item';
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface(context).withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "⚡ Suggested Action",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            qty >= 0 ? "Add $qty units to $productName" : "Deduct ${qty.abs()} units from $productName",
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _responded ? null : () {
+                    setState(() => _responded = true);
+                    widget.onAction("cancel");
+                  },
+                  child: const Text("Cancel"),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _responded ? null : () {
+                    setState(() => _responded = true);
+                    widget.onAction("confirm");
+                  },
+                  child: const Text("Confirm"),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _NoHistoryCallToAction extends StatelessWidget {
+  final Function(String) onAction;
+  
+  const _NoHistoryCallToAction({required this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.blue),
+          const SizedBox(height: 8),
+          const Text("No movement recorded. Start tracking stock to get insights.", textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () => onAction("audit inventory"),
+            child: const Text("Start tracking stock"),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+/// Confirm / Cancel for a pending stock change.
+///
+/// Writes are previewed before they are applied, and until now confirming meant
+/// literally typing the word "confirm". The buttons disable on the first tap so
+/// a double press cannot submit the change twice.
+class _ConfirmActionCard extends StatefulWidget {
+  final Map<String, dynamic> action;
+  final void Function(bool confirmed) onDecision;
+
+  const _ConfirmActionCard({required this.action, required this.onDecision});
+
+  @override
+  State<_ConfirmActionCard> createState() => _ConfirmActionCardState();
+}
+
+class _ConfirmActionCardState extends State<_ConfirmActionCard> {
+  bool _decided = false;
+  bool? _confirmed;
+
+  void _decide(bool confirmed) {
+    if (_decided) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _decided = true;
+      _confirmed = confirmed;
+    });
+    widget.onDecision(confirmed);
+  }
+
+  String get _summary {
+    final name = widget.action['product_name']?.toString() ?? 'this product';
+    final args = widget.action['args'];
+    if (args is Map) {
+      final delta = args['qty_change'];
+      if (delta is num && delta != 0) {
+        return '${delta > 0 ? 'Add' : 'Remove'} ${delta.abs()} units'
+            '${delta > 0 ? ' to' : ' from'} $name';
+      }
+      final reorder = args['reorder_qty'];
+      if (reorder is num) return 'Order $reorder units of $name';
+      final counted = args['actual_stock'];
+      if (counted is num) return 'Set $name to $counted units';
+      final threshold = args['new_threshold'];
+      if (threshold is num) return 'Set $name reorder level to $threshold';
+      final qty = args['qty'];
+      if (qty is num) return 'Move $qty units of $name';
+    }
+    return 'Apply this change to $name';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_decided) {
+      final ok = _confirmed == true;
+      return Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: (ok ? Colors.green : Colors.grey).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                size: 18, color: ok ? Colors.green.shade700 : Colors.grey),
+            const SizedBox(width: 8),
+            Text(
+              ok ? 'Applying...' : 'Cancelled',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: ok ? Colors.green.shade800 : AppTheme.textSec(context),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.edit_note_rounded,
+                  size: 18, color: AppTheme.primaryColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _summary,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPri(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _decide(true),
+                  icon: const Icon(Icons.check_rounded, size: 17),
+                  label: const Text('Confirm'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _decide(false),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

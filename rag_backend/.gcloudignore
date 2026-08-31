@@ -1,6 +1,13 @@
 .git
 .gitignore
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
+# Local dev artefacts — must not ship into the image as a stale snapshot.
+*.db
+inventory_db.json
+chroma_db/
+*.bak
+.DS_Store

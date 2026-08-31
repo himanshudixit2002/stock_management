@@ -1,3 +1,4 @@
+import testkit  # noqa: F401  (sets OFFLINE_MODE before anything loads)
 import os
 import sys
 
@@ -47,14 +48,56 @@ def test_swarm_autopilot_sweep():
     })
     
     sweep_results = swarm.run_full_autopilot_sweep()
-    
+
     assert len(sweep_results["reorders_processed"]) >= 1, "Reorder agent failed to pick up low stock SKU"
-    assert len(sweep_results["clearance_recommendations"]) >= 1, "Decay agent failed to pick up dead stock SKU"
     assert len(sweep_results["supplier_alerts"]) >= 1, "Supplier watch agent failed to flag low margin SKU"
-    
+
+    # These fixtures have no transaction history, so nothing has *demonstrably*
+    # stopped selling — it simply is not being recorded. Recommending clearance
+    # markdowns on that basis would be acting on missing data, so the decay
+    # agent must stay silent here.
+    assert len(sweep_results["clearance_recommendations"]) == 0, (
+        "Decay agent recommended markdowns without any movement history to justify them"
+    )
+
     print(f"✅ Reorders Processed: {len(sweep_results['reorders_processed'])}")
-    print(f"✅ Clearance Recommendations: {len(sweep_results['clearance_recommendations'])}")
     print(f"✅ Supplier Alerts: {len(sweep_results['supplier_alerts'])}")
+    print("✅ Decay agent correctly silent when there is no movement history")
+
+    # ...and it must still fire when the history genuinely shows a non-mover.
+    _assert_clearance_fires_with_real_history(swarm)
+
+
+def _assert_clearance_fires_with_real_history(swarm):
+    from datetime import datetime, timedelta, timezone
+    from facts import InventoryFacts, derive_product_fact, fact_store
+
+    now = datetime.now(timezone.utc)
+    cid = "swarm_history_co"
+
+    def raw(pid, qty, threshold=5):
+        return {
+            "id": pid, "barcode": pid, "name": f"Product {pid}", "quantity": qty,
+            "lowStockThreshold": threshold, "costPrice": 10.0, "sellingPrice": 30.0,
+            "locationQuantities": {"Main": qty},
+        }
+
+    # Nine movers plus one genuine non-mover: 90% coverage, so the ledger is
+    # trustworthy and the non-mover really is dead stock.
+    history = {f"mover{i}": [(now - timedelta(days=d), "stock_out", 2) for d in range(1, 91)]
+               for i in range(9)}
+    products = [derive_product_fact(raw(f"mover{i}", 300), history, {}, 90, now) for i in range(9)]
+    products.append(derive_product_fact(raw("stale", 200), history, {}, 90, now))
+
+    facts = InventoryFacts(cid, 0, __import__("time").time(), 90, products).index()
+    assert facts.history_is_reliable, "fixture should have trustworthy history"
+    fact_store._cache[cid] = facts
+
+    sweep = swarm.run_full_autopilot_sweep(company_id=cid)
+    assert len(sweep["clearance_recommendations"]) >= 1, (
+        "Decay agent missed genuine dead stock despite trustworthy history"
+    )
+    print(f"✅ Decay agent fires on real dead stock: {len(sweep['clearance_recommendations'])} recommendation(s)")
 
 def test_po_approval_workflow():
     print("--- 2. Testing 1-Click PO Approval Workflow ---")
@@ -90,16 +133,17 @@ def test_swarm_rest_endpoints():
     from main import app
     
     client = TestClient(app)
+    H = testkit.headers()
     
     # 1. Trigger Autopilot POST
-    resp_ap = client.post("/api/swarm/autopilot")
+    resp_ap = client.post("/api/swarm/autopilot", headers=H)
     assert resp_ap.status_code == 200
     ap_body = resp_ap.json()
     assert ap_body["status"] == "success"
     print(f"✅ POST /api/swarm/autopilot returned: {ap_body['status']}")
     
     # 2. Get Swarm Logs GET
-    resp_logs = client.get("/api/swarm/logs")
+    resp_logs = client.get("/api/swarm/logs", headers=H)
     assert resp_logs.status_code == 200
     log_body = resp_logs.json()
     assert "episodic_memory" in log_body

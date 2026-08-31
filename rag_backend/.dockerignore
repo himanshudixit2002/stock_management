@@ -7,3 +7,6 @@ __pycache__
 .DS_Store
 .git
 .gitignore
+*.db
+inventory_db.json
+*.bak

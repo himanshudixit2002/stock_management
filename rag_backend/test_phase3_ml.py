@@ -1,89 +1,98 @@
-import os
+"""Predictive endpoints, now backed by the fact layer.
+
+This suite used to unit-test `predictive_ml` helpers that computed forecasts
+from a `sales_velocity` field the app never wrote, so every number was derived
+from 0.0. Those helpers are gone; `facts.py` derives demand from the real
+transaction ledger and `test_facts.py` covers that math directly.
+
+What is still worth asserting here is the HTTP contract: the shapes the Flutter
+dashboards read, and that a company with no movement history is reported as
+unknown rather than given a fabricated forecast.
+"""
+
 import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
+import testkit
+from fastapi.testclient import TestClient
 
-from predictive_ml import (
-    predict_30day_demand_forecast,
-    calculate_statistical_safety_stock,
-    calculate_stockout_risk_timeline,
-    perform_abc_analysis
-)
-from inventory_db import db_instance
+from main import app
 
-def test_30day_forecast():
-    print("--- 1. Testing 30-Day Demand Forecast Curves ---")
-    product = {
-        "barcode": "TEST-SKU-F1",
-        "name": "Predictive Test Widget",
-        "stock": 50,
-        "sales_velocity": 4.0,
-        "lead_time_days": 5,
-        "cost_price": 20.0,
-        "selling_price": 40.0
-    }
-    
-    curve = predict_30day_demand_forecast(product, days=30)
-    assert len(curve) == 30, "Forecast curve length is not 30 days"
-    assert curve[0]["projected_daily_demand"] > 0, "Day 1 forecast demand must be > 0"
-    
-    # Day 6 weekend multiplier check (1.25x of 4.0 = 5.0)
-    assert curve[5]["projected_daily_demand"] == 5.0, f"Weekend multiplier failed: expected 5.0 got {curve[5]['projected_daily_demand']}"
-    print(f"✅ 30-day curve generated cleanly. Day 1 demand: {curve[0]['projected_daily_demand']}, Weekend Day 6 demand: {curve[5]['projected_daily_demand']}")
+client = TestClient(app)
+_failures = []
 
-def test_statistical_safety_stock():
-    print("--- 2. Testing Statistical Safety Stock & Risk Timelines ---")
-    ss = calculate_statistical_safety_stock(avg_daily_sales=10.0, lead_time_days=4)
-    assert ss >= 1, "Safety stock calculation failed"
-    print(f"✅ Statistical Safety Stock (Velocity=10, LeadTime=4d, Z=1.65): {ss} units")
-    
-    product_critical = {
-        "barcode": "CRIT-01",
-        "name": "Critical Item",
-        "stock": 3,
-        "sales_velocity": 5.0,
-        "lead_time_days": 4,
-        "selling_price": 50.0
-    }
-    risk = calculate_stockout_risk_timeline(product_critical)
-    assert risk["risk_level"] == "CRITICAL", f"Expected CRITICAL risk level, got {risk['risk_level']}"
-    assert risk["revenue_at_risk"] > 0, "Revenue at risk calculation failed"
-    print(f"✅ Risk timeline OK: {risk['risk_level']} | Revenue at Risk: ${risk['revenue_at_risk']}")
 
-def test_abc_classification():
-    print("--- 3. Testing ABC Inventory Categorization ---")
-    products = [
-        {"barcode": "1", "name": "High Val", "sales_velocity": 100, "selling_price": 500},
-        {"barcode": "2", "name": "Mid Val", "sales_velocity": 10, "selling_price": 50},
-        {"barcode": "3", "name": "Low Val", "sales_velocity": 1, "selling_price": 5}
-    ]
-    abc = perform_abc_analysis(products)
-    assert len(abc["A"]) >= 1, "Category A empty"
-    print(f"✅ ABC Classification Summary: A={len(abc['A'])}, B={len(abc['B'])}, C={len(abc['C'])}")
+def check(label, ok, detail=""):
+    if not ok:
+        _failures.append(f"{label} {detail}")
+    print(f"  {'PASS' if ok else 'FAIL'}  {label}" + (f"  -- {detail}" if detail else ""))
 
-def test_ml_rest_endpoints():
-    print("--- 4. Testing FastAPI ML Endpoints ---")
-    from fastapi.testclient import TestClient
-    from main import app
-    
-    client = TestClient(app)
-    
-    resp_fc = client.get("/api/agent/forecast")
-    assert resp_fc.status_code == 200
-    fc_body = resp_fc.json()
-    assert "forecasts" in fc_body
-    print(f"✅ GET /api/agent/forecast returned {len(fc_body['forecasts'])} item forecasts")
-    
-    resp_ss = client.get("/api/agent/safety_stock")
-    assert resp_ss.status_code == 200
-    ss_body = resp_ss.json()
-    assert "recommendations" in ss_body
-    assert "abc_analysis_summary" in ss_body
-    print(f"✅ GET /api/agent/safety_stock returned {len(ss_body['recommendations'])} safety stock items")
 
-if __name__ == "__main__":
-    test_30day_forecast()
-    test_statistical_safety_stock()
-    test_abc_classification()
-    test_ml_rest_endpoints()
-    print("\n🎉 ALL PHASE 3 PREDICTIVE ML TESTS PASSED SUCCESSFULLY!")
+testkit.seed()
+H = testkit.headers()
+
+print("\n== A company id is mandatory ==")
+check("forecast without a company id is refused",
+      client.get("/api/agent/forecast").status_code == 400)
+check("safety stock without a company id is refused",
+      client.get("/api/agent/safety_stock").status_code == 400)
+
+print("\n== Forecast endpoint ==")
+res = client.get("/api/agent/forecast", headers=H)
+check("returns 200", res.status_code == 200, str(res.status_code))
+body = res.json()
+forecasts = body.get("forecasts", [])
+check("covers every product", len(forecasts) == 4, f"{len(forecasts)} rows")
+check("reports history availability", "has_sales_history" in body,
+      str(body.get("has_sales_history")))
+
+required = {
+    "barcode", "product_name", "current_stock", "daily_sales_rate",
+    "days_until_stockout", "risk_level", "recommendation",
+}
+check("keeps the keys the dashboard reads",
+      required.issubset(forecasts[0].keys()),
+      str(sorted(required - set(forecasts[0].keys()))))
+
+print("\n== No ledger means unknown, not a fabricated forecast ==")
+# The seeded company has no transactions at all.
+check("every SKU flagged UNKNOWN",
+      all(f["risk_level"] == "UNKNOWN" for f in forecasts),
+      str({f["risk_level"] for f in forecasts}))
+check("no invented demand",
+      all(f["daily_sales_rate"] == 0 for f in forecasts))
+# Being below a user-set safety threshold is a real, actionable fact that needs
+# no demand history, so those still get a reorder recommendation. Only the
+# SKUs that would need demand data to judge should say the demand is unknown.
+below = [f for f in forecasts if f["current_stock"] < 50 and "Apples" in f["product_name"]]
+healthy = [f for f in forecasts if f["product_name"].startswith(("Pro Laptops", "Sparkling"))]
+check("threshold breach still gets concrete advice",
+      all("order" in f["recommendation"].lower() for f in below),
+      below[0]["recommendation"] if below else "none")
+check("well-stocked SKUs say demand is unknown rather than guessing",
+      all("unknown" in f["recommendation"].lower() for f in healthy),
+      healthy[0]["recommendation"] if healthy else "none")
+
+print("\n== Safety stock endpoint ==")
+res = client.get("/api/agent/safety_stock", headers=H)
+check("returns 200", res.status_code == 200)
+body = res.json()
+check("classifies every SKU", len(body.get("recommendations", [])) == 4)
+check("reports an ABC split", "abc_analysis_summary" in body,
+      str(body.get("abc_analysis_summary")))
+
+print("\n== Autopilot endpoint ==")
+res = client.get("/api/agent/autopilot", headers=H)
+check("returns 200", res.status_code == 200)
+recs = res.json().get("recommendations", [])
+check("flags the two products below threshold", len(recs) == 2,
+      f"{[r['product_name'] for r in recs]}")
+check("keeps weekly velocity for the dashboard",
+      all("weekly_sales_velocity" in r for r in recs))
+
+print("\n" + "=" * 60)
+if _failures:
+    print(f"{len(_failures)} FAILURE(S):")
+    for f in _failures:
+        print(f"  - {f}")
+    sys.exit(1)
+print("All predictive endpoint tests passed.")

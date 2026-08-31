@@ -1,18 +1,21 @@
-langgraph>=0.0.26
-langchain>=0.1.12
-langchain-core>=0.1.32
-langchain-google-genai>=1.0.0
-langchain-google-vertexai>=3.0.0
-langchain-community>=0.0.28
+# --- Agent runtime ---
+langgraph>=1.0.0
+langchain-core>=1.0.0
+langchain>=1.0.0
+langchain-google-genai>=4.0.0     # serves both the Gemini API and Vertex (vertexai=True)
+langchain-openai>=1.0.0           # optional OpenAI-compatible fallback provider
+
+# --- API ---
 fastapi>=0.110.0
 uvicorn>=0.28.0
-python-dotenv>=1.0.1
-chromadb>=0.4.24
 pydantic>=2.6.4
-sentence-transformers>=2.5.1
-langchain-chroma>=0.1.0
-pandas>=2.0.0
-langchain-openai>=0.1.0
-openai>=1.0.0
-firebase-admin>=6.0.0
-google-cloud-aiplatform>=1.60.0
+python-dotenv>=1.0.1
+
+# --- Data ---
+firebase-admin>=6.0.0             # Firestore: products, transactions, vendors
+pandas>=2.0.0                     # vectorised queries in the swarm code engine
+rapidfuzz>=3.6.0                  # fast product-name resolution
+
+# Vector search was removed from the request path: inventory is structured,
+# relational, numeric data, and querying it directly beats embedding it.
+# chromadb / sentence-transformers / langchain-chroma are no longer needed.

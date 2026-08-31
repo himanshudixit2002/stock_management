@@ -11,34 +11,57 @@ try:
     from .inventory_db import InventoryDB
     from .guardrails import InventoryGuardrails, GuardrailResult
     from .predictive_ml import calculate_eoq, calculate_reorder_point, predict_days_until_stockout
-    from .code_engine import InventoryCodeEngine
-    from .semantic_cache import SemanticCacheManager
 except ImportError:
     from inventory_db import InventoryDB
     from guardrails import InventoryGuardrails, GuardrailResult
     from predictive_ml import calculate_eoq, calculate_reorder_point, predict_days_until_stockout
-    from code_engine import InventoryCodeEngine
-    from semantic_cache import SemanticCacheManager
+
+
 
 class AutonomousSwarm:
     def __init__(self, db: Optional[InventoryDB] = None):
         self.db = db or InventoryDB()
         self.guardrails = InventoryGuardrails()
-        self.cache = SemanticCacheManager()
-        self.code_engine = InventoryCodeEngine(self.db.get_all_products("default"))
         self.episodic_memory: collections.deque = collections.deque(maxlen=200)
         self.pending_pos: Dict[str, Dict[str, Any]] = {}
 
-    def refresh_engine(self, company_id: str = "default"):
-        all_prods = self.db.get_all_products(company_id=company_id)
-        self.code_engine.update_data(all_prods)
+    def refresh_engine(self, company_id: str = "default") -> List[Dict[str, Any]]:
+        """Load the swarm's working set from the fact layer.
+
+        Previously this read a local dict where `sales_velocity` was always 0,
+        so EOQ, ROP and the clearance agent were all computing on placeholders.
+        These rows carry real burn rates derived from the transaction ledger.
+        """
+        from facts import fact_store
+
+        facts = fact_store.get(company_id)
+        rows = [
+            {
+                "barcode": p.barcode,
+                "name": p.name,
+                "stock": p.quantity,
+                "available": p.available_qty,
+                "min_threshold": p.min_threshold,
+                "cost_price": p.cost_price,
+                "selling_price": p.selling_price,
+                # Daily, matching predictive_ml's convention.
+                "sales_velocity": p.daily_burn_rate,
+                "lead_time_days": p.lead_time_days,
+                "health": p.health,
+                "days_of_supply": p.days_of_supply,
+                "reorder_point": p.reorder_point,
+                "suggested_reorder_qty": p.suggested_reorder_qty,
+            }
+            for p in facts.products
+        ]
+        return rows
 
     def run_full_autopilot_sweep(self, company_id: str = "default") -> Dict[str, Any]:
         """
         24/7 Proactive Autonomous Background Sweep.
         Runs Batch Auto-Reorder, Stock Decay/Idle Clearance, and Supplier Cost Variance agents for company_id.
         """
-        self.refresh_engine(company_id=company_id)
+        all_prods = self.refresh_engine(company_id=company_id)
         sweep_log = {
             "timestamp": time.time(),
             "reorders_processed": [],
@@ -47,7 +70,7 @@ class AutonomousSwarm:
         }
 
         # 1. BATCH AUTO-REORDER AGENT
-        low_stock_items = self.code_engine.get_low_stock_items()
+        low_stock_items = [p for p in all_prods if p.get('stock', 0) <= p.get('min_threshold', 10)]
         for product in low_stock_items:
             annual_demand = max(1.0, product.get("sales_velocity", 1.0)) * 365
             cost_price = max(1.0, product.get("cost_price", 10.0))
@@ -98,11 +121,13 @@ class AutonomousSwarm:
             self.episodic_memory.append(log_item)
 
         # 2. STOCK DECAY & IDLE CLEARANCE AGENT
-        all_prods = self.db.get_all_products(company_id=company_id)
         for p in all_prods:
             stock = p.get("stock", 0)
             velocity = p.get("sales_velocity", 0)
-            if stock > 20 and velocity == 0:
+            # Only genuine dead stock. A product whose movement is not being
+            # recorded looks identical to one that never sells, and marking it
+            # down would be acting on missing data rather than evidence.
+            if stock > 20 and p.get("health") == "dead_stock":
                 rec_discount = 20  # Recommend 20% clearance markdown
                 rec_item = {
                     "barcode": p.get("barcode"),
@@ -167,24 +192,31 @@ class AutonomousSwarm:
         self.refresh_engine(company_id=company_id)
         
         if event_name in ["LOW_STOCK_TRIGGER", "STOCKOUT_RISK"]:
-            return self.run_full_autopilot_sweep(company_id=company_id)
+            sweep = self.run_full_autopilot_sweep(company_id=company_id)
+            # Always return the same envelope shape, whatever the event.
+            return {"status": "SWEEP_COMPLETED", "event": event_name, **sweep}
 
         return {"status": "UNKNOWN_EVENT", "event": event_name}
 
     def process_query(self, query: str, company_id: str = "default") -> Dict[str, Any]:
         """
-        High-speed query processor leveraging semantic cache and pandas code engine.
-        """
-        cached = self.cache.get(query, company_id=company_id)
-        if cached:
-            cached["from_cache"] = True
-            return cached
+        Fast, deterministic query processor over the fact snapshot.
 
-        self.refresh_engine(company_id=company_id)
+        This used to run pandas over a local dict and cache results behind a
+        bag-of-words similarity check. The rows come from `facts.py` now, so the
+        classifications (health, reorder point) are already computed and these
+        are sub-millisecond list comprehensions — there is nothing worth caching,
+        and caching risked serving one query's answer for another's.
+        """
+        all_items = self.refresh_engine(company_id=company_id)
         query_lower = query.lower()
 
         if "low stock" in query_lower or "reorder" in query_lower:
-            items = self.code_engine.get_low_stock_items()
+            items = [
+                p for p in all_items
+                if p.get("stock", 0) <= p.get("min_threshold", 10)
+                or p.get("suggested_reorder_qty", 0) > 0
+            ]
             result = {
                 "type": "LOW_STOCK_ANALYSIS",
                 "count": len(items),
@@ -192,7 +224,14 @@ class AutonomousSwarm:
                 "summary": f"Found {len(items)} items requiring immediate restock."
             }
         elif "risk" in query_lower or "urgent" in query_lower:
-            items = self.code_engine.get_highest_value_risk_items()
+            # Sort by days_left ascending, then inventory_value descending
+            items = sorted(
+                all_items,
+                key=lambda x: (
+                    x.get('stock', 0) / max(x.get('sales_velocity', 1.0) or 0.1, 0.1),
+                    - (x.get('stock', 0) * x.get('cost_price', 0.0))
+                )
+            )[:5]
             result = {
                 "type": "RISK_ANALYSIS",
                 "count": len(items),
@@ -200,7 +239,6 @@ class AutonomousSwarm:
                 "summary": f"Top {len(items)} high-value items at risk of stockout identified."
             }
         else:
-            all_items = self.db.get_all_products(company_id=company_id)
             total_value = sum(i.get("stock", 0) * i.get("selling_price", 0) for i in all_items)
             result = {
                 "type": "GENERAL_SUMMARY",
@@ -209,6 +247,4 @@ class AutonomousSwarm:
                 "summary": f"Inventory contains {len(all_items)} total SKUs valued at ${total_value:,.2f}."
             }
 
-        self.cache.set(query, result, company_id=company_id)
-        result["from_cache"] = False
         return result

@@ -1,26 +1,49 @@
+"""
+FastAPI surface for the inventory agent.
+
+Two things changed structurally here:
+
+* `/api/chat/stream` used to run the graph to completion and then re-emit the
+  finished string in three-word chunks. It looked like streaming and delivered
+  none of the benefit — time-to-first-token was the full generation time. It now
+  forwards real model tokens as they arrive.
+* Everything used to be pushed onto the default executor with
+  `run_in_executor(None, ...)`, which throttles Cloud Run concurrency. The graph
+  is async end to end now.
+
+Answers are cached against a fingerprint of the live inventory, so a stock
+change anywhere rotates the key and stale answers become unreachable.
+"""
+
+import asyncio
+import voice
 import json
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Header
-from pydantic import BaseModel
+import re
+from typing import Any, Dict, List, Optional
+
 import uvicorn
 from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
 load_dotenv()
 
-from fastapi.middleware.cors import CORSMiddleware
+import deterministic
+import llm as llm_factory
+import writes
+from cache import answer_cache
+from facts import fact_store
 from graph import rag_pipeline
-from cache_manager import CacheManager
-from semantic_cache import SemanticCacheManager
 from inventory_db import db_instance
+from resolver import ProductResolver
 
 app = FastAPI(
-    title="Action-Oriented AI Stock Management API",
-    description="Autonomous Agentic AI Engine for Real-Time Inventory Control and Decisioning"
+    title="Inventory Agent API",
+    description="Grounded, tool-calling inventory assistant over live Firestore data",
 )
-cache_manager = CacheManager()
-semantic_cache = SemanticCacheManager()
 
-
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,9 +52,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+
 
 class QueryRequest(BaseModel):
     question: str
@@ -39,6 +68,8 @@ class QueryRequest(BaseModel):
     history: Optional[List[ChatMessage]] = None
     company_id: Optional[str] = "default"
     business_type: Optional[str] = "retail_store"
+    session_id: Optional[str] = None
+
 
 class QueryResponse(BaseModel):
     answer: str
@@ -47,130 +78,278 @@ class QueryResponse(BaseModel):
     executed_actions: Optional[List[Dict[str, Any]]] = []
     analytics_data: Optional[Dict[str, Any]] = None
     updated_catalog: Optional[List[Dict[str, Any]]] = None
+    answered_by: Optional[str] = None
+    clarification_options: Optional[List[Dict[str, Any]]] = None
+    pending_action: Optional[Dict[str, Any]] = None
+    response_kind: Optional[str] = "prose"
 
-from fastapi.responses import StreamingResponse
-import asyncio
 
-@app.post("/api/chat", response_model=QueryResponse)
-async def chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    cid = x_company_id or request.company_id or "default"
-    history_list = [h.model_dump() for h in request.history] if request.history else []
-    
-    # 1. Check persistent & vector semantic cache for instant response (< 50ms)
-    cached_val = cache_manager.get(request.question, request.context, history_list, company_id=cid)
-    if not cached_val:
-        semantic_res = semantic_cache.get(request.question, company_id=cid)
-        if semantic_res and isinstance(semantic_res, dict):
-            cached_val = semantic_res.get("generation")
-
-    if cached_val:
-        return QueryResponse(
-            answer=cached_val,
-            retries=0,
-            intent="KNOWLEDGE",
-            executed_actions=[],
-            analytics_data=None,
-            updated_catalog=None
+def _cid(header: Optional[str], body: Optional[str]) -> str:
+    cid = (header or body or "").strip()
+    if not cid or cid == "default":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "company_id_required",
+                "message": "No workspace was identified for this request."
+            }
         )
+    return cid
 
-    inputs = {
-        "question": request.question, 
+
+def _sid(request: QueryRequest, company_id: str) -> str:
+    return (request.session_id or company_id or "default").strip() or "default"
+
+
+def _inputs(request: QueryRequest, company_id: str) -> Dict[str, Any]:
+    return {
+        "question": request.question,
         "retries": 0,
         "provided_context": request.context,
-        "history": history_list,
-        "company_id": cid,
-        "business_type": request.business_type or "retail_store"
+        "history": [h.model_dump() for h in request.history] if request.history else [],
+        "company_id": company_id,
+        "business_type": request.business_type or "retail_store",
+        "session_id": _sid(request, company_id),
     }
 
-    # 2. Invoke multi-agent pipeline asynchronously to avoid blocking FastAPI event loop
-    loop = asyncio.get_event_loop()
-    final_state = await loop.run_in_executor(None, rag_pipeline.invoke, inputs)
-    generation = final_state.get("generation", "No response generated.")
-    intent = final_state.get("intent", "KNOWLEDGE")
-    executed_actions = final_state.get("executed_actions", [])
-    analytics_data = final_state.get("analytics_data")
-    
-    updated_cat = None
-    # 3. If actions executed (stock mutated), invalidate stale cache & return updated catalog
-    if executed_actions:
-        cache_manager.clear(company_id=cid)
-        semantic_cache.clear(company_id=cid)
-        updated_cat = db_instance.get_all_products(company_id=cid)
-    elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
-        cache_manager.set(request.question, request.context, history_list, generation, company_id=cid)
-        semantic_cache.set(request.question, {"generation": generation, "intent": intent}, company_id=cid)
+
+def _catalog_if_mutated(state: Dict[str, Any], company_id: str) -> Optional[List[Dict[str, Any]]]:
+    if not state.get("executed_actions"):
+        return None
+    facts = fact_store.get(company_id, force=True)
+    return [
+        {
+            "id": p.id,
+            "barcode": p.barcode,
+            "name": p.name,
+            "stock": p.quantity,
+            "quantity": p.quantity,
+            "min_threshold": p.min_threshold,
+            "category": p.category,
+            "cost_price": p.cost_price,
+            "selling_price": p.selling_price,
+        }
+        for p in facts.products
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Chat
+# ---------------------------------------------------------------------------
+
+@app.post("/api/chat", response_model=QueryResponse)
+async def chat_endpoint(
+    request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    company_id = _cid(x_company_id, request.company_id)
+    business_type = request.business_type or "retail_store"
+
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    cached = answer_cache.get(
+        request.question, company_id, facts.fingerprint, business_type
+    )
+    if cached:
+        return QueryResponse(
+            answer=cached["answer"],
+            intent=cached.get("intent", "KNOWLEDGE"),
+            analytics_data=cached.get("analytics_data"),
+            executed_actions=[],
+            answered_by="cache",
+            clarification_options=cached.get("clarification_options"),
+            response_kind=cached.get("response_kind", "prose"),
+        )
+
+    inputs = _inputs(request, company_id)
+    inputs["facts"] = facts
+    state = await rag_pipeline.ainvoke(inputs)
+
+    answer = state.get("generation") or "I couldn't produce an answer for that."
+    intent = state.get("intent", "KNOWLEDGE")
+    executed = state.get("executed_actions") or []
+
+    if executed:
+        answer_cache.clear(company_id)
+    else:
+        answer_cache.set(
+            request.question,
+            company_id,
+            facts.fingerprint,
+            {
+                "answer": answer,
+                "intent": intent,
+                "analytics_data": state.get("analytics_data"),
+                "clarification_options": state.get("clarification_options"),
+                "response_kind": state.get("response_kind", "prose"),
+            },
+            business_type,
+        )
 
     return QueryResponse(
-        answer=generation,
-        retries=final_state.get("retries", 0),
+        answer=answer,
+        retries=state.get("retries", 0),
         intent=intent,
-        executed_actions=executed_actions,
-        analytics_data=analytics_data,
-        updated_catalog=updated_cat
+        executed_actions=executed,
+        analytics_data=state.get("analytics_data"),
+        updated_catalog=_catalog_if_mutated(state, company_id),
+        answered_by=state.get("answered_by"),
+        clarification_options=state.get("clarification_options"),
+        pending_action=state.get("pending_action"),
+        response_kind=state.get("response_kind", "prose"),
     )
 
 
+# `[STATS: {...}]` and friends are machine-readable trailers, not prose. They
+# belong in the final `answer` (where the client parses them into metric cards),
+# never in the visible token stream.
+_TAGGED_BLOCK = re.compile(r"\[(?:STATS|ACTION|PENDING):.*?\]", re.DOTALL)
+
+
+def _display_text(text: str) -> str:
+    return _TAGGED_BLOCK.sub("", text or "").strip()
+
+
+def _sse(payload: Dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 @app.post("/api/chat/stream")
-async def stream_chat_endpoint(request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    cid = x_company_id or request.company_id or "default"
-    history_list = [h.model_dump() for h in request.history] if request.history else []
-    
-    async def event_generator():
-        # 1. Check cache for instant streaming (< 5ms)
-        cached_val = cache_manager.get(request.question, request.context, history_list, company_id=cid)
-        if cached_val:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Cache hit - instant response'})}\n\n"
-            # Stream words progressively to simulate instant fluid typing
-            words = cached_val.split(" ")
-            for i in range(0, len(words), 3):
-                chunk = " ".join(words[i:i+3]) + " "
-                yield f"data: {json.dumps({'type': 'delta', 'content': chunk})}\n\n"
-                await asyncio.sleep(0.01)
-            yield f"data: {json.dumps({'type': 'done', 'answer': cached_val, 'intent': 'KNOWLEDGE'})}\n\n"
+async def stream_chat_endpoint(
+    request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    company_id = _cid(x_company_id, request.company_id)
+    business_type = request.business_type or "retail_store"
+
+    async def events():
+        facts = await asyncio.to_thread(fact_store.get, company_id)
+
+        cached = answer_cache.get(
+            request.question, company_id, facts.fingerprint, business_type
+        )
+        if cached:
+            yield _sse({"type": "status", "message": "Answering from cache"})
+            yield _sse({"type": "delta", "content": _display_text(cached["answer"])})
+            yield _sse(
+                {
+                    "type": "done",
+                    "answer": cached["answer"],
+                    "intent": cached.get("intent", "KNOWLEDGE"),
+                    "analytics_data": cached.get("analytics_data"),
+                    "executed_actions": [],
+                    "clarification_options": cached.get("clarification_options"),
+                    "response_kind": cached.get("response_kind", "prose"),
+                }
+            )
             return
 
-        yield f"data: {json.dumps({'type': 'status', 'message': 'Routing intent & auditing inventory...'})}\n\n"
-        
-        inputs = {
-            "question": request.question, 
-            "retries": 0,
-            "provided_context": request.context,
-            "history": history_list,
-            "company_id": cid,
-            "business_type": request.business_type or "retail_store"
-        }
+        yield _sse({"type": "status", "message": "Reading live inventory..."})
 
-        # Run pipeline in background executor to avoid blocking event loop
-        loop = asyncio.get_event_loop()
-        final_state = await loop.run_in_executor(None, rag_pipeline.invoke, inputs)
-        
-        generation = final_state.get("generation", "No response generated.")
-        intent = final_state.get("intent", "KNOWLEDGE")
-        executed_actions = final_state.get("executed_actions", [])
-        analytics_data = final_state.get("analytics_data")
+        inputs = _inputs(request, company_id)
+        inputs["facts"] = facts
 
-        if executed_actions:
-            cache_manager.clear(company_id=cid)
-            semantic_cache.clear(company_id=cid)
-            updated_cat = db_instance.get_all_products(company_id=cid)
-        elif intent in ["KNOWLEDGE", "ANALYTICS"] and generation:
-            cache_manager.set(request.question, request.context, history_list, generation, company_id=cid)
-            semantic_cache.set(request.question, {"generation": generation, "intent": intent}, company_id=cid)
-            updated_cat = None
+        state: Dict[str, Any] = {}
+        streamed = False
+        announced_intent = False
+
+        try:
+            async for event in rag_pipeline.astream_events(inputs, version="v2"):
+                kind = event.get("event")
+
+                if kind == "on_chain_end" and event.get("name") == "router":
+                    data = (event.get("data") or {}).get("output") or {}
+                    intent = data.get("intent") if isinstance(data, dict) else None
+                    if intent and not announced_intent:
+                        announced_intent = True
+                        yield _sse(
+                            {
+                                "type": "status",
+                                "message": {
+                                    "EXECUTION": "Checking the product and stock levels...",
+                                    "ANALYTICS": "Crunching your inventory numbers...",
+                                }.get(intent, "Thinking..."),
+                            }
+                        )
+
+                elif kind == "on_chat_model_stream":
+                    chunk = (event.get("data") or {}).get("chunk")
+                    text = getattr(chunk, "content", "") or ""
+                    if isinstance(text, list):
+                        text = "".join(
+                            p.get("text", "") if isinstance(p, dict) else str(p)
+                            for p in text
+                        )
+                    if text:
+                        streamed = True
+                        yield _sse({"type": "delta", "content": text})
+
+                elif kind == "on_chain_end" and event.get("name") == "LangGraph":
+                    output = (event.get("data") or {}).get("output")
+                    if isinstance(output, dict):
+                        state = output
+        except Exception as exc:
+            print(f"[stream] pipeline failed: {exc}")
+            yield _sse(
+                {
+                    "type": "done",
+                    "answer": "Something went wrong reaching the assistant. Please try again.",
+                    "intent": "KNOWLEDGE",
+                }
+            )
+            return
+
+        answer = state.get("generation") or "I couldn't produce an answer for that."
+        intent = state.get("intent", "KNOWLEDGE")
+        executed = state.get("executed_actions") or []
+
+        # Deterministic answers and confirmation previews never pass through the
+        # model, so nothing streamed — emit them now.
+        if not streamed:
+            visible = _display_text(answer)
+            for i in range(0, len(visible), 120):
+                yield _sse({"type": "delta", "content": visible[i : i + 120]})
+                await asyncio.sleep(0)
+
+        if executed:
+            answer_cache.clear(company_id)
         else:
-            updated_cat = None
+            answer_cache.set(
+                request.question,
+                company_id,
+                facts.fingerprint,
+                {
+                    "answer": answer,
+                    "intent": intent,
+                    "analytics_data": state.get("analytics_data"),
+                    "clarification_options": state.get("clarification_options"),
+                    "response_kind": state.get("response_kind", "prose"),
+                },
+                business_type,
+            )
+
+        yield _sse(
+            {
+                "type": "done",
+                "answer": answer,
+                "intent": intent,
+                "executed_actions": executed,
+                "analytics_data": state.get("analytics_data"),
+                "updated_catalog": _catalog_if_mutated(state, company_id),
+                "answered_by": state.get("answered_by"),
+                "clarification_options": state.get("clarification_options"),
+                "pending_action": state.get("pending_action"),
+                "response_kind": state.get("response_kind", "prose"),
+            }
+        )
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
-        # Stream out response
-        words = generation.split(" ")
-        for i in range(0, len(words), 3):
-            chunk = " ".join(words[i:i+3]) + " "
-            yield f"data: {json.dumps({'type': 'delta', 'content': chunk})}\n\n"
-            await asyncio.sleep(0.015)
-
-        yield f"data: {json.dumps({'type': 'done', 'answer': generation, 'intent': intent, 'executed_actions': executed_actions, 'analytics_data': analytics_data, 'updated_catalog': updated_cat})}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+# ---------------------------------------------------------------------------
+# Inventory sync / ingest
+# ---------------------------------------------------------------------------
 
 class ProductIngestItem(BaseModel):
     name: str
@@ -180,297 +359,499 @@ class ProductIngestItem(BaseModel):
     category: Optional[str] = "General"
     cost_price: Optional[float] = 0.0
     selling_price: Optional[float] = 0.0
-    sales_velocity: Optional[int] = 0
+    sales_velocity: Optional[float] = 0.0
     lead_time_days: Optional[int] = 3
+
 
 class ProductIngestRequest(BaseModel):
     products: List[ProductIngestItem]
 
+
 @app.post("/api/ingest")
-async def ingest_endpoint(request: ProductIngestRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    cid = x_company_id or "default"
-    prods = [p.model_dump() for p in request.products]
-    for p in prods:
-        db_instance.upsert_product(p, company_id=cid)
-    
-    # Also index into ChromaDB if available
-    try:
-        from ingest import ingest_custom_products
-        ingest_custom_products(prods, company_id=cid)
+async def ingest_endpoint(
+    request: ProductIngestRequest,
+    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+):
+    company_id = _cid(x_company_id, None)
+    products = [p.model_dump() for p in request.products]
+    for product in products:
+        db_instance.upsert_product(product, company_id=company_id)
+    fact_store.bump(company_id)
+    answer_cache.clear(company_id)
+    return {
+        "status": "success",
+        "message": f"Ingested {len(products)} products.",
+    }
 
-    except Exception as e:
-        print(f"Vector ingest warning: {e}")
-        
-    cache_manager.clear(company_id=cid)
-    semantic_cache.clear(company_id=cid)
-    return {"status": "success", "message": f"Ingested {len(prods)} products into live inventory database & vectorstore."}
 
+class InventorySyncRequest(BaseModel):
+    products: List[Dict[str, Any]]
+
+
+@app.post("/api/inventory/sync")
+async def sync_inventory_endpoint(
+    request: InventorySyncRequest,
+    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+):
+    company_id = _cid(x_company_id, None)
+    if request.products:
+        db_instance.replace_user_inventory(request.products, company_id=company_id)
+    fact_store.bump(company_id)
+    answer_cache.clear(company_id)
+    facts = await asyncio.to_thread(fact_store.get, company_id, True)
+    return {"status": "success", "synced_items_count": len(facts.products)}
+
+
+@app.get("/api/inventory")
+async def get_inventory(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    return {"products": [p.to_dict() for p in facts.products]}
+
+
+@app.get("/api/inventory/ledger")
+def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    return {"action_ledger": db_instance._get_company(company_id)["action_ledger"]}
+
+
+# ---------------------------------------------------------------------------
+# Agent endpoints — all now computed from real transaction history
+# ---------------------------------------------------------------------------
 
 @app.get("/api/agent/autopilot")
-def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Proactively scans inventory levels, calculates reorder point requirements based on sales velocity and lead times,
-    and returns automated purchase recommendations.
-    """
-    cid = x_company_id or "default"
-    recommendations = db_instance.run_autopilot_scan(company_id=cid)
-    metrics = db_instance.get_analytics_summary(company_id=cid)
+async def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    recommendations = [
+        {
+            "barcode": p.barcode,
+            "product_name": p.name,
+            "current_stock": p.quantity,
+            "available_stock": p.available_qty,
+            "min_threshold": p.min_threshold,
+            "daily_sales_rate": round(p.daily_burn_rate, 3),
+            "weekly_sales_velocity": round(p.daily_burn_rate * 7, 2),
+            "lead_time_days": p.lead_time_days,
+            "reorder_point": p.reorder_point,
+            "safety_stock": p.safety_stock,
+            "suggested_reorder_qty": p.suggested_reorder_qty,
+            "days_of_cover": None if p.days_of_supply >= 999 else round(p.days_of_supply, 1),
+            "urgency": (
+                "HIGH"
+                if p.quantity <= 0 or p.days_of_supply <= p.lead_time_days
+                else "MEDIUM"
+            ),
+        }
+        for p in facts.needs_reorder
+    ]
     return {
         "status": "success",
-        "timestamp": metrics,
+        "timestamp": facts.summary(),
         "recommendations_count": len(recommendations),
-        "recommendations": recommendations
+        "recommendations": recommendations,
     }
 
-@app.get("/api/agent/anomalies")
-def detect_anomalies(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Scans action ledger and current stock state for anomalies, unexpected shrinkages, and stockout threats.
-    """
-    cid = x_company_id or "default"
-    anomalies = db_instance.detect_inventory_anomalies(company_id=cid)
-    return {
-        "status": "success",
-        "anomalies_count": len(anomalies),
-        "anomalies": anomalies
-    }
 
 @app.get("/api/agent/forecast")
-def predictive_forecast(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Returns 30-day predictive time-series demand forecasts, stockout projections, and optimal reorder windows.
-    """
-    cid = x_company_id or "default"
-    forecasts = db_instance.get_predictive_demand_forecast(company_id=cid)
+async def predictive_forecast(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    forecasts = [
+        {
+            "barcode": p.barcode,
+            "product_name": p.name,
+            "current_stock": p.quantity,
+            "available_stock": p.available_qty,
+            "daily_sales_rate": round(p.daily_burn_rate, 3),
+            "demand_std_dev": round(p.demand_std_dev, 3),
+            "statistical_safety_stock": p.safety_stock,
+            "projected_30d_demand": round(p.daily_burn_rate * 30, 1),
+            "days_until_stockout": round(p.days_of_supply, 1),
+            "risk_level": {
+                "at_risk": "CRITICAL",
+                "dead_stock": "NONE",
+                "no_history": "UNKNOWN",
+                "overstocked": "LOW",
+                "optimal": "MEDIUM",
+            }.get(p.health, "UNKNOWN"),
+            "revenue_at_risk": round(p.daily_burn_rate * p.lead_time_days * p.selling_price, 2),
+            "recommendation": (
+                f"Order {p.suggested_reorder_qty} units now"
+                if p.needs_reorder
+                else "No movement recorded - demand unknown"
+                if p.health == "no_history"
+                else "No action needed"
+            ),
+            "units_sold_in_window": p.units_out_window,
+            "window_days": facts.window_days,
+        }
+        for p in sorted(facts.products, key=lambda x: x.days_of_supply)
+    ]
     return {
         "status": "success",
         "forecasts_count": len(forecasts),
-        "forecasts": forecasts
+        "has_sales_history": facts.summary()["has_sales_history"],
+        "forecasts": forecasts,
     }
 
-@app.get("/api/agent/safety_stock")
-def statistical_safety_stock_endpoint(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Returns statistical safety stock levels and optimal reorder points for all inventory SKUs.
-    """
-    cid = x_company_id or "default"
-    try:
-        from predictive_ml import calculate_statistical_safety_stock, calculate_reorder_point, perform_abc_analysis
-    except ImportError:
-        from .predictive_ml import calculate_statistical_safety_stock, calculate_reorder_point, perform_abc_analysis
 
-    all_prods = db_instance.get_all_products(company_id=cid)
-    abc_groups = perform_abc_analysis(all_prods)
-    
-    results = []
-    for p in all_prods:
-        velocity = p.get("sales_velocity", 1.0)
-        lead_days = p.get("lead_time_days", 3)
-        safety_stock = calculate_statistical_safety_stock(velocity, lead_days)
-        rop = calculate_reorder_point(velocity, lead_days, safety_stock)
-        results.append({
-            "barcode": p.get("barcode"),
-            "name": p.get("name"),
-            "current_stock": p.get("stock", 0),
-            "sales_velocity": velocity,
-            "lead_time_days": lead_days,
-            "statistical_safety_stock": safety_stock,
-            "reorder_point_rop": rop,
-            "status": "REORDER_NEEDED" if p.get("stock", 0) <= rop else "OPTIMAL"
-        })
-        
+@app.get("/api/agent/anomalies")
+async def detect_anomalies(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    anomalies: List[Dict[str, Any]] = []
+
+    for p in facts.products:
+        if p.quantity <= 0 and p.daily_burn_rate > 0:
+            anomalies.append(
+                {
+                    "type": "STOCKOUT_ON_MOVING_ITEM",
+                    "product_name": p.name,
+                    "barcode": p.barcode,
+                    "severity": "CRITICAL",
+                    "description": (
+                        f"Out of stock while selling {p.daily_burn_rate:.2f} units/day — "
+                        f"roughly {p.daily_burn_rate * p.selling_price:,.2f} of revenue lost per day."
+                    ),
+                }
+            )
+        elif p.needs_reorder and p.days_of_supply <= p.lead_time_days:
+            anomalies.append(
+                {
+                    "type": "INSIDE_LEAD_TIME",
+                    "product_name": p.name,
+                    "barcode": p.barcode,
+                    "severity": "HIGH",
+                    "description": (
+                        f"{p.days_of_supply:.0f} days of cover left but the supplier needs "
+                        f"{p.lead_time_days} days — a stockout is already committed unless you order today."
+                    ),
+                }
+            )
+        elif p.health == "dead_stock" and p.cost_value > 0 and facts.history_is_reliable:
+            anomalies.append(
+                {
+                    "type": "DEAD_STOCK",
+                    "product_name": p.name,
+                    "barcode": p.barcode,
+                    "severity": "MEDIUM",
+                    "description": (
+                        f"No movement in {facts.window_days} days with "
+                        f"{p.cost_value:,.2f} of capital tied up."
+                    ),
+                }
+            )
+
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    anomalies.sort(key=lambda a: order.get(a["severity"], 9))
     return {
         "status": "success",
-        "safety_stock_recommendations_count": len(results),
-        "abc_analysis_summary": {k: len(v) for k, v in abc_groups.items()},
-        "recommendations": results
+        "anomalies_count": len(anomalies),
+        "anomalies": anomalies,
+    }
+
+
+@app.get("/api/agent/safety_stock")
+async def statistical_safety_stock_endpoint(
+    x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+
+    # ABC by annualised revenue contribution from real movement.
+    ranked = sorted(
+        facts.products,
+        key=lambda p: -(p.units_out_window * p.selling_price),
+    )
+    total_value = sum(p.units_out_window * p.selling_price for p in ranked) or 1.0
+    abc: Dict[str, List[str]] = {"A": [], "B": [], "C": []}
+    cumulative = 0.0
+    for p in ranked:
+        cumulative += p.units_out_window * p.selling_price
+        share = cumulative / total_value
+        abc["A" if share <= 0.8 else "B" if share <= 0.95 else "C"].append(p.barcode)
+
+    grade = {bc: g for g, items in abc.items() for bc in items}
+    return {
+        "status": "success",
+        "safety_stock_recommendations_count": len(facts.products),
+        "abc_analysis_summary": {k: len(v) for k, v in abc.items()},
+        "recommendations": [
+            {
+                "barcode": p.barcode,
+                "name": p.name,
+                "current_stock": p.quantity,
+                "daily_sales_rate": round(p.daily_burn_rate, 3),
+                "demand_std_dev": round(p.demand_std_dev, 3),
+                "lead_time_days": p.lead_time_days,
+                "statistical_safety_stock": p.safety_stock,
+                "reorder_point_rop": p.reorder_point,
+                "abc_class": grade.get(p.barcode, "C"),
+                "status": "REORDER_NEEDED" if p.needs_reorder else "OPTIMAL",
+            }
+            for p in facts.products
+        ],
     }
 
 
 @app.get("/api/agent/location_balance")
-def location_balance(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Analyzes cross-location stock distribution and returns automated stock transfer recommendations.
-    """
-    cid = x_company_id or "default"
-    transfers = db_instance.get_cross_location_balance_suggestions(company_id=cid)
+async def location_balance(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    suggestions = []
+    for p in facts.products:
+        locations = {k: v for k, v in p.location_quantities.items() if v}
+        if len(locations) < 2:
+            continue
+        richest = max(locations, key=lambda k: locations[k])
+        poorest = min(locations, key=lambda k: locations[k])
+        surplus = locations[richest]
+        deficit = locations[poorest]
+        if surplus > max(p.min_threshold, 1) * 2 and deficit <= p.min_threshold:
+            suggestions.append(
+                {
+                    "barcode": p.barcode,
+                    "product_name": p.name,
+                    "from_location": richest,
+                    "to_location": poorest,
+                    "suggested_transfer_qty": max(1, (surplus - deficit) // 2),
+                    "reason": (
+                        f"{richest} holds {surplus} units while {poorest} is down to "
+                        f"{deficit}, below its {p.min_threshold} threshold."
+                    ),
+                }
+            )
     return {
         "status": "success",
-        "transfer_suggestions_count": len(transfers),
-        "transfer_suggestions": transfers
+        "transfer_suggestions_count": len(suggestions),
+        "transfer_suggestions": suggestions,
     }
+
+
+# ---------------------------------------------------------------------------
+# Visual audit & voice
+# ---------------------------------------------------------------------------
 
 class VisualAuditItem(BaseModel):
     name: str
     count: int
 
+
 class VisualAuditRequest(BaseModel):
     detected_items: List[VisualAuditItem]
 
+
 @app.post("/api/agent/visual_audit")
-def process_visual_audit(request: VisualAuditRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Processes visual camera audit counts against live stock database and logs adjustments.
-    """
-    cid = x_company_id or "default"
-    items = [i.model_dump() for i in request.detected_items]
-    audit_summary = db_instance.process_visual_audit_photo(items, company_id=cid)
-    cache_manager.clear()
-    semantic_cache.clear()
+async def process_visual_audit(
+    request: VisualAuditRequest,
+    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id, True)
+    resolver = ProductResolver(facts.products)
+
+    results = []
+    for item in request.detected_items:
+        resolution = resolver.resolve(item.name)
+        if resolution.status == "not_found":
+            results.append({"product_name": item.name, "error": "Product not found in catalog"})
+            continue
+        if resolution.status == "ambiguous":
+            results.append(
+                {
+                    "product_name": item.name,
+                    "error": "Ambiguous match — confirm which product",
+                    "candidates": resolution.options(),
+                }
+            )
+            continue
+
+        product = resolution.product
+        outcome = await asyncio.to_thread(
+            writes.audit_inventory,
+            product,
+            item.count,
+            f"Visual audit: counted {item.count}",
+            company_id,
+        )
+        results.append(
+            {
+                "product_name": product.name,
+                "barcode": product.barcode,
+                "expected_stock": product.quantity,
+                "visual_counted_stock": item.count,
+                "discrepancy": item.count - product.quantity,
+                "success": outcome.get("success", False),
+            }
+        )
+
+    answer_cache.clear(company_id)
     return {
         "status": "success",
-        "audit_summary": audit_summary
+        "audit_summary": {
+            "timestamp": facts.generated_at,
+            "audited_items_count": len(results),
+            "results": results,
+        },
     }
+
 
 class VoiceCommandRequest(BaseModel):
     speech_text: str
 
+
 @app.post("/api/agent/voice_command")
-def process_voice_command_endpoint(request: VoiceCommandRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Processes hands-free spoken inventory commands and returns atomic stock mutations with text-to-speech audio feedback.
-    """
-    cid = x_company_id or "default"
-    res = db_instance.process_voice_command(request.speech_text, company_id=cid)
-    cache_manager.clear()
-    semantic_cache.clear()
-    return res
-
-@app.get("/api/inventory")
-def get_inventory(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """Returns list of all products in the live inventory database."""
-    cid = x_company_id or "default"
-    return {"products": db_instance.get_all_products(company_id=cid)}
+async def process_voice_command_endpoint(
+    request: VoiceCommandRequest,
+    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+):
+    company_id = _cid(x_company_id, None)
+    result = await asyncio.to_thread(
+        voice.process_voice_command, request.speech_text, company_id
+    )
+    fact_store.bump(company_id)
+    answer_cache.clear(company_id)
+    return result
 
 
-@app.get("/api/inventory/ledger")
-def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """Returns audit log of all executed stock actions."""
-    cid = x_company_id or "default"
-    return {"action_ledger": db_instance._get_company(cid)["action_ledger"]}
-
-@app.post("/api/cache/clear")
-def clear_cache():
-    cache_manager.clear()
-    semantic_cache.clear()
-    return {"status": "success", "message": "Cache cleared successfully"}
-
-@app.get("/api/cache/stats")
-def get_cache_stats():
-    """
-    Returns metrics on semantic and persistent cache hit rates, entry counts, and configuration.
-    """
-    return {
-        "status": "success",
-        "vector_semantic_cache": semantic_cache.get_stats(),
-        "persistent_cache": cache_manager.get_stats()
-    }
-
+# ---------------------------------------------------------------------------
+# Swarm (background autopilot)
+# ---------------------------------------------------------------------------
 
 from agent_swarm import AutonomousSwarm
 
 swarm_instance = AutonomousSwarm(db=db_instance)
 
+
 class SwarmEventRequest(BaseModel):
     event_name: str
     payload: Dict[str, Any] = {}
 
+
 class SwarmQueryRequest(BaseModel):
     query: str
+
+
+class POApprovalRequest(BaseModel):
+    po_id: str
+
 
 class GuardrailValidationRequest(BaseModel):
     action_type: str
     payload: Dict[str, Any]
     barcode: Optional[str] = None
 
+
 @app.post("/api/swarm/trigger")
-def trigger_swarm_event(request: SwarmEventRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Triggers an autonomous background event loop in the multi-agent swarm.
-    """
-    cid = x_company_id or "default"
-    res = swarm_instance.process_event_trigger(request.event_name, request.payload, company_id=cid)
-    return {"status": "success", "result": res}
+def trigger_swarm_event(
+    request: SwarmEventRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    company_id = _cid(x_company_id, None)
+    return {
+        "status": "success",
+        "result": swarm_instance.process_event_trigger(
+            request.event_name, request.payload, company_id=company_id
+        ),
+    }
+
 
 @app.post("/api/swarm/autopilot")
 def run_swarm_autopilot(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Triggers full 24/7 background autopilot sweep across all sub-agents (Reorder, Decay/Idle, Supplier Watch).
-    """
-    cid = x_company_id or "default"
-    res = swarm_instance.run_full_autopilot_sweep(company_id=cid)
-    return {"status": "success", "sweep_results": res, "pending_pos": swarm_instance.pending_pos}
+    company_id = _cid(x_company_id, None)
+    return {
+        "status": "success",
+        "sweep_results": swarm_instance.run_full_autopilot_sweep(company_id=company_id),
+        "pending_pos": swarm_instance.pending_pos,
+    }
+
 
 @app.get("/api/swarm/logs")
 def get_swarm_logs():
-    """
-    Returns episodic memory audit log of all autonomous decision logs.
-    """
     return {
         "status": "success",
-        "episodic_memory": swarm_instance.episodic_memory,
-        "pending_pos": swarm_instance.pending_pos
+        "episodic_memory": list(swarm_instance.episodic_memory),
+        "pending_pos": swarm_instance.pending_pos,
     }
 
-class POApprovalRequest(BaseModel):
-    po_id: str
 
 @app.post("/api/swarm/approve_po")
 def approve_pending_po_endpoint(request: POApprovalRequest):
-    """
-    1-Click Human Approval for queued high-value Purchase Orders.
-    """
-    res = swarm_instance.approve_pending_po(request.po_id)
-    return res
+    return swarm_instance.approve_pending_po(request.po_id)
+
 
 @app.post("/api/swarm/query")
-def query_swarm(request: SwarmQueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Ultra-fast query processing via semantic cache and vectorized pandas code engine.
-    """
-    cid = x_company_id or "default"
-    res = swarm_instance.process_query(request.query, company_id=cid)
-    return {"status": "success", "result": res}
-
+def query_swarm(
+    request: SwarmQueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    company_id = _cid(x_company_id, None)
+    return {"status": "success", "result": swarm_instance.process_query(request.query, company_id=company_id)}
 
 
 @app.post("/api/guardrails/validate")
-def validate_guardrails(request: GuardrailValidationRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Evaluates business policy compliance, spending caps, and safety guardrails on an action payload.
-    """
-    cid = x_company_id or "default"
-    item = db_instance.get_product(request.barcode, company_id=cid) if request.barcode else None
-    res = swarm_instance.guardrails.validate_action(request.action_type, request.payload, item)
+async def validate_guardrails(
+    request: GuardrailValidationRequest,
+    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+):
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    product = facts.lookup(request.barcode) if request.barcode else None
+    item = (
+        {"stock": product.quantity, "cost_price": product.cost_price} if product else None
+    )
+    result = swarm_instance.guardrails.validate_action(
+        request.action_type, request.payload, item
+    )
     return {
         "status": "success",
-        "passed": res.passed,
-        "requires_human_approval": res.requires_human_approval,
-        "risk_level": res.risk_level,
-        "reasons": res.reasons,
-        "sanitized_payload": res.sanitized_payload
+        "passed": result.passed,
+        "requires_human_approval": result.requires_human_approval,
+        "risk_level": result.risk_level,
+        "reasons": result.reasons,
+        "sanitized_payload": result.sanitized_payload,
     }
 
-class InventorySyncRequest(BaseModel):
-    products: List[Dict[str, Any]]
 
-@app.post("/api/inventory/sync")
-def sync_inventory_endpoint(request: InventorySyncRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    """
-    Syncs live user inventory items from the client app into the AI engine's real-time dataset.
-    """
-    cid = x_company_id or "default"
-    if request.products:
-        db_instance.replace_user_inventory(request.products, company_id=cid)
-        semantic_cache.clear()
-    return {"status": "success", "synced_items_count": len(db_instance.get_all_products(company_id=cid))}
+# ---------------------------------------------------------------------------
+# Ops
+# ---------------------------------------------------------------------------
+
+@app.post("/api/cache/clear")
+def clear_cache(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    company_id = x_company_id.strip() if x_company_id else None
+    answer_cache.clear(company_id)
+    if company_id:
+        fact_store.bump(company_id)
+    return {
+        "status": "success",
+        "scope": company_id or "all companies",
+    }
+
+
+@app.get("/api/cache/stats")
+def get_cache_stats():
+    return {
+        "status": "success",
+        "answer_cache": answer_cache.stats(),
+        "fact_store": fact_store.stats(),
+        "llm": llm_factory.health(),
+    }
+
 
 @app.get("/health")
-def health_check():
-    return {"status": "ok", "mode": "Autonomous Self-Sufficient AI Agent Engine"}
+async def health_check(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+    payload: Dict[str, Any] = {
+        "status": "ok",
+        "llm": llm_factory.health()["models"],
+        "provider": llm_factory.active_provider() or "lazy",
+    }
+    if x_company_id:
+        facts = await asyncio.to_thread(fact_store.get, x_company_id)
+        payload["inventory"] = facts.summary()
+        payload["source"] = facts.source
+        payload["fingerprint"] = facts.fingerprint
+    return payload
 
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
