@@ -49,6 +49,7 @@ class RagChatScreen extends StatefulWidget {
 }
 
 class _Message {
+  final String id;
   final String text;
   final bool isUser;
   final Map<String, dynamic>? actionPayload;
@@ -66,6 +67,7 @@ class _Message {
   _Message(
     this.text,
     this.isUser, {
+    String? id,
     this.isStreaming = false,
     this.actionPayload,
     this.statsPayload,
@@ -74,7 +76,7 @@ class _Message {
     this.pendingAction,
     this.responseKind,
     this.isActionExecuted = false,
-  });
+  }) : id = id ?? UniqueKey().toString();
 }
 
 class _RagChatScreenState extends State<RagChatScreen> {
@@ -462,10 +464,18 @@ class _RagChatScreenState extends State<RagChatScreen> {
         lowerText.contains('khatam') ||
         lowerText.contains('kam hai');
 
+    final isSnapshotQuery = lowerText.contains('snapshot') ||
+        lowerText.contains('health') ||
+        lowerText.contains('overview') ||
+        lowerText.contains('summary') ||
+        lowerText.contains('metrics') ||
+        lowerText.contains('audit');
+
     // Stream the answer so the first words appear in a few hundred
     // milliseconds instead of after the whole response has been generated.
     final buffer = StringBuffer();
     var placeholderIndex = -1;
+    String? streamMessageId;
     RagResponse? finalResponse;
 
     try {
@@ -483,12 +493,14 @@ class _RagChatScreenState extends State<RagChatScreen> {
           buffer.write(event['content'] ?? '');
           setState(() {
             if (placeholderIndex == -1) {
-              _messages.add(_Message(buffer.toString(), false, isStreaming: true));
+              final newMsg = _Message(buffer.toString(), false, isStreaming: true);
+              streamMessageId = newMsg.id;
+              _messages.add(newMsg);
               placeholderIndex = _messages.length - 1;
               _isLoading = false;
             } else {
               _messages[placeholderIndex] =
-                  _Message(buffer.toString(), false, isStreaming: true);
+                  _Message(buffer.toString(), false, id: streamMessageId, isStreaming: true);
             }
           });
           _scrollToBottom();
@@ -498,7 +510,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
           buffer.clear();
           if (placeholderIndex >= 0 && placeholderIndex < _messages.length) {
             setState(() {
-              _messages[placeholderIndex] = _Message('', false);
+              _messages[placeholderIndex] = _Message('', false, id: streamMessageId);
               _isLoading = true;
             });
           }
@@ -523,8 +535,9 @@ class _RagChatScreenState extends State<RagChatScreen> {
     final message = _Message(
       finalResponse.text,
       false,
+      id: streamMessageId,
       actionPayload: finalResponse.actionPayload,
-      statsPayload: finalResponse.statsPayload ?? statsMap,
+      statsPayload: finalResponse.statsPayload ?? (isSnapshotQuery ? statsMap : null),
       lowStockItemsPayload:
           isLowStockQuery && lowItemsPayloadList.isNotEmpty ? lowItemsPayloadList : null,
       clarificationOptions: finalResponse.clarificationOptions,
@@ -543,6 +556,26 @@ class _RagChatScreenState extends State<RagChatScreen> {
     });
     _saveChatHistory();
     _scrollToBottom();
+
+    // The assistant writes to Firestore itself now, but ProductProvider is a
+    // one-shot cache — without this the stock change is real and the app still
+    // shows the old number, which reads as "the AI said it worked but nothing
+    // happened".
+    if (finalResponse.executedActions?.isNotEmpty ?? false) {
+      await _refreshAfterAiWrite();
+    }
+  }
+
+  /// Pull the app's caches back in line after the assistant changes stock.
+  Future<void> _refreshAfterAiWrite() async {
+    try {
+      final provider = context.read<ProductProvider>();
+      await provider.refreshProducts();
+      await provider.loadAnalytics(force: true);
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Ask AI: refresh after write failed: $e');
+    }
   }
 
   /// Builds the history the backend sees.
@@ -603,16 +636,16 @@ class _RagChatScreenState extends State<RagChatScreen> {
     Clipboard.setData(ClipboardData(text: buffer.toString()));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Row(
+        content: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Text('Entire chat copied to clipboard!', style: TextStyle(fontWeight: FontWeight.bold)),
+            Icon(Icons.check_circle_rounded, color: AppTheme.onPrimary(context), size: 18),
+            const SizedBox(width: 8),
+            const Text('Entire chat copied to clipboard!', style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        backgroundColor: Colors.green.shade700,
+        backgroundColor: AppTheme.successColor,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -707,11 +740,12 @@ class _RagChatScreenState extends State<RagChatScreen> {
                         itemBuilder: (context, index) {
                           final message = _messages[index];
                           return _ChatBubble(
+                            key: ValueKey(message.id),
                             message: message,
                             onActionExecuted: _saveChatHistory,
                             onQuickPrompt: (prompt) => _sendMessage(prompt),
                           )
-                              .animate()
+                              .animate(key: ValueKey('anim_${message.id}'))
                               .fade(duration: 300.ms)
                               .slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuad);
                         },
@@ -809,7 +843,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.surface(context).withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1.5),
+                border: Border.all(color: AppTheme.glassBorder(context), width: 1.5),
               ),
               child: Row(
                 children: [
@@ -870,7 +904,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
                       iconSize: 18,
                       constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
                       padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
+                      icon: Icon(Icons.arrow_upward_rounded, color: AppTheme.onPrimary(context), size: 22),
                       onPressed: _isLoading ? null : () => _sendMessage(),
                     ),
                   ).animate().scale(begin: const Offset(0.85, 0.85), end: const Offset(1, 1), curve: Curves.easeOutBack),
@@ -945,6 +979,7 @@ class _ChatBubble extends StatefulWidget {
   final Function(String)? onQuickPrompt;
 
   const _ChatBubble({
+    super.key,
     required this.message, 
     this.onActionExecuted,
     this.onQuickPrompt,
@@ -1055,28 +1090,28 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
   MarkdownStyleSheet _getMarkdownStyleSheet(BuildContext context) {
     return MarkdownStyleSheet(
-      p: TextStyle(color: AppTheme.textPri(context), fontSize: 13.5, height: 1.4, letterSpacing: 0.1),
-      h1: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.5),
-      h2: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14.0),
-      h3: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700, fontSize: 13.5),
-      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 13.5),
-      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 13.5),
-      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.5, fontWeight: FontWeight.bold),
-      listIndent: 10.0,
-      listBulletPadding: const EdgeInsets.only(right: 3),
+      p: TextStyle(color: AppTheme.textPri(context), fontSize: 14.0, height: 1.5, letterSpacing: 0.1),
+      h1: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.bold, fontSize: 17.0, height: 1.4),
+      h2: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.bold, fontSize: 15.5, height: 1.4),
+      h3: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.5, height: 1.3),
+      strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.0),
+      em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14.0),
+      listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14.0, fontWeight: FontWeight.w600),
+      listIndent: 16.0,
+      listBulletPadding: const EdgeInsets.only(right: 6),
       pPadding: EdgeInsets.zero,
-      blockSpacing: 4,
+      blockSpacing: 8,
       tableBorder: TableBorder(
-        horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
-        verticalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.03), width: 0.5),
-        bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
-        top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
-        left: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
-        right: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
+        horizontalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.5),
+        verticalInside: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.08), width: 0.5),
+        bottom: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.18), width: 0.8),
+        top: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.18), width: 0.8),
+        left: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.5),
+        right: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.5),
       ),
-      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.95), fontSize: 11.5, height: 1.25),
-      tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 12.0, fontWeight: FontWeight.w800),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      tableBody: TextStyle(color: AppTheme.textPri(context).withValues(alpha: 0.95), fontSize: 12.5, height: 1.3),
+      tableHead: const TextStyle(color: AppTheme.primaryColor, fontSize: 13.0, fontWeight: FontWeight.w700),
       tableColumnWidth: const FlexColumnWidth(),
     );
   }
@@ -1139,13 +1174,6 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 color: AppTheme.surface(context).withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.01),
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(9),
@@ -1223,7 +1251,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
     final isUser = widget.message.isUser;
     
     final screenWidth = MediaQuery.of(context).size.width;
-    final maxBubbleWidth = (screenWidth * 0.82 - 44).clamp(200.0, 650.0);
+    final maxBubbleWidth = (screenWidth * 0.88 - 32).clamp(240.0, 720.0);
 
     final rawText = widget.message.text;
 
@@ -1272,7 +1300,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
 
     Widget bubble = Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       constraints: BoxConstraints(maxWidth: maxBubbleWidth),
       decoration: BoxDecoration(
         gradient: isUser 
@@ -1282,26 +1310,28 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.1), width: 0.8),
+        border: isUser ? null : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12), width: 0.8),
         borderRadius: BorderRadius.circular(14).copyWith(
           bottomRight: isUser ? const Radius.circular(3) : const Radius.circular(14),
           bottomLeft: isUser ? const Radius.circular(14) : const Radius.circular(3),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isUser ? AppTheme.primaryColor.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.01),
-            blurRadius: 3,
-            offset: const Offset(0, 1.5),
-          )
-        ],
+        boxShadow: isUser
+            ? [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : null,
       ),
       child: isUser 
         ? Text(
             widget.message.text,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.onPrimary(context),
               fontSize: 14,
-              height: 1.3,
+              height: 1.35,
               fontWeight: FontWeight.w500,
             ),
           )
@@ -1392,7 +1422,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: widget.message.isActionExecuted
-                  ? Colors.green.withValues(alpha: 0.4)
+                  ? AppTheme.successColor.withValues(alpha: 0.4)
                   : AppTheme.primaryColor.withValues(alpha: 0.3),
               width: 1,
             ),
@@ -1413,7 +1443,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                     padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
                       color: widget.message.isActionExecuted
-                          ? Colors.green.withValues(alpha: 0.15)
+                          ? AppTheme.successColor.withValues(alpha: 0.15)
                           : AppTheme.primaryColor.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
@@ -1421,7 +1451,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                       widget.message.isActionExecuted
                           ? Icons.check_circle_rounded
                           : (isPo ? Icons.add_shopping_cart_rounded : Icons.flash_on_rounded),
-                      color: widget.message.isActionExecuted ? Colors.green : AppTheme.primaryColor,
+                      color: widget.message.isActionExecuted ? AppTheme.successColor : AppTheme.primaryColor,
                       size: 14,
                     ),
                   ),
@@ -1464,12 +1494,12 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   child: ElevatedButton.icon(
                     onPressed: _isExecuting ? null : () => _executeAction(context),
                     icon: _isExecuting
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: AppTheme.onPrimary(context), strokeWidth: 2))
                         : Icon(isPo ? Icons.open_in_new_rounded : Icons.bolt_rounded, size: 16),
                     label: Text(btnText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isPo ? AppTheme.accentColor : AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppTheme.onPrimary(context),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 9),
                       elevation: 0,
@@ -1512,10 +1542,10 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 boxShadow: [
                   BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))
                 ],
-                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
+                border: Border.all(color: AppTheme.glassBorder(context), width: 1.2),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 12),
-            ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 2500.ms, color: Colors.white.withValues(alpha: 0.8)),
+              child: Icon(Icons.auto_awesome_rounded, color: AppTheme.onPrimary(context), size: 12),
+            ).animate(onPlay: (controller) => controller.repeat()).shimmer(duration: 2500.ms, color: AppTheme.onPrimary(context).withValues(alpha: 0.8)),
             Expanded(
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -1548,10 +1578,10 @@ class _VisualStatsHeader extends StatelessWidget {
     final outPct = total > 0 ? (out / total) : 0.0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppTheme.bg(context).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -1559,35 +1589,35 @@ class _VisualStatsHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.bar_chart_rounded, size: 14, color: AppTheme.primaryColor),
+              const Icon(Icons.bar_chart_rounded, size: 13, color: AppTheme.primaryColor),
               const SizedBox(width: 5),
               Text(
                 "Inventory Health Meter",
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textPri(context),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           // Multi-segment progress bar visualization
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
             child: SizedBox(
-              height: 5,
+              height: 4,
               child: Row(
                 children: [
                   if (healthyPct > 0)
                     Expanded(
                       flex: (healthyPct * 100).toInt().clamp(1, 100),
-                      child: Container(color: Colors.green),
+                      child: Container(color: AppTheme.successColor),
                     ),
                   if (lowPct > 0)
                     Expanded(
                       flex: (lowPct * 100).toInt().clamp(1, 100),
-                      child: Container(color: Colors.amber),
+                      child: Container(color: AppTheme.warningColor),
                     ),
                   if (outPct > 0)
                     Expanded(
@@ -1598,16 +1628,17 @@ class _VisualStatsHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          // Metric chips — data-driven with Wrap for mobile responsiveness
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
+          const SizedBox(height: 6),
+          // Metric chips in a single row
+          Row(
             children: [
-              _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined),
-              _MetricChip(label: "Low Stock", value: "$low", color: Colors.amber.shade700, icon: Icons.warning_amber_rounded),
-              _MetricChip(label: "Out Stock", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined),
-              _MetricChip(label: "Pending", value: "$pending", color: Colors.blue, icon: Icons.pending_actions_rounded),
+              Expanded(child: _MetricChip(label: "Catalog", value: "$total", color: AppTheme.primaryColor, icon: Icons.inventory_2_outlined)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Low", value: "$low", color: AppTheme.warningColor, icon: Icons.warning_amber_rounded)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Out", value: "$out", color: AppTheme.dangerColor, icon: Icons.remove_shopping_cart_outlined)),
+              const SizedBox(width: 4),
+              Expanded(child: _MetricChip(label: "Pending", value: "$pending", color: AppTheme.infoColor, icon: Icons.pending_actions_rounded)),
             ],
           ),
         ],
@@ -1632,21 +1663,25 @@ class _MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 0.8),
       ),
       child: Column(
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 11, color: color),
-              const SizedBox(width: 3),
-              Text(
-                value,
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: color),
+              Icon(icon, size: 10, color: color),
+              const SizedBox(width: 2),
+              Flexible(
+                child: Text(
+                  value,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -1654,6 +1689,7 @@ class _MetricChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(fontSize: 9.5, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1683,7 +1719,7 @@ class _VisualLowStockCards extends StatelessWidget {
           final int qty = (item['quantity'] ?? 0) as int;
           final int minThreshold = (item['lowStockThreshold'] ?? 10) as int;
           final double ratio = minThreshold > 0 ? (qty / minThreshold).clamp(0.0, 1.0) : 0.0;
-          final Color statusColor = qty == 0 ? AppTheme.dangerColor : Colors.amber.shade700;
+          final Color statusColor = qty == 0 ? AppTheme.dangerColor : AppTheme.warningColor;
 
           return Container(
             margin: const EdgeInsets.only(bottom: 5),
@@ -1754,14 +1790,14 @@ class _VisualLowStockCards extends StatelessWidget {
                           gradient: AppTheme.primaryGradient,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.add_rounded, size: 12, color: Colors.white),
-                            SizedBox(width: 2),
+                            Icon(Icons.add_rounded, size: 12, color: AppTheme.onPrimary(context)),
+                            const SizedBox(width: 2),
                             Text(
                               "Restock",
-                              style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -1968,7 +2004,7 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                           Icon(
                             isDone ? Icons.check_circle_outlined : Icons.circle_outlined,
                             size: 11,
-                            color: isDone ? AppTheme.primaryColor : Colors.grey.withValues(alpha: 0.5),
+                            color: isDone ? AppTheme.primaryColor : AppTheme.textMute(context),
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -1986,7 +2022,7 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                                     _reasoningLogs[idx],
                                     style: TextStyle(
                                       fontSize: 11.5,
-                                      color: AppTheme.textSec(context).withValues(alpha: 0.5),
+                                      color: AppTheme.textMute(context),
                                       fontWeight: FontWeight.normal,
                                     ),
                                   ),
@@ -2014,7 +2050,7 @@ class TypewriterText extends StatefulWidget {
     super.key,
     required this.text,
     required this.style,
-    this.duration = const Duration(milliseconds: 25),
+    this.duration = const Duration(milliseconds: 40),
   });
 
   @override
@@ -2142,12 +2178,12 @@ class _LiveVoiceVisualizerWidget extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+            icon: Icon(Icons.close_rounded, size: 18, color: AppTheme.textSec(context)),
             tooltip: "Cancel Voice",
             onPressed: onCancel,
           ),
           IconButton(
-            icon: const Icon(Icons.check_circle_rounded, size: 22, color: Colors.green),
+            icon: const Icon(Icons.check_circle_rounded, size: 22, color: AppTheme.successColor),
             tooltip: "Done",
             onPressed: onDone,
           ),
@@ -2342,77 +2378,6 @@ class _ClarificationChips extends StatelessWidget {
 }
 
 
-class _PreviewActionCard extends StatefulWidget {
-  final Map<String, dynamic> pendingAction;
-  final Function(String) onAction;
-  
-  const _PreviewActionCard({required this.pendingAction, required this.onAction});
-
-  @override
-  State<_PreviewActionCard> createState() => _PreviewActionCardState();
-}
-
-class _PreviewActionCardState extends State<_PreviewActionCard> {
-  bool _responded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final qty = widget.pendingAction['qty_change'] ?? 0;
-    final productName = widget.pendingAction['product_name'] ?? 'Item';
-    
-    return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.surface(context).withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppTheme.primaryColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "⚡ Suggested Action",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryColor),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            qty >= 0 ? "Add $qty units to $productName" : "Deduct ${qty.abs()} units from $productName",
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _responded ? null : () {
-                    setState(() => _responded = true);
-                    widget.onAction("cancel");
-                  },
-                  child: const Text("Cancel"),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _responded ? null : () {
-                    setState(() => _responded = true);
-                    widget.onAction("confirm");
-                  },
-                  child: const Text("Confirm"),
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-}
-
 class _NoHistoryCallToAction extends StatelessWidget {
   final Function(String) onAction;
   
@@ -2424,14 +2389,18 @@ class _NoHistoryCallToAction extends StatelessWidget {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
+        color: AppTheme.infoColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
-          const Icon(Icons.info_outline, color: Colors.blue),
+          const Icon(Icons.info_outline, color: AppTheme.infoColor),
           const SizedBox(height: 8),
-          const Text("No movement recorded. Start tracking stock to get insights.", textAlign: TextAlign.center),
+          Text(
+            "No movement recorded. Start tracking stock to get insights.",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppTheme.textPri(context)),
+          ),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: () => onAction("audit inventory"),
@@ -2501,20 +2470,20 @@ class _ConfirmActionCardState extends State<_ConfirmActionCard> {
         margin: const EdgeInsets.only(top: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: (ok ? Colors.green : Colors.grey).withValues(alpha: 0.10),
+          color: (ok ? AppTheme.successColor : AppTheme.textMute(context)).withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
             Icon(ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                size: 18, color: ok ? Colors.green.shade700 : Colors.grey),
+                size: 18, color: ok ? AppTheme.successColor : AppTheme.textMute(context)),
             const SizedBox(width: 8),
             Text(
               ok ? 'Applying...' : 'Cancelled',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: ok ? Colors.green.shade800 : AppTheme.textSec(context),
+                color: ok ? AppTheme.successColor : AppTheme.textSec(context),
               ),
             ),
           ],

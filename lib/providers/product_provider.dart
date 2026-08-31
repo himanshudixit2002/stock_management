@@ -423,18 +423,26 @@ class ProductProvider extends ChangeNotifier {
   /// Fetches the full product set for accurate analytics/reports.
   /// Cached for 2 minutes to avoid redundant fetches.
   /// Called automatically by initialize() and manually after stock operations.
-  Future<void> loadAnalytics() async {
+  /// Loads the full catalog used for analytics.
+  ///
+  /// Pass [force] to bypass the time-based cache. That matters after something
+  /// outside this provider changes stock — the AI assistant writes to Firestore
+  /// directly, and without a forced reload the change is real but the app keeps
+  /// showing the cached quantity.
+  Future<void> loadAnalytics({bool force = false}) async {
     // On the fast startup path the Home shell can mount (and request analytics)
     // before this provider has been scoped to a company. Bail out quietly —
     // the staggered init's background phase calls this again once bound.
     if (_databaseService.companyId.isEmpty) return;
     final now = DateTime.now();
-    if (_analyticsProducts != null &&
+    if (!force &&
+        _analyticsProducts != null &&
         _analyticsFetchedAt != null &&
         now.difference(_analyticsFetchedAt!).inMinutes <
             _analyticsCacheMinutes) {
       return;
     }
+    if (force) _analyticsFetchedAt = null;
 
     _analyticsInFlight ??= _loadAnalyticsBody().whenComplete(() {
       _analyticsInFlight = null;
