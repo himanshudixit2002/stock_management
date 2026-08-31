@@ -207,6 +207,39 @@ check(
     True,
 )
 
+print("\n== Picking a product keeps the action that asked the question ==")
+# Duplicate names are common in real catalogs. Answering "which one?" with a
+# barcode carries no quantity, so the original request has to survive or the
+# user's intent is silently dropped.
+testkit_dupes = [
+    {"id": "d1", "barcode": "700001", "name": "Cotton Roll Basic", "stock": 90, "min_threshold": 10},
+    {"id": "d2", "barcode": "700002", "name": "Cotton Roll Basic", "stock": 16, "min_threshold": 10},
+]
+db_instance.replace_user_inventory(testkit_dupes, company_id="dupe_co")
+from facts import fact_store as _fs
+_fs.bump("dupe_co")
+
+def run_dupe(q, sid="dupe_sess"):
+    return asyncio.run(rag_pipeline.ainvoke({
+        "question": q, "retries": 0, "history": [], "company_id": "dupe_co",
+        "business_type": "clinic", "session_id": sid,
+    }))
+
+res = run_dupe("add 12 units of Cotton Roll Basic")
+check("identical names are ambiguous", res["response_kind"], "clarification")
+check("both offered", len(res.get("clarification_options") or []), 2)
+
+res = run_dupe("700002")
+check("picking a barcode resumes the action", res["response_kind"], "preview")
+contains("previews the right product", res["generation"], "700002")
+contains("keeps the original quantity", res["generation"], "12")
+check("nothing written yet", res.get("executed_actions"), [])
+
+res = run_dupe("confirm")
+check("confirming applies it", res["response_kind"], "executed")
+acts = res.get("executed_actions") or []
+check("stock moved 16 -> 28", acts[0]["result"].get("new_stock") if acts else None, 28)
+
 print("\n== Confirm-before-write executes the previewed action exactly ==")
 pending_actions.put(
     CID,

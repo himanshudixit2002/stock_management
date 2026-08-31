@@ -31,7 +31,7 @@ import writes
 from facts import InventoryFacts, ProductFact, fact_store
 from guardrails import InventoryGuardrails
 from pending import is_cancellation, is_confirmation, pending_actions
-from resolver import ProductResolver, strip_command_words
+from resolver import ProductResolver
 from state import GraphState
 
 MAX_HISTORY_TURNS = 6
@@ -389,13 +389,21 @@ async def router_node(state: GraphState) -> GraphState:
     company_id = state.get("company_id", "default")
     session_id = state.get("session_id", "default")
 
-    # A confirmation or cancellation only means anything against a live preview.
-    if pending_actions.get(company_id, session_id) and (
-        is_confirmation(q) or is_cancellation(q)
-    ):
-        state["intent"] = "EXECUTION"
-        state["route_source"] = "pending"
-        return state
+    outstanding = pending_actions.get(company_id, session_id)
+    if outstanding:
+        # While a "which product did you mean?" question is open, the reply is
+        # usually a bare barcode or name — which on its own looks like a lookup.
+        # It has to reach the execution agent or the pending action is stranded.
+        if outstanding.get("tool") == "__clarify__":
+            state["intent"] = "EXECUTION"
+            state["route_source"] = "pending"
+            return state
+        # Otherwise a confirmation or cancellation only means anything against
+        # a live preview.
+        if is_confirmation(q) or is_cancellation(q):
+            state["intent"] = "EXECUTION"
+            state["route_source"] = "pending"
+            return state
 
     if any(re.search(p, q) for p in _EXECUTION_PATTERNS):
         state["intent"] = "EXECUTION"
@@ -441,9 +449,14 @@ async def retrieve_node(state: GraphState) -> GraphState:
     if intent == "EXECUTION":
         # The whole point: give the agent the exact SKUs this request is about,
         # with live numbers, so it never has to guess a barcode.
-        phrase = strip_command_words(question)
-        if phrase:
-            resolution = _resolver(facts).resolve(phrase, limit=5)
+        # Hand the resolver the raw question. It strips command words itself
+        # for name matching, but only after checking barcodes against the
+        # untouched tokens — and `strip_command_words` removes every numeric
+        # token, barcodes included. Pre-stripping made it impossible to
+        # disambiguate duplicate names by barcode, which is the only thing that
+        # tells them apart.
+        if question.strip():
+            resolution = _resolver(facts).resolve(question, limit=5)
             focus = [c.product for c in resolution.candidates]
             state["clarification_options"] = (
                 resolution.options() if resolution.status == "ambiguous" else None
@@ -466,9 +479,8 @@ async def retrieve_node(state: GraphState) -> GraphState:
             )
 
     else:  # KNOWLEDGE
-        phrase = strip_command_words(question)
-        if phrase:
-            candidates = _resolver(facts).search(phrase, limit=5)
+        if question.strip():
+            candidates = _resolver(facts).search(question, limit=5)
             focus = [c.product for c in candidates if c.score >= 0.5][:5]
         if focus:
             blocks.append(
@@ -549,6 +561,31 @@ def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str
         + table
         + "\n\nReply **Confirm** to apply, or **Cancel** to discard."
     )
+
+
+_QTY_RE = re.compile(r"\b(\d{1,5})\b")
+
+
+def _stock_intent(text: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """Recover the action a message asked for, ignoring which product it named.
+
+    Used when the user answers a "which one did you mean?" question: the reply
+    is just a barcode, so the quantity and direction have to come from the
+    original request or the intent is silently lost.
+    """
+    q = (text or "").lower()
+    numbers = [int(n) for n in _QTY_RE.findall(q) if len(n) < 6]
+    qty = numbers[0] if numbers else None
+    if qty is None:
+        return None
+
+    if any(w in q for w in ("purchase order", "create po", "raise a po", "reorder", "order")):
+        return "create_purchase_order", {"reorder_qty": qty, "supplier_name": ""}
+    if any(w in q for w in ("deduct", "remove", "reduce", "subtract", "sold", "damaged", "minus")):
+        return "update_stock", {"qty_change": -qty, "reason": "AI adjustment"}
+    if any(w in q for w in ("add", "increase", "restock", "received", "plus")):
+        return "update_stock", {"qty_change": qty, "reason": "AI adjustment"}
+    return None
 
 
 def _guardrail_check(tool: str, product: ProductFact, args: Dict[str, Any]):
@@ -647,6 +684,50 @@ async def execution_agent_node(state: GraphState) -> GraphState:
 
     # --- 1. Resolve an outstanding confirmation without touching a model ---
     pending = pending_actions.get(company_id, session_id)
+
+    # The user is answering "which one did you mean?". Their reply is a barcode
+    # or a name and carries no quantity, so the action has to be recovered from
+    # the request that triggered the question — otherwise picking a product
+    # just prints its details and the original intent is quietly dropped.
+    if pending and pending.get("tool") == "__clarify__":
+        if is_cancellation(question):
+            pending_actions.clear(company_id, session_id)
+            state["generation"] = "Cancelled — nothing was changed."
+            state["executed_actions"] = []
+            state["response_kind"] = "prose"
+            state["answered_by"] = "pending"
+            return state
+
+        chosen = _resolver(facts).resolve(question, limit=5)
+        intent = _stock_intent(pending.get("original_question", ""))
+        if chosen.status == "resolved" and intent:
+            pending_actions.clear(company_id, session_id)
+            tool, args = intent
+            product = chosen.product
+            verdict = _guardrail_check(tool, product, args)
+            if verdict is not None and not verdict.passed:
+                state["generation"] = "I stopped that action: " + " ".join(verdict.reasons)
+                state["executed_actions"] = []
+                state["response_kind"] = "prose"
+                state["answered_by"] = "deterministic"
+                return state
+            action = {
+                "tool": tool,
+                "args": args,
+                "barcode": product.barcode,
+                "product_id": product.id,
+                "product_name": product.name,
+            }
+            pending_actions.put(company_id, session_id, action)
+            state["pending_action"] = action
+            state["generation"] = _build_preview(tool, product, args)
+            state["executed_actions"] = []
+            state["response_kind"] = "preview"
+            state["answered_by"] = "deterministic"
+            state["llm_calls"] = 0
+            return state
+        pending = None  # not an answer to the question; treat normally
+
     if pending:
         if is_cancellation(question):
             pending_actions.clear(company_id, session_id)
@@ -668,7 +749,36 @@ async def execution_agent_node(state: GraphState) -> GraphState:
             state["response_kind"] = "executed"
             return state
 
-    # --- 2. Ask the model which action to take ---
+    # --- 2. Settle product identity before the model gets a say ---
+    #
+    # Catalogs legitimately contain several products with the same name, told
+    # apart only by barcode. Left to itself the model improvises here: it writes
+    # its own "which one did you mean?" prose (so the client gets no tappable
+    # options and the user has to retype), and it has been observed replying
+    # "not found" for a barcode it had just listed. The resolver already knows
+    # the answer, so it decides — deterministically, for free, and in a shape
+    # the UI can render.
+    ambiguous = state.get("clarification_options")
+    if ambiguous:
+        resolution = _resolver(facts).resolve(question, limit=5)
+        if resolution.status == "ambiguous":
+            if _stock_intent(question):
+                pending_actions.put(
+                    company_id,
+                    session_id,
+                    {"tool": "__clarify__", "original_question": question},
+                )
+            state["generation"] = resolution.clarification()
+            state["clarification_options"] = resolution.options()
+            state["response_kind"] = "clarification"
+            state["executed_actions"] = []
+            state["answered_by"] = "deterministic"
+            state["llm_calls"] = 0
+            return state
+        # The resolver settled it after all; drop the stale hint.
+        state["clarification_options"] = None
+
+    # --- 3. Ask the model which action to take ---
     client = llm_factory.get_llm(
         llm_factory.AGENT, temperature=0.0, tools=EXECUTION_TOOLS
     )

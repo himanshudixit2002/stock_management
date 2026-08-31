@@ -100,6 +100,23 @@ check("'standard' is still rejected as filler on a large catalog",
 print("\n== Empty catalog degrades safely ==")
 check("no products", ProductResolver([]).resolve("anything").status, "not_found")
 
+print("\n== Duplicate names are separable only by barcode ==")
+# Real catalogs contain several products sharing a name. The barcode is the
+# only thing telling them apart, so a request naming one must resolve — and it
+# must survive being embedded in a full sentence.
+dupes = ProductResolver([
+    P("Cotton Roll Basic", "353013617355", 94),
+    P("Cotton Roll Basic", "331766491619", 16),
+    P("Cotton Roll Premium", "999000111222", 5),
+])
+check("bare name is ambiguous", dupes.resolve("add 10 units of Cotton Roll Basic").status, "ambiguous")
+r = dupes.resolve("add 10 units of barcode 353013617355")
+check("barcode in a sentence resolves", r.status, "resolved")
+check("...to the right duplicate", r.product.barcode, "353013617355")
+check("bare barcode resolves", dupes.resolve("353013617355").product.barcode, "353013617355")
+check("the other duplicate is reachable too",
+      dupes.resolve("add 5 331766491619").product.barcode, "331766491619")
+
 print("\n== Clarification text lists the options ==")
 text = R.resolve("add 50 cannula").clarification()
 check("mentions 18G", "Cannula 18G" in text, True)

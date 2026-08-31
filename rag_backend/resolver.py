@@ -196,7 +196,10 @@ class ProductResolver:
         q_set = set(q_tokens)
         norm_query = " ".join(q_tokens)
 
-        # 2. Exact full-name match.
+        # 2. Exact full-name match — but only when it identifies one product.
+        # Catalogs really do carry several items with the same name, separable
+        # only by barcode. An exact name match against duplicates identifies
+        # nothing, so it must ask rather than pick the first.
         exact = [
             p
             for p in self.products
@@ -204,6 +207,12 @@ class ProductResolver:
         ]
         if len(exact) == 1:
             return Resolution("resolved", [Candidate(exact[0], 1.0, "exact_name")], raw)
+        if len(exact) > 1:
+            return Resolution(
+                "ambiguous",
+                [Candidate(p, 1.0, "exact_name_duplicate") for p in exact[:limit]],
+                raw,
+            )
 
         # 3. Weighted scoring across the catalog.
         scored: List[Candidate] = []
@@ -238,6 +247,12 @@ class ProductResolver:
 
         scored.sort(key=lambda c: (-c.score, getattr(c.product, "name", "")))
         top = scored[: max(limit, 2)]
+
+        # A tie at the top identifies nothing, however confident the score is:
+        # identically named products score identically by construction.
+        tied_at_top = [c for c in top if abs(top[0].score - c.score) < 1e-9]
+        if len(tied_at_top) > 1:
+            return Resolution("ambiguous", tied_at_top[:limit], raw)
 
         if len(top) == 1 or top[0].score >= CONFIDENT_SCORE:
             return Resolution("resolved", top[:limit], raw)
