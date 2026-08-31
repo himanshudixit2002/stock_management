@@ -18,6 +18,7 @@ import '../../utils/dialogs.dart';
 import '../../utils/validators.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../utils/debouncer.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -29,22 +30,20 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
   int _usersStreamEpoch = 0;
 
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel();
+    _searchDebounce.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() {
-        _searchQuery = value.trim().toLowerCase();
-      });
+    _searchDebounce.run(() {
+      if (!mounted) return;
+      setState(() => _searchQuery = value.trim().toLowerCase());
     });
   }
 
@@ -313,7 +312,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                         color: AppTheme.surface(
                                                           context,
                                                         ),
-                                                        fontSize: 10,
+                                                        fontSize: 12,
                                                         fontWeight:
                                                             FontWeight.bold,
                                                       ),
@@ -373,7 +372,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                       child: Text(
                                                         roleName.toUpperCase(),
                                                         style: TextStyle(
-                                                          fontSize: 11,
+                                                          fontSize: 12,
                                                           fontWeight:
                                                               FontWeight.bold,
                                                           color: isPrivileged
@@ -584,7 +583,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         secondary: Text(
                           '${role.enabledCount}/${role.totalCount}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.primaryColor,
                             fontWeight: FontWeight.w600,
                           ),
@@ -881,11 +880,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
+            maxHeight: MediaQuery.sizeOf(sheetCtx).height * 0.85,
           ),
           decoration: BoxDecoration(
             color: AppTheme.surface(context),

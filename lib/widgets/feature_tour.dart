@@ -123,7 +123,7 @@ class _FeatureTourState extends State<FeatureTour>
   Widget build(BuildContext context) {
     final step = _steps[_step];
     final isLast = _step == _steps.length - 1;
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
 
     return Material(
       color: Colors.transparent,

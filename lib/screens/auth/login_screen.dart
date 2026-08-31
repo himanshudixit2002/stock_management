@@ -9,6 +9,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/validators.dart';
+import '../../widgets/branded_splash.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (sheetCtx) => StatefulBuilder(
         builder: (sheetCtx, setSheetState) => Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+            bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
           ),
           child: Container(
             decoration: BoxDecoration(
@@ -307,11 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: 24,
                               padding: const EdgeInsets.all(16),
                               useContentVariant: true,
-                              child: Image.asset(
-                                'logo.png',
-                                width: 64,
-                                height: 64,
-                              ),
+                              child: const BrandLogo(size: 64),
                             ),
                           ),
                           const SizedBox(height: 24),

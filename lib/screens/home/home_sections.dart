@@ -9,8 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
-import '../../models/user_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
@@ -19,8 +17,9 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../home_screen.dart';
-import '../ai/rag_chat_screen.dart';
+import '../ai/ask_ai_launcher.dart';
 import '../ai/visual_stock_audit_screen.dart';
+import '../../widgets/floating_bottom_nav.dart';
 
 // ---------------------------------------------------------------------------
 // Action card (customizable Quick Actions surface on Home)
@@ -82,10 +81,10 @@ class _HomeActionCardState extends State<HomeActionCard> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: AppTheme.onPrimary(context).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(widget.icon, color: Colors.white, size: 24),
+                  child: Icon(widget.icon, color: AppTheme.onPrimary(context), size: 24),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -93,8 +92,8 @@ class _HomeActionCardState extends State<HomeActionCard> {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.onPrimary(context),
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                     letterSpacing: 0.2,
@@ -117,11 +116,6 @@ class QuickStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final perms = context.select<AuthProvider, Map<String, bool>>(
-      (a) =>
-          a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
-    );
-
     // Only show the skeleton box when we have *nothing* to show yet. When a
     // cached seed (or live data) exists, render the real number immediately and
     // let it reconcile silently as fresh data lands.
@@ -155,22 +149,14 @@ class QuickStats extends StatelessWidget {
           .length;
     });
 
-    int tabIndexFor(String tabLabel) {
-      int idx = 1;
-      if (tabLabel == 'Products' && perms['canViewProducts'] == true) {
-        return idx;
-      }
-      if (perms['canViewProducts'] == true) idx++;
-      if (tabLabel == 'Reports' && perms['canViewReports'] == true) return idx;
-      return -1;
-    }
+    // Resolved by tab kind rather than index arithmetic: HomeScreen owns the
+    // permission -> visible tab mapping, and re-deriving it here drifted out of
+    // sync whenever the tab set changed.
+    void goToTab(FloatingNavTabKind kind) => context
+        .findAncestorStateOfType<HomeScreenState>()
+        ?.switchToTabKind(kind);
 
-    void goToProducts() {
-      final idx = tabIndexFor('Products');
-      if (idx > 0) {
-        context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(idx);
-      }
-    }
+    void goToProducts() => goToTab(FloatingNavTabKind.products);
 
     final stats = <_StatData>[
       _StatData(
@@ -196,13 +182,8 @@ class QuickStats extends StatelessWidget {
         color: AppTheme.dangerColor,
         isLoading: isInitialLoading,
         onTap: () {
-          final idx = tabIndexFor('Products');
-          if (idx > 0) {
-            context.read<ProductProvider>().filterByStockStatus('out_of_stock');
-            context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(
-              idx,
-            );
-          }
+          context.read<ProductProvider>().filterByStockStatus('out_of_stock');
+          goToTab(FloatingNavTabKind.products);
         },
       ),
       _StatData(
@@ -210,18 +191,9 @@ class QuickStats extends StatelessWidget {
         value: todayTxns,
         icon: Icons.receipt_long_rounded,
         color: AppTheme.infoColor,
-        onTap: () {
-          final idx = tabIndexFor('Reports');
-          if (idx > 0) {
-            context.findAncestorStateOfType<HomeScreenState>()?.switchToTab(
-              idx,
-            );
-          }
-        },
+        onTap: () => goToTab(FloatingNavTabKind.reports),
       ),
     ];
-
-    final isDesktop = Responsive.isDesktop(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -231,55 +203,51 @@ class QuickStats extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(2),
-              child: const LinearProgressIndicator(
+              child: LinearProgressIndicator(
                 minHeight: 2,
                 color: AppTheme.primaryColor,
-                backgroundColor: Color(0x1A007AFF),
+                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
               ),
             ),
           ),
-        if (isDesktop)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const cols = 4;
-              const spacing = 10.0;
-              final cardWidth =
-                  (constraints.maxWidth - spacing * (cols - 1)) / cols;
-              return Wrap(
-                spacing: spacing,
-                runSpacing: spacing,
-                children: [
-                  for (var i = 0; i < stats.length; i++)
-                    AnimatedListItem(
-                      index: i,
-                      child: SizedBox(
-                        width: cardWidth,
-                        child: _StatCard(
-                          label: stats[i].label,
-                          value: stats[i].value,
-                          icon: stats[i].icon,
-                          color: stats[i].color,
-                          isLoading: stats[i].isLoading,
-                          onTap: stats[i].onTap,
-                        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // A grid at every width. This used to be a horizontally scrolling
+            // strip of pills on mobile, which showed only about 2.5 of the four
+            // stats on a 375px screen — Out of Stock and Today were effectively
+            // invisible. Two columns fit all four in two compact rows.
+            final cols = constraints.maxWidth >= 560 ? 4 : 2;
+            const spacing = 10.0;
+            final cardWidth =
+                (constraints.maxWidth - spacing * (cols - 1)) / cols;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                for (var i = 0; i < stats.length; i++)
+                  AnimatedListItem(
+                    index: i,
+                    child: SizedBox(
+                      width: cardWidth,
+                      child: _StatCard(
+                        label: stats[i].label,
+                        value: stats[i].value,
+                        icon: stats[i].icon,
+                        color: stats[i].color,
+                        isLoading: stats[i].isLoading,
+                        onTap: stats[i].onTap,
+                        // Icon beside the number rather than above it, so two
+                        // rows of stats stay short on a phone. Tied to the
+                        // column count, not the breakpoint: at four columns the
+                        // cards are too narrow for a side-by-side label.
+                        dense: cols == 2,
                       ),
                     ),
-                ],
-              );
-            },
-          )
-        else
-          // One scrollable row of compact mini pills (keeps stats above the fold).
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: Responsive.scrollPhysics(context),
-              itemCount: stats.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, i) => _StatPill(data: stats[i]),
-            ),
-          ),
+                  ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
@@ -307,64 +275,6 @@ class _StatData {
 
 /// Compact single-row stat pill for mobile Home. Keeps the seeded/cached value
 /// with a [CountUpText] reconcile (reduce-motion aware via [CountUpText]).
-class _StatPill extends StatelessWidget {
-  final _StatData data;
-  const _StatPill({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: data.isLoading ? null : data.onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: data.color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: data.color.withValues(alpha: 0.22)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(data.icon, color: data.color, size: 16),
-              const SizedBox(width: 6),
-              data.isLoading
-                  ? Container(
-                      width: 22,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: AppTheme.dividerC(context),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    )
-                  : CountUpText(
-                      data.value,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: data.color,
-                      ),
-                    ),
-              const SizedBox(width: 6),
-              Text(
-                data.label,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textSec(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StatCard extends StatelessWidget {
   final String label;
   final int value;
@@ -373,6 +283,10 @@ class _StatCard extends StatelessWidget {
   final bool isLoading;
   final VoidCallback? onTap;
 
+  /// Lays the icon beside the number instead of above it, so a two-column grid
+  /// of stats stays short enough to sit above the fold on a phone.
+  final bool dense;
+
   const _StatCard({
     required this.label,
     required this.value,
@@ -380,54 +294,79 @@ class _StatCard extends StatelessWidget {
     required this.color,
     this.isLoading = false,
     this.onTap,
+    this.dense = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final iconBadge = Container(
+      padding: EdgeInsets.all(dense ? 7 : 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, color: color, size: dense ? 18 : 20),
+    );
+
+    final valueText = isLoading
+        ? Container(
+            width: 40,
+            height: dense ? 22 : 26,
+            decoration: BoxDecoration(
+              color: AppTheme.dividerC(context),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          )
+        : CountUpText(
+            value,
+            style: TextStyle(
+              fontSize: dense ? 20 : 24,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+
+    final labelText = Text(
+      label,
+      style: TextStyle(
+        fontSize: 12.5,
+        color: AppTheme.textSec(context),
+        fontWeight: FontWeight.w600,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
     return GlassCard(
       onTap: isLoading ? null : onTap,
       borderRadius: 16,
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 8),
-            isLoading
-                ? Container(
-                    width: 40,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: AppTheme.dividerC(context),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  )
-                : CountUpText(
-                    value,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: color,
+        padding: EdgeInsets.all(dense ? 10 : 12),
+        child: dense
+            ? Row(
+                children: [
+                  iconBadge,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [valueText, labelText],
                     ),
                   ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.textSec(context),
-                fontWeight: FontWeight.w600,
+                ],
+              )
+            : Column(
+                children: [
+                  iconBadge,
+                  const SizedBox(height: 8),
+                  valueText,
+                  const SizedBox(height: 4),
+                  labelText,
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -484,7 +423,7 @@ class HomeNavTile extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textTer(context),
                         ),
                         maxLines: 1,
@@ -592,7 +531,7 @@ class _InsightsCardState extends State<InsightsCard> {
     return GestureDetector(
       onTap: () {
         if (current.route == 'ask_ai_rag') {
-          RagChatScreen.open(context);
+          openAskAi(context);
         } else if (current.route == 'visual_ai_audit') {
           Navigator.push(
             context,
@@ -1145,7 +1084,7 @@ class _TransactionTile extends StatelessWidget {
                     Text(
                       txn.location,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                       ),
                     ),
@@ -1177,7 +1116,7 @@ class _TransactionTile extends StatelessWidget {
                   Text(
                     timeAgo,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 12,
                       color: AppTheme.textTer(context),
                     ),
                   ),

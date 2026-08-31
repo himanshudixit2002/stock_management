@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../config/theme.dart';
 import '../../../providers/stock_provider.dart';
+import '../../../models/stock_transaction_model.dart';
+import '../../../models/product_model.dart';
 import '../../../providers/product_provider.dart';
 import '../../../widgets/glass_panel.dart';
 import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
 import '../../../widgets/floating_nav_padding.dart';
-import '../../ai/rag_chat_screen.dart';
+import '../../ai/ask_ai_launcher.dart';
 
 class PredictiveForecastingTab extends StatefulWidget {
   const PredictiveForecastingTab({super.key});
@@ -20,29 +22,63 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
   HealthQuadrant? _selectedQuadrantFilter;
   String _searchQuery = '';
 
+  // Run-rate forecasting walks every transaction for every product, so the
+  // result is memoized against the provider lists it was built from (they are
+  // replaced wholesale, making identity a sound staleness check). The quadrant
+  // filter and search box below stay per-build — they are a cheap pass over the
+  // already-computed forecasts.
+  List<StockTransactionModel>? _memoTx;
+  List<ProductModel>? _memoProducts;
+  int? _memoPeriodDays;
+  List<ProductHealthForecast>? _memoForecasts;
+  Map<HealthQuadrant, int> _memoCounts = const {};
+
+  List<ProductHealthForecast> _forecastsFor(
+    List<StockTransactionModel> transactions,
+    List<ProductModel> products,
+    int periodDays,
+  ) {
+    if (_memoForecasts != null &&
+        identical(_memoTx, transactions) &&
+        identical(_memoProducts, products) &&
+        _memoPeriodDays == periodDays) {
+      return _memoForecasts!;
+    }
+    final forecasts = ReportAnalyticsService().computeInventoryHealthForecasts(
+      transactions: transactions,
+      products: products,
+      periodDays: periodDays,
+    );
+    final counts = <HealthQuadrant, int>{};
+    for (final f in forecasts) {
+      counts[f.quadrant] = (counts[f.quadrant] ?? 0) + 1;
+    }
+    _memoTx = transactions;
+    _memoProducts = products;
+    _memoPeriodDays = periodDays;
+    _memoCounts = counts;
+    return _memoForecasts = forecasts;
+  }
+
   @override
   Widget build(BuildContext context) {
     final stockProvider = context.watch<StockProvider>();
     final productProvider = context.watch<ProductProvider>();
 
     final transactions = stockProvider.recentTransactions;
-    final products = productProvider.products;
+    final products = productProvider.analyticsProducts;
 
-    final periodDays = stockProvider.filterStartDate != null && stockProvider.filterEndDate != null
+    final range = stockProvider.filterStartDate != null && stockProvider.filterEndDate != null
         ? stockProvider.filterEndDate!.difference(stockProvider.filterStartDate!).inDays.abs()
         : 30;
+    final periodDays = range > 0 ? range : 30;
 
-    final analytics = ReportAnalyticsService();
-    final forecasts = analytics.computeInventoryHealthForecasts(
-      transactions: transactions,
-      products: products,
-      periodDays: periodDays > 0 ? periodDays : 30,
-    );
+    final forecasts = _forecastsFor(transactions, products, periodDays);
 
-    final atRiskCount = forecasts.where((f) => f.quadrant == HealthQuadrant.atRisk).length;
-    final deadStockCount = forecasts.where((f) => f.quadrant == HealthQuadrant.deadStock).length;
-    final overstockedCount = forecasts.where((f) => f.quadrant == HealthQuadrant.overstocked).length;
-    final optimalCount = forecasts.where((f) => f.quadrant == HealthQuadrant.optimal).length;
+    final atRiskCount = _memoCounts[HealthQuadrant.atRisk] ?? 0;
+    final deadStockCount = _memoCounts[HealthQuadrant.deadStock] ?? 0;
+    final overstockedCount = _memoCounts[HealthQuadrant.overstocked] ?? 0;
+    final optimalCount = _memoCounts[HealthQuadrant.optimal] ?? 0;
 
     final filteredForecasts = forecasts.where((f) {
       if (_selectedQuadrantFilter != null && f.quadrant != _selectedQuadrantFilter) {
@@ -77,7 +113,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
             const SizedBox(height: 14),
 
             GestureDetector(
-              onTap: () => RagChatScreen.open(context),
+              onTap: () => openAskAi(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -123,7 +159,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                           Text(
                             'Run live AI analysis to auto-reorder & detect margin leaks',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppTheme.textSec(context),
                             ),
                           ),
@@ -279,7 +315,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                                       const SizedBox(height: 2),
                                       Text(
                                         'Current Qty: ${p.quantity} ${p.unit}  |  Daily Burn: ${forecast.dailyBurnRate.toStringAsFixed(1)}/day',
-                                        style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                                       ),
                                     ],
                                   ),
@@ -296,7 +332,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                                       child: Text(
                                         quadrantLabel,
                                         style: TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: badgeColor,
                                         ),
@@ -306,7 +342,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                                     Text(
                                       'Run-rate: $daysStr',
                                       style: const TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -374,7 +410,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                     ),
                   ),

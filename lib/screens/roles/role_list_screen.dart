@@ -204,7 +204,7 @@ class _RoleCard extends StatelessWidget {
                 child: Text(
                   'SYSTEM',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.primaryColor,
                     letterSpacing: 0.5,
@@ -233,7 +233,7 @@ class _RoleCard extends StatelessWidget {
             Text(
               '${role.enabledCount}/${role.totalCount} permissions',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.primaryColor,
               ),
@@ -303,7 +303,7 @@ class _RoleCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).whenComplete(nameController.dispose);
     if (result != null && result.isNotEmpty && context.mounted) {
       await context.read<RoleProvider>().duplicateRole(role, result);
       if (context.mounted) {

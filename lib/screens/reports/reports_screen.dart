@@ -42,7 +42,8 @@ class _ReportsScreenState extends State<ReportsScreen>
     super.dispose();
   }
 
-  void _showDateRangeSheet(StockProvider stockProvider) {
+  void _showDateRangeSheet() {
+    final stockProvider = context.read<StockProvider>();
     showModalBottomSheet(
       context: context,
       constraints: Responsive.sheetConstraints(context),
@@ -159,21 +160,26 @@ class _ReportsScreenState extends State<ReportsScreen>
     final perms = context.select<AuthProvider, Map<String, bool>>(
       (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
-    final settings = context.watch<SettingsProvider>();
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
-    final stockProvider = context.watch<StockProvider>();
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled) = context
+        .select<SettingsProvider, (bool, bool, bool)>(
+          (s) => (s.barcodeEnabled, s.vendorsEnabled, s.pricingEnabled),
+        );
+    final billingOn = context.select<BillingSettingsProvider, bool>(
+      (b) => b.billingEnabled,
+    );
+    final (start, end) = context.select<StockProvider, (DateTime?, DateTime?)>(
+      (s) => (s.filterStartDate, s.filterEndDate),
+    );
 
     final reportShortcuts = FeatureMap.entriesByCategory(
       FeatureCategory.reports,
       perms,
       billingEnabled: billingOn,
-      barcodeEnabled: settings.barcodeEnabled,
-      vendorsEnabled: settings.vendorsEnabled,
-      pricingEnabled: settings.pricingEnabled,
+      barcodeEnabled: barcodeEnabled,
+      vendorsEnabled: vendorsEnabled,
+      pricingEnabled: pricingEnabled,
     );
 
-    final start = stockProvider.filterStartDate;
-    final end = stockProvider.filterEndDate;
     final dateLabel = start != null && end != null
         ? '${_dateFormat.format(start)}–${_dateFormat.format(end)}'
         : 'All Time';
@@ -183,7 +189,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       child: Column(
         children: [
           // Status bar gap
-          SizedBox(height: MediaQuery.of(context).padding.top),
+          SizedBox(height: MediaQuery.paddingOf(context).top),
 
           CompactTabHeader(
             icon: Icons.analytics_rounded,
@@ -193,7 +199,7 @@ class _ReportsScreenState extends State<ReportsScreen>
             actions: [
               // Date chip — tappable, compact
               GestureDetector(
-                onTap: () => _showDateRangeSheet(stockProvider),
+                onTap: _showDateRangeSheet,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -209,7 +215,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                       Text(
                         dateLabel,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.primaryColor,
                         ),

@@ -36,20 +36,14 @@ Future<String?> showSearchablePicker({
     constraints: Responsive.sheetConstraints(context),
     isScrollControlled: true,
     backgroundColor: AppTheme.surface(context),
-    transitionAnimationController: AnimationController(
-      vsync: Navigator.of(context),
-      duration: const Duration(milliseconds: 300),
-    ),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
       String search = '';
+      final selectableItems = items.where((item) => !item.isAction).toList();
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final selectableItems = items
-              .where((item) => !item.isAction)
-              .toList();
           final filtered = search.isEmpty
               ? selectableItems
               : selectableItems.where((item) {
@@ -62,9 +56,8 @@ Future<String?> showSearchablePicker({
                   return false;
                 }).toList();
 
-          final mq = MediaQuery.of(ctx);
-          final keyboardHeight = mq.viewInsets.bottom;
-          final maxHeight = mq.size.height * 0.85;
+          final keyboardHeight = MediaQuery.viewInsetsOf(ctx).bottom;
+          final maxHeight = MediaQuery.sizeOf(ctx).height * 0.85;
 
           return Padding(
             padding: EdgeInsets.only(bottom: keyboardHeight),

@@ -17,6 +17,7 @@ import '../../widgets/animations.dart';
 import '../../widgets/searchable_picker.dart'
     show showSearchablePicker, PickerItem;
 import 'package:printing/printing.dart';
+import '../../utils/currency.dart';
 
 class CustomerStatementScreen extends StatefulWidget {
   const CustomerStatementScreen({super.key});
@@ -83,7 +84,7 @@ class _CustomerStatementScreenState extends State<CustomerStatementScreen> {
   Widget build(BuildContext context) {
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final customers = context.watch<CustomerProvider>().activeCustomers;
     final invoices = _getFilteredInvoices(billing);
 
@@ -317,7 +318,7 @@ class _DateTile extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -358,7 +359,7 @@ class _MiniStat extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(fontSize: 10, color: AppTheme.textTer(context)),
+              style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
             ),
             const SizedBox(height: 2),
             FittedBox(
@@ -420,7 +421,7 @@ class _InvoiceRow extends StatelessWidget {
                         Text(
                           '${_dateFmt.format(invoice.invoiceDate)} · ${invoice.statusLabel}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),
@@ -442,7 +443,7 @@ class _InvoiceRow extends StatelessWidget {
                             ? 'Due: $sym${_numFmt.format(invoice.amountDue)}'
                             : 'Paid',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: invoice.amountDue > 0
                               ? AppTheme.dangerColor

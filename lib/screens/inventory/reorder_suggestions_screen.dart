@@ -22,6 +22,7 @@ import '../../widgets/animated_list_item.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/currency.dart';
 
 class _ReorderItem {
   final ProductModel product;
@@ -150,7 +151,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 
   Future<void> _createPO(List<_ReorderItem> selected) async {
@@ -171,7 +172,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     if (vendorResult == null || !mounted) return;
 
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
     final totalAmount = selected.fold<double>(
@@ -542,7 +543,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                           ? 'No usage'
                                           : '${item.daysUntilStockout}d left',
                                       style: TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                         color: color,
                                       ),
@@ -622,7 +623,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
                                             Text(
                                               'Reorder',
                                               style: TextStyle(
-                                                fontSize: 10,
+                                                fontSize: 12,
                                                 color: AppTheme.textSec(
                                                   context,
                                                 ),
@@ -754,7 +755,7 @@ class _ConfirmPOSheet extends StatelessWidget {
           if (items.isNotEmpty)
             ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.25,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.25,
               ),
               child: ListView.separated(
                 shrinkWrap: true,
@@ -795,7 +796,7 @@ class _ConfirmPOSheet extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom),
         ],
       ),
     );
@@ -840,7 +841,7 @@ class _VendorPickerSheet extends StatelessWidget {
           Divider(height: 1, color: AppTheme.dividerC(context)),
           ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.4,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.4,
             ),
             child: ListView.builder(
               shrinkWrap: true,
@@ -878,7 +879,7 @@ class _VendorPickerSheet extends StatelessWidget {
               },
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+          SizedBox(height: MediaQuery.paddingOf(context).bottom + 8),
         ],
       ),
     );
@@ -914,7 +915,7 @@ class _StatChip extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: AppTheme.textSec(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
         ],
       ),

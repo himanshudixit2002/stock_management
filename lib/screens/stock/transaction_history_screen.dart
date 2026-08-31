@@ -19,6 +19,8 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
+import '../../utils/debouncer.dart';
+import '../../widgets/scroll_to_top_button.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -32,32 +34,24 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   TransactionType? _typeFilter;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
   final _scrollController = ScrollController();
-  bool _showScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      final show = _scrollController.offset > 500;
-      if (show != _showScrollToTop && mounted) {
-        setState(() => _showScrollToTop = show);
-      }
-    });
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _searchDebounce.cancel();
     _searchCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounce.run(() {
       if (mounted) setState(() => _searchQuery = value);
     });
   }
@@ -138,7 +132,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                               icon: const Icon(Icons.clear_rounded),
                               tooltip: 'Clear search',
                               onPressed: () {
-                                _debounce?.cancel();
+                                _searchDebounce.cancel();
                                 _searchCtrl.clear();
                                 setState(() => _searchQuery = '');
                               },
@@ -263,26 +257,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ),
       ),
-      floatingActionButton: _showScrollToTop
-          ? AnimatedScale(
-              scale: _showScrollToTop ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: FloatingActionButton.small(
-                heroTag: 'scrollTop',
-                tooltip: 'Scroll to top',
-                onPressed: () => _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                ),
-                backgroundColor: AppTheme.surface(context),
-                child: Icon(
-                  Icons.arrow_upward_rounded,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            )
-          : null,
+      floatingActionButton: ScrollToTopButton(
+        controller: _scrollController,
+      ),
     );
   }
 
@@ -465,7 +442,7 @@ class _TransactionTile extends StatelessWidget {
                       Text(
                         transaction.reason,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                         maxLines: 1,
@@ -505,7 +482,7 @@ class _TransactionTile extends StatelessWidget {
                             label: Text(
                               'Open invoice $invNum',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: AppTheme.primaryColor,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -524,7 +501,7 @@ class _TransactionTile extends StatelessWidget {
                     Text(
                       dateStr,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                       ),
                     ),
@@ -561,7 +538,7 @@ class _TransactionTile extends StatelessWidget {
                     Text(
                       transaction.userName,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                       ),
                     ),

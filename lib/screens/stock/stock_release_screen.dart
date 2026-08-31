@@ -350,7 +350,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                         'Dispatches only this product line. '
                                         'Other items on the order stay reserved.',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           color: AppTheme.textSec(context),
                                         ),
                                       ),
@@ -368,7 +368,7 @@ class _StockReleaseScreenState extends State<StockReleaseScreen> {
                                                 : 'Linked order is cancelled. '
                                                       'Release this leftover hold.',
                                             style: const TextStyle(
-                                              fontSize: 11,
+                                              fontSize: 12,
                                               color: AppTheme.warningColor,
                                               fontWeight: FontWeight.w600,
                                             ),

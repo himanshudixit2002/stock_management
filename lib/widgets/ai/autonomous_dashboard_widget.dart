@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../services/ai_agent_service.dart';
+import '../animations.dart';
 
 class AutonomousDashboardWidget extends StatefulWidget {
   const AutonomousDashboardWidget({super.key});
@@ -105,158 +106,168 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryDark.withValues(alpha: 0.05),
-            AppTheme.violetColor.withValues(alpha: 0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.violetColor.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row with Autonomous Agent Badge
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.violetColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: AppTheme.violetColor,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Autonomous Inventory Engine',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPri(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Self-operating predictive scans & stock balance active',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSec(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: _isLoading 
-                    ? const SizedBox(
-                        width: 18, 
-                        height: 18, 
-                        child: CircularProgressIndicator(strokeWidth: 2)
-                      )
-                    : Icon(Icons.refresh, color: AppTheme.textSec(context)),
-                onPressed: _isLoading ? null : _loadAgentData,
-                tooltip: 'Re-run Autonomous AI Audit',
-              ),
+    return FadeSlideIn(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.primaryColor.withValues(alpha: 0.05),
+              AppTheme.violetColor.withValues(alpha: 0.05),
             ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          const SizedBox(height: 16),
-
-          if (_isLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else ...[
-            _buildSectionHeader('Stock Anomalies & Shrinkage', Icons.warning_amber_rounded, AppTheme.dangerColor),
-            const SizedBox(height: 8),
-            if (_anomalies.isEmpty)
-              _buildEmptyTile(context, 'No anomalies or shrinkage spikes detected.')
-            else ...[
-              ..._anomalies.take(2).map((a) => _buildAnomalyCard(context, a)),
-              if (_anomalies.length > 2)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '+ ${_anomalies.length - 2} more',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.violetColor.withValues(alpha: 0.2),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row with Autonomous Agent Badge
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.violetColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: AppTheme.violetColor,
+                    size: 22,
                   ),
                 ),
-            ],
-
-            const SizedBox(height: 14),
-
-            _buildSectionHeader('Proactive Auto-Reorder POs', Icons.shopping_cart_checkout, AppTheme.primaryColor),
-            const SizedBox(height: 8),
-            if (_autopilotRecs.isEmpty)
-              _buildEmptyTile(context, 'All stock levels are optimal. No reorders needed.')
-            else ...[
-              ..._autopilotRecs.take(2).map((r) => _buildAutopilotCard(context, r)),
-              if (_autopilotRecs.length > 2)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '+ ${_autopilotRecs.length - 2} more',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Autonomous Inventory Engine',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPri(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Self-operating predictive scans & stock balance active',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSec(context),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
-
-            const SizedBox(height: 14),
-
-            _buildSectionHeader('Cross-Location Balance', Icons.swap_horiz_rounded, AppTheme.accentColor),
-            const SizedBox(height: 8),
-            if (_transfers.isEmpty)
-              _buildEmptyTile(context, 'Warehouse & store front stock is balanced.')
-            else ...[
-              ..._transfers.take(2).map((t) => _buildTransferCard(context, t)),
-              if (_transfers.length > 2)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '+ ${_transfers.length - 2} more',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
-                  ),
+                IconButton(
+                  icon: _isLoading 
+                      ? const SizedBox(
+                          width: 18, 
+                          height: 18, 
+                          child: CircularProgressIndicator(strokeWidth: 2)
+                        )
+                      : Icon(Icons.refresh, color: AppTheme.textSec(context)),
+                  onPressed: _isLoading ? null : _loadAgentData,
+                  tooltip: 'Re-run Autonomous AI Audit',
                 ),
-            ],
+              ],
+            ),
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 14),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isLoading
+                  ? const Center(
+                      key: ValueKey('loading'),
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : Column(
+                      key: const ValueKey('content'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader('Stock Anomalies & Shrinkage', Icons.warning_amber_rounded, AppTheme.dangerColor),
+                        const SizedBox(height: 8),
+                        if (_anomalies.isEmpty)
+                          _buildEmptyTile(context, 'No anomalies or shrinkage spikes detected.')
+                        else ...[
+                          ..._anomalies.take(2).map((a) => _buildAnomalyCard(context, a)),
+                          if (_anomalies.length > 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '+ ${_anomalies.length - 2} more',
+                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                              ),
+                            ),
+                        ],
 
-            _buildSectionHeader('30-Day Demand Projections', Icons.trending_up_rounded, AppTheme.indigoColor),
-            const SizedBox(height: 8),
-            if (_forecasts.isEmpty)
-              _buildEmptyTile(context, 'No demand velocity data available.')
-            else ...[
-              ..._forecasts.take(2).map((f) => _buildForecastCard(context, f)),
-              if (_forecasts.length > 2)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '+ ${_forecasts.length - 2} more',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
-                  ),
-                ),
-            ],
+                        const SizedBox(height: 10),
+
+                        _buildSectionHeader('Proactive Auto-Reorder POs', Icons.shopping_cart_checkout, AppTheme.primaryColor),
+                        const SizedBox(height: 8),
+                        if (_autopilotRecs.isEmpty)
+                          _buildEmptyTile(context, 'All stock levels are optimal. No reorders needed.')
+                        else ...[
+                          ..._autopilotRecs.take(2).map((r) => _buildAutopilotCard(context, r)),
+                          if (_autopilotRecs.length > 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '+ ${_autopilotRecs.length - 2} more',
+                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                              ),
+                            ),
+                        ],
+
+                        const SizedBox(height: 10),
+
+                        _buildSectionHeader('Cross-Location Balance', Icons.swap_horiz_rounded, AppTheme.accentColor),
+                        const SizedBox(height: 8),
+                        if (_transfers.isEmpty)
+                          _buildEmptyTile(context, 'Warehouse & store front stock is balanced.')
+                        else ...[
+                          ..._transfers.take(2).map((t) => _buildTransferCard(context, t)),
+                          if (_transfers.length > 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '+ ${_transfers.length - 2} more',
+                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                              ),
+                            ),
+                        ],
+
+                        const SizedBox(height: 10),
+
+                        _buildSectionHeader('30-Day Demand Projections', Icons.trending_up_rounded, AppTheme.indigoColor),
+                        const SizedBox(height: 8),
+                        if (_forecasts.isEmpty)
+                          _buildEmptyTile(context, 'No demand velocity data available.')
+                        else ...[
+                          ..._forecasts.take(2).map((f) => _buildForecastCard(context, f)),
+                          if (_forecasts.length > 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '+ ${_forecasts.length - 2} more',
+                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -298,47 +309,62 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     final isCritical = anomaly['severity'] == 'CRITICAL';
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isCritical ? AppTheme.dangerColor.withValues(alpha: 0.08) : AppTheme.warningColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: isCritical ? AppTheme.dangerColor.withValues(alpha: 0.3) : AppTheme.warningColor.withValues(alpha: 0.3)),
       ),
-      child: Row(
-        children: [
-          Icon(
-            isCritical ? Icons.error_outline : Icons.warning_amber,
-            color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
-            size: 22,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  anomaly['product_name'] ?? 'Product Anomaly',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                Icon(
+                  isCritical ? Icons.error_outline : Icons.warning_amber,
+                  color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
+                  size: 22,
                 ),
-                Text(
-                  anomaly['description'] ?? '',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        anomaly['product_name'] ?? 'Product Anomaly',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        anomaly['description'] ?? '',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    anomaly['severity'] ?? 'ALERT',
+                    style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              anomaly['severity'] ?? 'ALERT',
-              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -346,56 +372,68 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   Widget _buildAutopilotCard(BuildContext context, Map<String, dynamic> rec) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.add_shopping_cart, color: AppTheme.primaryColor, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  rec['product_name'] ?? 'Item',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                const Icon(Icons.add_shopping_cart, color: AppTheme.primaryColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rec['product_name'] ?? 'Item',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Stock: ${rec['current_stock']} | Velocity: ${rec['weekly_sales_velocity']} units/wk',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-                Text(
-                  'Stock: ${rec['current_stock']} | Velocity: ${rec['weekly_sales_velocity']} units/wk',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '+${rec['suggested_reorder_qty']} units',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryColor,
+                          fontSize: 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'AI Draft PO',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMute(context)),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          Flexible(
-            flex: 0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '+${rec['suggested_reorder_qty']} units',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryDark, fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Text(
-                  'AI Draft PO',
-                  style: TextStyle(fontSize: 10, color: AppTheme.textMuted),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -403,34 +441,46 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   Widget _buildTransferCard(BuildContext context, Map<String, dynamic> t) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.2)),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.swap_horiz_rounded, color: AppTheme.accentColor, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  t['product_name'] ?? 'Product',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
-                ),
-                Text(
-                  'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                const Icon(Icons.swap_horiz_rounded, color: AppTheme.accentColor, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t['product_name'] ?? 'Product',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -440,51 +490,66 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
     final isUrgent = days <= 7;
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.indigoColor.withValues(alpha: 0.2)),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.access_time_filled_rounded,
-            color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  f['product_name'] ?? 'Item',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                Icon(
+                  Icons.access_time_filled_rounded,
+                  color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
+                  size: 20,
                 ),
-                Text(
-                  '30D Demand: ~${f['projected_30d_demand']} units (${f['daily_sales_rate']} units/day)',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        f['product_name'] ?? 'Item',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '30D Demand: ~${f['projected_30d_demand']} units (${f['daily_sales_rate']} units/day)',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isUrgent ? AppTheme.warningColor.withValues(alpha: 0.15) : AppTheme.indigoColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    days >= 999 ? 'Stable' : '$days Days',
+                    style: TextStyle(
+                      color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isUrgent ? AppTheme.warningColor.withValues(alpha: 0.15) : AppTheme.indigoColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              days >= 999 ? 'Stable' : '$days Days',
-              style: TextStyle(
-                color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

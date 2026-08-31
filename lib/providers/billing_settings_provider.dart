@@ -4,7 +4,10 @@ import '../models/billing_settings_model.dart';
 import '../utils/error_helpers.dart';
 
 class BillingSettingsProvider extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Resolved on first use rather than at construction: this provider is built
+  // during app startup, and on web Firebase is initialized a frame later. Also
+  // lets tests construct it without a Firebase app.
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _companyId = '';
   BillingSettings _settings = const BillingSettings();
   bool _initialized = false;

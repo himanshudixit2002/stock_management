@@ -21,8 +21,6 @@ class AiInsightsCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: GlassPanel(
@@ -39,12 +37,12 @@ class AiInsightsCard extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         AppTheme.primaryColor.withValues(alpha: 0.8),
-                        Colors.purpleAccent.withValues(alpha: 0.8),
+                        AppTheme.violetColor.withValues(alpha: 0.8),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+                  child: Icon(Icons.auto_awesome_rounded, color: AppTheme.onPrimary(context), size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -62,7 +60,7 @@ class AiInsightsCard extends StatelessWidget {
                       Text(
                         'Real-time automated analytics & safety checks',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       ),
@@ -97,7 +95,7 @@ class AiInsightsCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             height: 1.35,
-                            color: isDark ? Colors.grey[200] : Colors.grey[800],
+                            color: AppTheme.textPri(context),
                           ),
                         ),
                       ),
@@ -117,18 +115,18 @@ class AiInsightsCard extends StatelessWidget {
 
     switch (anomaly.severity) {
       case AnomalySeverity.danger:
-        bg = Colors.red.withValues(alpha: 0.12);
-        border = Colors.redAccent.withValues(alpha: 0.4);
+        bg = AppTheme.dangerColor.withValues(alpha: 0.12);
+        border = AppTheme.dangerColor.withValues(alpha: 0.5);
         icon = Icons.warning_amber_rounded;
         break;
       case AnomalySeverity.warning:
-        bg = Colors.orange.withValues(alpha: 0.12);
-        border = Colors.orangeAccent.withValues(alpha: 0.4);
+        bg = AppTheme.warningColor.withValues(alpha: 0.12);
+        border = AppTheme.warningColor.withValues(alpha: 0.5);
         icon = Icons.error_outline_rounded;
         break;
       case AnomalySeverity.info:
-        bg = Colors.blue.withValues(alpha: 0.12);
-        border = Colors.blueAccent.withValues(alpha: 0.4);
+        bg = AppTheme.infoColor.withValues(alpha: 0.12);
+        border = AppTheme.infoColor.withValues(alpha: 0.5);
         icon = Icons.info_outline_rounded;
         break;
     }
@@ -161,7 +159,7 @@ class AiInsightsCard extends StatelessWidget {
                 Text(
                   anomaly.description,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
                     color: AppTheme.textSec(context),
                   ),
                 ),
@@ -184,7 +182,7 @@ class AiInsightsCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.primaryColor,
                   ),

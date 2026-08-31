@@ -103,7 +103,7 @@ class _StockBadgeState extends State<StockBadge>
                   ? '${product.formatQuantity(product.availableQuantity)}/${product.formatQuantity(product.quantity)}'
                   : label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),

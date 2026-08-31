@@ -24,6 +24,8 @@ import '../../widgets/not_found_state.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class SalesOrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -56,9 +58,9 @@ class SalesOrderDetailScreen extends StatelessWidget {
       );
     }
 
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
     final statusColor = _statusColor(context, order.status);
@@ -664,7 +666,7 @@ class SalesOrderDetailScreen extends StatelessWidget {
                                       Text(
                                         'of ${order.items[i].remainingToDispatch} left',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           color: AppTheme.textSec(context),
                                         ),
                                       ),
@@ -726,7 +728,11 @@ class SalesOrderDetailScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ).whenComplete(() {
+      for (final c in controllers.values) {
+        c.dispose();
+      }
+    });
 
     for (final c in controllers.values) {
       c.dispose();

@@ -19,6 +19,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/provider_error_banner.dart';
+import '../../utils/currency.dart';
 
 class InvoiceListScreen extends StatefulWidget {
   const InvoiceListScreen({super.key});
@@ -91,7 +92,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final invoices = _filteredInvoices(billing.invoices);
 
     return AppScreenScaffold(
@@ -479,7 +480,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 color: AppTheme.textSec(context),
                 fontWeight: FontWeight.w500,
               ),
@@ -581,7 +582,7 @@ class _InvoiceCard extends StatelessWidget {
                               child: Text(
                                 invoice.isPurchase ? 'Purchase' : 'Sales',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: AppTheme.textSec(context),
                                 ),
@@ -600,7 +601,7 @@ class _InvoiceCard extends StatelessWidget {
                               child: Text(
                                 invoice.statusLabel,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: statusColor,
                                 ),
@@ -622,7 +623,7 @@ class _InvoiceCard extends StatelessWidget {
                                 child: Text(
                                   '${invoice.overdueDays}d',
                                   style: const TextStyle(
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: AppTheme.dangerColor,
                                   ),
@@ -643,7 +644,7 @@ class _InvoiceCard extends StatelessWidget {
                         Text(
                           dateFormat.format(invoice.invoiceDate),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),
@@ -666,7 +667,7 @@ class _InvoiceCard extends StatelessWidget {
                           child: Text(
                             'Due: $symbol${numFormat.format(invoice.amountDue)}',
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppTheme.dangerColor,
                               fontWeight: FontWeight.w500,
                             ),

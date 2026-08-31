@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/product_model.dart';
@@ -24,6 +23,8 @@ import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animations.dart';
 import '../../config/permissions.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ProductModel product;
@@ -73,7 +74,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       product.quantity,
       threshold: product.lowStockThreshold,
     );
-    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+    final dateFormat = AppDates.dayTime;
 
     return Scaffold(
       appBar: AppBar(
@@ -433,7 +434,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       icon: Icons.money_rounded,
                                       label: 'Cost Price',
                                       value:
-                                          '${AppTheme.currencySymbol}${product.costPrice.toStringAsFixed(2)}',
+                                          Money.of(context, product.costPrice),
                                     ),
                                     const Padding(
                                       padding: EdgeInsets.symmetric(
@@ -445,7 +446,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       icon: Icons.sell_rounded,
                                       label: 'Selling Price',
                                       value:
-                                          '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                                          Money.of(context, product.sellingPrice),
                                       valueColor: AppTheme.successColor,
                                     ),
                                     if (product.profit != 0) ...[
@@ -459,7 +460,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                         icon: Icons.trending_up_rounded,
                                         label: 'Profit / Unit',
                                         value:
-                                            '${AppTheme.currencySymbol}${product.profit.toStringAsFixed(2)}',
+                                            Money.of(context, product.profit),
                                         valueColor: product.profit >= 0
                                             ? AppTheme.successColor
                                             : AppTheme.dangerColor,
@@ -478,7 +479,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                             .account_balance_wallet_rounded,
                                         label: 'Total Value',
                                         value:
-                                            '${AppTheme.currencySymbol}${product.totalStockValue.toStringAsFixed(2)}',
+                                            Money.of(context, product.totalStockValue),
                                       ),
                                     ],
                                   ],

@@ -298,7 +298,7 @@ class _ExcelExportScreenState extends State<ExcelExportScreen> {
                         child: Text(
                           'Excel format is available for Products and Full Report. Other reports will export as CSV.',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.warningColor,
                           ),
                         ),
@@ -512,7 +512,7 @@ class _ReportTypeOption extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   color: AppTheme.textSec(context),
                 ),
               ),

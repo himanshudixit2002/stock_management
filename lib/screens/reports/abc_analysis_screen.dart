@@ -13,6 +13,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animations.dart';
 import '../../config/motion.dart';
 import '../../utils/responsive.dart';
+import '../../utils/currency.dart';
 
 class AbcAnalysisScreen extends StatefulWidget {
   const AbcAnalysisScreen({super.key});
@@ -79,7 +80,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
     });
 
     final pMap = <String, ProductModel>{};
-    for (final p in productProv.allProducts) {
+    for (final p in productProv.analyticsProducts) {
       pMap[p.id] = p;
     }
 
@@ -130,10 +131,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
     return items;
   }
 
-  String _fmtCurrency(double v) {
-    final fmt = NumberFormat('#,##0.00');
-    return '${AppTheme.currencySymbol}${fmt.format(v)}';
-  }
+  String _fmtCurrency(BuildContext context, double v) => Money.of(context, v);
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +413,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
           ),
           Text(
             '$pct% of total',
-            style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
         ],
       ),
@@ -436,7 +434,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                   child: Text(
                     'Product',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSec(context),
                     ),
@@ -448,7 +446,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                     'Revenue',
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSec(context),
                     ),
@@ -461,7 +459,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                     '%',
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSec(context),
                     ),
@@ -474,7 +472,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                     'Cum %',
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSec(context),
                     ),
@@ -487,7 +485,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                     'Class',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textSec(context),
                     ),
@@ -514,7 +512,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                   Expanded(
                     flex: 2,
                     child: Text(
-                      _fmtCurrency(item.revenue),
+                      _fmtCurrency(context, item.revenue),
                       textAlign: TextAlign.right,
                       style: const TextStyle(
                         fontSize: 12,
@@ -529,7 +527,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                       '${item.pctOfTotal.toStringAsFixed(1)}%',
                       textAlign: TextAlign.right,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textSec(context),
                       ),
                     ),
@@ -541,7 +539,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                       '${item.cumulativePct.toStringAsFixed(1)}%',
                       textAlign: TextAlign.right,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textSec(context),
                       ),
                     ),
@@ -573,7 +571,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
         cls,
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           color: color,
         ),

@@ -8,6 +8,7 @@ import '../models/category_model.dart';
 import '../models/vendor_model.dart';
 import '../models/stock_transaction_model.dart';
 import 'file_helper.dart' as file_helper;
+import '../utils/date_formats.dart';
 
 class ExportResult {
   final String fileName;
@@ -1272,7 +1273,7 @@ class ExcelService {
     required double healthScore,
   }) async {
     final excel = Excel.createExcel();
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final dateFormat = AppDates.of('dd/MM/yyyy HH:mm');
 
     final defaultSheet = excel.tables.keys.first;
     excel.rename(defaultSheet, 'Summary');
@@ -1695,7 +1696,7 @@ class ExcelService {
   Future<ExportResult> exportTransactionsToCsv(
     List<StockTransactionModel> transactions,
   ) async {
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final dateFormat = AppDates.of('dd/MM/yyyy HH:mm');
     final rows = <List<dynamic>>[
       [
         'S.No',
@@ -1763,7 +1764,7 @@ class ExcelService {
     required int lowStockCount,
     required int outOfStockCount,
   }) async {
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final dateFormat = AppDates.of('dd/MM/yyyy HH:mm');
     final rows = <List<dynamic>>[];
 
     rows.add(['=== INVENTORY SUMMARY ===']);

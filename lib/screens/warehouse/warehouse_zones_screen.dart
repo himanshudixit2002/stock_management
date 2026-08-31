@@ -150,7 +150,7 @@ class WarehouseZonesScreen extends StatelessWidget {
                 child: Text(
                   '${zones.length} zone${zones.length != 1 ? 's' : ''}',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.primaryColor,
                   ),
@@ -259,7 +259,7 @@ class _ZoneCard extends StatelessWidget {
                   child: Text(
                     zone.isActive ? 'Active' : 'Inactive',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: statusColor,
                     ),
@@ -478,7 +478,7 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

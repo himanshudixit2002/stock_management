@@ -121,9 +121,12 @@ class StockManagementApp extends StatelessWidget {
               app_router.onGenerateRoute(settings, context),
           builder: (context, child) {
             final mediaQuery = MediaQuery.of(context);
+            // 1.25x was too tight to be useful for anyone who actually needs
+            // larger text. Layouts now use a 12px floor and grow vertically,
+            // so 1.4x is safe; count badges opt out via TextScaler.noScaling.
             final clampedTextScaler = mediaQuery.textScaler.clamp(
               minScaleFactor: 0.8,
-              maxScaleFactor: 1.25,
+              maxScaleFactor: 1.4,
             );
             return MediaQuery(
               data: mediaQuery.copyWith(textScaler: clampedTextScaler),
@@ -494,62 +497,22 @@ class _AuthWrapperState extends State<AuthWrapper>
     }
 
     if (_initError != null) {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.cloud_off_rounded,
-                  size: 64,
-                  color: AppTheme.dangerColor,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Connection Error',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPri(context),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Could not connect to the server.\nPlease check your internet connection and try again.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textTer(context),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _initialized = false;
-                      _initError = null;
-                    });
-                    if (kIsWeb && Firebase.apps.isEmpty) {
-                      _bootstrapWebFirebase();
-                    } else {
-                      _initializeApp();
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      return _ProviderInitErrorScreen(
+        title: 'Connection Error',
+        message:
+            'Could not connect to the server.\n'
+            'Please check your internet connection and try again.',
+        onRetry: () {
+          setState(() {
+            _initialized = false;
+            _initError = null;
+          });
+          if (kIsWeb && Firebase.apps.isEmpty) {
+            _bootstrapWebFirebase();
+          } else {
+            _initializeApp();
+          }
+        },
       );
     }
 
@@ -569,64 +532,21 @@ class _AuthWrapperState extends State<AuthWrapper>
 
       if (isSwitchingCompany) {
         if (_providerInitError != null) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.cloud_off_rounded,
-                      size: 64,
-                      color: AppTheme.dangerColor,
+          return _ProviderInitErrorScreen(
+            message: _providerInitError!,
+            onRetry: () {
+              setState(() => _providerInitError = null);
+              _initializeProviders(currentCompanyId).catchError((Object e) {
+                if (mounted) {
+                  setState(
+                    () => _providerInitError = friendlyError(
+                      e,
+                      fallback: 'Could not load data.',
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Could Not Load Data',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPri(context),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _providerInitError!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textTer(context),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() => _providerInitError = null);
-                        _initializeProviders(currentCompanyId).catchError((e) {
-                          if (mounted) {
-                            setState(
-                              () => _providerInitError = friendlyError(
-                                e,
-                                fallback: 'Could not load data.',
-                              ),
-                            );
-                          }
-                        });
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  );
+                }
+              });
+            },
           );
         }
 
@@ -652,7 +572,7 @@ class _AuthWrapperState extends State<AuthWrapper>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset('logo.png', width: 100, height: 100),
+                const BrandLogo(size: 100),
                 const SizedBox(height: 20),
                 const SizedBox(
                   width: 28,
@@ -783,8 +703,13 @@ class _AuthWrapperState extends State<AuthWrapper>
 class _ProviderInitErrorScreen extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
+  final String title;
 
-  const _ProviderInitErrorScreen({required this.message, required this.onRetry});
+  const _ProviderInitErrorScreen({
+    required this.message,
+    required this.onRetry,
+    this.title = 'Could Not Load Data',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -802,7 +727,7 @@ class _ProviderInitErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                'Could Not Load Data',
+                title,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,

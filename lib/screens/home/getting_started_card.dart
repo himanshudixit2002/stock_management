@@ -214,7 +214,7 @@ class _GettingStartedCardState extends State<GettingStartedCard> {
               Text(
                 '$completed of $total done',
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   color: AppTheme.textSec(context),
                 ),
               ),

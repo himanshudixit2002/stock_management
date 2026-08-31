@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  /// Currency symbol used across the app.
+  /// Fallback currency symbol only. The company's configured symbol lives in
+  /// [BillingSettingsProvider]; read it through `Money` (lib/utils/currency.dart)
+  /// so a company that switched currency sees it on every screen, not just
+  /// billing documents.
   static const String currencySymbol = '₹';
 
   // Ocean teal — clean, professional, inventory-friendly
@@ -108,6 +111,8 @@ class AppTheme {
 
   static Color textMute(BuildContext context) =>
       isDark(context) ? const Color(0xFF888888) : textMuted;
+
+  static Color onPrimary(BuildContext context) => Colors.white;
 
   static LinearGradient scaffoldGrad(BuildContext context) => isDark(context)
       ? const LinearGradient(

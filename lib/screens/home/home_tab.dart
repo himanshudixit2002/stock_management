@@ -51,6 +51,10 @@ class HomeTab extends StatelessWidget {
         : '?';
 
     return SafeArea(
+      // The bottom inset is owned by [floatingNavContentInset] (via the
+      // trailing FloatingNavPadding), which already accounts for the gesture
+      // bar. Letting SafeArea add it too would double-count it.
+      bottom: false,
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -121,10 +125,10 @@ class HomeTab extends StatelessWidget {
         backgroundColor: Colors.transparent,
         child: Text(
           initials,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: AppTheme.onPrimary(context),
           ),
         ),
       ),
@@ -190,7 +194,7 @@ class HomeTab extends StatelessWidget {
                   label: Text(
                     unread > 99 ? '99+' : '$unread',
                     style: const TextStyle(
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -229,7 +233,7 @@ class HomeTab extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: AppTheme.textTer(context),
             ),
           ),
@@ -280,18 +284,25 @@ class HomeTab extends StatelessWidget {
             ..removeLast();
       grid = Row(children: spaced);
     } else {
-      // Horizontal scroll strip keeps primary daily actions above the fold.
-      grid = SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: Responsive.scrollPhysics(context),
-        child: Row(
-          children: [
-            for (int i = 0; i < cards.length; i++) ...[
-              if (i > 0) const SizedBox(width: 10),
-              SizedBox(width: 104, child: cards[i]),
+      // A wrapping grid, not a horizontal strip. The strip showed roughly three
+      // of N fixed-width cards on a 375px screen, so the rest of the user's own
+      // customized actions were only reachable by a sideways swipe most people
+      // never discovered.
+      grid = LayoutBuilder(
+        builder: (context, constraints) {
+          final cols = constraints.maxWidth >= 400 ? 4 : 3;
+          const spacing = 10.0;
+          final cardWidth =
+              (constraints.maxWidth - spacing * (cols - 1)) / cols;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final card in cards)
+                SizedBox(width: cardWidth, child: card),
             ],
-          ],
-        ),
+          );
+        },
       );
     }
 

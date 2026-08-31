@@ -20,6 +20,8 @@ import '../../widgets/animations.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/routes.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
   final String customerId;
@@ -57,9 +59,9 @@ class CustomerDetailScreen extends StatelessWidget {
         .where((o) => o.customerId == customerId)
         .toList();
 
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
 
@@ -376,7 +378,7 @@ class CustomerDetailScreen extends StatelessWidget {
                                                     child: Text(
                                                       order.statusLabel,
                                                       style: TextStyle(
-                                                        fontSize: 10,
+                                                        fontSize: 12,
                                                         fontWeight:
                                                             FontWeight.w600,
                                                         color: statusColor,
@@ -432,9 +434,8 @@ class CustomerDetailScreen extends StatelessWidget {
   ) {
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
-    final numFmt = NumberFormat('#,##0.00');
-    final dateFmt = DateFormat('dd MMM yyyy');
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
+    final dateFmt = AppDates.day;
     final outstanding = billing.customerOutstanding(customerId);
     final custInvoices = billing.invoicesForCustomer(customerId);
     final recent = custInvoices.take(5).toList();
@@ -469,7 +470,7 @@ class CustomerDetailScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Due: $sym${numFmt.format(outstanding)}',
+                  'Due: $sym${Money.number(outstanding)}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -523,7 +524,7 @@ class CustomerDetailScreen extends StatelessWidget {
                                 Text(
                                   '${dateFmt.format(inv.invoiceDate)} · ${inv.statusLabel}',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     color: AppTheme.textTer(context),
                                   ),
                                 ),
@@ -531,9 +532,9 @@ class CustomerDetailScreen extends StatelessWidget {
                                     !inv.isPaid &&
                                     !inv.isCancelled)
                                   Text(
-                                    'Due: $sym${numFmt.format(inv.amountDue)}',
+                                    'Due: $sym${Money.number(inv.amountDue)}',
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: AppTheme.dangerColor,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -545,7 +546,7 @@ class CustomerDetailScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                '$sym${numFmt.format(inv.grandTotal)}',
+                                '$sym${Money.number(inv.grandTotal)}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,

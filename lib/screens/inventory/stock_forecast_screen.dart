@@ -286,7 +286,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                               child: Text(
                                                 '${item.daysUntilStockout}d',
                                                 style: TextStyle(
-                                                  fontSize: 11,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w700,
                                                   color:
                                                       item.daysUntilStockout <=
@@ -512,7 +512,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                           getTitlesWidget: (v, meta) => Text(
                                             v.toInt().toString(),
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 12,
                                               color: AppTheme.textSec(context),
                                             ),
                                           ),
@@ -528,7 +528,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                               return Text(
                                                 '30d ago',
                                                 style: TextStyle(
-                                                  fontSize: 9,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),
@@ -539,7 +539,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                               return Text(
                                                 'Today',
                                                 style: TextStyle(
-                                                  fontSize: 9,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),
@@ -550,7 +550,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                               return Text(
                                                 '+30d',
                                                 style: TextStyle(
-                                                  fontSize: 9,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),
@@ -716,7 +716,7 @@ class _ForecastStat extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             textAlign: TextAlign.center,
           ),
         ],

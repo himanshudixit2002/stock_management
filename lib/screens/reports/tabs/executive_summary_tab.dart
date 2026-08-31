@@ -11,20 +11,82 @@ import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
 import '../widgets/ai_insights_card.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../../utils/currency.dart';
 
-class ExecutiveSummaryTab extends StatelessWidget {
+/// Everything the summary derives from the providers. Computing it costs a
+/// pass over the full transaction window plus anomaly/insight analysis, so it
+/// is memoized against the inputs it was built from.
+class _SummaryData {
+  final List<StockTransactionModel> transactions;
+  final List<ProductModel> products;
+  final DateTime? filterStart;
+  final DateTime? filterEnd;
+
+  final Map<String, ProductModel> pMap;
+  final List<String> aiInsights;
+  final List<AnomalyAlert> anomalies;
+  final int totalIn;
+  final int totalOut;
+  final int totalDamage;
+  final double totalRevenue;
+  final double totalAssetValuation;
+
+  const _SummaryData({
+    required this.transactions,
+    required this.products,
+    required this.filterStart,
+    required this.filterEnd,
+    required this.pMap,
+    required this.aiInsights,
+    required this.anomalies,
+    required this.totalIn,
+    required this.totalOut,
+    required this.totalDamage,
+    required this.totalRevenue,
+    required this.totalAssetValuation,
+  });
+
+  /// The providers replace these lists wholesale, so identity is a sound (and
+  /// cheap) staleness check.
+  bool matches(
+    List<StockTransactionModel> tx,
+    List<ProductModel> ps,
+    DateTime? start,
+    DateTime? end,
+  ) =>
+      identical(transactions, tx) &&
+      identical(products, ps) &&
+      filterStart == start &&
+      filterEnd == end;
+}
+
+class ExecutiveSummaryTab extends StatefulWidget {
   final Function(int tabIndex)? onNavigateTab;
 
   const ExecutiveSummaryTab({super.key, this.onNavigateTab});
 
   @override
-  Widget build(BuildContext context) {
-    final stockProvider = context.watch<StockProvider>();
-    final productProvider = context.watch<ProductProvider>();
-    final currency = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+  State<ExecutiveSummaryTab> createState() => _ExecutiveSummaryTabState();
+}
 
+class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
+  _SummaryData? _cache;
+
+  _SummaryData _dataFor(
+    StockProvider stockProvider,
+    ProductProvider productProvider,
+  ) {
     final transactions = stockProvider.recentTransactions;
-    final products = productProvider.products;
+    final products = productProvider.analyticsProducts;
+    final filterStart = stockProvider.filterStartDate;
+    final filterEnd = stockProvider.filterEndDate;
+
+    final cached = _cache;
+    if (cached != null &&
+        cached.matches(transactions, products, filterStart, filterEnd)) {
+      return cached;
+    }
+
     final pMap = {for (final p in products) p.id: p};
 
     final now = DateTime.now();
@@ -85,6 +147,43 @@ class ExecutiveSummaryTab extends StatelessWidget {
       }
     }
 
+    return _cache = _SummaryData(
+      transactions: transactions,
+      products: products,
+      filterStart: filterStart,
+      filterEnd: filterEnd,
+      pMap: pMap,
+      aiInsights: aiInsights,
+      anomalies: anomalies,
+      totalIn: totalIn,
+      totalOut: totalOut,
+      totalDamage: totalDamage,
+      totalRevenue: totalRevenue,
+      totalAssetValuation: totalAssetValuation,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _dataFor(
+      context.watch<StockProvider>(),
+      context.watch<ProductProvider>(),
+    );
+    final currency = NumberFormat.currency(
+      symbol: Money.symbolOf(context),
+      decimalDigits: 0,
+      locale: 'en_IN',
+    );
+    final transactions = data.transactions;
+    final pMap = data.pMap;
+    final aiInsights = data.aiInsights;
+    final anomalies = data.anomalies;
+    final totalIn = data.totalIn;
+    final totalOut = data.totalOut;
+    final totalDamage = data.totalDamage;
+    final totalRevenue = data.totalRevenue;
+    final totalAssetValuation = data.totalAssetValuation;
+
     return FadeSlideIn(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -97,7 +196,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
               anomalies: anomalies,
               onAnomalyAction: (anomalyId) {
                 if (anomalyId == 'critical_stockout' || anomalyId == 'dead_stock_accumulation') {
-                  onNavigateTab?.call(3);
+                  widget.onNavigateTab?.call(3);
                 }
               },
             ),
@@ -190,7 +289,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () => onNavigateTab?.call(1),
+                        onPressed: () => widget.onNavigateTab?.call(1),
                         icon: const Icon(Icons.table_chart_outlined, size: 16),
                         label: const Text('Custom Builder'),
                       ),
@@ -255,7 +354,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.white70,
                     letterSpacing: 0.5,
@@ -309,7 +408,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 10.5,
+              fontSize: 12,
               color: AppTheme.textSec(context),
             ),
           ),
@@ -361,7 +460,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
           ),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
-        subtitle: Text(category, style: TextStyle(fontSize: 11.5, color: AppTheme.textSec(context))),
+        subtitle: Text(category, style: TextStyle(fontSize: 12, color: AppTheme.textSec(context))),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -373,7 +472,7 @@ class ExecutiveSummaryTab extends StatelessWidget {
             if (price > 0)
               Text(
                 '₹${totalPrice.toStringAsFixed(0)}',
-                style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
               ),
           ],
         ),

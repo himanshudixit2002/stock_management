@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/permissions.dart';
@@ -21,6 +20,9 @@ import '../../providers/billing_settings_provider.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/animations.dart';
+import '../../utils/currency.dart';
+import '../../utils/debouncer.dart';
+import '../../utils/date_formats.dart';
 
 enum _SearchCategory { all, products, vendors, customers, invoices }
 
@@ -33,7 +35,7 @@ class GlobalSearchScreen extends StatefulWidget {
 
 class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   final _searchController = TextEditingController();
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
   String _query = '';
   final List<String> _recentSearches = [];
   _SearchCategory _selectedCategory = _SearchCategory.all;
@@ -111,7 +113,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   void dispose() {
     _productProviderRef?.removeListener(_onProductCatalogChanged);
     _searchController.dispose();
-    _debounce?.cancel();
+    _searchDebounce.dispose();
     super.dispose();
   }
 
@@ -133,10 +135,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      _performSearch(value.trim());
-    });
+    _searchDebounce.run(() => _performSearch(value.trim()));
   }
 
   void _performSearch(String query) {
@@ -696,10 +695,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildInvoiceTile(InvoiceModel invoice) {
-    final dateFmt = DateFormat('dd MMM yyyy');
-    final sym = context.read<BillingSettingsProvider>().settings.currencySymbol;
-    final symUse = sym.isNotEmpty ? sym : '₹';
-    final numFmt = NumberFormat('#,##0.00');
+    final dateFmt = AppDates.day;
+    final symUse = Money.symbolOf(context, listen: false);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: GlassPanel(
@@ -739,7 +736,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             ),
           ),
           subtitle: _highlightedText(
-            '${invoice.partyName.isNotEmpty ? invoice.partyName : "—"} • ${dateFmt.format(invoice.invoiceDate)} • $symUse${numFmt.format(invoice.grandTotal)}',
+            '${invoice.partyName.isNotEmpty ? invoice.partyName : "—"} • ${dateFmt.format(invoice.invoiceDate)} • $symUse${Money.number(invoice.grandTotal)}',
             _query,
             baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             maxLines: 2,

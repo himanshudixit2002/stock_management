@@ -1239,6 +1239,10 @@ class DatabaseService {
     // time (each in its own transaction), so without this pass a later product
     // running short would throw after earlier products' holds were already
     // committed, leaving orphaned reservations behind.
+    // Docs read once here and reused by the reservation pass below — the two
+    // loops previously fetched the same products, doubling the billed reads.
+    final reservationDocs = <String, Map<String, dynamic>>{};
+
     for (final productId in allProductIds) {
       final delta = (nextQtyByProduct[productId] ?? 0) -
           (prevQtyByProduct[productId] ?? 0);
@@ -1248,6 +1252,7 @@ class DatabaseService {
         throw Exception('Product not found for sales order reservation.');
       }
       final productData = productSnap.data()!;
+      reservationDocs[productId] = productData;
       final locationQuantities = _toIntMap(
         (productData['locationQuantities'] as Map<dynamic, dynamic>?),
       );
@@ -1272,11 +1277,10 @@ class DatabaseService {
       if (delta == 0) continue;
 
       if (delta > 0) {
-        final productSnap = await _products.doc(productId).get();
-        if (!productSnap.exists) {
+        final productData = reservationDocs[productId];
+        if (productData == null) {
           throw Exception('Product not found for sales order reservation.');
         }
-        final productData = productSnap.data()!;
         final locationQuantities = _toIntMap(
           (productData['locationQuantities'] as Map<dynamic, dynamic>?),
         );

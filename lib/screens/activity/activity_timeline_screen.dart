@@ -398,7 +398,7 @@ class _TransactionTileState extends State<_TransactionTile> {
                       Text(
                         widget.timeAgo,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textTer(context),
                         ),
                       ),

@@ -582,7 +582,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
               title: Text(entry.$2.name, style: const TextStyle(fontSize: 13)),
               subtitle: Text(
                 '${entry.$2.categoryName} • ${entry.$2.quantity} ${entry.$2.unit}',
-                style: const TextStyle(fontSize: 11),
+                style: const TextStyle(fontSize: 12),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../animations.dart';
 import '../chart_empty_state.dart';
 import '../../config/theme.dart';
+import '../../utils/currency.dart';
 
 class StockBarChart extends StatelessWidget {
   final Map<String, double> data;
@@ -26,6 +27,10 @@ class StockBarChart extends StatelessWidget {
 
     final entries = data.entries.toList();
     final maxVal = entries.fold<double>(0, (m, e) => e.value > m ? e.value : m);
+    // Resolved here (during build) rather than inside the chart callbacks
+    // below: those run on touch/layout, outside any build of this widget,
+    // where a listening provider read is illegal.
+    final currencySymbol = Money.symbolOf(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -45,7 +50,7 @@ class StockBarChart extends StatelessWidget {
                     final label = entries[group.x.toInt()].key;
                     final val = rod.toY;
                     final valStr = isCurrency
-                        ? '${AppTheme.currencySymbol}${val.toStringAsFixed(0)}'
+                        ? Money.withSymbol(currencySymbol, val, decimals: 0)
                         : val.toStringAsFixed(0);
                     return BarTooltipItem(
                       '$label\n$valStr',
@@ -77,7 +82,7 @@ class StockBarChart extends StatelessWidget {
                               ? '${label.substring(0, 7)}...'
                               : label,
                           style: TextStyle(
-                            fontSize: 9,
+                            fontSize: 12,
                             color: AppTheme.textSec(context),
                           ),
                           textAlign: TextAlign.center,
@@ -107,7 +112,7 @@ class StockBarChart extends StatelessWidget {
                       return Text(
                         label,
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       );

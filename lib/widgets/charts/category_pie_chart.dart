@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../animations.dart';
 import '../chart_empty_state.dart';
 import '../../config/theme.dart';
+import '../../utils/currency.dart';
 
 class CategoryPieChart extends StatefulWidget {
   final Map<String, double> data;
@@ -105,7 +106,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       title: isTouched ? '$pct%' : '',
                       radius: isTouched ? 55 : 45,
                       titleStyle: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: labelColor,
                       ),
@@ -122,7 +123,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
               children: List.generate(entries.length, (i) {
                 final entry = entries[i];
                 final valStr = widget.isCurrency
-                    ? '${AppTheme.currencySymbol}${entry.value.toStringAsFixed(0)}'
+                    ? Money.of(context, entry.value, decimals: 0)
                     : entry.value.toStringAsFixed(0);
                 return GestureDetector(
                   onTap: widget.onSliceTap != null
@@ -143,7 +144,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       Text(
                         '${entry.key} ($valStr)',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       ),

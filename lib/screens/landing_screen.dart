@@ -9,6 +9,7 @@ import '../widgets/animated_list_item.dart';
 import '../widgets/animations.dart';
 import '../utils/responsive.dart';
 import '../config/app_navigation.dart';
+import '../widgets/branded_splash.dart';
 
 const _kGooglePlayListingUrl =
     'https://play.google.com/store/apps/details?id=com.stockmanager.stock_management';
@@ -101,7 +102,7 @@ class LandingScreen extends StatelessWidget {
                     color: AppTheme.primaryColor.withValues(alpha: 0.08),
                   ),
                 ),
-                child: Image.asset('logo.png', width: 44, height: 44),
+                child: const BrandLogo(size: 44),
               ),
             ),
             const SizedBox(height: 20),
@@ -252,7 +253,7 @@ class LandingScreen extends StatelessWidget {
             child: const Text(
               'EVERYTHING YOU NEED',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
                 color: AppTheme.primaryColor,
@@ -497,7 +498,7 @@ class LandingScreen extends StatelessWidget {
           Text(
             '\u00A9 2026 SmartShelfKart. All rights reserved.',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: AppTheme.textSec(context).withValues(alpha: 0.5),
             ),
           ),
@@ -778,7 +779,7 @@ class _CapBadge extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             color: AppTheme.textSec(context),
           ),
@@ -870,7 +871,7 @@ class _FeatureGroupCard extends StatelessWidget {
                     child: Text(
                       t,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: AppTheme.textPri(context),
                       ),
@@ -921,7 +922,7 @@ class _HighlightChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
         ],
       ),

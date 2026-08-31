@@ -23,6 +23,8 @@ import '../../models/invoice_model.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
 class VendorDetailScreen extends StatefulWidget {
@@ -210,7 +212,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           child: Text(
                             vendor.isActive ? 'Active' : 'Inactive',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: vendor.isActive
                                   ? AppTheme.successColor
@@ -400,7 +402,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 11, color: AppTheme.textTer(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -622,7 +624,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           child: Text(
                             'Order ${item['suggestedOrderQty']}',
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: AppTheme.warningColor,
                             ),
@@ -671,9 +673,8 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
   Widget _buildBillingSection(VendorModel vendor) {
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
-    final numFmt = NumberFormat('#,##0.00');
-    final dateFmt = DateFormat('dd MMM yyyy');
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
+    final dateFmt = AppDates.day;
     final outstanding = billing.vendorOutstanding(vendor.id);
     final vendorInvoices = billing.invoicesForVendor(vendor.id);
     final recent = vendorInvoices.take(5).toList();
@@ -708,7 +709,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Due: $sym${numFmt.format(outstanding)}',
+                  'Due: $sym${Money.number(outstanding)}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -762,7 +763,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                                 Text(
                                   '${dateFmt.format(inv.invoiceDate)} · ${inv.statusLabel}',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     color: AppTheme.textTer(context),
                                   ),
                                 ),
@@ -770,9 +771,9 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                                     !inv.isPaid &&
                                     !inv.isCancelled)
                                   Text(
-                                    'Due: $sym${numFmt.format(inv.amountDue)}',
+                                    'Due: $sym${Money.number(inv.amountDue)}',
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: AppTheme.dangerColor,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -784,7 +785,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                '$sym${numFmt.format(inv.grandTotal)}',
+                                '$sym${Money.number(inv.grandTotal)}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
@@ -940,7 +941,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                         Text(
                           DateFormat('MMM d').format(t.date),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),

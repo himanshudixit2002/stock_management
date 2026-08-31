@@ -14,33 +14,21 @@ import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animations.dart';
 import '../../utils/responsive.dart';
+import '../../utils/currency.dart';
 
 class ValuationTrendsScreen extends StatelessWidget {
   const ValuationTrendsScreen({super.key});
 
-  String _fmtCurrency(double v) {
-    final fmt = NumberFormat('#,##0.00');
-    return '${AppTheme.currencySymbol}${fmt.format(v)}';
-  }
+  String _fmtCurrency(BuildContext context, double v) => Money.of(context, v);
 
-  String _fmtCompact(double v) {
-    if (v >= 1e7) {
-      return '${AppTheme.currencySymbol}${(v / 1e7).toStringAsFixed(1)}Cr';
-    }
-    if (v >= 1e5) {
-      return '${AppTheme.currencySymbol}${(v / 1e5).toStringAsFixed(1)}L';
-    }
-    if (v >= 1e3) {
-      return '${AppTheme.currencySymbol}${(v / 1e3).toStringAsFixed(1)}K';
-    }
-    return '${AppTheme.currencySymbol}${v.toInt()}';
-  }
+  String _fmtCompact(BuildContext context, double v) =>
+      Money.compact(context, v);
 
   @override
   Widget build(BuildContext context) {
     final productProv = context.watch<ProductProvider>();
     final stockProv = context.watch<StockProvider>();
-    final allProducts = productProv.allProducts;
+    final allProducts = productProv.analyticsProducts;
 
     double totalCost = 0;
     double totalSelling = 0;
@@ -167,7 +155,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                   FadeSlideIn(
                     index: 3,
-                    child: _buildLocationChart(byLocation),
+                    child: _buildLocationChart(context, byLocation),
                   ),
                   const SizedBox(height: 20),
                   FadeSlideIn(
@@ -196,7 +184,7 @@ class ValuationTrendsScreen extends StatelessWidget {
               width: cardWidth,
               label: 'Total Cost Value',
               value: cost,
-              formatter: (v) => _fmtCompact(v.toDouble()),
+              formatter: (v) => _fmtCompact(context, v.toDouble()),
               icon: Icons.account_balance_rounded,
               color: AppTheme.primaryColor,
             ),
@@ -204,7 +192,7 @@ class ValuationTrendsScreen extends StatelessWidget {
               width: cardWidth,
               label: 'Total Selling Value',
               value: selling,
-              formatter: (v) => _fmtCompact(v.toDouble()),
+              formatter: (v) => _fmtCompact(context, v.toDouble()),
               icon: Icons.sell_rounded,
               color: AppTheme.infoColor,
             ),
@@ -212,7 +200,7 @@ class ValuationTrendsScreen extends StatelessWidget {
               width: cardWidth,
               label: 'Potential Profit',
               value: profit,
-              formatter: (v) => _fmtCompact(v.toDouble()),
+              formatter: (v) => _fmtCompact(context, v.toDouble()),
               icon: Icons.trending_up_rounded,
               color: profit >= 0 ? AppTheme.successColor : AppTheme.dangerColor,
             ),
@@ -264,7 +252,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _fmtCurrency(thisMonth),
+                      _fmtCurrency(context, thisMonth),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -325,7 +313,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _fmtCurrency(lastMonth),
+                      _fmtCurrency(context, lastMonth),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -349,6 +337,11 @@ class ValuationTrendsScreen extends StatelessWidget {
     final sorted = data.entries.toList()
       ..sort((a, b) => b.value.cost.compareTo(a.value.cost));
     if (sorted.isEmpty) return const SizedBox.shrink();
+
+    // Resolved here (during build) rather than inside the chart callbacks
+    // below: those run on touch/layout, outside any build of this widget,
+    // where a listening provider read is illegal.
+    final currencySymbol = Money.symbolOf(context);
 
     final maxVal = sorted.first.value.cost;
     final colors = [
@@ -379,7 +372,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                 getTooltipItem: (group, gIdx, rod, rIdx) {
                   if (gIdx < sorted.length) {
                     return BarTooltipItem(
-                      '${sorted[gIdx].key}\n${_fmtCurrency(rod.toY)}',
+                      '${sorted[gIdx].key}\n${Money.withSymbol(currencySymbol, rod.toY)}',
                       const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -406,7 +399,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                           ? '${sorted[idx].key.substring(0, 12)}...'
                           : sorted[idx].key,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: AppTheme.textSec(context),
                       ),
                     );
@@ -453,7 +446,7 @@ class ValuationTrendsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLocationChart(Map<String, double> data) {
+  Widget _buildLocationChart(BuildContext context, Map<String, double> data) {
     final sorted = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     if (sorted.isEmpty) return const SizedBox.shrink();
@@ -485,7 +478,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      _fmtCurrency(entry.value),
+                      _fmtCurrency(context, entry.value),
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -539,7 +532,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                     child: Text(
                       '${i + 1}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: i < 3
                             ? AppTheme.warningColor
@@ -563,9 +556,9 @@ class ValuationTrendsScreen extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${p.quantity} ${p.unit} @ ${_fmtCurrency(p.costPrice)}',
+                        '${p.quantity} ${p.unit} @ ${_fmtCurrency(context, p.costPrice)}',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       ),
@@ -573,7 +566,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  _fmtCurrency(p.totalCostValue),
+                  _fmtCurrency(context, p.totalCostValue),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -637,7 +630,7 @@ class _ValCard extends StatelessWidget {
                   child: Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                       fontWeight: FontWeight.w500,
                     ),

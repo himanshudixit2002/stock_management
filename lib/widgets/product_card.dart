@@ -11,6 +11,7 @@ import 'animations.dart';
 import 'glass_panel.dart';
 import 'stock_badge.dart';
 import '../config/app_navigation.dart';
+import '../utils/currency.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductModel product;
@@ -306,7 +307,7 @@ class _ProductCardState extends State<ProductCard> {
                     style: TextStyle(
                       color: stockColor,
                       fontWeight: FontWeight.w700,
-                      fontSize: 10,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -330,7 +331,7 @@ class _ProductCardState extends State<ProductCard> {
               child: Text(
                 meta.join('  \u2022  '),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: AppTheme.textTer(context),
                   height: 1.2,
@@ -407,7 +408,7 @@ class _ProductCardState extends State<ProductCard> {
                 child: Text(
                   product.categoryName,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                     fontWeight: FontWeight.w500,
                   ),
@@ -424,7 +425,7 @@ class _ProductCardState extends State<ProductCard> {
                     if (product.size.isNotEmpty) product.size,
                   ].join(' | '),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                     fontWeight: FontWeight.w500,
                   ),
@@ -441,9 +442,9 @@ class _ProductCardState extends State<ProductCard> {
               parts.add(
                 TextSpan(
                   text:
-                      '${AppTheme.currencySymbol}${product.sellingPrice.toStringAsFixed(2)}',
+                      Money.of(context, product.sellingPrice),
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.successColor,
                   ),
@@ -460,7 +461,7 @@ class _ProductCardState extends State<ProductCard> {
                     TextSpan(
                       text: '  \u00B7  ',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                       ),
                     ),
@@ -470,7 +471,7 @@ class _ProductCardState extends State<ProductCard> {
                   TextSpan(
                     text: vendorName,
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: AppTheme.indigoColor,
                     ),
@@ -514,7 +515,7 @@ class _ProductCardState extends State<ProductCard> {
                               .join(' \u2022 ')
                         : '${product.locationQuantities.length} locations',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: AppTheme.textTer(context),
                     ),
@@ -557,7 +558,7 @@ class _ProductCardState extends State<ProductCard> {
       padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Text(
         '\u2022',
-        style: TextStyle(fontSize: 8, color: AppTheme.iconMute(context)),
+        style: TextStyle(fontSize: 12, color: AppTheme.iconMute(context)),
       ),
     );
   }
@@ -594,7 +595,7 @@ class _MiniActionButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: color,
                 ),

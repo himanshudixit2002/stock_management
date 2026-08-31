@@ -14,6 +14,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/date_formats.dart';
 
 class DamageHistoryScreen extends StatefulWidget {
   const DamageHistoryScreen({super.key});
@@ -90,7 +91,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final topProduct = topDamaged.isNotEmpty ? topDamaged.first.key : 'N/A';
 
-    final dateFormat = DateFormat('d MMM yyyy, h:mm a');
+    final dateFormat = AppDates.of('d MMM yyyy, h:mm a');
     final hasDateFilter = _startDate != null;
 
     return Scaffold(
@@ -209,7 +210,7 @@ class _DamageHistoryScreenState extends State<DamageHistoryScreen> {
   }
 
   Widget _buildDateChip() {
-    final fmt = DateFormat('d MMM');
+    final fmt = AppDates.of('d MMM');
     final label = _endDate != null
         ? '${fmt.format(_startDate!)} - ${fmt.format(_endDate!)}'
         : 'From ${fmt.format(_startDate!)}';
@@ -480,7 +481,7 @@ class _SummaryCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: AppTheme.textSec(context),
                 fontWeight: FontWeight.w600,
               ),
@@ -739,7 +740,7 @@ class _DamageTile extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).whenComplete(customController.dispose);
   }
 
   @override
@@ -748,7 +749,7 @@ class _DamageTile extends StatelessWidget {
       borderRadius: 14,
       onTap: () {
         final productProvider = context.read<ProductProvider>();
-        final product = productProvider.allProducts
+        final product = productProvider.analyticsProducts
             .where((p) => p.id == txn.productId)
             .firstOrNull;
         if (product != null) {
@@ -883,7 +884,7 @@ class _DamageTile extends StatelessWidget {
                         Text(
                           'Change',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.primaryColor,
                           ),

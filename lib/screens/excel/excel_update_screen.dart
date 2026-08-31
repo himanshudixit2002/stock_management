@@ -525,7 +525,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
             color: isCurrent
                 ? AppTheme.primaryColor
@@ -739,7 +739,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
               child: Text(
                 number,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primaryColor,
                 ),
@@ -1009,7 +1009,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                     ),
                   ),
@@ -1043,7 +1043,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
           child: Text(
             '$count',
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: AppTheme.primaryColor,
             ),
@@ -1109,7 +1109,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                         Text(
                           '${widget.diff.fieldChanges.length} field(s) changed',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),
@@ -1145,7 +1145,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                             child: Text(
                               c.field,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: AppTheme.textSec(context),
                               ),
@@ -1161,7 +1161,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                               Text(
                                 c.oldValue.isEmpty ? '(empty)' : c.oldValue,
                                 style: const TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: AppTheme.dangerColor,
                                   decoration: TextDecoration.lineThrough,
                                 ),
@@ -1171,7 +1171,7 @@ class _ModifiedProductCardState extends State<_ModifiedProductCard> {
                               Text(
                                 c.newValue.isEmpty ? '(empty)' : c.newValue,
                                 style: const TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: AppTheme.successColor,
                                 ),
@@ -1241,7 +1241,7 @@ class _NewProductCard extends StatelessWidget {
                           .where((v) => v != null && v.toString().isNotEmpty)
                           .join(' · '),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                       ),
                       maxLines: 1,
@@ -1259,7 +1259,7 @@ class _NewProductCard extends StatelessWidget {
                 child: const Text(
                   'NEW',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.successColor,
                   ),
@@ -1311,7 +1311,7 @@ class _ErrorCard extends StatelessWidget {
                       Text(
                         diff.errorMessage!,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: AppTheme.dangerColor,
                         ),
                       ),

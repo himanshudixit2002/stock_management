@@ -364,7 +364,7 @@ class _HoldListScreenState extends State<HoldListScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                     ),
                   ),
@@ -498,7 +498,7 @@ class _HoldListScreenState extends State<HoldListScreen> {
           },
         );
       },
-    );
+    ).whenComplete(controller.dispose);
     if (!mounted || result == null) return;
     final ok = await context.read<StockProvider>().releaseStockHoldQuantity(
           holdId: hold.id,
@@ -631,7 +631,7 @@ class _ChallanGroupCard extends StatelessWidget {
                         style: TextStyle(
                           color: AppTheme.infoColor,
                           fontWeight: FontWeight.w700,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                     ),
@@ -750,7 +750,7 @@ class _HoldRow extends StatelessWidget {
                   child: Text(
                     'Reserved by sales order — dispatch or cancel from the order.',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textSec(context),
                     ),
                   ),

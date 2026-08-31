@@ -63,16 +63,6 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
         _rating != 0;
   }
 
-  Future<bool> _confirmDiscard() async {
-    if (!_hasUnsavedChanges) return true;
-    return showConfirmDialog(
-      context,
-      title: 'Discard changes?',
-      message: 'You have unsaved changes. Are you sure you want to go back?',
-      confirmLabel: 'Discard',
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -184,7 +174,11 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard() && context.mounted) {
+        final canLeave = await confirmDiscardChanges(
+          context,
+          hasChanges: _hasUnsavedChanges,
+        );
+        if (canLeave && context.mounted) {
           Navigator.of(context).pop();
         }
       },

@@ -4,10 +4,11 @@ import '../../../config/theme.dart';
 import '../../../providers/stock_provider.dart';
 import '../../../providers/product_provider.dart';
 import '../../../providers/settings_provider.dart';
-import '../../../services/excel_service.dart';
-import '../../../services/report_pdf_service.dart';
+import '../../../services/excel_service.dart' deferred as excel_service;
+import '../../../services/report_pdf_service.dart' deferred as report_pdf;
 import '../../../services/report_analytics_service.dart';
 import '../../../utils/responsive.dart';
+import '../../../utils/currency.dart';
 
 class ReportsExportSheet extends StatefulWidget {
   const ReportsExportSheet({super.key});
@@ -22,6 +23,7 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
   Future<void> _exportPdf(BuildContext context) async {
     final stockProvider = context.read<StockProvider>();
     final productProvider = context.read<ProductProvider>();
+    final currencySymbol = Money.symbolOf(context, listen: false);
     final settingsProvider = context.read<SettingsProvider>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -34,7 +36,7 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
       final startDate = stockProvider.filterStartDate ?? DateTime.now().subtract(const Duration(days: 30));
       final endDate = stockProvider.filterEndDate ?? DateTime.now();
 
-      final pMap = {for (final p in productProvider.products) p.id: p};
+      final pMap = {for (final p in productProvider.analyticsProducts) p.id: p};
       final categoryRows = ReportAnalyticsService().generateCustomReport(
         transactions: stockProvider.recentTransactions,
         productMap: pMap,
@@ -62,18 +64,20 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
 
       final insights = ReportAnalyticsService().generateAiExecutiveInsights(
         currentTx: stockProvider.recentTransactions,
-        products: productProvider.products,
+        products: productProvider.analyticsProducts,
         deltas: deltas,
       );
 
-      await ReportPdfService.printOrExportReport(
+      await report_pdf.loadLibrary();
+      await report_pdf.ReportPdfService.printOrExportReport(
         companyName: companyName,
         startDate: startDate,
         endDate: endDate,
         transactions: stockProvider.recentTransactions,
-        products: productProvider.products,
+        products: productProvider.analyticsProducts,
         categoryRows: categoryRows,
         aiInsights: insights,
+        currencySymbol: currencySymbol,
       );
 
       if (mounted) navigator.pop();
@@ -96,8 +100,9 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
 
     setState(() => _isProcessing = true);
     try {
-      final excelService = ExcelService();
-      final products = productProvider.products;
+      await excel_service.loadLibrary();
+      final excelService = excel_service.ExcelService();
+      final products = productProvider.analyticsProducts;
       final transactions = stockProvider.recentTransactions;
 
       final result = await excelService.exportFullReport(

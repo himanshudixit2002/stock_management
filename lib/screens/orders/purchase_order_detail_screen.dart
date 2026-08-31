@@ -22,6 +22,8 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/not_found_state.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class PurchaseOrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -54,9 +56,9 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       );
     }
 
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
     final statusColor = _statusColor(context, order.status);

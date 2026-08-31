@@ -1,50 +1,45 @@
 import 'package:flutter/material.dart';
-// Lottie is deferred so it is split into its own chunk and kept out of the
-// main entrypoint. On web it is only fetched when this splash actually mounts
-// (mobile/desktop only); on web the bootstrap uses a plain gradient instead.
-import 'package:lottie/lottie.dart' deferred as lottie;
 
-/// Animated brand mark shown on the native (non-web) startup splash.
+/// The app's brand mark.
 ///
-/// Loads the deferred `lottie` library on first build and shows a lightweight
-/// logo fallback while it loads or if it fails — so the splash always renders
-/// instantly and the heavy animation library never lands in the main bundle.
-class BrandedSplashLogo extends StatefulWidget {
+/// Always render the logo through this widget. It points at
+/// `assets/images/logo.png` — a 384px copy that covers the largest on-screen
+/// size (120dp) at 3x with no upscaling. The 3.9MB `logo.png` at the repo root
+/// is the `flutter_launcher_icons` source only; it is deliberately not bundled,
+/// because shipping it cost a cold web visitor ~4MB to draw a 44px mark and
+/// decoded to ~18MB of memory on device.
+///
+/// [cacheWidth]/[cacheHeight] are set from the display size so the decoded
+/// bitmap stays proportional to what is actually painted.
+class BrandLogo extends StatelessWidget {
+  final double size;
+  final BoxFit fit;
+
+  const BrandLogo({super.key, required this.size, this.fit = BoxFit.contain});
+
+  static const String assetPath = 'assets/images/logo.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final cache = (size * ratio).round();
+    return Image.asset(
+      assetPath,
+      width: size,
+      height: size,
+      fit: fit,
+      cacheWidth: cache,
+      cacheHeight: cache,
+      filterQuality: FilterQuality.medium,
+    );
+  }
+}
+
+/// Static brand mark shown on the startup splash.
+class BrandedSplashLogo extends StatelessWidget {
   final double size;
   const BrandedSplashLogo({super.key, this.size = 120});
 
   @override
-  State<BrandedSplashLogo> createState() => _BrandedSplashLogoState();
-}
-
-class _BrandedSplashLogoState extends State<BrandedSplashLogo> {
-  late final Future<void> _load = lottie.loadLibrary();
-
-  Widget _fallback() => Image.asset(
-    'logo.png',
-    width: widget.size,
-    height: widget.size,
-    fit: BoxFit.contain,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: FutureBuilder<void>(
-        future: _load,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done ||
-              snapshot.hasError) {
-            return _fallback();
-          }
-          return lottie.Lottie.asset(
-            'assets/lottie/lottie_logo.json',
-            errorBuilder: (context, error, stackTrace) => _fallback(),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => BrandLogo(size: size);
 }

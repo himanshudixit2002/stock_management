@@ -211,7 +211,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
               Text(
                 'SELECTED ACTIONS',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.iconMute(context),
                   letterSpacing: 1.2,
@@ -229,7 +229,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
                 child: Text(
                   '${_selected.length} / ${HomeActionsRegistry.maxActions}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: _selected.length >= HomeActionsRegistry.maxActions
                         ? AppTheme.warningColor
@@ -310,7 +310,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
             child: Text(
               'Long press and drag to reorder',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 color: AppTheme.textMuted.withValues(alpha: 0.7),
               ),
             ),
@@ -346,7 +346,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
               Text(
                 'AVAILABLE ACTIONS',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.iconMute(context),
                   letterSpacing: 1.2,
@@ -673,7 +673,7 @@ class _AvailableActionCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       height: 1.2,
                       color: isSelected
@@ -728,7 +728,7 @@ class _FeatureGateFooter extends StatelessWidget {
           maxLines: isAdmin ? 1 : 3,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 9,
+            fontSize: 12,
             height: 1.25,
             color: isSelected
                 ? Colors.white.withValues(alpha: 0.9)
@@ -750,7 +750,7 @@ class _FeatureGateFooter extends StatelessWidget {
               child: Text(
                 'Enable ${gateDisplayName(gate)}',
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
                 maxLines: 1,

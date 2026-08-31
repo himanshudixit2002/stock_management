@@ -39,7 +39,7 @@ class TopProductsChart extends StatelessWidget {
                 child: Text(
                   '${idx + 1}.',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: idx < 3
                         ? AppTheme.primaryColor
@@ -88,7 +88,7 @@ class TopProductsChart extends StatelessWidget {
                 child: Text(
                   '${item.value}',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.right,

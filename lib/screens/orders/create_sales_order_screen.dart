@@ -22,6 +22,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
 
 class CreateSalesOrderScreen extends StatefulWidget {
   const CreateSalesOrderScreen({super.key});
@@ -208,7 +209,7 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
 
     final customers = context.watch<CustomerProvider>().activeCustomers;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
 
@@ -524,7 +525,7 @@ class _CreateSalesOrderScreenState extends State<CreateSalesOrderScreen> {
                                             labelText: 'Unit Price',
                                             isDense: true,
                                             prefixText:
-                                                '${AppTheme.currencySymbol} ',
+                                                '${Money.symbolOf(context)} ',
                                           ),
                                           keyboardType:
                                               const TextInputType.numberWithOptions(

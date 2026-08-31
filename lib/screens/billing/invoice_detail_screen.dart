@@ -22,6 +22,7 @@ import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/success_overlay.dart';
 import 'record_payment_sheet.dart';
+import '../../utils/currency.dart';
 
 class InvoiceDetailScreen extends StatelessWidget {
   final String invoiceId;
@@ -36,7 +37,7 @@ class InvoiceDetailScreen extends StatelessWidget {
     final billing = context.watch<BillingProvider>();
     final invoice = billing.getInvoiceById(invoiceId);
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
 
     if (invoice == null) {
       if (billing.isLoading) {
@@ -395,7 +396,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                       child: const Text(
                         'Purchase',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.warningColor,
                         ),
@@ -433,7 +434,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                     Text(
                       'Document ID',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: AppTheme.textTer(context),
                         fontWeight: FontWeight.w500,
                       ),
@@ -442,7 +443,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                     Text(
                       invoice.id,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textSec(context),
                       ),
                       maxLines: 2,
@@ -499,7 +500,7 @@ class InvoiceDetailScreen extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 12,
             color: AppTheme.textTer(context),
             fontWeight: FontWeight.w500,
           ),
@@ -569,7 +570,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                           '${item.discountPercent > 0 ? ' - ${item.discountPercent}% disc' : ''}'
                           '${item.taxRate > 0 ? ' + ${item.taxRate}% tax' : ''}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textSec(context),
                           ),
                         ),
@@ -739,7 +740,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         Text(
                           '${_dateFormat.format(p.date)}${p.referenceNumber.isNotEmpty ? ' • Ref: ${p.referenceNumber}' : ''}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),
@@ -792,7 +793,7 @@ class InvoiceDetailScreen extends StatelessWidget {
           ),
           subtitle: Text(
             invoice.linkedSalesOrderId,
-            style: const TextStyle(fontSize: 11),
+            style: const TextStyle(fontSize: 12),
           ),
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
           onTap: () => Navigator.pushNamed(
@@ -819,7 +820,7 @@ class InvoiceDetailScreen extends StatelessWidget {
           ),
           subtitle: Text(
             invoice.linkedPurchaseOrderId,
-            style: const TextStyle(fontSize: 11),
+            style: const TextStyle(fontSize: 12),
           ),
           trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
           onTap: () => Navigator.pushNamed(

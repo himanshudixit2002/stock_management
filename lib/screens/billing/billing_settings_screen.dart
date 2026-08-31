@@ -8,6 +8,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
 
 class BillingSettingsScreen extends StatefulWidget {
   const BillingSettingsScreen({super.key});
@@ -121,9 +122,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
       nextInvoiceNumber: int.tryParse(_nextNumCtrl.text) ?? 1,
       defaultPaymentTermDays: _paymentTermDays,
       invoiceFooter: _footerCtrl.text.trim(),
-      currencySymbol: _currencyCtrl.text.trim().isEmpty
-          ? '₹'
-          : _currencyCtrl.text.trim(),
+      currencySymbol: Money.symbolOrFallback(_currencyCtrl.text),
       enableTax: _enableTax,
       enableDiscounts: _enableDiscounts,
       enablePaymentTracking: _enablePaymentTracking,
@@ -495,7 +494,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
               Text(
                 title.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.iconMute(context),
                   letterSpacing: 1.2,

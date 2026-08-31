@@ -107,16 +107,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     }
   }
 
-  Future<bool> _confirmDiscard() async {
-    if (!_hasUnsavedChanges) return true;
-    return showConfirmDialog(
-      context,
-      title: 'Discard changes?',
-      message: 'You have unsaved changes. Are you sure you want to go back?',
-      confirmLabel: 'Discard',
-    );
-  }
-
   final List<String> _units = [
     'pcs',
     'kg',
@@ -513,7 +503,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         canPop: false,
         onPopInvokedWithResult: (didPop, _) async {
           if (didPop) return;
-          if (await _confirmDiscard() && context.mounted) {
+          final canLeave = await confirmDiscardChanges(
+          context,
+          hasChanges: _hasUnsavedChanges,
+        );
+        if (canLeave && context.mounted) {
             Navigator.of(context).pop();
           }
         },

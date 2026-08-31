@@ -5,13 +5,24 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models/stock_transaction_model.dart';
+import '../utils/currency.dart';
 import '../models/product_model.dart';
 import 'report_analytics_service.dart';
 
 class ReportPdfService {
   static final DateFormat _dateFormat = DateFormat('MMM dd, yyyy');
   static final DateFormat _dateTimeFormat = DateFormat('MMM dd, yyyy HH:mm');
-  static final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+  /// Cached per symbol — [NumberFormat] parses its pattern on construction and
+  /// the company's currency symbol is configurable, so one static instance
+  /// would pin whichever symbol was seen first.
+  static final Map<String, NumberFormat> _currencyFormats = {};
+
+  static NumberFormat _currency(String symbol) =>
+      _currencyFormats[symbol] ??= NumberFormat.currency(
+        symbol: symbol,
+        decimalDigits: 0,
+        locale: 'en_IN',
+      );
 
   static pw.Font? _notoSans;
 
@@ -35,7 +46,9 @@ class ReportPdfService {
     required List<ProductModel> products,
     required List<CustomReportRow> categoryRows,
     required List<String> aiInsights,
+    String currencySymbol = Money.fallbackSymbol,
   }) async {
+    final currencyFormat = _currency(Money.symbolOrFallback(currencySymbol));
     final font = await _loadFont();
     final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(
@@ -82,6 +95,7 @@ class ReportPdfService {
         build: (context) => [
           pw.SizedBox(height: 10),
           _buildKpiSummaryGrid(
+            currencyFormat: currencyFormat,
             totalValuation: totalValuation,
             totalRevenue: totalRevenue,
             totalIn: totalIn,
@@ -101,7 +115,7 @@ class ReportPdfService {
             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800),
           ),
           pw.SizedBox(height: 8),
-          _buildCategoryTable(categoryRows),
+          _buildCategoryTable(categoryRows, currencyFormat),
           pw.SizedBox(height: 20),
 
           pw.Text(
@@ -128,6 +142,7 @@ class ReportPdfService {
     required List<ProductModel> products,
     required List<CustomReportRow> categoryRows,
     required List<String> aiInsights,
+    String currencySymbol = Money.fallbackSymbol,
   }) async {
     final pdfBytes = await generateExecutivePdfReport(
       companyName: companyName,
@@ -137,6 +152,7 @@ class ReportPdfService {
       products: products,
       categoryRows: categoryRows,
       aiInsights: aiInsights,
+      currencySymbol: currencySymbol,
     );
 
     await Printing.layoutPdf(
@@ -209,6 +225,7 @@ class ReportPdfService {
   }
 
   static pw.Widget _buildKpiSummaryGrid({
+    required NumberFormat currencyFormat,
     required double totalValuation,
     required double totalRevenue,
     required int totalIn,
@@ -218,9 +235,9 @@ class ReportPdfService {
   }) {
     return pw.Row(
       children: [
-        _kpiBox('Asset Valuation', _currencyFormat.format(totalValuation), PdfColors.blue100, PdfColors.blue900),
+        _kpiBox('Asset Valuation', currencyFormat.format(totalValuation), PdfColors.blue100, PdfColors.blue900),
         pw.SizedBox(width: 8),
-        _kpiBox('Est. Revenue', _currencyFormat.format(totalRevenue), PdfColors.green100, PdfColors.green900),
+        _kpiBox('Est. Revenue', currencyFormat.format(totalRevenue), PdfColors.green100, PdfColors.green900),
         pw.SizedBox(width: 8),
         _kpiBox('Stock In', '$totalIn units', PdfColors.teal50, PdfColors.teal900),
         pw.SizedBox(width: 8),
@@ -273,7 +290,10 @@ class ReportPdfService {
     );
   }
 
-  static pw.Widget _buildCategoryTable(List<CustomReportRow> rows) {
+  static pw.Widget _buildCategoryTable(
+    List<CustomReportRow> rows,
+    NumberFormat currencyFormat,
+  ) {
     return pw.TableHelper.fromTextArray(
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
       headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
@@ -284,9 +304,9 @@ class ReportPdfService {
       headers: ['Category / Group', 'Est. Revenue', 'Cost', 'Est. Profit', 'Margin %', 'Stock In', 'Stock Out', 'Damage'],
       data: rows.map((r) => [
             r.groupName,
-            _currencyFormat.format(r.salesRevenue),
-            _currencyFormat.format(r.estimatedCost),
-            _currencyFormat.format(r.profit),
+            currencyFormat.format(r.salesRevenue),
+            currencyFormat.format(r.estimatedCost),
+            currencyFormat.format(r.profit),
             '${r.profitMarginPct.toStringAsFixed(1)}%',
             '${r.stockInQty}',
             '${r.stockOutQty}',

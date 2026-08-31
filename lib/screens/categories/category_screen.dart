@@ -17,6 +17,7 @@ import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../config/permissions.dart';
+import '../../utils/debouncer.dart';
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -28,21 +29,19 @@ class CategoryScreen extends StatefulWidget {
 class _CategoryScreenState extends State<CategoryScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
 
   @override
   void dispose() {
     _searchController.dispose();
-    _debounce?.cancel();
+    _searchDebounce.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() {
-        _searchQuery = value.trim().toLowerCase();
-      });
+    _searchDebounce.run(() {
+      if (!mounted) return;
+      setState(() => _searchQuery = value.trim().toLowerCase());
     });
   }
 

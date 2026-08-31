@@ -123,6 +123,24 @@ Future<bool> showConfirmDialog(
   return result ?? false;
 }
 
+/// Guards a back/pop gesture on a form with unsaved edits.
+///
+/// Returns true when it is safe to leave — either nothing changed, or the user
+/// confirmed discarding. Every add/edit screen asked this the same way, so the
+/// wording stays consistent by living here.
+Future<bool> confirmDiscardChanges(
+  BuildContext context, {
+  required bool hasChanges,
+}) async {
+  if (!hasChanges) return true;
+  return showConfirmDialog(
+    context,
+    title: 'Discard changes?',
+    message: 'You have unsaved changes. Are you sure you want to go back?',
+    confirmLabel: 'Discard',
+  );
+}
+
 /// Themed, floating snackbar content with a leading status [icon].
 Widget _snackContent(IconData icon, String message, Color fg) {
   return Row(
@@ -423,5 +441,5 @@ Future<String?> showAddNameDialog(
         );
       },
     ),
-  );
+  ).whenComplete(nameController.dispose);
 }

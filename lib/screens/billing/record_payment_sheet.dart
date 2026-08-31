@@ -8,6 +8,7 @@ import '../../providers/billing_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
 
 class RecordPaymentSheet extends StatefulWidget {
   final String invoiceId;
@@ -20,7 +21,7 @@ class RecordPaymentSheet extends StatefulWidget {
     required this.invoiceId,
     this.invoiceNumber,
     required this.amountDue,
-    this.currencySymbol = '₹',
+    this.currencySymbol = Money.fallbackSymbol,
   });
 
   @override
@@ -98,7 +99,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final sym = widget.currencySymbol.isNotEmpty ? widget.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(widget.currencySymbol);
     return SlideUpSheet(
       title: 'Record Payment',
       child: Form(
@@ -108,7 +109,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
             20,
             12,
             20,
-            MediaQuery.of(context).viewInsets.bottom + 20,
+            MediaQuery.viewInsetsOf(context).bottom + 20,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -128,7 +129,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                   ),
                 ),
               Text(
-                'Amount due: $sym${NumberFormat('#,##0.00').format(widget.amountDue)}',
+                'Amount due: $sym${Money.number(widget.amountDue)}',
                 style: TextStyle(
                   fontSize: 13,
                   color: AppTheme.textSec(context),

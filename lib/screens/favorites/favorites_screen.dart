@@ -127,7 +127,7 @@ class _FavoriteProductCard extends StatelessWidget {
                 child: Text(
                   '$stockLabel • ${product.quantity} ${product.unit}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: stockColor,
                   ),

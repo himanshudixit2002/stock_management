@@ -737,7 +737,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
                     child: Text(
                       col[1],
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: col[1] == 'required'
                             ? AppTheme.dangerColor
                             : AppTheme.textSec(context),

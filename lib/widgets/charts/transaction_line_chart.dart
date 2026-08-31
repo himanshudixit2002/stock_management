@@ -108,7 +108,7 @@ class TransactionLineChart extends StatelessWidget {
                         getTitlesWidget: (value, meta) => Text(
                           value.toInt().toString(),
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 12,
                             color: AppTheme.textSec(context),
                           ),
                         ),
@@ -132,7 +132,7 @@ class TransactionLineChart extends StatelessWidget {
                             child: Text(
                               _formatLabel(keys[idx]),
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 12,
                                 color: AppTheme.textSec(context),
                               ),
                             ),
@@ -238,7 +238,7 @@ class TransactionLineChart extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           text,
-          style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+          style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
         ),
       ],
     );

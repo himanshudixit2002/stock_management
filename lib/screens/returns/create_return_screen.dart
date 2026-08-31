@@ -26,6 +26,7 @@ import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/app_navigation.dart';
 import '../../utils/unit_conversion.dart';
+import '../../utils/date_formats.dart';
 
 class CreateReturnScreen extends StatefulWidget {
   const CreateReturnScreen({super.key});
@@ -188,7 +189,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
 
   void _showOrderLookup() {
     final isCustomer = _returnType == ReturnType.customerReturn;
-    final dateFmt = DateFormat('dd MMM yyyy');
+    final dateFmt = AppDates.day;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -288,7 +289,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
     required bool showAllHint,
   }) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.72,
+      height: MediaQuery.sizeOf(context).height * 0.72,
       decoration: BoxDecoration(
         color: AppTheme.surface(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -398,7 +399,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                       child: Text(
                                         o.badge,
                                         style: const TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           color: AppTheme.primaryColor,
                                         ),
@@ -418,7 +419,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 Text(
                                   o.productLine,
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     color: AppTheme.textSec(context),
                                   ),
                                   maxLines: 2,
@@ -428,7 +429,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                 Text(
                                   'ID: ${o.id}',
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     color: AppTheme.iconMute(context),
                                     fontFamily: 'monospace',
                                   ),
@@ -686,7 +687,7 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                               .skip(1)
                                               .join('\n'),
                                           style: TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 12,
                                             height: 1.25,
                                             color: AppTheme.textSec(context),
                                           ),

@@ -79,7 +79,7 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
               width: double.infinity,
               height: 220,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.85),
+                color: AppTheme.isDark(context) ? AppTheme.surface(context) : const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppTheme.violetColor, width: 2),
               ),
@@ -99,7 +99,7 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                           _isScanning
                               ? 'Multimodal Vision Model Scanning Shelf...'
                               : 'Tap below to capture shelf & run AI stock audit',
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: TextStyle(color: AppTheme.onGradient, fontSize: 13),
                         ),
                       ],
                     ),
@@ -124,7 +124,7 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                 onPressed: _isScanning ? null : _runVisualAudit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.violetColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppTheme.onPrimary(context),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -202,7 +202,7 @@ class _VisualStockAuditScreenState extends State<VisualStockAuditScreen> {
                           style: TextStyle(
                             color: isMatch ? AppTheme.successColor : AppTheme.dangerColor,
                             fontWeight: FontWeight.bold,
-                            fontSize: 11,
+                            fontSize: 12,
                           ),
                         ),
                       ),

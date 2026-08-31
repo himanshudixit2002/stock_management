@@ -295,7 +295,7 @@ class _FloatingNavItemState extends State<_FloatingNavItem> {
                           child: Text(
                             widget.tab.label,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.primaryColor,
                             ),
@@ -391,8 +391,11 @@ class _CountBadge extends StatelessWidget {
         border: Border.all(color: AppTheme.surface(context), width: 1.5),
       ),
       alignment: Alignment.center,
+      // A count glyph inside a fixed-height pill: stays small and opts out of
+      // text scaling so a large system font cannot burst the badge.
       child: Text(
         count > 99 ? '99+' : '$count',
+        textScaler: TextScaler.noScaling,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 9,

@@ -17,6 +17,8 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/currency.dart';
+import '../../widgets/scroll_to_top_button.dart';
 
 enum _CustomerSort {
   nameAsc,
@@ -43,17 +45,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
   _StatusFilter _statusFilter = _StatusFilter.all;
   bool _hasOrdersOnly = false;
   final _scrollController = ScrollController();
-  bool _showScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      final show = _scrollController.offset > 500;
-      if (show != _showScrollToTop && mounted) {
-        setState(() => _showScrollToTop = show);
-      }
-    });
   }
 
   bool get _hasActiveFilters =>
@@ -271,7 +266,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     final allCustomers = customerProvider.customers;
     final filtered = _applyFiltersAndSort(allCustomers);
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 0,
     );
 
@@ -478,23 +473,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedScale(
-            scale: _showScrollToTop ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: FloatingActionButton.small(
-              heroTag: 'scrollTop',
-              onPressed: () => _scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-              ),
-              backgroundColor: AppTheme.surface(context),
-              child: Icon(
-                Icons.arrow_upward_rounded,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-          ),
+          ScrollToTopButton(controller: _scrollController),
           const SizedBox(height: 8),
           if (user?.hasPermission(AppPermissions.addCustomers) ?? false)
             FloatingActionButton.extended(
@@ -627,7 +606,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   child: Text(
                     customer.isActive ? 'Active' : 'Inactive',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: customer.isActive
                           ? AppTheme.successColor

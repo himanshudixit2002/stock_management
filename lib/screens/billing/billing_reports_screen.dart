@@ -10,6 +10,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/chart_empty_state.dart';
 import '../../widgets/animations.dart';
+import '../../utils/currency.dart';
 
 class BillingReportsScreen extends StatefulWidget {
   const BillingReportsScreen({super.key});
@@ -34,7 +35,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
   Widget build(BuildContext context) {
     final billing = context.watch<BillingProvider>();
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final invoices = _filterByType(billing.invoices);
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
@@ -166,7 +167,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
           Text(
             title.toUpperCase(),
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: AppTheme.iconMute(context),
               letterSpacing: 1.2,
@@ -483,7 +484,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
                                   : '',
                               textAlign: TextAlign.right,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: AppTheme.textTer(context),
                               ),
                             ),
@@ -684,7 +685,7 @@ class _RevenueCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 color: AppTheme.textTer(context),
                 fontWeight: FontWeight.w500,
               ),

@@ -262,7 +262,7 @@ class _NotificationCard extends StatelessWidget {
                                   Text(
                                     relativeTime,
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: AppTheme.textMute(context),
                                     ),
                                   ),

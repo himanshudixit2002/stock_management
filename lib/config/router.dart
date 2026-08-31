@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'motion.dart';
 import 'routes.dart';
-import 'theme.dart';
 import '../models/product_model.dart';
 import '../models/vendor_model.dart';
 import '../models/customer_model.dart';
@@ -14,6 +13,7 @@ import '../screens/landing_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/home_screen.dart';
+import '../widgets/deferred_screen_loader.dart';
 import '../screens/products/add_edit_product_screen.dart';
 import '../screens/products/product_detail_screen.dart';
 import '../screens/products/product_list_screen.dart';
@@ -28,9 +28,9 @@ import '../screens/stock/stock_hold_screen.dart';
 import '../screens/stock/stock_release_screen.dart';
 import '../screens/stock/hold_list_screen.dart';
 import '../screens/stock/transaction_history_screen.dart';
-import '../screens/excel/excel_import_screen.dart';
-import '../screens/excel/excel_export_screen.dart';
-import '../screens/excel/excel_update_screen.dart';
+import '../screens/excel/excel_import_screen.dart' deferred as excel_import;
+import '../screens/excel/excel_export_screen.dart' deferred as excel_export;
+import '../screens/excel/excel_update_screen.dart' deferred as excel_update;
 import '../screens/users/user_management_screen.dart';
 import '../screens/users/staff_permissions_screen.dart';
 import '../screens/vendors/vendor_list_screen.dart';
@@ -52,7 +52,7 @@ import '../screens/returns/return_detail_screen.dart';
 import '../screens/customers/customer_list_screen.dart';
 import '../screens/customers/add_edit_customer_screen.dart';
 import '../screens/customers/customer_detail_screen.dart';
-import '../screens/scanner/barcode_scanner_screen.dart';
+import '../screens/scanner/barcode_scanner_screen.dart' deferred as scanner;
 import '../screens/batches/batch_list_screen.dart';
 import '../screens/batches/add_batch_screen.dart';
 import '../screens/batches/expiry_alerts_screen.dart';
@@ -76,7 +76,7 @@ import '../screens/about/about_screen.dart';
 import '../screens/settings/home_customization_screen.dart';
 import '../screens/roles/role_list_screen.dart';
 import '../screens/roles/role_editor_screen.dart';
-import '../screens/pos/fast_pos_screen.dart';
+import '../screens/pos/fast_pos_screen.dart' deferred as pos;
 
 // Deferred groups — loaded on demand so they stay out of main.dart.js
 // and only fetch when the user actually navigates to the feature.
@@ -188,69 +188,6 @@ Route<dynamic> _noopRoute(RouteSettings settings) {
 
 /// Lightweight placeholder shown while a deferred library chunk is loading.
 /// Uses only colors that are resolved from the current theme — no blocking work.
-class _DeferredScreenLoader extends StatelessWidget {
-  final Future<void> future;
-  final WidgetBuilder builder;
-  const _DeferredScreenLoader({required this.future, required this.builder});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: future,
-      builder: (ctx, snap) {
-        if (snap.hasError) {
-          return Scaffold(
-            backgroundColor: AppTheme.bg(ctx),
-            appBar: AppBar(),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: AppTheme.dangerColor,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Could not load this screen',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPri(ctx),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Check your connection and try again.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textSec(ctx)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-        if (snap.connectionState != ConnectionState.done) {
-          return Scaffold(
-            backgroundColor: AppTheme.bg(ctx),
-            body: const Center(
-              child: SizedBox(
-                width: 36,
-                height: 36,
-                child: CircularProgressIndicator(strokeWidth: 3),
-              ),
-            ),
-          );
-        }
-        return builder(ctx);
-      },
-    );
-  }
-}
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
   // No auth guard here on purpose: [AuthWrapper] is the single global gate for
@@ -338,9 +275,29 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     ),
 
     // -- Excel --
-    AppRoutes.excelImport => _slideRoute(settings, const ExcelImportScreen()),
-    AppRoutes.excelExport => _slideRoute(settings, const ExcelExportScreen()),
-    AppRoutes.excelUpdate => _slideRoute(settings, const ExcelUpdateScreen()),
+    // Deferred: these pull in the `excel` and `file_picker` packages, which
+    // are dead weight for the majority of sessions that never import a sheet.
+    AppRoutes.excelImport => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: excel_import.loadLibrary(),
+        builder: (_) => excel_import.ExcelImportScreen(),
+      ),
+    ),
+    AppRoutes.excelExport => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: excel_export.loadLibrary(),
+        builder: (_) => excel_export.ExcelExportScreen(),
+      ),
+    ),
+    AppRoutes.excelUpdate => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: excel_update.loadLibrary(),
+        builder: (_) => excel_update.ExcelUpdateScreen(),
+      ),
+    ),
 
     // -- Users --
     AppRoutes.userManagement => _slideRoute(settings, const UserManagementScreen()),
@@ -348,43 +305,43 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
 
     // -- Reports (deferred) --
     AppRoutes.reports => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports.loadLibrary(),
         builder: (_) => reports.ReportsScreen(),
       ),
     ),
     AppRoutes.dashboard => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: dashboard.loadLibrary(),
         builder: (_) => dashboard.DashboardScreen(),
       ),
     ),
     AppRoutes.damageHistory => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports_damage.loadLibrary(),
         builder: (_) => reports_damage.DamageHistoryScreen(),
       ),
     ),
     AppRoutes.profitLoss => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports_pl.loadLibrary(),
         builder: (_) => reports_pl.ProfitLossScreen(),
       ),
     ),
     AppRoutes.abcAnalysis => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports_abc.loadLibrary(),
         builder: (_) => reports_abc.AbcAnalysisScreen(),
       ),
     ),
     AppRoutes.valuationTrends => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports_val.loadLibrary(),
         builder: (_) => reports_val.ValuationTrendsScreen(),
       ),
     ),
     AppRoutes.priceHistory => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: reports_price.loadLibrary(),
         builder: (_) => reports_price.PriceHistoryScreen(),
       ),
@@ -463,7 +420,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       final scanArgs = settings.arguments;
       final captureOnly =
           scanArgs is BarcodeScannerArgs && scanArgs.captureOnly;
-      return _slideRoute(settings, BarcodeScannerScreen(captureOnly: captureOnly));
+      // Deferred: carries the `mobile_scanner` package.
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: scanner.loadLibrary(),
+          builder: (_) => scanner.BarcodeScannerScreen(captureOnly: captureOnly),
+        ),
+      );
     }(),
     AppRoutes.batches => _slideRoute(settings, const BatchListScreen()),
     AppRoutes.addBatch => _slideRoute(settings, const AddBatchScreen()),
@@ -491,13 +455,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
 
     // -- Bulk (deferred) --
     AppRoutes.bulkStockIn => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: bulk_in.loadLibrary(),
         builder: (_) => bulk_in.BulkStockInScreen(),
       ),
     ),
     AppRoutes.bulkEdit => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: bulk_edit.loadLibrary(),
         builder: (_) => bulk_edit.BulkEditScreen(),
       ),
@@ -528,7 +492,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
 
     // -- Billing (deferred) --
     AppRoutes.invoices => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: billing_list.loadLibrary(),
         builder: (_) => billing_list.InvoiceListScreen(),
       ),
@@ -536,7 +500,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.createInvoice => () {
       final args = settings.arguments;
       return _slideRoute(settings, 
-        _DeferredScreenLoader(
+        DeferredScreenLoader(
           future: billing_create.loadLibrary(),
           builder: (_) {
             if (args is Map<String, dynamic>) {
@@ -561,14 +525,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       final invoiceId = settings.arguments as String?;
       if (invoiceId == null) {
         return _slideRoute(settings, 
-          _DeferredScreenLoader(
+          DeferredScreenLoader(
             future: billing_list.loadLibrary(),
             builder: (_) => billing_list.InvoiceListScreen(),
           ),
         );
       }
       return _slideRoute(settings, 
-        _DeferredScreenLoader(
+        DeferredScreenLoader(
           future: billing_detail.loadLibrary(),
           builder: (_) =>
               billing_detail.InvoiceDetailRouteEntry(routeArgument: invoiceId),
@@ -576,30 +540,36 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       );
     }(),
     AppRoutes.billingSettings => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: billing_settings.loadLibrary(),
         builder: (_) => billing_settings.BillingSettingsScreen(),
       ),
     ),
     AppRoutes.billingReports => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: billing_reports.loadLibrary(),
         builder: (_) => billing_reports.BillingReportsScreen(),
       ),
     ),
     AppRoutes.customerStatement => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: billing_cstmt.loadLibrary(),
         builder: (_) => billing_cstmt.CustomerStatementScreen(),
       ),
     ),
     AppRoutes.vendorStatement => _slideRoute(settings, 
-      _DeferredScreenLoader(
+      DeferredScreenLoader(
         future: billing_vstmt.loadLibrary(),
         builder: (_) => billing_vstmt.VendorStatementScreen(),
       ),
     ),
-    AppRoutes.fastPos => _slideRoute(settings, const FastPosScreen()),
+    AppRoutes.fastPos => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: pos.loadLibrary(),
+        builder: (_) => pos.FastPosScreen(),
+      ),
+    ),
 
     // Unknown route: keep a signed-in user inside the app (Home) rather than
     // bouncing them out to the public Landing page. Only signed-out sessions

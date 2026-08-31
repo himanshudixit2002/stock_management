@@ -253,7 +253,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Widget _buildWelcomePage() {
-    final isSmall = MediaQuery.of(context).size.height < 700;
+    final isSmall = MediaQuery.sizeOf(context).height < 700;
     final iconSize = isSmall ? 80.0 : 120.0;
     return Padding(
       padding: EdgeInsets.all(isSmall ? 24 : 32),
@@ -304,7 +304,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         24,
         24,
         24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -406,7 +406,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         24,
         24,
         24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -504,7 +504,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         24,
         24,
         24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -602,7 +602,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         24,
         24,
         24,
-        24 + MediaQuery.of(context).viewInsets.bottom,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

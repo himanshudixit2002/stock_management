@@ -45,16 +45,6 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
       (_selectedProduct != null && widget.product == null) ||
       _selectedLocation != null;
 
-  Future<bool> _confirmDiscard() async {
-    if (!_hasUnsavedChanges) return true;
-    return showConfirmDialog(
-      context,
-      title: 'Discard changes?',
-      message: 'You have unsaved changes. Are you sure you want to go back?',
-      confirmLabel: 'Discard',
-    );
-  }
-
   int get _currentStock {
     if (_selectedProduct == null || _selectedLocation == null) return 0;
     return _selectedProduct!.locationQuantities[_selectedLocation] ?? 0;
@@ -249,7 +239,11 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard() && context.mounted) {
+        final canLeave = await confirmDiscardChanges(
+          context,
+          hasChanges: _hasUnsavedChanges,
+        );
+        if (canLeave && context.mounted) {
           Navigator.of(context).pop();
         }
       },
@@ -407,7 +401,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                               Text(
                                                 'System Stock',
                                                 style: TextStyle(
-                                                  fontSize: 11,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),
@@ -427,7 +421,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                               Text(
                                                 _selectedProduct!.unit,
                                                 style: TextStyle(
-                                                  fontSize: 11,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),
@@ -453,7 +447,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                   _selectedProduct?.packUnit ??
                                                       'box',
                                                   style: TextStyle(
-                                                    fontSize: 11,
+                                                    fontSize: 12,
                                                     color: AppTheme.textSec(
                                                       context,
                                                     ),
@@ -506,7 +500,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                         'pcs')
                                                     : 'Actual Count',
                                                 style: TextStyle(
-                                                  fontSize: 11,
+                                                  fontSize: 12,
                                                   color: AppTheme.textSec(
                                                     context,
                                                   ),

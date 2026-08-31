@@ -113,10 +113,16 @@ class AuthService {
   getCompanySwitcherMeta(Iterable<String> companyIds, String uid) async {
     final joinCodes = <String, String>{};
     final creatorCompanyIds = <String>{};
-    for (final id in companyIds.toSet()) {
-      if (id.isEmpty) continue;
-      final doc = await _firestore.collection('companies').doc(id).get();
+    final ids = companyIds.toSet().where((id) => id.isNotEmpty).toList();
+    // Independent document reads — fetched together so the company switcher
+    // opens in one round trip instead of one per membership.
+    final docs = await Future.wait(
+      ids.map((id) => _firestore.collection('companies').doc(id).get()),
+    );
+    for (var i = 0; i < ids.length; i++) {
+      final doc = docs[i];
       if (!doc.exists) continue;
+      final id = ids[i];
       final data = doc.data()!;
       final code = (data['permanentJoinCode'] as String?)?.trim() ?? '';
       if (code.isNotEmpty) joinCodes[id] = code;

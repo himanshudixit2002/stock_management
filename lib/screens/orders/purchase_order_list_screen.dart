@@ -15,6 +15,8 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../config/routes.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class PurchaseOrderListScreen extends StatefulWidget {
   const PurchaseOrderListScreen({super.key});
@@ -78,9 +80,9 @@ class _PurchaseOrderListScreenState extends State<PurchaseOrderListScreen> {
     final isLoading = context.watch<PurchaseOrderProvider>().isLoading;
     final errorMessage = context.watch<PurchaseOrderProvider>().errorMessage;
     final filtered = _filteredOrders(allOrders);
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
 

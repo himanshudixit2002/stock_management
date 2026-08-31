@@ -16,6 +16,8 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../config/routes.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class SalesOrderListScreen extends StatefulWidget {
   const SalesOrderListScreen({super.key});
@@ -86,10 +88,10 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
     }
     final filtered = _filteredOrders(allOrders);
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
 
     return AppScreenScaffold(
       icon: Icons.receipt_long_rounded,
@@ -360,7 +362,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                                           style: const TextStyle(
                                                             color: AppTheme
                                                                 .warningColor,
-                                                            fontSize: 11,
+                                                            fontSize: 12,
                                                             fontWeight:
                                                                 FontWeight.w700,
                                                           ),
@@ -556,7 +558,7 @@ class _SalesOrderListScreenState extends State<SalesOrderListScreen> {
                                                           style: const TextStyle(
                                                             color: AppTheme
                                                                 .warningColor,
-                                                            fontSize: 11,
+                                                            fontSize: 12,
                                                             fontWeight:
                                                                 FontWeight.w700,
                                                           ),

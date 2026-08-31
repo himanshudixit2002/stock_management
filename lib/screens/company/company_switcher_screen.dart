@@ -124,7 +124,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(nameCtrl.dispose);
   }
 
   void _showJoinCompanyDialog(BuildContext context) {
@@ -194,7 +194,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(codeCtrl.dispose);
   }
 
   void _showInviteCodeDialog(BuildContext context) async {
@@ -646,7 +646,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                               child: Text(
                                 role == 'admin' ? 'Admin' : 'Staff',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: role == 'admin'
                                       ? AppTheme.primaryColor
@@ -703,7 +703,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                     child: Text(
                       'Support ID: ${_shortDocId(companyId)}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppTheme.textSec(
                           context,
                         ).withValues(alpha: 0.85),
@@ -782,7 +782,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                   child: Text(
                     'Tap this card to switch workspace',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textSec(context).withValues(alpha: 0.8),
                     ),
                   ),

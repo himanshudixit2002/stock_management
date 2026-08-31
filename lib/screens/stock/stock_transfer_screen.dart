@@ -46,16 +46,6 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       _reasonController.text.trim().isNotEmpty ||
       (_selectedProduct != null && widget.product == null);
 
-  Future<bool> _confirmDiscard() async {
-    if (!_hasUnsavedChanges) return true;
-    return showConfirmDialog(
-      context,
-      title: 'Discard changes?',
-      message: 'You have unsaved changes. Are you sure you want to go back?',
-      confirmLabel: 'Discard',
-    );
-  }
-
   int get _availableAtFrom {
     if (_selectedProduct == null || _fromLocation.isEmpty) return 0;
     return _selectedProduct!.locationQuantities[_fromLocation] ?? 0;
@@ -252,7 +242,11 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard() && context.mounted) {
+        final canLeave = await confirmDiscardChanges(
+          context,
+          hasChanges: _hasUnsavedChanges,
+        );
+        if (canLeave && context.mounted) {
           Navigator.of(context).pop();
         }
       },

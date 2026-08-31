@@ -22,6 +22,7 @@ import '../../widgets/charts/top_products_chart.dart';
 import '../../widgets/charts/stock_bar_chart.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../utils/date_formats.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -80,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         '$lowStockCount',
                         style: TextStyle(
                           color: AppTheme.surface(context),
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -896,7 +897,7 @@ class _QuickActionCard extends StatelessWidget {
                 subtitle,
                 style: TextStyle(
                   color: AppTheme.textSec(context),
-                  fontSize: 11,
+                  fontSize: 12,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -915,7 +916,7 @@ class _ActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd MMM, hh:mm a');
+    final dateFormat = AppDates.of('dd MMM, hh:mm a');
     Color typeColor;
     IconData typeIcon;
 
@@ -1087,7 +1088,7 @@ class _ChartsSection extends StatelessWidget {
               onSelected: (_) => onDaysChanged(d),
               selectedColor: AppTheme.primaryColor,
               labelStyle: TextStyle(
-                color: selected ? Colors.white : AppTheme.textSec(context),
+                color: selected ? AppTheme.onPrimary(context) : AppTheme.textSec(context),
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),

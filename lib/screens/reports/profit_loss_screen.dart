@@ -14,6 +14,8 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/animations.dart';
 import '../../config/motion.dart';
 import '../../utils/responsive.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class ProfitLossScreen extends StatefulWidget {
   const ProfitLossScreen({super.key});
@@ -63,7 +65,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
 
   Map<String, ProductModel> _productMap(ProductProvider productProv) {
     final map = <String, ProductModel>{};
-    for (final p in productProv.allProducts) {
+    for (final p in productProv.analyticsProducts) {
       map[p.id] = p;
     }
     return map;
@@ -98,10 +100,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
     }
   }
 
-  String _fmtCurrency(double v) {
-    final fmt = NumberFormat('#,##0.00');
-    return '${AppTheme.currencySymbol}${fmt.format(v)}';
-  }
+  String _fmtCurrency(BuildContext context, double v) => Money.of(context, v);
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +115,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
     final byCategory = <String, _PnLEntry>{};
     final byProduct = <String, _PnLEntry>{};
     final byDay = <String, _PnLEntry>{};
-    final dayFmt = DateFormat('yyyy-MM-dd');
+    final dayFmt = AppDates.isoDay;
 
     for (final t in stockOuts) {
       final product = pMap[t.productId];
@@ -283,7 +282,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               child: _SummaryCard(
                 label: 'Total Revenue',
                 value: revenue,
-                formatter: (v) => _fmtCurrency(v.toDouble()),
+                formatter: (v) => _fmtCurrency(context, v.toDouble()),
                 icon: Icons.trending_up_rounded,
                 color: AppTheme.successColor,
               ),
@@ -293,7 +292,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               child: _SummaryCard(
                 label: 'Total Cost',
                 value: cost,
-                formatter: (v) => _fmtCurrency(v.toDouble()),
+                formatter: (v) => _fmtCurrency(context, v.toDouble()),
                 icon: Icons.trending_down_rounded,
                 color: AppTheme.dangerColor,
               ),
@@ -303,7 +302,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               child: _SummaryCard(
                 label: 'Gross Profit',
                 value: profit,
-                formatter: (v) => _fmtCurrency(v.toDouble()),
+                formatter: (v) => _fmtCurrency(context, v.toDouble()),
                 icon: Icons.account_balance_wallet_rounded,
                 color: profit >= 0
                     ? AppTheme.primaryColor
@@ -333,6 +332,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
   Widget _buildTrendChart(Map<String, _PnLEntry> byDay) {
     final sortedKeys = byDay.keys.toList()..sort();
     if (sortedKeys.isEmpty) return const SizedBox.shrink();
+
+    // Resolved here (during build) rather than inside the chart callbacks
+    // below: those run on touch/layout, outside any build of this widget,
+    // where a listening provider read is illegal.
+    final currencySymbol = Money.symbolOf(context);
 
     final revSpots = <FlSpot>[];
     final costSpots = <FlSpot>[];
@@ -376,7 +380,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
                       getTitlesWidget: (v, _) => Text(
                         _compactNumber(v),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       ),
@@ -401,7 +405,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
                           child: Text(
                             d != null ? DateFormat('dd/MM').format(d) : '',
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 12,
                               color: AppTheme.textSec(context),
                             ),
                           ),
@@ -434,11 +438,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
                         AppTheme.dangerColor,
                       ];
                       return LineTooltipItem(
-                        '${labels[s.barIndex]}: ${_fmtCurrency(s.y)}',
+                        '${labels[s.barIndex]}: ${Money.withSymbol(currencySymbol, s.y)}',
                         TextStyle(
                           color: colors[s.barIndex],
                           fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       );
                     }).toList(),
@@ -538,7 +542,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               Expanded(
                 flex: 2,
                 child: Text(
-                  _fmtCurrency(e.revenue),
+                  _fmtCurrency(context, e.revenue),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppTheme.successColor,
@@ -551,7 +555,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               Expanded(
                 flex: 2,
                 child: Text(
-                  _fmtCurrency(profit),
+                  _fmtCurrency(context, profit),
                   style: TextStyle(
                     fontSize: 12,
                     color: profit >= 0
@@ -605,7 +609,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               Expanded(
                 flex: 2,
                 child: Text(
-                  _fmtCurrency(e.revenue),
+                  _fmtCurrency(context, e.revenue),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppTheme.successColor,
@@ -618,7 +622,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
               Expanded(
                 flex: 2,
                 child: Text(
-                  _fmtCurrency(profit),
+                  _fmtCurrency(context, profit),
                   style: TextStyle(
                     fontSize: 12,
                     color: profit >= 0
@@ -674,17 +678,13 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
         const SizedBox(width: 4),
         Text(
           text,
-          style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+          style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
         ),
       ],
     );
   }
 
-  String _compactNumber(double v) {
-    if (v >= 1e6) return '${(v / 1e6).toStringAsFixed(1)}M';
-    if (v >= 1e3) return '${(v / 1e3).toStringAsFixed(1)}K';
-    return v.toInt().toString();
-  }
+  String _compactNumber(double v) => Money.compactNumber(v);
 }
 
 class _PnLEntry {
@@ -775,7 +775,7 @@ class _SummaryCard extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textSec(context),
                     fontWeight: FontWeight.w500,
                   ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../models/product_model.dart';
 import '../../models/price_history_model.dart';
@@ -14,6 +13,8 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animations.dart';
 import '../../config/motion.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class PriceHistoryScreen extends StatefulWidget {
   const PriceHistoryScreen({super.key});
@@ -151,7 +152,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   }
 
   void _showProductPicker() {
-    final products = context.read<ProductProvider>().allProducts;
+    final products = context.read<ProductProvider>().analyticsProducts;
     _productSearch = '';
 
     showModalBottomSheet(
@@ -173,7 +174,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                       .toList();
 
             return Container(
-              height: MediaQuery.of(context).size.height * 0.7,
+              height: MediaQuery.sizeOf(context).height * 0.7,
               decoration: BoxDecoration(
                 color: AppTheme.surface(context),
                 borderRadius: const BorderRadius.vertical(
@@ -232,6 +233,10 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   }
 
   Widget _buildChart(List<PriceHistoryModel> history) {
+    // Resolved here (during build) rather than inside the chart callbacks
+    // below: those run on touch/layout, outside any build of this widget,
+    // where a listening provider read is illegal.
+    final currencySymbol = Money.symbolOf(context);
     final costEntries = history.where((h) => h.field == 'costPrice').toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     final sellingEntries =
@@ -271,7 +276,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                 Text(
                   'Cost',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textSec(context),
                   ),
                 ),
@@ -283,7 +288,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                 Text(
                   'Selling',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textSec(context),
                   ),
                 ),
@@ -321,9 +326,9 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                       showTitles: true,
                       reservedSize: 48,
                       getTitlesWidget: (value, meta) => Text(
-                        '${AppTheme.currencySymbol}${value.toInt()}',
+                        Money.withSymbol(currencySymbol, value.toInt(), decimals: 0),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           color: AppTheme.textSec(context),
                         ),
                       ),
@@ -392,7 +397,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   }
 
   Widget _buildHistoryTable(List<PriceHistoryModel> history) {
-    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+    final dateFormat = AppDates.dayTime;
 
     return GlassPanel(
       useContentVariant: true,
@@ -429,8 +434,8 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                       children: [
                         Text(
                           '${_fieldLabel(h.field)}: '
-                          '${AppTheme.currencySymbol}${h.oldValue.toStringAsFixed(2)} → '
-                          '${AppTheme.currencySymbol}${h.newValue.toStringAsFixed(2)}',
+                          '${Money.of(context, h.oldValue)} → '
+                          '${Money.of(context, h.newValue)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
@@ -440,7 +445,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
                         Text(
                           '${dateFormat.format(h.timestamp)} • ${h.changedByName.isNotEmpty ? h.changedByName : 'Unknown'}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textSec(context),
                           ),
                         ),

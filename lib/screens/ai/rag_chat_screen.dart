@@ -803,13 +803,13 @@ class _RagChatScreenState extends State<RagChatScreen> {
   }
 
   Widget _buildInputArea(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final keyboardOpen = bottomInset > 0;
     
     // On the AI screen, there is no bottom nav bar.
     // When typing (keyboard open), position the bar JUST ABOVE the keyboard with a sleek 6px gap.
     // When idle (keyboard closed), utilize the very bottom edge with safe area padding.
-    final double safeBottom = MediaQuery.of(context).padding.bottom;
+    final double safeBottom = MediaQuery.paddingOf(context).bottom;
     final double bottomPadding = keyboardOpen 
         ? 6.0 
         : (safeBottom > 0 ? safeBottom + 4.0 : 8.0);
@@ -960,7 +960,7 @@ class _QuickActionChip extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       label,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppTheme.primaryColor),
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppTheme.textPri(context)),
                     ),
                   ],
                 ),
@@ -1011,7 +1011,12 @@ class _ChatBubbleState extends State<_ChatBubble> {
       final products = provider.analyticsProducts;
       
       if (user == null) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Session expired. Cannot update stock.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Session expired. Cannot update stock.', style: TextStyle(color: AppTheme.onPrimary(context))),
+            backgroundColor: AppTheme.dangerColor,
+          ));
+        }
         setState(() => _isExecuting = false);
         return;
       }
@@ -1071,12 +1076,18 @@ class _ChatBubbleState extends State<_ChatBubble> {
           RagApiService.clearCache();
         } else {
           if (mounted) {
-            scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Failed to update stock.')));
+            scaffoldMessenger.showSnackBar(SnackBar(
+              content: Text('Failed to update stock.', style: TextStyle(color: AppTheme.onPrimary(context))),
+              backgroundColor: AppTheme.dangerColor,
+            ));
           }
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product not found in current inventory.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Product not found in current inventory.', style: TextStyle(color: AppTheme.onPrimary(context))),
+            backgroundColor: AppTheme.dangerColor,
+          ));
         }
       } finally {
         if (mounted) {
@@ -1096,6 +1107,23 @@ class _ChatBubbleState extends State<_ChatBubble> {
       h3: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.5, height: 1.3),
       strong: TextStyle(color: AppTheme.textPri(context), fontWeight: FontWeight.w700, fontSize: 14.0),
       em: TextStyle(color: AppTheme.textPri(context), fontStyle: FontStyle.italic, fontSize: 14.0),
+      code: const TextStyle(
+        color: AppTheme.primaryColor,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'monospace',
+      ),
+      codeblockPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      codeblockDecoration: BoxDecoration(
+        color: AppTheme.surface(context).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+      ),
+      blockquote: TextStyle(color: AppTheme.textSec(context), fontStyle: FontStyle.italic),
+      blockquoteDecoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: AppTheme.primaryColor, width: 3)),
+      ),
+      a: const TextStyle(color: AppTheme.primaryColor, decoration: TextDecoration.underline),
       listBullet: const TextStyle(color: AppTheme.primaryColor, fontSize: 14.0, fontWeight: FontWeight.w600),
       listIndent: 16.0,
       listBulletPadding: const EdgeInsets.only(right: 6),
@@ -1155,6 +1183,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
             data: currentTextBlock.join('\n'),
             selectable: false,
             shrinkWrap: true,
+            softLineBreak: true,
             styleSheet: _getMarkdownStyleSheet(context),
           ),
         );
@@ -1207,6 +1236,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                                 data: currentTableBlock.join('\n'),
                                 selectable: false,
                                 shrinkWrap: true,
+                                softLineBreak: true,
                                 styleSheet: _getMarkdownStyleSheet(context).copyWith(
                                   tableColumnWidth: const IntrinsicColumnWidth(),
                                 ),
@@ -1250,13 +1280,12 @@ class _ChatBubbleState extends State<_ChatBubble> {
   Widget build(BuildContext context) {
     final isUser = widget.message.isUser;
     
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final maxBubbleWidth = (screenWidth * 0.88 - 32).clamp(240.0, 720.0);
 
     final rawText = widget.message.text;
 
-    // Format inline bullet items — only split on actual standalone bullet patterns,
-    // not random inline emojis that would break normal sentences.
+    // Format inline bullet items and numbered points cleanly onto separate lines
     final List<String> rawLines = rawText.split('\n');
     final List<String> formattedLines = [];
     for (final line in rawLines) {
@@ -1264,9 +1293,20 @@ class _ChatBubbleState extends State<_ChatBubble> {
         // Table lines — leave untouched
         formattedLines.add(line);
       } else {
-        // Only split when a bullet-like pattern (• or emoji followed by bold text) appears mid-line
-        String processed = line.replaceAllMapped(
-          RegExp(r'(?<=\S)\s+(•)\s+'),
+        String processed = line;
+        // Split mid-sentence bullets e.g. "Text • Bullet" or "Text * Bullet"
+        processed = processed.replaceAllMapped(
+          RegExp(r'(?<=\S)\s+([•*])\s+'),
+          (match) => '\n- ',
+        );
+        // Split mid-sentence dash bullets e.g. "Text - Bullet"
+        processed = processed.replaceAllMapped(
+          RegExp(r'(?<=\S)\s+(-\s+)'),
+          (match) => '\n- ',
+        );
+        // Split mid-sentence numbered points e.g. "Text 1. First 2. Second"
+        processed = processed.replaceAllMapped(
+          RegExp(r'(?<=\S)\s+(\d+\.)\s+'),
           (match) => '\n${match.group(1)} ',
         );
         formattedLines.add(processed);
@@ -1281,13 +1321,12 @@ class _ChatBubbleState extends State<_ChatBubble> {
         .split('\n')
         .map((line) {
           final trimmed = line.trim();
-          if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+          if (trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
             final content = trimmed.length > 2 ? trimmed.substring(2).trim() : trimmed;
-            return '• $content';
+            return '- $content';
           }
-          return trimmed;
+          return line;
         })
-        // Preserve empty lines for paragraph spacing
         .join('\n');
 
     if (widget.message.isStreaming) {
@@ -1483,7 +1522,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   actionDetail,
                   style: TextStyle(
                     color: AppTheme.textSec(context),
-                    fontSize: 11.5,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1594,7 +1633,7 @@ class _VisualStatsHeader extends StatelessWidget {
               Text(
                 "Inventory Health Meter",
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.textPri(context),
                 ),
@@ -1679,7 +1718,7 @@ class _MetricChip extends StatelessWidget {
               Flexible(
                 child: Text(
                   value,
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, color: color),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: color),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -1688,7 +1727,7 @@ class _MetricChip extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             label,
-            style: TextStyle(fontSize: 9.5, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context), fontWeight: FontWeight.w500),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -1755,7 +1794,7 @@ class _VisualLowStockCards extends StatelessWidget {
                       child: Text(
                         "$qty / $minThreshold",
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: statusColor,
                         ),
@@ -1779,7 +1818,7 @@ class _VisualLowStockCards extends StatelessWidget {
                   children: [
                     Text(
                       "BC: ${item['barcode'] ?? 'N/A'}",
-                      style: TextStyle(fontSize: 10, color: AppTheme.textSec(context)),
+                      style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                     ),
                     InkWell(
                       onTap: () => onRestockTap(item),
@@ -1797,7 +1836,7 @@ class _VisualLowStockCards extends StatelessWidget {
                             const SizedBox(width: 2),
                             Text(
                               "Restock",
-                              style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 10.5, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -1814,7 +1853,7 @@ class _VisualLowStockCards extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2, left: 2),
             child: Text(
               "+ $extraCount more items low in stock...",
-              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textSec(context)),
             ),
           ),
       ],
@@ -2013,7 +2052,7 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                                     key: ValueKey(_reasoningLogs[idx]),
                                     text: _reasoningLogs[idx],
                                     style: TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 12,
                                       color: AppTheme.textPri(context).withValues(alpha: 0.9),
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -2021,7 +2060,7 @@ class _CompactThinkingWidgetState extends State<_CompactThinkingWidget> {
                                 : Text(
                                     _reasoningLogs[idx],
                                     style: TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 12,
                                       color: AppTheme.textMute(context),
                                       fontWeight: FontWeight.normal,
                                     ),
@@ -2172,7 +2211,7 @@ class _LiveVoiceVisualizerWidget extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   "Speak clearly into microphone",
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                 ),
               ],
             ),
@@ -2283,7 +2322,7 @@ class _ClarificationChips extends StatelessWidget {
         Text(
           'Pick one:',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppTheme.textSec(context),
             letterSpacing: 0.3,
@@ -2343,7 +2382,7 @@ class _ClarificationChips extends StatelessWidget {
                                 barcode,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                   fontFeatures: const [
                                     FontFeature.tabularFigures()
@@ -2359,7 +2398,7 @@ class _ClarificationChips extends StatelessWidget {
                         Text(
                           '$stock',
                           style: TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textSec(context),
                           ),
@@ -2404,6 +2443,11 @@ class _NoHistoryCallToAction extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: () => onAction("audit inventory"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: AppTheme.onPrimary(context),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             child: const Text("Start tracking stock"),
           )
         ],
@@ -2525,10 +2569,11 @@ class _ConfirmActionCardState extends State<_ConfirmActionCard> {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: () => _decide(true),
-                  icon: const Icon(Icons.check_rounded, size: 17),
-                  label: const Text('Confirm'),
+                  icon: Icon(Icons.check_rounded, size: 17, color: AppTheme.onPrimary(context)),
+                  label: Text('Confirm', style: TextStyle(color: AppTheme.onPrimary(context), fontWeight: FontWeight.bold)),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: AppTheme.onPrimary(context),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -2541,12 +2586,14 @@ class _ConfirmActionCardState extends State<_ConfirmActionCard> {
                 child: OutlinedButton(
                   onPressed: () => _decide(false),
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textPri(context),
+                    side: BorderSide(color: AppTheme.dividerC(context)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text('Cancel'),
+                  child: Text('Cancel', style: TextStyle(color: AppTheme.textSec(context), fontWeight: FontWeight.w600)),
                 ),
               ),
             ],

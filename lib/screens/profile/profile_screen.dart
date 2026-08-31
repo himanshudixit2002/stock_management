@@ -155,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(
             user.isAdmin ? 'ADMIN' : 'STAFF',
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: Colors.white,
               letterSpacing: 1.0,
@@ -401,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -628,7 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           decoration: BoxDecoration(

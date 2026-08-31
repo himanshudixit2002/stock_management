@@ -30,6 +30,7 @@ import '../../widgets/product_card.dart';
 import '../../widgets/searchable_picker.dart' show PickerItem, showSearchablePicker;
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
 
 class FastPosScreen extends StatefulWidget {
   const FastPosScreen({super.key});
@@ -71,10 +72,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
 
   String _key(String productId, String location) => '$productId|$location';
 
-  String get _currencySymbol {
-    final s = context.read<BillingSettingsProvider>().settings.currencySymbol;
-    return s.isNotEmpty ? s : '₹';
-  }
+  String get _currencySymbol => Money.symbolOf(context, listen: false);
 
   /// Locations that currently hold available stock for [product], best first.
   /// Falls back to the default location when the product has no per-location
@@ -914,7 +912,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
     final productProvider = context.watch<ProductProvider>();
     final products = productProvider.analyticsProducts;
     final favorites = context.watch<FavoritesProvider>().ids;
-    final symbol = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final symbol = Money.symbolOrFallback(bs.currencySymbol);
     final favoriteProducts = products
         .where((p) => favorites.contains(p.id))
         .take(10)
@@ -1991,7 +1989,7 @@ class _PickerProductCard extends StatelessWidget {
                 Text(
                   'Choose location to add',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textSec(context),
                   ),
                 ),

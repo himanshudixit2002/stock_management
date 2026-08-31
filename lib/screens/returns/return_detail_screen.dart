@@ -18,6 +18,8 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class ReturnDetailScreen extends StatelessWidget {
   final String returnId;
@@ -47,7 +49,7 @@ class ReturnDetailScreen extends StatelessWidget {
       );
     }
 
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final statusColor = _statusColor(ret.status);
     final partyName = ret.type == ReturnType.customerReturn
         ? (ret.customerName.isNotEmpty ? ret.customerName : 'Unknown Customer')
@@ -152,7 +154,7 @@ class ReturnDetailScreen extends StatelessWidget {
                           context,
                           'Refund Amount',
                           NumberFormat.currency(
-                            symbol: AppTheme.currencySymbol,
+                            symbol: Money.symbolOf(context),
                           ).format(ret.refundAmount),
                         ),
                     ],

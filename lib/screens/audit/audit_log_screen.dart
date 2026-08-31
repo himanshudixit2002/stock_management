@@ -364,7 +364,7 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                               child: Text(
                                 log.entityType,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: widget.color,
                                 ),
@@ -375,7 +375,7 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                           Text(
                             widget.relativeTime,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppTheme.textSec(context),
                             ),
                           ),
@@ -404,7 +404,7 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                                   child: Text(
                                     e.key,
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       color: AppTheme.textSec(context),
                                     ),
@@ -414,7 +414,7 @@ class _AuditLogTileState extends State<_AuditLogTile> {
                                   child: Text(
                                     '${e.value}',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: AppTheme.textPri(context),
                                     ),
                                   ),

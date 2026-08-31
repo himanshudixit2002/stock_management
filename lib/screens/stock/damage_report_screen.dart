@@ -59,16 +59,6 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       _reasonController.text.trim().isNotEmpty ||
       (_selectedProduct != null && widget.product == null);
 
-  Future<bool> _confirmDiscard() async {
-    if (!_hasUnsavedChanges) return true;
-    return showConfirmDialog(
-      context,
-      title: 'Discard changes?',
-      message: 'You have unsaved changes. Are you sure you want to go back?',
-      confirmLabel: 'Discard',
-    );
-  }
-
   int get _availableAtLocation {
     if (_selectedProduct == null || _selectedLocation.isEmpty) return 0;
     return _selectedProduct!.locationQuantities[_selectedLocation] ?? 0;
@@ -323,7 +313,11 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmDiscard() && context.mounted) {
+        final canLeave = await confirmDiscardChanges(
+          context,
+          hasChanges: _hasUnsavedChanges,
+        );
+        if (canLeave && context.mounted) {
           Navigator.of(context).pop();
         }
       },

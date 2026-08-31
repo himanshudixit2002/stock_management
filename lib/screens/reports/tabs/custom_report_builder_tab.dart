@@ -3,11 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
 import '../../../providers/stock_provider.dart';
+import '../../../models/stock_transaction_model.dart';
+import '../../../models/product_model.dart';
 import '../../../providers/product_provider.dart';
 import '../../../widgets/glass_panel.dart';
 import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../../utils/currency.dart';
 
 class CustomReportBuilderTab extends StatefulWidget {
   const CustomReportBuilderTab({super.key});
@@ -53,16 +56,40 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final stockProvider = context.watch<StockProvider>();
-    final productProvider = context.watch<ProductProvider>();
-    final currency = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+  // Building the report groups every transaction — twice when the
+  // period-over-period comparison is on. Memoized against the inputs it was
+  // built from; the provider lists are replaced wholesale, so identity is a
+  // sound staleness check. The search box below still filters per build, which
+  // is a cheap pass over the finished rows.
+  List<StockTransactionModel>? _memoTx;
+  List<ProductModel>? _memoProducts;
+  String? _memoGroupBy;
+  bool? _memoPoP;
+  DateTime? _memoStart;
+  DateTime? _memoEnd;
+  List<CustomReportRow>? _memoRows;
+  Map<String, CustomReportRow>? _memoPrevRowMap;
 
+  void _ensureReport(
+    StockProvider stockProvider,
+    ProductProvider productProvider,
+  ) {
     final currentTx = stockProvider.recentTransactions;
-    final products = productProvider.products;
-    final pMap = {for (final p in products) p.id: p};
+    final products = productProvider.analyticsProducts;
+    final start = stockProvider.filterStartDate;
+    final end = stockProvider.filterEndDate;
 
+    if (_memoRows != null &&
+        identical(_memoTx, currentTx) &&
+        identical(_memoProducts, products) &&
+        _memoGroupBy == _groupBy &&
+        _memoPoP == _enablePoPComparison &&
+        _memoStart == start &&
+        _memoEnd == end) {
+      return;
+    }
+
+    final pMap = {for (final p in products) p.id: p};
     final analytics = ReportAnalyticsService();
     final rows = analytics.generateCustomReport(
       transactions: currentTx,
@@ -73,8 +100,8 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
     Map<String, CustomReportRow>? prevRowMap;
     if (_enablePoPComparison) {
       final now = DateTime.now();
-      final currentEnd = stockProvider.filterEndDate ?? now;
-      final currentStart = stockProvider.filterStartDate ?? currentEnd.subtract(const Duration(days: 30));
+      final currentEnd = end ?? now;
+      final currentStart = start ?? currentEnd.subtract(const Duration(days: 30));
       final duration = currentEnd.difference(currentStart);
       final prevEnd = currentStart.subtract(const Duration(days: 1));
       final prevStart = prevEnd.subtract(duration);
@@ -92,6 +119,30 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
       );
       prevRowMap = {for (final r in prevRows) r.groupName: r};
     }
+
+    _memoTx = currentTx;
+    _memoProducts = products;
+    _memoGroupBy = _groupBy;
+    _memoPoP = _enablePoPComparison;
+    _memoStart = start;
+    _memoEnd = end;
+    _memoRows = rows;
+    _memoPrevRowMap = prevRowMap;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stockProvider = context.watch<StockProvider>();
+    final productProvider = context.watch<ProductProvider>();
+    final currency = NumberFormat.currency(
+      symbol: Money.symbolOf(context),
+      decimalDigits: 0,
+      locale: 'en_IN',
+    );
+
+    _ensureReport(stockProvider, productProvider);
+    final rows = _memoRows!;
+    final prevRowMap = _memoPrevRowMap;
 
     final filteredRows = rows.where((r) {
       if (_searchQuery.isEmpty) return true;
@@ -276,13 +327,13 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                                       'Rev: ${currency.format(row.salesRevenue)} • Profit: ${currency.format(row.profit)} (${row.profitMarginPct.toStringAsFixed(1)}%)',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+                                      style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
                                     ),
                                     if (_enablePoPComparison && prevRowMap != null) ...[
                                       const SizedBox(height: 2),
                                       Builder(
                                         builder: (context) {
-                                          final prevRow = prevRowMap![row.groupName];
+                                          final prevRow = prevRowMap[row.groupName];
                                           final prevRevenue = prevRow?.salesRevenue ?? 0.0;
                                           final revChangePct = prevRevenue > 0
                                               ? ((row.salesRevenue - prevRevenue) / prevRevenue) * 100
@@ -300,7 +351,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                                               Text(
                                                 'PoP Rev: ${isPositive ? "+" : ""}${revChangePct.toStringAsFixed(1)}% vs prev period',
                                                 style: TextStyle(
-                                                  fontSize: 10,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.bold,
                                                   color: isPositive ? Colors.green : Colors.red,
                                                 ),
@@ -322,7 +373,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                                 child: Text(
                                   '${row.stockOutQty} Out',
                                   style: TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: row.profit >= 0 ? Colors.green : Colors.red,
                                   ),
@@ -368,7 +419,7 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
       borderRadius: 10,
       child: Column(
         children: [
-          Text(title, style: TextStyle(fontSize: 10, color: AppTheme.textSec(context))),
+          Text(title, style: TextStyle(fontSize: 12, color: AppTheme.textSec(context))),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -385,9 +436,9 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
   Widget _detailItem(String label, String val) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 10, color: AppTheme.textSec(context))),
+        Text(label, style: TextStyle(fontSize: 12, color: AppTheme.textSec(context))),
         const SizedBox(height: 2),
-        Text(val, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+        Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
       ],
     );
   }

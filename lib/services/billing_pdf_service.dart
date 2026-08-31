@@ -8,6 +8,7 @@ import '../models/invoice_model.dart';
 import '../models/billing_settings_model.dart';
 import 'excel_service.dart';
 import 'file_helper.dart' as file_helper;
+import '../utils/currency.dart';
 
 class BillingPdfService {
   static final _dateFormat = DateFormat('dd MMM yyyy');
@@ -34,7 +35,7 @@ class BillingPdfService {
     InvoiceModel invoice,
     BillingSettings bs,
   ) async {
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final font = await _loadFont();
     final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(theme: theme);
@@ -419,7 +420,7 @@ class BillingPdfService {
     InvoiceModel invoice,
     BillingSettings bs,
   ) async {
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final font = await _loadFont();
     final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(theme: theme);
@@ -637,7 +638,7 @@ class BillingPdfService {
     required DateTime endDate,
     required BillingSettings bs,
   }) async {
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final font = await _loadFont();
     final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(theme: theme);
@@ -778,7 +779,7 @@ class BillingPdfService {
     required DateTime endDate,
     required BillingSettings bs,
   }) async {
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
     final font = await _loadFont();
     final theme = pw.ThemeData.withFont(base: font, bold: font);
     final pdf = pw.Document(theme: theme);

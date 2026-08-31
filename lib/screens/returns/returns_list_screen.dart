@@ -16,6 +16,7 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/date_formats.dart';
 
 class ReturnsListScreen extends StatefulWidget {
   const ReturnsListScreen({super.key});
@@ -90,7 +91,7 @@ class _ReturnsListScreenState extends State<ReturnsListScreen>
     final allReturns = context.watch<ReturnProvider>().returns;
     final isLoading = context.watch<ReturnProvider>().isLoading;
     final errorMessage = context.watch<ReturnProvider>().errorMessage;
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),

@@ -190,7 +190,7 @@ class _UserOverrideCard extends StatelessWidget {
                           child: Text(
                             '$overrideCount override${overrideCount > 1 ? 's' : ''}',
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: AppTheme.warningColor,
                             ),
@@ -383,7 +383,7 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                                 child: const Text(
                                   'OVERRIDE',
                                   style: TextStyle(
-                                    fontSize: 8,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: AppTheme.warningColor,
                                   ),
@@ -397,7 +397,7 @@ class _OverrideEditorState extends State<_OverrideEditor> {
                               ? 'Role default: ${roleVal ? "ON" : "OFF"}'
                               : 'From role',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: isOverridden
                                 ? AppTheme.warningColor
                                 : AppTheme.textTer(context),

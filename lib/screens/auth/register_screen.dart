@@ -14,6 +14,7 @@ import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/validators.dart';
+import '../../widgets/branded_splash.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -124,11 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: 22,
                               padding: const EdgeInsets.all(14),
                               useContentVariant: true,
-                              child: Image.asset(
-                                'logo.png',
-                                width: 56,
-                                height: 56,
-                              ),
+                              child: const BrandLogo(size: 56),
                             ),
                           ),
                           const SizedBox(height: 20),

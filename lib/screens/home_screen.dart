@@ -18,12 +18,14 @@ import '../widgets/keyboard_shortcuts_scope.dart';
 import 'home/home_tab.dart';
 import 'products/product_list_screen.dart';
 import 'reports/reports_tab.dart';
-import 'ai/rag_chat_screen.dart';
+import 'ai/ask_ai_launcher.dart';
 import 'settings/settings_screen.dart';
 import '../widgets/animations.dart';
 import '../widgets/floating_bottom_nav.dart';
 import '../widgets/offline_banner.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/branded_splash.dart';
+import '../widgets/floating_nav_padding.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -92,24 +94,32 @@ class HomeScreenState extends State<HomeScreen>
     _loadAnalyticsIfNeeded(index);
   }
 
+  /// Home and Reports are the only tabs that read the full-catalog analytics,
+  /// so they warm it on arrival. Resolved by tab *kind* rather than index —
+  /// permissions change which tabs exist, and index arithmetic silently
+  /// pointed at the wrong tab whenever the visible set changed.
   void _loadAnalyticsIfNeeded(int index) {
-    final perms =
-        context.read<AuthProvider>().currentUser?.effectivePermissions ??
-        UserModel.defaultPermissions;
-    final reportsIndex = perms['canViewReports'] == true
-        ? (perms['canViewProducts'] == true ? 2 : 1)
-        : -1;
-    if (index == 0 || index == reportsIndex) {
+    final tabs = _visibleTabs(_currentPermissions);
+    if (index < 0 || index >= tabs.length) return;
+    final kind = tabs[index].kind;
+    if (kind == FloatingNavTabKind.home ||
+        kind == FloatingNavTabKind.reports) {
       context.read<ProductProvider>().loadAnalytics();
     }
   }
 
-  void _onTabSelected(int index) {
-    if (index == _currentIndex) return;
-    _tabHistory.add(_currentIndex);
-    setState(() => _currentIndex = index);
-    _playTabTransition();
-    _loadAnalyticsIfNeeded(index);
+  Map<String, bool> get _currentPermissions =>
+      context.read<AuthProvider>().currentUser?.effectivePermissions ??
+      UserModel.defaultPermissions;
+
+  /// Switches to the tab of the given [kind], if the current permissions make
+  /// it visible. Callers elsewhere used to re-derive the index from permissions
+  /// themselves, which broke whenever the visible tab set changed.
+  void switchToTabKind(FloatingNavTabKind kind) {
+    final index = _visibleTabs(
+      _currentPermissions,
+    ).indexWhere((t) => t.kind == kind);
+    if (index >= 0) switchToTab(index);
   }
 
   /// Handles browser/system back when the app shell is the top route (no pushed
@@ -230,51 +240,27 @@ class HomeScreenState extends State<HomeScreen>
       (a) =>
           a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
-    final settings = context.watch<SettingsProvider>();
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
+    // Narrow subscriptions: only these four flags matter here, and watching the
+    // whole providers rebuilt the entire shell (every mounted tab body) on any
+    // unrelated settings change.
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled) = context
+        .select<SettingsProvider, (bool, bool, bool)>(
+          (s) => (s.barcodeEnabled, s.vendorsEnabled, s.pricingEnabled),
+        );
+    final billingOn = context.select<BillingSettingsProvider, bool>(
+      (b) => b.billingEnabled,
+    );
 
     final quickActions = FeatureMap.visibleEntriesFor(
       FeaturePlacement.homePrimary,
       perms,
       billingEnabled: billingOn,
-      barcodeEnabled: settings.barcodeEnabled,
-      vendorsEnabled: settings.vendorsEnabled,
-      pricingEnabled: settings.pricingEnabled,
+      barcodeEnabled: barcodeEnabled,
+      vendorsEnabled: vendorsEnabled,
+      pricingEnabled: pricingEnabled,
     );
 
-    final tabs = <_ShellTab>[
-      _ShellTab(
-        Icons.home_rounded,
-        Icons.home_outlined,
-        'Home',
-        FloatingNavTabKind.home,
-        (_) => const HomeTab(),
-      ),
-      if (perms['canViewProducts'] == true)
-        _ShellTab(
-          Icons.inventory_2_rounded,
-          Icons.inventory_2_outlined,
-          'Products',
-          FloatingNavTabKind.products,
-          (_) => const ProductListScreen(),
-        ),
-      if (perms['canViewReports'] == true)
-        _ShellTab(
-          Icons.analytics_rounded,
-          Icons.analytics_outlined,
-          'Reports',
-          FloatingNavTabKind.reports,
-          (_) => const ReportsTab(),
-        ),
-
-      _ShellTab(
-        Icons.settings_rounded,
-        Icons.settings_outlined,
-        'Settings',
-        FloatingNavTabKind.settings,
-        (_) => const SettingsScreen(),
-      ),
-    ];
+    final tabs = _visibleTabs(perms);
 
     final safeIndex = _currentIndex.clamp(0, tabs.length - 1);
     // Mount the active tab on demand (idempotent); previously visited tabs stay
@@ -328,12 +314,16 @@ class HomeScreenState extends State<HomeScreen>
                 child: FloatingBottomNav(
                   currentIndex: safeIndex,
                   tabs: tabs.map((t) => t.toNavTab()).toList(),
-                  onTap: _onTabSelected,
+                  onTap: switchToTab,
                 ),
               ),
               Positioned(
                 right: 16,
-                bottom: 100, // Float above bottom nav
+                // Sits just above the pill using the same shared geometry the
+                // pill positions itself with. The old hardcoded 100 overlapped
+                // it by 14-28px once the device's gesture/navigation inset was
+                // taken into account.
+                bottom: floatingNavTopOffset(context) + 12,
                 child: _buildAskAIFab(context, isWide: false),
               ),
             ],
@@ -375,6 +365,42 @@ class HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+  /// The tabs visible for [perms]. Single source of truth: [build] renders
+  /// these and [_loadAnalyticsIfNeeded] maps an index back to a tab kind
+  /// through the same list.
+  List<_ShellTab> _visibleTabs(Map<String, bool> perms) => [
+    _ShellTab(
+      Icons.home_rounded,
+      Icons.home_outlined,
+      'Home',
+      FloatingNavTabKind.home,
+      (_) => const HomeTab(),
+    ),
+    if (perms['canViewProducts'] == true)
+      _ShellTab(
+        Icons.inventory_2_rounded,
+        Icons.inventory_2_outlined,
+        'Products',
+        FloatingNavTabKind.products,
+        (_) => const ProductListScreen(),
+      ),
+    if (perms['canViewReports'] == true)
+      _ShellTab(
+        Icons.analytics_rounded,
+        Icons.analytics_outlined,
+        'Reports',
+        FloatingNavTabKind.reports,
+        (_) => const ReportsTab(),
+      ),
+    _ShellTab(
+      Icons.settings_rounded,
+      Icons.settings_outlined,
+      'Settings',
+      FloatingNavTabKind.settings,
+      (_) => const SettingsScreen(),
+    ),
+  ];
 
   /// Builds the IndexedStack children, mounting a tab's real body only once it
   /// has been visited and a lightweight placeholder otherwise. Visited bodies
@@ -461,7 +487,7 @@ class HomeScreenState extends State<HomeScreen>
       ),
       child: NavigationRail(
         selectedIndex: safeIndex,
-        onDestinationSelected: _onTabSelected,
+        onDestinationSelected: switchToTab,
         labelType: NavigationRailLabelType.all,
         minWidth: 80,
         backgroundColor: Colors.transparent,
@@ -488,7 +514,7 @@ class HomeScreenState extends State<HomeScreen>
           padding: const EdgeInsets.only(top: 16, bottom: 12),
           child: Column(
             children: [
-              Image.asset('logo.png', width: 38, height: 38),
+              const BrandLogo(size: 38),
               const SizedBox(height: 6),
               Container(
                 width: 32,
@@ -554,37 +580,20 @@ class HomeScreenState extends State<HomeScreen>
           borderRadius: isWide ? BorderRadius.circular(24) : BorderRadius.circular(30),
           onTap: () {
             HapticFeedback.lightImpact();
-            Navigator.push(
-              context,
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) => const RagChatScreen(),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.05),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                      child: child,
-                    ),
-                  );
-                },
-              ),
-            );
+            openAskAi(context);
           },
           child: Padding(
             padding: isWide ? const EdgeInsets.symmetric(horizontal: 20, vertical: 14) : const EdgeInsets.all(16),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                Icon(Icons.auto_awesome_rounded, color: AppTheme.onPrimary(context), size: 24),
                 if (isWide) ...[
                   const SizedBox(width: 10),
-                  const Text(
+                  Text(
                     'Ask AI',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.onPrimary(context),
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
                       letterSpacing: 0.3,
@@ -661,9 +670,9 @@ class _RailQuickActionsButton extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_rounded,
-                  color: Colors.white,
+                  color: AppTheme.onPrimary(context),
                   size: 26,
                 ),
               ),
@@ -671,7 +680,7 @@ class _RailQuickActionsButton extends StatelessWidget {
               Text(
                 'Actions',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textSec(context),
                 ),

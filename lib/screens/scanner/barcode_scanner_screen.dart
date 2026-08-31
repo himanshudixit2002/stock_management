@@ -20,11 +20,11 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_check_animation.dart';
 import '../../config/app_navigation.dart';
+import '../../utils/debouncer.dart';
 
 const _kRecentScansKey = 'barcode_recent_scans';
 const _kMaxRecentScans = 10;
 const _kScanThrottleMs = 2500;
-const _kDebounceMs = 300;
 
 class BarcodeScannerScreen extends StatefulWidget {
   const BarcodeScannerScreen({super.key, this.captureOnly = false});
@@ -47,7 +47,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   List<String> _recentScans = [];
   String? _lastScannedValue;
   DateTime? _lastScannedTime;
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
 
   /// Brief visual success pulse shown over the reticle after a detection.
   bool _detected = false;
@@ -153,10 +153,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   }
 
   void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: _kDebounceMs), () {
-      _lookupByQuery(value.trim());
-    });
+    _searchDebounce.run(() => _lookupByQuery(value.trim()));
   }
 
   void _onBarcodeDetected(BarcodeCapture capture) {
@@ -220,7 +217,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _searchDebounce.cancel();
     _pulseTimer?.cancel();
     _scannerController?.dispose();
     _scannerController = null;
@@ -776,7 +773,7 @@ class _ViewfinderOverlayState extends State<_ViewfinderOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
     final scanArea = math.min(size.width, size.height) * 0.65;
 
     if (reduceMotion(context)) {

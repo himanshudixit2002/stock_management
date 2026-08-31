@@ -470,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     user.isAdmin ? 'ADMIN' : user.role.toUpperCase(),
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.primaryColor,
                       letterSpacing: 0.8,
@@ -639,7 +639,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text(
                   'Show cost & selling price on products',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -683,7 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text(
                   'Track vendor assignments & costs',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -727,7 +727,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text(
                   'Scan & manage product barcodes',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -773,7 +773,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     'Invoicing, payments & PDF bills',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppTheme.textTer(context),
                     ),
                   ),
@@ -1249,9 +1249,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               snap: true,
               snapSizes: const [0.7, 0.95],
               builder: (sheetContext, scrollController) {
-                final keyboardHeight = MediaQuery.of(
+                final keyboardHeight = MediaQuery.viewInsetsOf(
                   sheetCtx,
-                ).viewInsets.bottom;
+                ).bottom;
                 if (keyboardHeight > 0 && sheetController.isAttached) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (sheetController.isAttached &&
@@ -1529,7 +1529,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         ),
       ),
-    );
+    ).whenComplete(() {
+      textCtrl.dispose();
+      focusNode.dispose();
+    });
   }
 
   Future<void> _showRenameDialog(
@@ -1556,7 +1559,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (ctx, setState) {
           return Padding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
             ),
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -1711,7 +1714,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       ),
-    );
+    ).whenComplete(nameCtrl.dispose);
   }
 
   Future<bool> _showRemoveConfirmation(
@@ -1846,7 +1849,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -2044,7 +2047,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+    });
   }
 
   void _showDeleteAccountDialog(BuildContext context) {
@@ -2060,7 +2066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -2294,7 +2300,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(passwordCtrl.dispose);
   }
 
   void _showChangePasswordDialog(BuildContext context) {
@@ -2310,7 +2316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -2521,7 +2527,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      currentPw.dispose();
+      newPw.dispose();
+      confirmPw.dispose();
+    });
   }
 }
 
@@ -2737,7 +2747,7 @@ class _SettingsTileState extends State<_SettingsTile> {
               ? Text(
                   widget.subtitle!,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 )

@@ -20,6 +20,7 @@ import '../../config/feature_map.dart';
 import '../../models/user_model.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/permission_gate.dart';
+import '../../utils/debouncer.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -34,7 +35,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   final _searchFocusNode = FocusNode();
   bool _showFilters = false;
   bool _showScrollTop = false;
-  Timer? _debounce;
+  final _searchDebounce = Debouncer();
   Timer? _loadingTimer;
   bool _loadingTooLong = false;
   bool _isDebouncing = false;
@@ -121,8 +122,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Center(
+                  // A count glyph inside a fixed circle, not readable body
+                  // text: it keeps its small size and opts out of text scaling
+                  // so a large system font setting cannot burst the badge.
                   child: Text(
                     '${productProvider.activeFilterCount}',
+                    textScaler: TextScaler.noScaling,
                     style: TextStyle(
                       color: AppTheme.surface(context),
                       fontSize: 10,
@@ -142,7 +147,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     _searchController.dispose();
     _scrollController.dispose();
     _searchFocusNode.dispose();
-    _debounce?.cancel();
+    _searchDebounce.dispose();
     _loadingTimer?.cancel();
     super.dispose();
   }
@@ -329,7 +334,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         return SingleChildScrollView(
                           physics: Responsive.scrollPhysics(context),
                           child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
+                            height: MediaQuery.sizeOf(context).height * 0.5,
                             child: Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -379,7 +384,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       return SingleChildScrollView(
                         physics: Responsive.scrollPhysics(context),
                         child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
+                          height: MediaQuery.sizeOf(context).height * 0.5,
                           child: EmptyStateWidget(
                             icon: Icons.cloud_off_rounded,
                             title: 'Could Not Load Products',
@@ -401,7 +406,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         return SingleChildScrollView(
                           physics: Responsive.scrollPhysics(context),
                           child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
+                            height: MediaQuery.sizeOf(context).height * 0.5,
                             child: Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -435,7 +440,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         return SingleChildScrollView(
                           physics: Responsive.scrollPhysics(context),
                           child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
+                            height: MediaQuery.sizeOf(context).height * 0.5,
                             child: Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -465,7 +470,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       return SingleChildScrollView(
                         physics: Responsive.scrollPhysics(context),
                         child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.6,
+                          height: MediaQuery.sizeOf(context).height * 0.6,
                           child: EmptyStateWidget(
                             icon: Icons.inventory_2_outlined,
                             title: 'No Products Found',
@@ -625,7 +630,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       icon: const Icon(Icons.close_rounded, size: 20),
                       onPressed: () {
                         _searchController.clear();
-                        _debounce?.cancel();
+                        _searchDebounce.cancel();
                         _isDebouncing = false;
                         productProvider.search('');
                         setState(() {});
@@ -638,9 +643,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
             ),
             onChanged: (value) {
-              _debounce?.cancel();
               setState(() => _isDebouncing = value.isNotEmpty);
-              _debounce = Timer(const Duration(milliseconds: 300), () {
+              _searchDebounce.run(() {
                 if (mounted) setState(() => _isDebouncing = false);
                 productProvider.search(value);
               });
@@ -1182,7 +1186,7 @@ class _FilterSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.of(context).size.height * 0.4;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.4;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.horizontalPadding(context),

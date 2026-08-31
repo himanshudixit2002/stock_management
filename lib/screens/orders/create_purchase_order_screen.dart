@@ -21,6 +21,8 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
+import '../../utils/date_formats.dart';
 
 class CreatePurchaseOrderScreen extends StatefulWidget {
   const CreatePurchaseOrderScreen({super.key});
@@ -259,9 +261,9 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
   Widget _buildContent(BuildContext context) {
 
     final vendors = context.watch<VendorProvider>().activeVendors;
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = AppDates.day;
     final currencyFormat = NumberFormat.currency(
-      symbol: AppTheme.currencySymbol,
+      symbol: Money.symbolOf(context),
       decimalDigits: 2,
     );
 
@@ -420,7 +422,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                   icon: const Icon(Icons.bolt_rounded, size: 16, color: AppTheme.primaryColor),
                                   label: const Text(
                                     'Auto-Fill Low Stock',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                   style: TextButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -432,7 +434,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                 TextButton.icon(
                                   onPressed: _addItem,
                                   icon: const Icon(Icons.add_rounded, size: 16),
-                                  label: const Text('Add Item', style: TextStyle(fontSize: 11.5)),
+                                  label: const Text('Add Item', style: TextStyle(fontSize: 12)),
                                   style: TextButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     minimumSize: Size.zero,
@@ -446,7 +448,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                         const SizedBox(height: 10),
                         ...List.generate(_items.length, (index) {
                           final item = _items[index];
-                          final isMobile = MediaQuery.of(context).size.width < 500;
+                          final isMobile = MediaQuery.sizeOf(context).width < 500;
 
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
@@ -575,7 +577,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                       decoration: InputDecoration(
                                         labelText: 'Unit Cost',
                                         isDense: true,
-                                        prefixText: '${AppTheme.currencySymbol} ',
+                                        prefixText: '${Money.symbolOf(context)} ',
                                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                       ),
                                       style: const TextStyle(fontSize: 13),
@@ -634,7 +636,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                             decoration: InputDecoration(
                                               labelText: 'Unit Price',
                                               isDense: true,
-                                              prefixText: '${AppTheme.currencySymbol} ',
+                                              prefixText: '${Money.symbolOf(context)} ',
                                             ),
                                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                             onChanged: (_) => setState(() {}),

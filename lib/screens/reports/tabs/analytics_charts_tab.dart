@@ -27,17 +27,12 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
     final stockProvider = context.watch<StockProvider>();
     final productProvider = context.watch<ProductProvider>();
 
-    // Build chart data from provider
-
-    // Category distribution by quantity moved
-    final Map<String, double> categoryData = {};
-    for (final product in productProvider.products) {
-      if (product.quantity > 0) {
-        categoryData[product.categoryName.isNotEmpty ? product.categoryName : 'General'] =
-            (categoryData[product.categoryName.isNotEmpty ? product.categoryName : 'General'] ?? 0) +
-                product.quantity.toDouble();
-      }
-    }
+    // Category distribution by on-hand quantity. Computed (and cached) by the
+    // provider alongside its other analytics rollups, so this rebuilds for
+    // free when the catalog has not changed.
+    final categoryData = productProvider.quantityByCategory.map(
+      (name, qty) => MapEntry(name, qty.toDouble()),
+    );
 
     // Stock In vs Out by category
     final Map<String, double> stockInOutData = {
@@ -125,7 +120,7 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
             // Pie Chart & Bar Chart Grid (Stacked on Mobile, Row on Desktop)
             Builder(
               builder: (context) {
-                final isMobile = MediaQuery.of(context).size.width < 600;
+                final isMobile = MediaQuery.sizeOf(context).width < 600;
 
                 final categoryMixCard = GlassPanel(
                   padding: const EdgeInsets.all(16),
@@ -253,7 +248,7 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
       },
       style: SegmentedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        textStyle: const TextStyle(fontSize: 11),
+        textStyle: const TextStyle(fontSize: 12),
       ),
     );
   }

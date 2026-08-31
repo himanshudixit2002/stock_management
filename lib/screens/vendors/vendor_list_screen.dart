@@ -16,6 +16,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../config/app_navigation.dart';
+import '../../widgets/scroll_to_top_button.dart';
 // Vendor routes registered in app.dart onGenerateRoute
 
 enum _VendorSort {
@@ -42,17 +43,10 @@ class _VendorListScreenState extends State<VendorListScreen> {
   _StatusFilter _statusFilter = _StatusFilter.all;
   int _minRating = 0;
   final _scrollController = ScrollController();
-  bool _showScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      final show = _scrollController.offset > 500;
-      if (show != _showScrollToTop && mounted) {
-        setState(() => _showScrollToTop = show);
-      }
-    });
   }
 
   @override
@@ -480,23 +474,7 @@ class _VendorListScreenState extends State<VendorListScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedScale(
-            scale: _showScrollToTop ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: FloatingActionButton.small(
-              heroTag: 'scrollTop',
-              onPressed: () => _scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-              ),
-              backgroundColor: AppTheme.surface(context),
-              child: Icon(
-                Icons.arrow_upward_rounded,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-          ),
+          ScrollToTopButton(controller: _scrollController),
           if (user?.hasPermission(AppPermissions.addVendors) ?? false) ...[
             const SizedBox(height: 8),
             FloatingActionButton.extended(
@@ -751,7 +729,7 @@ class _VendorCard extends StatelessWidget {
                           child: Text(
                             'Inactive',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               color: AppTheme.textTer(context),
                               fontWeight: FontWeight.w600,
                             ),
@@ -790,7 +768,7 @@ class _VendorCard extends StatelessWidget {
                         Text(
                           '${vendor.leadTimeDays}d lead',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppTheme.textTer(context),
                           ),
                         ),

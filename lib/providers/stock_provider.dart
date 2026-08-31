@@ -5,6 +5,7 @@ import '../models/stock_hold_model.dart';
 import '../services/database_service.dart';
 import '../utils/error_helpers.dart';
 import 'package:intl/intl.dart';
+import '../utils/date_formats.dart';
 
 class StockProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -45,30 +46,58 @@ class StockProvider extends ChangeNotifier {
 
   List<StockTransactionModel> get allTransactions => _recentTransactions;
   List<StockHoldModel> get stockHolds => _stockHolds;
-  List<StockHoldModel> get activeHolds => _stockHolds
-      .where(
-        (h) =>
-            h.status == StockHoldStatus.active ||
-            h.status == StockHoldStatus.partiallyConsumed,
-      )
-      .toList();
+
+  // Hold views are read straight from build methods, and each one used to
+  // re-filter [_stockHolds] from scratch — [activeChallans] alone was three
+  // chained passes. Cached against [_stockHolds], which the stream replaces
+  // whole, so an identity hit means the cache is still valid.
+  List<StockHoldModel>? _holdsCacheSource;
+  List<StockHoldModel>? _cachedActiveHolds;
+  Map<String, List<StockHoldModel>>? _cachedActiveHoldsByChallan;
+  List<String>? _cachedActiveChallans;
+
+  void _ensureHoldCaches() {
+    if (identical(_holdsCacheSource, _stockHolds)) return;
+    _holdsCacheSource = _stockHolds;
+    _cachedActiveHolds = null;
+    _cachedActiveHoldsByChallan = null;
+    _cachedActiveChallans = null;
+  }
+
+  List<StockHoldModel> get activeHolds {
+    _ensureHoldCaches();
+    return _cachedActiveHolds ??= _stockHolds
+        .where(
+          (h) =>
+              h.status == StockHoldStatus.active ||
+              h.status == StockHoldStatus.partiallyConsumed,
+        )
+        .toList();
+  }
 
   /// Active holds grouped by challan number, preserving creation order.
   /// Holds without a challan are grouped under an empty-string key.
   Map<String, List<StockHoldModel>> get activeHoldsByChallan {
+    _ensureHoldCaches();
+    if (_cachedActiveHoldsByChallan != null) {
+      return _cachedActiveHoldsByChallan!;
+    }
     final map = <String, List<StockHoldModel>>{};
     for (final hold in activeHolds) {
       if (hold.remainingQuantity <= 0) continue;
       map.putIfAbsent(hold.challanNumber.trim(), () => []).add(hold);
     }
-    return map;
+    return _cachedActiveHoldsByChallan = map;
   }
 
   /// Distinct challan numbers that still have active held stock.
-  List<String> get activeChallans => activeHoldsByChallan.keys
-      .where((c) => c.isNotEmpty)
-      .toList()
-    ..sort();
+  List<String> get activeChallans {
+    _ensureHoldCaches();
+    return _cachedActiveChallans ??= (activeHoldsByChallan.keys
+        .where((c) => c.isNotEmpty)
+        .toList()
+      ..sort());
+  }
 
   /// Active holds (with remaining qty) for a given product.
   List<StockHoldModel> activeHoldsForProduct(String productId) => activeHolds
@@ -235,7 +264,7 @@ class StockProvider extends ChangeNotifier {
       return _cachedTransactionsByDay!;
     }
     final map = <String, Map<TransactionType, int>>{};
-    final dateFormat = DateFormat('yyyy-MM-dd');
+    final dateFormat = AppDates.isoDay;
     for (final t in recentTransactions) {
       final dayKey = dateFormat.format(t.date);
       map.putIfAbsent(
@@ -622,7 +651,12 @@ class StockProvider extends ChangeNotifier {
 
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
+    // Both streams must be torn down: [initialize] can run again without a
+    // preceding [reset] (retry / safety-net paths in AuthWrapper), and a
+    // surviving holds listener would keep writing the previous company's
+    // holds into [_stockHolds].
     _transactionsSubscription?.cancel();
+    _holdsSubscription?.cancel();
     _loadingTimeout?.cancel();
     _isLoading = true;
     _errorMessage = null;

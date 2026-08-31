@@ -26,6 +26,7 @@ import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart'
     show showSearchablePicker, PickerItem;
 import '../../widgets/success_overlay.dart';
+import '../../utils/currency.dart';
 
 class _LineItem {
   String? productId;
@@ -422,8 +423,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     }
 
     final bs = context.watch<BillingSettingsProvider>().settings;
-    final sym = bs.currencySymbol.isNotEmpty ? bs.currencySymbol : '₹';
-    final numFmt = NumberFormat('#,##0.00');
+    final sym = Money.symbolOrFallback(bs.currencySymbol);
 
     final isSales = _invoiceType == InvoiceType.sales;
     final appBarTitle = widget.salesOrderId != null
@@ -482,7 +482,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         _buildDiscountSection(),
                       ],
                       const SizedBox(height: 16),
-                      _buildTotals(sym, numFmt, bs),
+                      _buildTotals(sym, bs),
                       const SizedBox(height: 16),
                       _buildNotesField(),
                     ],
@@ -745,7 +745,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           const SizedBox(height: 4),
           Text(
             'The final number is assigned when you save. If someone else saves first, yours will use the next sequence.',
-            style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
         ],
       ),
@@ -1078,7 +1078,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     );
   }
 
-  Widget _buildTotals(String sym, NumberFormat numFmt, dynamic bs) {
+  Widget _buildTotals(String sym, dynamic bs) {
     return GlassPanel(
       borderRadius: 14,
       useContentVariant: true,
@@ -1087,23 +1087,23 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         children: [
           _TotalRow(
             label: 'Subtotal',
-            value: '$sym${numFmt.format(_subtotal)}',
+            value: '$sym${Money.number(_subtotal)}',
           ),
           if (bs.enableDiscounts && _totalDiscount > 0)
             _TotalRow(
               label: 'Discount',
-              value: '- $sym${numFmt.format(_totalDiscount)}',
+              value: '- $sym${Money.number(_totalDiscount)}',
               color: AppTheme.dangerColor,
             ),
           if (bs.enableTax && _totalTax > 0)
             _TotalRow(
               label: bs.taxLabel,
-              value: '$sym${numFmt.format(_totalTax)}',
+              value: '$sym${Money.number(_totalTax)}',
             ),
           const Divider(height: 16),
           _TotalRow(
             label: 'Grand Total',
-            value: '$sym${numFmt.format(_grandTotal)}',
+            value: '$sym${Money.number(_grandTotal)}',
             bold: true,
             size: 16,
           ),
@@ -1238,7 +1238,7 @@ class _DateField extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     color: AppTheme.textTer(context),
                   ),
                 ),

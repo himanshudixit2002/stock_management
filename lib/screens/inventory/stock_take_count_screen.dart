@@ -695,7 +695,7 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
         ),
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: AppTheme.textSec(context)),
+          style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
         ),
       ],
     );
