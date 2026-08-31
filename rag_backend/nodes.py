@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 import deterministic
 import llm as llm_factory
+import verify
 import writes
 from facts import InventoryFacts, ProductFact, fact_store
 from guardrails import InventoryGuardrails
@@ -1260,6 +1261,18 @@ async def execution_agent_node(state: GraphState) -> GraphState:
     return state
 
 
+def _fact_check(answer: str, facts: InventoryFacts, where: str) -> str:
+    """Correct claims the snapshot contradicts before the answer is sent."""
+    try:
+        corrected, issues = verify.check_answer(answer, facts)
+    except Exception as exc:
+        print(f"[{where}] fact check skipped: {exc}")
+        return answer
+    if issues:
+        print(f"[{where}] corrected model output -> {verify.describe(issues)}")
+    return corrected
+
+
 def _text(response: Any) -> str:
     """Flatten a LangChain message content into plain text."""
     content = getattr(response, "content", response)
@@ -1374,6 +1387,9 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         generation = deterministic._summary(facts)
         answered_by = "fallback"
 
+    if answered_by == "llm":
+        generation = _fact_check(generation, facts, "analytics")
+
     state["generation"] = generation + deterministic.stats_payload(facts)
     state["analytics_data"] = facts.summary()
     state["llm_calls"] = llm_calls
@@ -1423,7 +1439,9 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
 
     try:
         response = await stream_message(client, messages, llm_factory.AGENT)
-        state["generation"] = _text(response) or deterministic._summary(facts)
+        state["generation"] = _fact_check(
+            _text(response) or deterministic._summary(facts), facts, "knowledge"
+        )
         state["llm_calls"] = 1
         state["answered_by"] = "llm"
     except Exception as exc:

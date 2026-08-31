@@ -409,6 +409,32 @@ async def get_inventory(x_company_id: Optional[str] = Header(None, alias="x-comp
     return {"products": [p.to_dict() for p in facts.products]}
 
 
+@app.get("/api/inventory/reconcile")
+async def reconcile_inventory(
+    x_company_id: Optional[str] = Header(None, alias="x-company-id")
+):
+    """Report products whose total and per-location stock disagree.
+
+    Read-only on purpose. Whether the total or the shelf counts are correct is a
+    judgement only the owner can make, so this surfaces the drift and leaves the
+    repair to them.
+    """
+    company_id = _cid(x_company_id, None)
+    facts = await asyncio.to_thread(fact_store.get, company_id)
+    drift = facts.inconsistencies()
+    return {
+        "status": "success",
+        "products_checked": len(facts.products),
+        "inconsistent_count": len(drift),
+        "inconsistent": drift[:100],
+        "note": (
+            "quantity and locationQuantities disagree for these products. "
+            "The assistant will refuse to change them until the numbers agree, "
+            "so a correction is not applied on top of a wrong figure."
+        ),
+    }
+
+
 @app.get("/api/inventory/ledger")
 def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
     company_id = _cid(x_company_id, None)

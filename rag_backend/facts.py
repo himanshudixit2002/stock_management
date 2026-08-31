@@ -302,6 +302,33 @@ class InventoryFacts:
     def dead_stock(self) -> List[ProductFact]:
         return [p for p in self.products if p.health == "dead_stock"]
 
+    def inconsistencies(self) -> List[Dict[str, Any]]:
+        """Products whose total disagrees with the sum of their locations.
+
+        The app reads both numbers, so a product in this state shows different
+        stock on different screens. Reporting is deliberate: only a human knows
+        whether the total or the shelves are the truth, so this never guesses a
+        repair.
+        """
+        found = []
+        for p in self.products:
+            if not p.location_quantities:
+                continue
+            located = sum(p.location_quantities.values())
+            if located != p.quantity:
+                found.append(
+                    {
+                        "id": p.id,
+                        "barcode": p.barcode,
+                        "name": p.name,
+                        "quantity": p.quantity,
+                        "located_total": located,
+                        "difference": p.quantity - located,
+                        "locations": dict(p.location_quantities),
+                    }
+                )
+        return sorted(found, key=lambda r: -abs(r["difference"]))
+
     @property
     def known_locations(self) -> List[str]:
         """Configured locations plus any already holding stock."""

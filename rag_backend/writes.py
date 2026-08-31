@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from facts import ProductFact, fact_store
 
@@ -87,6 +87,64 @@ def _write_transaction(
         print(f"[writes] transaction write failed: {exc}")
 
 
+def _plan_location_changes(
+    loc_map: Dict[str, int],
+    held_map: Dict[str, int],
+    delta: int,
+    location: Optional[str],
+) -> Tuple[Optional[Dict[str, int]], Optional[str]]:
+    """Work out the new per-location holdings, or explain why it can't be done.
+
+    `quantity` and `locationQuantities` are both read by the app, so they must
+    never disagree. The previous version clamped a location at zero and threw
+    the remainder away, which left a product whose total said one thing and
+    whose shelves said another.
+    """
+    updated = dict(loc_map)
+
+    if location:
+        on_hand = int(updated.get(location, 0))
+        if delta < 0:
+            free = on_hand - int(held_map.get(location, 0))
+            if free < abs(delta):
+                return None, (
+                    f"only {max(0, free)} units are free at {location}"
+                    + (
+                        f" ({on_hand} there, {held_map.get(location, 0)} reserved)"
+                        if held_map.get(location)
+                        else f" (it holds {on_hand})"
+                    )
+                )
+        updated[location] = on_hand + delta
+        return updated, None
+
+    if not updated:
+        return updated, None
+
+    if delta >= 0:
+        # Additions land in one place: the busiest holding.
+        target = max(updated, key=lambda k: updated[k])
+        updated[target] = updated[target] + delta
+        return updated, None
+
+    # Deductions draw from the largest holding first and spill into the next,
+    # so a request spanning several locations stays balanced.
+    remaining = abs(delta)
+    for name in sorted(updated, key=lambda k: -updated[k]):
+        if remaining <= 0:
+            break
+        free = int(updated[name]) - int(held_map.get(name, 0))
+        take = max(0, min(free, remaining))
+        updated[name] = int(updated[name]) - take
+        remaining -= take
+
+    if remaining > 0:
+        return None, (
+            f"only {abs(delta) - remaining} units are free across all locations"
+        )
+    return updated, None
+
+
 def _apply_delta(
     client,
     company_id: str,
@@ -94,17 +152,18 @@ def _apply_delta(
     delta: int,
     location: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Atomically move stock by `delta`, refusing to go negative.
+    """Atomically move stock by `delta`.
 
-    `quantity` and `locationQuantities` must stay in agreement — the app reads
-    both, and a product whose total no longer matches its shelves shows
-    inconsistent numbers depending on which screen you are on. Stock lands in
-    `location` when given, otherwise the product's busiest one.
+    Three things have to hold, and each of them was violated before:
+      * stock never drops below what is reserved (the app caps dispatch at
+        `availableQuantity`, so the assistant must too);
+      * `quantity` always equals the sum of `locationQuantities`;
+      * a product whose numbers already disagree is reported, not written over.
     """
     from firebase_admin import firestore
 
     ref = _company_ref(client, company_id).collection("products").document(product.id)
-    location = (location or product.location or "").strip()
+    location = (location or "").strip()
 
     @firestore.transactional
     def _txn(transaction):
@@ -113,6 +172,29 @@ def _apply_delta(
             return {"ok": False, "error": "product no longer exists"}
         data = snapshot.to_dict() or {}
         old = int(data.get("quantity", 0) or 0)
+        held = max(0, int(data.get("heldQuantity", 0) or 0))
+        loc_map = {
+            str(k): int(v or 0)
+            for k, v in (data.get("locationQuantities") or {}).items()
+        }
+        held_map = {
+            str(k): int(v or 0)
+            for k, v in (data.get("heldLocationQuantities") or {}).items()
+        }
+
+        # Refuse to build on numbers that already contradict each other.
+        if loc_map and sum(loc_map.values()) != old:
+            return {
+                "ok": False,
+                "old_stock": old,
+                "error": (
+                    f"this product's totals disagree — it says {old} units overall "
+                    f"but its locations add up to {sum(loc_map.values())} "
+                    f"({', '.join(f'{k}: {v}' for k, v in loc_map.items())}). "
+                    f"Fix that first so the change lands on a sound number."
+                ),
+            }
+
         new = old + delta
         if new < 0:
             return {
@@ -120,34 +202,45 @@ def _apply_delta(
                 "error": f"insufficient stock: {old} on hand, tried to remove {abs(delta)}",
                 "old_stock": old,
             }
+
+        available = max(0, old - held)
+        if delta < 0 and abs(delta) > available:
+            return {
+                "ok": False,
+                "old_stock": old,
+                "error": (
+                    f"{old} units on hand but {held} are reserved for orders, "
+                    f"so only {available} can be deducted"
+                ),
+            }
+
+        updated_locs, problem = _plan_location_changes(loc_map, held_map, delta, location)
+        if problem:
+            return {"ok": False, "old_stock": old, "error": problem}
+
         update: Dict[str, Any] = {
             "quantity": new,
             "updatedAt": datetime.now(timezone.utc),
             "updatedBy": AI_ACTOR_ID,
             "updatedByName": AI_ACTOR_NAME,
         }
-        loc_map = {k: int(v or 0) for k, v in (data.get("locationQuantities") or {}).items()}
-        if location:
-            at_location = int(loc_map.get(location, 0))
-            if delta < 0 and at_location < abs(delta):
+        if updated_locs:
+            if sum(updated_locs.values()) != new:
                 return {
                     "ok": False,
-                    "error": (
-                        f"only {at_location} units at {location} "
-                        f"(the product has {old} in total)"
-                    ),
                     "old_stock": old,
+                    "error": "internal check failed: locations would not match the total",
                 }
-            loc_map[location] = at_location + delta
-            update["locationQuantities"] = loc_map
-        elif loc_map:
-            # No location named and stock is tracked per location: keep the two
-            # views consistent by absorbing the change into the largest holding.
-            target = max(loc_map, key=lambda k: loc_map[k])
-            loc_map[target] = max(0, loc_map[target] + delta)
-            update["locationQuantities"] = loc_map
+            update["locationQuantities"] = updated_locs
+
         transaction.update(ref, update)
-        return {"ok": True, "old_stock": old, "new_stock": new, "location": location}
+        return {
+            "ok": True,
+            "old_stock": old,
+            "new_stock": new,
+            "location": location,
+            "locations": updated_locs,
+        }
 
     return _txn(client.transaction())
 
@@ -260,9 +353,34 @@ def audit_inventory(
     actual_stock: int,
     notes: str = "Physical audit",
     company_id: str = "default",
+    location: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """Set stock to a physically counted quantity.
+
+    An audit states an absolute number, which is ambiguous when the product sits
+    in several places — "there are 100" says nothing about how they are split.
+    Rather than guess, ask which location was counted.
+    """
     actual_stock = max(0, int(actual_stock))
-    delta = actual_stock - product.quantity
+    stocked = [loc for loc, qty in product.location_quantities.items() if qty > 0]
+    if not location and len(stocked) > 1:
+        return {
+            "success": False,
+            "needs_location": True,
+            "locations": stocked,
+            "error": (
+                f"{product.name} is stored in {len(stocked)} places "
+                f"({', '.join(stocked)}). Which one did you count?"
+            ),
+        }
+    if not location and len(stocked) == 1:
+        location = stocked[0]
+
+    delta = actual_stock - (
+        product.location_quantities.get(location, product.quantity)
+        if location
+        else product.quantity
+    )
     if delta == 0:
         return {
             "success": True,
@@ -282,12 +400,13 @@ def audit_inventory(
         fact_store.bump(company_id)
         return res
 
-    result = _apply_delta(client, company_id, product, delta)
+    result = _apply_delta(client, company_id, product, delta, location)
     if not result.get("ok"):
         return {"success": False, "error": result.get("error", "audit failed")}
 
     _write_transaction(
-        client, company_id, product, "adjustment", delta, f"Audit: {notes}"
+        client, company_id, product, "adjustment", delta, f"Audit: {notes}",
+        location=location or product.location,
     )
     _log_ledger(
         company_id,

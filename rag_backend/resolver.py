@@ -67,14 +67,44 @@ def tokenize(text: str) -> List[str]:
     return _TOKEN_RE.findall((text or "").lower())
 
 
+# Words that mark the number before or after them as a quantity rather than
+# part of a product's name.
+_QUANTITY_MARKERS = {
+    "units", "unit", "pcs", "piece", "pieces", "qty", "quantity", "nos",
+    "box", "boxes", "packs", "pack", "add", "deduct", "remove", "reduce",
+    "increase", "restock", "received", "order", "reorder", "sold", "damaged",
+    "by", "of",
+}
+
+
+def _is_quantity(tokens: List[str], index: int) -> bool:
+    """Is the number at `index` a quantity, or part of the product's name?
+
+    Stripping every number destroys names that contain one — "deduct 80 units
+    of TEST 1" loses the 1 and then matches TEST2 better than TEST 1, because
+    the only surviving token is the prefix they all share. A number counts as a
+    quantity when a quantity word sits next to it.
+    """
+    before = tokens[index - 1] if index > 0 else ""
+    after = tokens[index + 1] if index + 1 < len(tokens) else ""
+    if after in _QUANTITY_MARKERS and after not in ("of", "by"):
+        return True
+    if before in _QUANTITY_MARKERS:
+        return True
+    # A bare number on its own is an answer to "how many?".
+    return len(tokens) == 1
+
+
 def strip_command_words(query: str, keep_numbers: bool = False) -> str:
     """Reduce 'add 50 units of fresh apples' to 'fresh apples'."""
     tokens = tokenize(query)
-    kept = [
-        t
-        for t in tokens
-        if t not in COMMAND_WORDS and (keep_numbers or not _NUMERIC_RE.match(t))
-    ]
+    kept = []
+    for i, t in enumerate(tokens):
+        if t in COMMAND_WORDS:
+            continue
+        if not keep_numbers and _NUMERIC_RE.match(t) and _is_quantity(tokens, i):
+            continue
+        kept.append(t)
     return " ".join(kept) if kept else " ".join(tokens)
 
 

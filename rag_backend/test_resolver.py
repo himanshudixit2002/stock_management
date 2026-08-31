@@ -100,6 +100,20 @@ check("'standard' is still rejected as filler on a large catalog",
 print("\n== Empty catalog degrades safely ==")
 check("no products", ProductResolver([]).resolve("anything").status, "not_found")
 
+print("\n== Numbers inside a product name survive ==")
+# "deduct 80 units of TEST 1" used to strip both numbers, leaving only "test",
+# which matches TEST2 and TEST3 better than the product actually named.
+numbered = ProductResolver([
+    P("TEST 1", "1001", 100), P("TEST2", "1002", 200), P("TEST3", "1003", 300),
+])
+check("the named product wins",
+      numbered.resolve("deduct 80 units of TEST 1").product.name, "TEST 1")
+check("quantity is still discarded", strip_command_words("deduct 80 units of TEST 1"), "test 1")
+check("a name that is just digits+word still resolves",
+      numbered.resolve("add 5 TEST2").product.name, "TEST2")
+check("a bare number is treated as an answer, not a name",
+      strip_command_words("50"), "50")
+
 print("\n== Duplicate names are separable only by barcode ==")
 # Real catalogs contain several products sharing a name. The barcode is the
 # only thing telling them apart, so a request naming one must resolve — and it
