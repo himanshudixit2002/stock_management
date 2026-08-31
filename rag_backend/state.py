@@ -35,6 +35,9 @@ class GraphState(TypedDict, total=False):
 
     # --- confirmation flow ---
     pending_action: Optional[Dict[str, Any]]
+
+    # Fields gathered so far for a product still being specified.
+    new_product_draft: Optional[Dict[str, Any]]
     clarification_options: Optional[List[Dict[str, Any]]]
 
     # --- telemetry ---

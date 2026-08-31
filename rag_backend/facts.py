@@ -219,6 +219,12 @@ class InventoryFacts:
     warnings: List[str] = field(default_factory=list)
     fingerprint: str = ""
 
+    # The company's own vocabulary. Creating a product means choosing from
+    # these, not inventing a category or a shelf name that no screen will
+    # recognise afterwards.
+    categories: List[Dict[str, str]] = field(default_factory=list)
+    configured_locations: List[str] = field(default_factory=list)
+
     _by_id: Dict[str, ProductFact] = field(default_factory=dict, repr=False)
     _by_barcode: Dict[str, ProductFact] = field(default_factory=dict, repr=False)
 
@@ -295,6 +301,26 @@ class InventoryFacts:
     @property
     def dead_stock(self) -> List[ProductFact]:
         return [p for p in self.products if p.health == "dead_stock"]
+
+    @property
+    def known_locations(self) -> List[str]:
+        """Configured locations plus any already holding stock."""
+        seen = {loc for loc in self.configured_locations}
+        for p in self.products:
+            seen.update(k for k, v in p.location_quantities.items() if k)
+        return sorted(seen)
+
+    def category_by_name(self, name: str) -> Optional[Dict[str, str]]:
+        want = (name or "").strip().lower()
+        if not want:
+            return None
+        for c in self.categories:
+            if c["name"].lower() == want:
+                return c
+        for c in self.categories:
+            if want in c["name"].lower() or c["name"].lower() in want:
+                return c
+        return None
 
     @property
     def untracked(self) -> List[ProductFact]:
@@ -566,6 +592,38 @@ def _load_transactions(
     return grouped
 
 
+def _load_categories(client, company_id: str) -> List[Dict[str, str]]:
+    docs = (
+        client.collection("companies")
+        .document(company_id)
+        .collection("categories")
+        .limit(200)
+        .stream()
+    )
+    out = []
+    for doc in docs:
+        data = doc.to_dict() or {}
+        name = _text(data.get("name"))
+        if name:
+            out.append({"id": doc.id, "name": name})
+    return sorted(out, key=lambda c: c["name"].lower())
+
+
+def _load_locations(client, company_id: str) -> List[str]:
+    """The locations the company has configured in settings."""
+    try:
+        snap = client.collection("companies").document(company_id).get()
+        if not snap.exists:
+            return []
+        data = snap.to_dict() or {}
+        raw = data.get("settings.locations")
+        if raw is None:
+            raw = (data.get("settings") or {}).get("locations")
+        return [str(v).strip() for v in (raw or []) if str(v).strip()]
+    except Exception:
+        return []
+
+
 def _load_vendors(client, company_id: str) -> Dict[str, Dict[str, Any]]:
     docs = (
         client.collection("companies")
@@ -648,6 +706,8 @@ class FactStore:
         raw_products: List[Dict[str, Any]] = []
         tx: Dict[str, List[Tuple[datetime, str, int]]] = {}
         vendors: Dict[str, Dict[str, Any]] = {}
+        categories: List[Dict[str, str]] = []
+        configured_locations: List[str] = []
 
         offline = os.environ.get("OFFLINE_MODE") == "1"
 
@@ -657,6 +717,8 @@ class FactStore:
                 f_products = pool.submit(_load_products, client, company_id)
                 f_tx = pool.submit(_load_transactions, client, company_id, since)
                 f_vendors = pool.submit(_load_vendors, client, company_id)
+                f_cats = pool.submit(_load_categories, client, company_id)
+                f_locs = pool.submit(_load_locations, client, company_id)
                 try:
                     raw_products = f_products.result()
                 except Exception as exc:
@@ -669,6 +731,14 @@ class FactStore:
                     vendors = f_vendors.result()
                 except Exception as exc:
                     warnings.append(f"vendor load failed: {exc}")
+                try:
+                    categories = f_cats.result()
+                except Exception as exc:
+                    warnings.append(f"category load failed: {exc}")
+                try:
+                    configured_locations = f_locs.result()
+                except Exception as exc:
+                    warnings.append(f"location load failed: {exc}")
 
         # The local JSON store is a development convenience only. Silently
         # falling back to it in production is what let one tenant be shown
@@ -699,6 +769,8 @@ class FactStore:
             products=products,
             source=source,
             warnings=warnings,
+            categories=categories,
+            configured_locations=configured_locations,
         )
         for warning in warnings:
             print(f"[FactStore:{company_id}] {warning}")

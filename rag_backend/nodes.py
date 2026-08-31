@@ -84,11 +84,15 @@ class simulate_financial_impact(BaseModel):
 
 
 class update_stock(BaseModel):
-    """Change a product's stock level. Positive adds, negative deducts."""
+    """Change an existing product's stock level. Positive adds, negative deducts."""
 
     product: str = Field(description="Exact product name or barcode.")
     qty_change: int = Field(description="Units to add (positive) or deduct (negative).")
     reason: str = Field(default="AI adjustment", description="Why the stock changed.")
+    location: str = Field(
+        default="",
+        description="Which location the stock moves at. Required when the product holds stock in more than one.",
+    )
 
 
 class create_purchase_order(BaseModel):
@@ -116,6 +120,28 @@ class audit_inventory(BaseModel):
     notes: str = Field(default="Physical audit", description="Audit notes.")
 
 
+class create_product(BaseModel):
+    """Add a brand new product to the catalog.
+
+    Only call this when the product genuinely does not exist yet — search first.
+    Leave a field out rather than guessing it: a wrong price or shelf looks
+    authoritative and quietly corrupts stock valuation and reporting.
+    """
+
+    name: str = Field(description="Full product name, as it should appear in the catalog.")
+    quantity: int = Field(description="Opening stock quantity.")
+    location: str = Field(default="", description="Where the stock sits. Must be one of the company's locations.")
+    barcode: str = Field(default="", description="Barcode, if the user gave one.")
+    category_name: str = Field(default="", description="Category name. Must be one the company already uses.")
+    cost_price: float = Field(default=0.0, description="Purchase cost per unit.")
+    selling_price: float = Field(default=0.0, description="Sale price per unit.")
+    low_stock_threshold: int = Field(default=10, description="Reorder alert level.")
+    unit: str = Field(default="pcs", description="Unit of measure, e.g. pcs, box, Tube.")
+    brand: str = Field(default="", description="Manufacturer or brand.")
+    size: str = Field(default="", description="Pack size, e.g. 30gm, Pack of 5.")
+    vendor_name: str = Field(default="", description="Supplier, if given.")
+
+
 class set_reorder_threshold(BaseModel):
     """Change a product's low-stock safety threshold."""
 
@@ -131,6 +157,7 @@ READ_TOOLS = [
     simulate_financial_impact,
 ]
 WRITE_TOOLS = [
+    create_product,
     update_stock,
     create_purchase_order,
     transfer_stock,
@@ -337,6 +364,10 @@ _EXECUTION_PATTERNS = [
     r"\b(update stock|create po|purchase order|transfer stock|set threshold|set alert|raise a po)\b",
     r"\b(reorder|order|move|audit)\b.*\b(units?|qty|quantity|pieces?)\b",
     r"\b(set|change)\b.*\b(threshold|minimum|min level|reorder point)\b",
+    # Creating a product often carries no number at all, so the quantity-based
+    # patterns above never fire for it.
+    r"\b(add|create|register|make|new)\b.*\b(product|item|sku|article)\b",
+    r"\b(add|create)\s+(a\s+)?new\b",
 ]
 
 _CLASSIFY_PROMPT = (
@@ -394,7 +425,7 @@ async def router_node(state: GraphState) -> GraphState:
         # While a "which product did you mean?" question is open, the reply is
         # usually a bare barcode or name — which on its own looks like a lookup.
         # It has to reach the execution agent or the pending action is stranded.
-        if outstanding.get("tool") == "__clarify__":
+        if outstanding.get("tool") in ("__clarify__", "__new_product__"):
             state["intent"] = "EXECUTION"
             state["route_source"] = "pending"
             return state
@@ -467,6 +498,19 @@ async def retrieve_node(state: GraphState) -> GraphState:
             "PRODUCTS MATCHING THIS REQUEST (use these exact names/barcodes):\n"
             + "\n".join(p.context_line() for p in focus[:MAX_CONTEXT_PRODUCTS])
         )
+        # Creating or moving stock means choosing from the company's own
+        # vocabulary. Without it the model invents shelves and categories that
+        # no screen in the app will ever match.
+        if facts.known_locations:
+            blocks.append(
+                "VALID LOCATIONS (use one of these exactly): "
+                + ", ".join(facts.known_locations[:40])
+            )
+        if facts.categories:
+            blocks.append(
+                "VALID CATEGORIES (use one of these exactly): "
+                + ", ".join(c["name"] for c in facts.categories[:40])
+            )
 
     elif intent == "ANALYTICS":
         priority = facts.needs_reorder[:10] + facts.dead_stock[:5]
@@ -497,12 +541,52 @@ async def retrieve_node(state: GraphState) -> GraphState:
 # ---------------------------------------------------------------------------
 
 _PREVIEW_LABELS = {
+    "create_product": "Add new product",
     "update_stock": "Update stock",
     "create_purchase_order": "Create purchase order",
     "transfer_stock": "Transfer stock",
     "audit_inventory": "Audit stock count",
     "set_reorder_threshold": "Change reorder threshold",
 }
+
+
+def _build_new_product_preview(args: Dict[str, Any], facts: InventoryFacts) -> str:
+    """Show exactly what will be created, so nothing is silently assumed."""
+    rows = [
+        f"| **Name** | **{args.get('name', '')}** |",
+        f"| **Action** | **Add new product** |",
+        f"| **Opening stock** | **{args.get('quantity', 0)} {args.get('unit') or 'pcs'}** |",
+        f"| **Location** | {args.get('location') or '-'} |",
+    ]
+    for label, key in (
+        ("Barcode", "barcode"), ("Category", "category_name"), ("Brand", "brand"),
+        ("Size", "size"), ("Supplier", "vendor_name"),
+    ):
+        if args.get(key):
+            rows.append(f"| **{label}** | {args[key]} |")
+    if args.get("cost_price"):
+        rows.append(f"| **Cost price** | {float(args['cost_price']):,.2f} |")
+    if args.get("selling_price"):
+        rows.append(f"| **Selling price** | {float(args['selling_price']):,.2f} |")
+    rows.append(f"| **Low-stock alert** | {args.get('low_stock_threshold', 10)} |")
+
+    blank = [
+        label for label, key in
+        (("category", "category_name"), ("cost price", "cost_price"),
+         ("selling price", "selling_price"), ("barcode", "barcode"))
+        if not args.get(key)
+    ]
+    table = "\n".join(["| Detail | Information |", "| :--- | :--- |"] + rows)
+    note = ""
+    if blank:
+        note = (
+            "\n\n> Left blank: " + ", ".join(blank) +
+            ". You can add them now or edit the product later."
+        )
+    return (
+        "### Confirm new product\n\nThis will add a product to your catalog.\n\n"
+        + table + note + "\n\nReply **Confirm** to create it, or **Cancel** to discard."
+    )
 
 
 def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str:
@@ -520,6 +604,14 @@ def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str
             f"| **Change** | **{delta:+d} units** |",
             f"| **Projected stock** | **{projected} units** |",
         ]
+        target = (args.get("location") or product.location or "").strip()
+        if target:
+            at = product.location_quantities.get(target)
+            rows.append(
+                f"| **Location** | {target}"
+                + (f" ({at} units there now)" if at is not None else "")
+                + " |"
+            )
         if product.held_quantity:
             rows.append(f"| **Held / reserved** | {product.held_quantity} units |")
         if delta < 0 and product.available_qty < abs(delta):
@@ -588,6 +680,172 @@ def _stock_intent(text: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     return None
 
 
+_NEW_PRODUCT_RE = re.compile(
+    r"\b(?:add|create|register|make)\b[^.]*?\bnew\b|\b(?:add|create|register)\s+(?:a\s+)?(?:new\s+)?(?:product|item|sku)\b",
+    re.IGNORECASE,
+)
+_NAME_RE = re.compile(
+    # "add a new product called X" puts two keywords in front of the name, so
+    # the lead-in is consumed explicitly rather than captured with it.
+    r"(?:called|named|name[d:]?|product|item|sku)\s+"
+    r"(?:called\s+|named\s+)?[\"']?([A-Za-z0-9][^\"'\n,.]{2,60})[\"']?",
+    re.IGNORECASE,
+)
+_MONEY_RE = re.compile(
+    r"\b(cost|buy|purchase|sell(?:ing)?|retail|mrp|price)\w*\s*(?:price\s*)?(?:is|=|:|at)?\s*"
+    r"(?:rs\.?|inr|₹|\$)?\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+_UNIT_WORDS = ("pcs", "piece", "box", "tube", "bottle", "strip", "pack", "vial", "kg", "litre", "liter")
+
+
+def _extract_product_fields(
+    text: str, facts: InventoryFacts, have_name: bool
+) -> Dict[str, Any]:
+    """Pull whatever product details a message contains.
+
+    Collecting a new product is driven from here rather than left to the model.
+    Asked to gather fields conversationally the model tends to ask its own
+    questions without ever calling the tool, so the draft is never recorded and
+    every answer is read as a fresh, contextless request.
+    """
+    found: Dict[str, Any] = {}
+    raw = text or ""
+    low = raw.lower()
+
+    if not have_name:
+        m = _NAME_RE.search(raw)
+        if m:
+            name = m.group(1).strip().rstrip(" .,")
+            # Drop a trailing quantity phrase caught by the greedy name match.
+            name = re.sub(r"\s+\d+\s*(?:units?|pcs|nos)?$", "", name, flags=re.I).strip()
+            if len(name) > 2:
+                found["name"] = name
+
+    qty = re.search(r"\b(\d{1,6})\s*(?:units?|pcs|nos|pieces?)\b", low) or re.search(
+        r"^\s*(\d{1,6})\s*$", low
+    )
+    if qty:
+        found["quantity"] = int(qty.group(1))
+
+    matched_location = next(
+        (loc for loc in facts.known_locations if loc.lower() in low), None
+    )
+    if matched_location:
+        found["location"] = matched_location
+    else:
+        # Remember what they *tried* to say, so an unrecognised shelf can be
+        # named back to them instead of silently repeating the question.
+        guess = re.search(r"\b(?:in|at|to|on)\s+([A-Za-z0-9][\w .\-/]{1,30})", raw)
+        if guess:
+            found["_location_guess"] = guess.group(1).strip().rstrip(" .")
+        elif 0 < len(raw.strip()) <= 30 and not re.fullmatch(r"[\d\s]+", raw.strip()):
+            found["_location_guess"] = raw.strip()
+
+    for cat in facts.categories:
+        if cat["name"].lower() in low:
+            found["category_name"] = cat["name"]
+            found["category_id"] = cat["id"]
+            break
+
+    for kind, amount in _MONEY_RE.findall(raw):
+        key = "cost_price" if kind.lower() in ("cost", "buy", "purchase") else "selling_price"
+        found.setdefault(key, float(amount))
+
+    for u in _UNIT_WORDS:
+        if re.search(rf"\b{u}e?s?\b", low):
+            found["unit"] = u
+            break
+
+    bc = re.search(r"\b(\d{8,14})\b", low)
+    if bc:
+        found["barcode"] = bc.group(1)
+
+    return found
+
+
+def _vet_new_product(args: Dict[str, Any], facts: InventoryFacts) -> Tuple[str, bool]:
+    """Check a proposed product against the company's own vocabulary.
+
+    Returns (message, ready_to_preview). Missing or unrecognised values produce
+    a question rather than a guess: a made-up shelf or category creates a
+    product that the app's own filters cannot find afterwards.
+    """
+    name = str(args.get("name", "")).strip()
+    if not name:
+        return "What should the product be called?", False
+
+    # Guard against creating a second copy of something that exists.
+    existing = _resolver(facts).resolve(name, limit=3)
+    if existing.status in ("resolved", "ambiguous"):
+        close = existing.candidates[0]
+        if close.score >= 0.9:
+            return (
+                f"**{close.name}** (`{close.barcode}`) is already in your catalog with "
+                f"{getattr(close.product, 'quantity', 0)} units. Did you want to add stock "
+                f"to it instead? If this really is a different product, give me a "
+                f"barcode or a more specific name.",
+                False,
+            )
+
+    try:
+        qty = int(args.get("quantity"))
+    except (TypeError, ValueError):
+        return f"How many units of **{name}** are you starting with?", False
+    if qty < 0:
+        return "Opening stock can't be negative.", False
+
+    known = facts.known_locations
+    location = str(args.get("location", "")).strip()
+    if not location:
+        rejected = str(args.pop("_location_guess", "")).strip()
+        if rejected and known:
+            listed = ", ".join(f"**{loc}**" for loc in known[:12])
+            more = f" (+{len(known) - 12} more)" if len(known) > 12 else ""
+            return (
+                f"I don't have a location called \"{rejected}\". "
+                f"Your locations are: {listed}{more}. Which one should it go to?",
+                False,
+            )
+        if known:
+            listed = ", ".join(f"**{loc}**" for loc in known[:12])
+            more = f" (+{len(known) - 12} more)" if len(known) > 12 else ""
+            return (
+                f"Where should the {qty} units of **{name}** be stored? "
+                f"Your locations are: {listed}{more}.",
+                False,
+            )
+        return f"Where should the {qty} units of **{name}** be stored?", False
+
+    if known:
+        match = next((l for l in known if l.lower() == location.lower()), None)
+        if match is None:
+            listed = ", ".join(f"**{loc}**" for loc in known[:12])
+            return (
+                f"I don't recognise the location \"{location}\". "
+                f"Your locations are: {listed}. Which should it go to?",
+                False,
+            )
+        args["location"] = match
+
+    # Snap the category to one that already exists so the app's filters work.
+    wanted = str(args.get("category_name", "")).strip()
+    if wanted and facts.categories:
+        cat = facts.category_by_name(wanted)
+        if cat is None:
+            names = ", ".join(f"**{c['name']}**" for c in facts.categories[:12])
+            return (
+                f"There's no **{wanted}** category. Your categories are: {names}. "
+                f"Which one fits, or shall I leave it uncategorised?",
+                False,
+            )
+        args["category_name"] = cat["name"]
+        args["category_id"] = cat["id"]
+
+    args.pop("_location_guess", None)
+    return _build_new_product_preview(args, facts), True
+
+
 def _guardrail_check(tool: str, product: ProductFact, args: Dict[str, Any]):
     guardrails = InventoryGuardrails()
     if tool == "update_stock":
@@ -610,6 +868,21 @@ def _execute_pending(action: Dict[str, Any], facts: InventoryFacts, company_id: 
     """Run a previously previewed action against fresh facts."""
     tool = action["tool"]
     args = action["args"]
+
+    if tool == "create_product":
+        result = writes.create_product(company_id=company_id, **args)
+        if not result.get("success"):
+            return (
+                f"I couldn't create that product: {result.get('error', 'unknown error')}.",
+                {"tool": tool, "result": result},
+            )
+        where = f" at {result['location']}" if result.get("location") else ""
+        return (
+            f"Added **{result['product_name']}** to your catalog with "
+            f"**{result['quantity']} units**{where}.",
+            {"tool": tool, "result": result},
+        )
+
     product = facts.lookup(action["barcode"]) or facts.by_id(action.get("product_id", ""))
     if product is None:
         return (
@@ -620,7 +893,11 @@ def _execute_pending(action: Dict[str, Any], facts: InventoryFacts, company_id: 
 
     if tool == "update_stock":
         result = writes.update_stock(
-            product, int(args["qty_change"]), args.get("reason", "AI adjustment"), company_id
+            product,
+            int(args["qty_change"]),
+            args.get("reason", "AI adjustment"),
+            company_id,
+            location=args.get("location") or None,
         )
     elif tool == "create_purchase_order":
         result = writes.create_purchase_order(
@@ -689,6 +966,47 @@ async def execution_agent_node(state: GraphState) -> GraphState:
     # or a name and carries no quantity, so the action has to be recovered from
     # the request that triggered the question — otherwise picking a product
     # just prints its details and the original intent is quietly dropped.
+    # Collecting the fields for a new product takes several turns. The draft is
+    # kept so each answer adds to it, instead of every reply being read as a
+    # fresh, contextless request.
+    draft_open = bool(pending and pending.get("tool") == "__new_product__")
+    if draft_open and is_cancellation(question):
+        pending_actions.clear(company_id, session_id)
+        state["generation"] = "Cancelled — no product was created."
+        state["executed_actions"] = []
+        state["response_kind"] = "prose"
+        state["answered_by"] = "pending"
+        return state
+
+    if draft_open or _NEW_PRODUCT_RE.search(question):
+        draft = dict((pending or {}).get("draft") or {})
+        draft.update(
+            _extract_product_fields(question, facts, have_name=bool(draft.get("name")))
+        )
+        message, ready = _vet_new_product(draft, facts)
+        if ready:
+            pending_actions.clear(company_id, session_id)
+            action = {
+                "tool": "create_product",
+                "args": draft,
+                "barcode": draft.get("barcode", ""),
+                "product_id": "",
+                "product_name": draft.get("name", ""),
+            }
+            pending_actions.put(company_id, session_id, action)
+            state["pending_action"] = action
+            state["response_kind"] = "preview"
+        else:
+            pending_actions.put(
+                company_id, session_id, {"tool": "__new_product__", "draft": draft}
+            )
+            state["response_kind"] = "clarification"
+        state["generation"] = message
+        state["executed_actions"] = []
+        state["answered_by"] = "deterministic"
+        state["llm_calls"] = 0
+        return state
+
     if pending and pending.get("tool") == "__clarify__":
         if is_cancellation(question):
             pending_actions.clear(company_id, session_id)
@@ -803,8 +1121,26 @@ async def execution_agent_node(state: GraphState) -> GraphState:
         "tool once you know the product and quantity.\n"
         "5. Stock levels are already given above — do not call tools to re-read "
         "what you can see.\n"
-        "6. Be brief and concrete."
+        "6. To add a product that does not exist yet, call create_product. "
+        "Search first — if something close already exists, adjust its stock "
+        "instead of creating a duplicate.\n"
+        "7. Never invent a location, category, price or barcode. Omit what you "
+        "were not told and it will be asked for; a plausible-looking guess is "
+        "worse than a question because it silently corrupts stock valuation.\n"
+        "8. When a product holds stock in more than one location, pass the "
+        "location on update_stock.\n"
+        "9. Be brief and concrete."
     )
+
+    draft = state.get("new_product_draft")
+    if draft:
+        system += (
+            "\n\nYou are part-way through adding a new product. Collected so far: "
+            + json.dumps(draft)
+            + ". The user's message answers whichever field is still missing. "
+            "Call create_product again with everything you now know — including "
+            "the values already collected — and do not ask for what you already have."
+        )
 
     messages: List[Any] = [SystemMessage(content=system)]
     messages.extend(sanitize_history(state.get("history")))
@@ -844,6 +1180,31 @@ async def execution_agent_node(state: GraphState) -> GraphState:
                 result = run_read_tool(name, args, facts)
                 messages.append(ToolMessage(content=_json(result), tool_call_id=call_id))
                 continue
+
+            # Creating a product has no existing SKU to resolve; it is checked
+            # for completeness and for accidentally duplicating one instead.
+            if name == "create_product":
+                draft = dict(state.get("new_product_draft") or {})
+                # Later turns supply one field at a time; keep everything
+                # already gathered rather than starting over.
+                draft.update({k: v for k, v in args.items() if v not in ("", None)})
+                args = draft
+                generation, ready = _vet_new_product(args, facts)
+                if not ready:
+                    pending_actions.put(
+                        company_id, session_id,
+                        {"tool": "__new_product__", "draft": args},
+                    )
+                if ready:
+                    action = {"tool": name, "args": args, "barcode": args.get("barcode", ""),
+                              "product_id": "", "product_name": args.get("name", "")}
+                    pending_actions.put(company_id, session_id, action)
+                    state["pending_action"] = action
+                    state["response_kind"] = "preview"
+                else:
+                    state["response_kind"] = "clarification"
+                wrote_preview = True
+                break
 
             resolution = _resolver(facts).resolve(str(args.get("product", "")))
             if resolution.status == "ambiguous":
@@ -970,6 +1331,16 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         "4. Lead with the number that answers the question. At most three short "
         "paragraphs. No preamble, no disclaimers."
     )
+
+    draft = state.get("new_product_draft")
+    if draft:
+        system += (
+            "\n\nYou are part-way through adding a new product. Collected so far: "
+            + json.dumps(draft)
+            + ". The user's message answers whichever field is still missing. "
+            "Call create_product again with everything you now know — including "
+            "the values already collected — and do not ask for what you already have."
+        )
 
     messages: List[Any] = [SystemMessage(content=system)]
     messages.extend(sanitize_history(state.get("history")))
