@@ -91,20 +91,21 @@ class WarehouseZonesScreen extends StatelessWidget {
                       padding: EdgeInsets.all(
                         Responsive.horizontalPadding(context),
                       ),
-                      children: grouped.entries.toList().asMap().entries.map((
-                        e,
-                      ) {
-                        final entry = e.value;
-                        return FadeSlideIn(
-                          index: e.key,
-                          child: _buildLocationSection(
-                            context,
-                            entry.key,
-                            entry.value,
-                            locations,
-                          ),
-                        );
-                      }).toList(),
+                      children: [
+                        _WarehouseSummary(zones: zones),
+                        ...grouped.entries.toList().asMap().entries.map((e) {
+                          final entry = e.value;
+                          return FadeSlideIn(
+                            index: e.key,
+                            child: _buildLocationSection(
+                              context,
+                              entry.key,
+                              entry.value,
+                              locations,
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   ),
                 ),
@@ -132,12 +133,18 @@ class WarehouseZonesScreen extends StatelessWidget {
                 color: AppTheme.primaryColor,
               ),
               const SizedBox(width: 8),
-              Text(
-                locationName,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPri(context),
+              // Unbounded before: a long location name pushed the badge off
+              // the row on a phone.
+              Expanded(
+                child: Text(
+                  locationName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPri(context),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -156,6 +163,34 @@ class WarehouseZonesScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              // How full this location is, so the one that needs attention is
+              // visible without opening every zone.
+              if (warehouseCapacityOf(zones).capacity > 0) ...[
+                const SizedBox(width: 6),
+                Builder(
+                  builder: (context) {
+                    final use = warehouseCapacityOf(zones);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: use.color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${use.percent}% full',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: use.color,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -616,6 +651,205 @@ class _ZoneFormSheetState extends State<_ZoneFormSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Capacity across a set of zones, and the colour that describes it.
+///
+/// Same thresholds the individual zone cards use, so a location badge and the
+/// cards inside it can never disagree about what "nearly full" means.
+class WarehouseCapacity {
+  const WarehouseCapacity({
+    required this.capacity,
+    required this.used,
+    required this.overCapacity,
+  });
+
+  final int capacity;
+  final int used;
+
+  /// Zones holding more than they are rated for.
+  final int overCapacity;
+
+  double get ratio => capacity > 0 ? (used / capacity).clamp(0.0, 1.0) : 0.0;
+  int get percent => (ratio * 100).round();
+  int get free => capacity - used < 0 ? 0 : capacity - used;
+
+  Color get color => ratio > 0.9
+      ? AppTheme.dangerColor
+      : ratio > 0.7
+      ? AppTheme.warningColor
+      : AppTheme.successColor;
+}
+
+WarehouseCapacity warehouseCapacityOf(List<WarehouseZoneModel> zones) {
+  var capacity = 0;
+  var used = 0;
+  var over = 0;
+  for (final z in zones) {
+    capacity += z.capacity;
+    used += z.currentStock;
+    if (z.capacity > 0 && z.currentStock > z.capacity) over++;
+  }
+  return WarehouseCapacity(
+    capacity: capacity,
+    used: used,
+    overCapacity: over,
+  );
+}
+
+/// Overview of the whole warehouse: how many zones, how full, and whether
+/// anything is over its rated capacity.
+class _WarehouseSummary extends StatelessWidget {
+  const _WarehouseSummary({required this.zones});
+
+  final List<WarehouseZoneModel> zones;
+
+  @override
+  Widget build(BuildContext context) {
+    final use = warehouseCapacityOf(zones);
+    final active = zones.where((z) => z.isActive).length;
+    final locations = zones
+        .map((z) => z.locationName.isNotEmpty ? z.locationName : 'Unassigned')
+        .toSet()
+        .length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: GlassPanel(
+        useContentVariant: true,
+        borderRadius: 14,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Warehouse overview',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (use.overCapacity > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.dangerColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${use.overCapacity} over capacity',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.dangerColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 18,
+              runSpacing: 10,
+              children: [
+                _SummaryStat(label: 'Zones', value: '${zones.length}'),
+                _SummaryStat(label: 'Active', value: '$active'),
+                _SummaryStat(label: 'Locations', value: '$locations'),
+                if (use.capacity > 0)
+                  _SummaryStat(
+                    label: 'Space free',
+                    value: '${use.free}',
+                    color: use.color,
+                  ),
+              ],
+            ),
+            // Only meaningful once at least one zone is rated, so it is hidden
+            // rather than shown as a misleading 0%.
+            if (use.capacity > 0) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: use.ratio,
+                        minHeight: 8,
+                        backgroundColor: AppTheme.textSec(
+                          context,
+                        ).withValues(alpha: 0.15),
+                        valueColor: AlwaysStoppedAnimation(use.color),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${use.percent}%',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: use.color,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${use.used} of ${use.capacity} units of rated space in use',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryStat extends StatelessWidget {
+  const _SummaryStat({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 84,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
