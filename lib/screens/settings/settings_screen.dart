@@ -2579,13 +2579,11 @@ class _SettingsSectionBlock extends StatefulWidget {
   final String title;
   final Color accentColor;
   final List<Widget> children;
-  final bool initiallyExpanded;
 
   const _SettingsSectionBlock({
     required this.title,
     required this.accentColor,
     required this.children,
-    this.initiallyExpanded = false,
   });
 
   @override
@@ -2593,7 +2591,10 @@ class _SettingsSectionBlock extends StatefulWidget {
 }
 
 class _SettingsSectionBlockState extends State<_SettingsSectionBlock> {
-  late bool _expanded = widget.initiallyExpanded;
+  // Sections open by default: settings are there to be found, and every one
+  // being collapsed meant hunting through headers to see what exists. Folding
+  // is still one tap for anyone who wants the overview.
+  bool _expanded = true;
 
   void _toggle() {
     HapticFeedback.selectionClick();
