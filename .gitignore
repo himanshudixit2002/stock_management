@@ -63,3 +63,6 @@ rag_backend/cache.db
 rag_backend/inventory_db.json
 rag_backend/__pycache__/
 rag_backend/venv/
+
+# Firebase CLI deploy cache
+.firebase/
