@@ -81,24 +81,39 @@ service cloud.firestore {
       );
     }
 
-    // Self-serve profile/workspace updates must not rewrite identity or permission overrides.
-    // Self-serve profile/workspace updates must not rewrite identity or
-    // permission overrides. Switching workspaces legitimately rewrites
-    // companyId/role/roleId (see AuthService.switchCompany), so those stay
-    // writable — but companyId may only move to a workspace already listed in
-    // companyMemberships.
+    // Is there a server-verified membership record for this user in
+    // [companyId]? Member docs can only be created by naming a join code that
+    // really maps to the company, or by the company's own creator — unlike
+    // companyMemberships on the user doc, which the client writes about itself.
+    function hasMemberDoc(companyId) {
+      return exists(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
+    }
+
+    // Self-serve profile/workspace updates must not grant privileges.
     //
-    // KNOWN GAP: companyMemberships is itself self-written (join-by-code and
-    // createAdditionalCompany write it from the client), so a determined user
-    // can append a membership for a workspace they do not belong to and then
-    // switch into it. Closing this requires membership to become server-side
-    // truth — see the `members` subcollection note below. Do not treat this
-    // function as a tenant-isolation boundary until that lands.
+    // Two things are gated, because together they were a one-step workspace
+    // takeover: set role:'admin' on your own doc, which makes isAdmin() true,
+    // which unlocks the admin branch of every other rule.
+    //
+    //  * role/roleId may only become privileged for a workspace the company
+    //    doc says you created (server-side truth, not a claim). Switching into
+    //    a workspace where you are staff/viewer/manager is unaffected.
+    //  * companyId may only move to a workspace you hold a member doc for.
+    //    companyMemberships is self-written and cannot gate this: forging an
+    //    entry would otherwise let you switch into any workspace and read it.
+    //
+    // Users whose memberships predate member docs keep working on their
+    // current workspace (companyId unchanged is always allowed); switching
+    // needs scripts/migrate_members.js to have run.
     function selfUserUpdateDoesNotEscalate() {
       return !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['email', 'uid', 'createdAt', 'permissions'])
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['role', 'roleId'])
+            || request.resource.data.role in ['staff', 'viewer', 'manager']
+            || isCompanyCreator(request.resource.data.companyId))
         && (request.resource.data.companyId == resource.data.companyId
-            || hasMembershipForCompany(request.resource.data.companyId));
+            || hasMemberDoc(request.resource.data.companyId));
     }
 
     function canReadCompanyDoc(companyId) {
@@ -141,10 +156,22 @@ service cloud.firestore {
       // for a workspace the company doc already says they created (adminUid is
       // server-side truth, not a client assertion). Everyone else lands as a
       // non-privileged member with no per-user permission overrides.
-      allow create: if isAuthenticated() && request.auth.uid == userId
-        && request.resource.data.permissions.size() == 0
-        && (request.resource.data.role in ['staff', 'viewer', 'manager']
-            || isCompanyCreator(request.resource.data.companyId));
+      allow create: if isAuthenticated() && (
+        // Self-bootstrap: a user may create their own doc, but only as a
+        // non-privileged member — unless the company doc already names them as
+        // its creator, which is server-side truth rather than a claim.
+        (request.auth.uid == userId
+          && request.resource.data.permissions.size() == 0
+          && (request.resource.data.role in ['staff', 'viewer', 'manager']
+              || isCompanyCreator(request.resource.data.companyId)))
+        // An admin provisioning a teammate may set any role. AuthService
+        // signs back in as the admin before writing, so this is the branch
+        // that covers staff creation.
+        || (belongsToCompany(request.resource.data.companyId)
+            && (isAdmin()
+                || hasPermission(request.resource.data.companyId,
+                                 'canManageUsers')))
+      );
 
       allow update: if (isAuthenticated() && request.auth.uid == userId &&
           selfUserUpdateDoesNotEscalate()) ||

@@ -290,18 +290,35 @@ class AuthService {
           companyMemberships: [membership],
         );
 
-        await _firestore
-            .collection('users')
-            .doc(result.user!.uid)
-            .set(userModel.toMap());
-
         staffUser = userModel;
       }
 
+      // Sign back in as the admin BEFORE writing the new user's doc.
+      //
+      // createUserWithEmailAndPassword leaves the *new* user signed in, so
+      // writing here would be a self-create — and a self-create may not claim
+      // a privileged role (that is the escalation the rules close). The admin
+      // provisioning the account is the one entitled to set any role, so the
+      // write has to happen under their session.
       await _auth.signInWithEmailAndPassword(
         email: adminEmail,
         password: adminPassword,
       );
+
+      if (staffUser != null) {
+        await _firestore
+            .collection('users')
+            .doc(staffUser.uid)
+            .set(staffUser.toMap());
+        await _ensureMemberDoc(
+          companyId: companyId,
+          uid: staffUser.uid,
+          role: staffUser.role,
+          roleId: staffUser.roleId,
+          email: staffUser.email,
+          name: staffUser.name,
+        );
+      }
 
       return staffUser;
     } catch (e) {
@@ -617,12 +634,35 @@ class AuthService {
     required String role,
     String roleId = '',
   }) async {
-    await _firestore.collection('users').doc(uid).update({
-      'companyId': companyId,
-      'companyName': companyName,
-      'role': role,
-      'roleId': roleId,
-    });
+    // Switching now requires a server-verified member doc for the target
+    // workspace (see selfUserUpdateDoesNotEscalate in firestore.rules).
+    // Memberships that predate member docs have none, so try to create one
+    // first: the rules accept this for a workspace the user actually created,
+    // which self-heals every owner without waiting for the backfill. Staff on
+    // older memberships still need scripts/migrate_members.js to have run.
+    await _ensureMemberDoc(
+      companyId: companyId,
+      uid: uid,
+      role: role,
+      roleId: roleId,
+    );
+
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'companyId': companyId,
+        'companyName': companyName,
+        'role': role,
+        'roleId': roleId,
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw Exception(
+          'You are not recorded as a member of $companyName yet. Ask an admin '
+          'for the join code, or have them re-add you.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<String> generateInviteCode({
