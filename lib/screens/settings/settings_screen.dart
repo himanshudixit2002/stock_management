@@ -505,31 +505,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Plan',
             accentColor: AppTheme.infoColor,
             children: [
-              ListTile(
-                dense: true,
-                leading: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: AppTheme.infoColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    color: AppTheme.infoColor,
-                    size: 18,
-                  ),
-                ),
-                title: Text(
-                  plan.label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  plan.definition.description,
-                  style: const TextStyle(fontSize: 11),
-                ),
+              _SettingsTile(
+                icon: Icons.workspace_premium_rounded,
+                iconColor: AppTheme.infoColor,
+                title: '${plan.label} plan',
+                subtitle: 'See everything included and what you can access',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.planFeatures),
               ),
             ],
           );

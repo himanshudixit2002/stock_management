@@ -96,6 +96,7 @@ class AppRoutes {
   static const String help = '/help';
   static const String homeCustomization = '/settings/home-customization';
   static const String dataHealth = '/settings/data-health';
+  static const String planFeatures = '/settings/plan';
   static const String superAdmin = '/super-admin';
   static const String superAdminCompany = '/super-admin/company';
   static const String roles = '/roles';

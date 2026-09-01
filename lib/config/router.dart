@@ -75,6 +75,7 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/about/about_screen.dart';
 import '../screens/settings/home_customization_screen.dart';
 import '../screens/settings/data_health_screen.dart';
+import '../screens/settings/plan_features_screen.dart';
 import '../screens/super_admin/super_admin_dashboard_screen.dart';
 import '../screens/super_admin/super_admin_company_screen.dart';
 import '../models/company_model.dart';
@@ -489,6 +490,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.help => _slideRoute(settings, const HelpScreen()),
     AppRoutes.homeCustomization => _slideRoute(settings, const HomeCustomizationScreen()),
     AppRoutes.dataHealth => _slideRoute(settings, const DataHealthScreen()),
+    AppRoutes.planFeatures => _slideRoute(settings, const PlanFeaturesScreen()),
 
     // -- Super admin (cross-tenant; gated by SuperAdminProvider + rules) --
     AppRoutes.superAdmin => _slideRoute(
