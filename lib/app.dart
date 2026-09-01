@@ -532,15 +532,13 @@ class _AuthWrapperState extends State<AuthWrapper>
       // super admin session never streams a tenant's data it has no reason to
       // load.
       final superAdmin = context.watch<SuperAdminProvider>();
-      if (!superAdmin.isResolved) {
+      final currentUid = authProvider.currentUser?.uid ?? '';
+      if (!superAdmin.isResolvedFor(currentUid)) {
         // One document read. Routing depends on it, so hold the shell rather
         // than showing a frame of the normal app and then replacing it.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          final uid = authProvider.currentUser?.uid ?? '';
-          if (uid.isNotEmpty) {
-            context.read<SuperAdminProvider>().resolveSuperAdmin(uid);
-          }
+          context.read<SuperAdminProvider>().resolveSuperAdmin(currentUid);
         });
         return const Scaffold(
           body: Center(

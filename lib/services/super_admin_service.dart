@@ -13,9 +13,14 @@ import '../models/company_plan_model.dart';
 /// reads and writes simply fail.
 class SuperAdminService {
   SuperAdminService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _injectedFirestore = firestore;
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _injectedFirestore;
+
+  /// Resolved lazily so a subclass that overrides every method it needs can be
+  /// constructed in a test without Firebase being initialised.
+  FirebaseFirestore get _firestore =>
+      _injectedFirestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _companies =>
       _firestore.collection('companies');

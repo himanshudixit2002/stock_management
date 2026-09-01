@@ -17,11 +17,14 @@ class SuperAdminProvider extends ChangeNotifier {
 
   bool _isSuperAdmin = false;
 
-  /// Whether [resolveSuperAdmin] has answered yet. Without this the app cannot
-  /// tell "not checked" from "checked, not a super admin", and a super admin
-  /// would see a frame of the normal app before being routed to the dashboard.
-  bool _resolved = false;
-  bool _resolving = false;
+  /// The uid the current answer belongs to, or null if nothing is resolved.
+  ///
+  /// Keyed by uid rather than a bare bool: signing out and back in as someone
+  /// else reuses this provider instance, and an answer that ignored the uid
+  /// meant the second user inherited the first one's — a normal user landing
+  /// on the super admin dashboard with no way back.
+  String? _resolvedForUid;
+  String? _resolvingUid;
   bool _isLoading = false;
   String? _errorMessage;
   List<CompanyModel> _companies = [];
@@ -34,8 +37,9 @@ class SuperAdminProvider extends ChangeNotifier {
 
   bool get isSuperAdmin => _isSuperAdmin;
 
-  /// True once the super admin check has completed for this session.
-  bool get isResolved => _resolved;
+  /// True once the check has completed *for this user*. Routing depends on it,
+  /// so it must never report a previous user's answer.
+  bool isResolvedFor(String uid) => _resolvedForUid == uid;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<CompanyModel> get companies => _companies;
@@ -62,19 +66,46 @@ class SuperAdminProvider extends ChangeNotifier {
   /// what to render — and it must settle even on failure, or a transient error
   /// would leave the user staring at a spinner forever.
   Future<void> resolveSuperAdmin(String uid) async {
-    if (_resolved || _resolving) return;
-    _resolving = true;
+    if (uid.isEmpty) return;
+    if (_resolvedForUid == uid || _resolvingUid == uid) return;
+
+    // A different user: drop the previous answer and anything streamed under
+    // it before asking again.
+    if (_resolvedForUid != null && _resolvedForUid != uid) {
+      _clearForUserChange();
+    }
+
+    _resolvingUid = uid;
+    var result = false;
     try {
-      _isSuperAdmin = await _service.isSuperAdmin(uid);
+      result = await _service.isSuperAdmin(uid);
     } catch (_) {
       // Treat an unresolvable check as "not a super admin": the normal app is
       // the safe fallback, and the rules deny the dashboard regardless.
-      _isSuperAdmin = false;
+      result = false;
     } finally {
-      _resolving = false;
-      _resolved = true;
-      notifyListeners();
+      // Ignore a late reply for a user who is no longer signed in, or the
+      // answer for the previous account could still land on the new one.
+      if (_resolvingUid == uid) {
+        _resolvingUid = null;
+        _isSuperAdmin = result;
+        _resolvedForUid = uid;
+        notifyListeners();
+      }
     }
+  }
+
+  /// Drops everything tied to the previously resolved user.
+  void _clearForUserChange() {
+    _companiesSubscription?.cancel();
+    _companiesSubscription = null;
+    _isSuperAdmin = false;
+    _resolvedForUid = null;
+    _companies = [];
+    _stats.clear();
+    _statsInFlight.clear();
+    _errorMessage = null;
+    _isLoading = false;
   }
 
   /// Starts streaming the company list. No-op unless this user is a super
@@ -187,8 +218,8 @@ class SuperAdminProvider extends ChangeNotifier {
     _companiesSubscription?.cancel();
     _companiesSubscription = null;
     _isSuperAdmin = false;
-    _resolved = false;
-    _resolving = false;
+    _resolvedForUid = null;
+    _resolvingUid = null;
     _isLoading = false;
     _errorMessage = null;
     _companies = [];
