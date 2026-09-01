@@ -75,6 +75,9 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/about/about_screen.dart';
 import '../screens/settings/home_customization_screen.dart';
 import '../screens/settings/data_health_screen.dart';
+import '../screens/super_admin/super_admin_dashboard_screen.dart';
+import '../screens/super_admin/super_admin_company_screen.dart';
+import '../models/company_model.dart';
 import '../screens/reports/stock_ledger_screen.dart';
 import '../screens/reports/aging_screen.dart';
 import '../screens/billing/payments_ledger_screen.dart';
@@ -486,6 +489,18 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.help => _slideRoute(settings, const HelpScreen()),
     AppRoutes.homeCustomization => _slideRoute(settings, const HomeCustomizationScreen()),
     AppRoutes.dataHealth => _slideRoute(settings, const DataHealthScreen()),
+
+    // -- Super admin (cross-tenant; gated by SuperAdminProvider + rules) --
+    AppRoutes.superAdmin => _slideRoute(
+      settings,
+      const SuperAdminDashboardScreen(),
+    ),
+    AppRoutes.superAdminCompany => _slideRoute(
+      settings,
+      SuperAdminCompanyScreen(
+        company: settings.arguments as CompanyModel,
+      ),
+    ),
     AppRoutes.aging => _slideRoute(settings, const AgingScreen()),
     AppRoutes.creditNote => _slideRoute(
       settings,

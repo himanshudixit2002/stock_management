@@ -31,6 +31,11 @@ async function seed() {
     await setDoc(doc(db,'companies/companyA/notifications/n1'),{title:'Low stock',isRead:false});
     // staffA has a migrated member doc for companyA only.
     await setDoc(doc(db,'companies/companyA/members/staffA'),{uid:'staffA',role:'staff'});
+    // A super admin, and a suspended workspace with a member and some data.
+    await setDoc(doc(db,'superAdmins/root'),{note:'founder'});
+    await setDoc(doc(db,'companies/companyS'),{companyName:'Suspended',adminUid:'ownerS',status:'suspended'});
+    await setDoc(doc(db,'users/staffS'),{uid:'staffS',email:'s@s.com',role:'admin',roleId:'admin',companyId:'companyS',permissions:{},companyMemberships:[{companyId:'companyS'}]});
+    await setDoc(doc(db,'companies/companyS/products/p1'),{name:'Frozen',quantity:1});
   });
 }
 
@@ -108,6 +113,42 @@ await check('admin lists their own companys invites', () =>
   assertSucceeds(getDocs(collection(as('ownerA'),'companies/companyA/invites'))));
 await check('staff reads their own companys products', () =>
   assertSucceeds(getDoc(doc(as('staffA'),'companies/companyA/products/p1'))));
+
+console.log('\n--- SUPER ADMIN BOUNDARY ---');
+await check('a normal user cannot read another companys doc', () =>
+  assertFails(getDoc(doc(as('staffA'),'companies/companyB'))));
+await check('a normal user cannot list companies', () =>
+  assertFails(getDocs(collection(as('staffA'),'companies'))));
+await check('a user cannot make themselves a super admin', () =>
+  assertFails(setDoc(doc(as('staffA'),'superAdmins/staffA'),{note:'me'})));
+await check('a super admin cannot be granted by another super admin either', () =>
+  assertFails(setDoc(doc(as('root'),'superAdmins/staffA'),{note:'promote'})));
+await check('a user cannot enumerate super admins', () =>
+  assertFails(getDocs(collection(as('staffA'),'superAdmins'))));
+await check('a user can check whether they are a super admin', () =>
+  assertSucceeds(getDoc(doc(as('staffA'),'superAdmins/staffA'))));
+await check('super admin lists every company', () =>
+  assertSucceeds(getDocs(collection(as('root'),'companies'))));
+await check('super admin reads inside any company', () =>
+  assertSucceeds(getDoc(doc(as('root'),'companies/companyB/products/p9'))));
+await check('super admin writes inside any company', () =>
+  assertSucceeds(setDoc(doc(as('root'),'companies/companyB/products/pNew'),{name:'X',quantity:1})));
+await check('super admin changes a companys plan', () =>
+  assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{plan:{planId:'free',status:'active'}})));
+await check('super admin suspends a company', () =>
+  assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{status:'suspended'})));
+
+console.log('\n--- SUSPENSION ---');
+await check('a suspended companys member cannot write', () =>
+  assertFails(setDoc(doc(as('staffS'),'companies/companyS/products/p2'),{name:'New',quantity:1})));
+await check('a suspended companys member cannot update either', () =>
+  assertFails(updateDoc(doc(as('staffS'),'companies/companyS/products/p1'),{quantity:99})));
+await check('a suspended companys member can still READ their own data', () =>
+  assertSucceeds(getDoc(doc(as('staffS'),'companies/companyS/products/p1'))));
+await check('super admin can still write to a suspended company (to lift it)', () =>
+  assertSucceeds(updateDoc(doc(as('root'),'companies/companyS'),{status:'active'})));
+await check('an active companys member is unaffected', () =>
+  assertSucceeds(setDoc(doc(as('ownerA'),'companies/companyA/products/pOk'),{name:'Ok',quantity:1})));
 
 await env.cleanup();
 console.log(`\n${pass} passed, ${fail} failed`);

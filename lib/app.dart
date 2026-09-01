@@ -29,6 +29,8 @@ import 'providers/price_history_provider.dart';
 import 'providers/warehouse_zone_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/home_customization_provider.dart';
+import 'providers/super_admin_provider.dart';
+import 'models/company_model.dart';
 import 'providers/billing_provider.dart';
 import 'providers/billing_settings_provider.dart';
 import 'providers/role_provider.dart';
@@ -96,6 +98,7 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => BillingProvider()),
         ChangeNotifierProvider(create: (_) => BillingSettingsProvider()),
         ChangeNotifierProvider(create: (_) => RoleProvider()),
+        ChangeNotifierProvider(create: (_) => SuperAdminProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
       ],
       child: Consumer<ThemeProvider>(
@@ -301,6 +304,7 @@ class _AuthWrapperState extends State<AuthWrapper>
     context.read<RoleProvider>().reset();
     context.read<FavoritesProvider>().reset();
     context.read<HomeCustomizationProvider>().reset();
+    context.read<SuperAdminProvider>().reset();
     _providersInitializing = false;
   }
 
@@ -424,6 +428,14 @@ class _AuthWrapperState extends State<AuthWrapper>
       // Full-catalog analytics fills in the dashboard/report numbers; the Home
       // shell already shows cached/first-page stats until this lands.
       context.read<ProductProvider>().loadAnalytics();
+
+      // One document read that decides whether the super admin entry point
+      // exists for this session. Backgrounded because nothing on the Home
+      // shell waits on it.
+      final uid = context.read<AuthProvider>().currentUser?.uid ?? '';
+      if (uid.isNotEmpty) {
+        context.read<SuperAdminProvider>().resolveSuperAdmin(uid);
+      }
     });
   }
 
@@ -655,6 +667,18 @@ class _AuthWrapperState extends State<AuthWrapper>
         }
       }
 
+      // A workspace suspended or deleted by a platform admin. The rules
+      // already refuse its writes (companyActive), so without this the user
+      // would just hit permission errors with no explanation.
+      final workspaceSettings = context.watch<SettingsProvider>();
+      if (!workspaceSettings.isWorkspaceUsable) {
+        return _WorkspaceUnavailableScreen(
+          status: workspaceSettings.workspaceStatus,
+          note: workspaceSettings.workspaceStatusNote,
+          onSignOut: () => context.read<AuthProvider>().logout(),
+        );
+      }
+
       // PopScope must live on the AuthWrapper route (the actual navigator entry).
       // HomeScreen is only a child widget — its PopScope never ran when the
       // browser back button popped this route, which threw users off the site.
@@ -751,6 +775,73 @@ class _ProviderInitErrorScreen extends StatelessWidget {
                     vertical: 14,
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown in place of the app when the active workspace has been suspended or
+/// deleted. Read access still works (suspension is enforced on writes only), so
+/// this explains the state rather than leaving the user with failing actions.
+class _WorkspaceUnavailableScreen extends StatelessWidget {
+  const _WorkspaceUnavailableScreen({
+    required this.status,
+    required this.note,
+    required this.onSignOut,
+  });
+
+  final CompanyStatus status;
+  final String note;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final suspended = status == CompanyStatus.suspended;
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                suspended
+                    ? Icons.pause_circle_rounded
+                    : Icons.remove_circle_rounded,
+                size: 64,
+                color: suspended
+                    ? AppTheme.warningColor
+                    : AppTheme.dangerColor,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                suspended ? 'Workspace suspended' : 'Workspace unavailable',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                note.isNotEmpty
+                    ? note
+                    : suspended
+                    ? 'This workspace has been suspended and cannot record new '
+                          'data. Please contact support.'
+                    : 'This workspace is no longer available. Please contact '
+                          'support.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 28),
+              OutlinedButton.icon(
+                onPressed: onSignOut,
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Sign out'),
               ),
             ],
           ),

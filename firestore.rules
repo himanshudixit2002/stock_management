@@ -116,6 +116,30 @@ service cloud.firestore {
             || hasMemberDoc(request.resource.data.companyId));
     }
 
+    // Super admin allowlist. No client can write /superAdmins, so membership
+    // here cannot be self-granted the way companyMemberships could — that is
+    // the whole reason this is a separate collection rather than a field.
+    // Grant it from the Firebase console or the Admin SDK only.
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+    }
+
+    // A suspended or deleted workspace stops accepting new data.
+    //
+    // Applied to writes only, never reads: rules get() calls are billed as
+    // document reads and these rules already spend 1-3 per evaluation, so
+    // gating reads too would be a large across-the-board cost increase for a
+    // control that only needs to stop new data. A suspended tenant keeps read
+    // access to its own books and is shown the reason.
+    //
+    // Absent status means active — every company doc created before this
+    // existed has no status field.
+    function companyActive(companyId) {
+      let company = get(/databases/$(database)/documents/companies/$(companyId)).data;
+      return !('status' in company) || company.status == 'active';
+    }
+
     function canReadCompanyDoc(companyId) {
       return isAuthenticated() && userDocExists() &&
         (belongsToCompany(companyId) || hasMembershipForCompany(companyId));
@@ -144,6 +168,14 @@ service cloud.firestore {
     function companyPermanentJoinCodeUpdateOnly() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly(['permanentJoinCode']);
+    }
+
+    // Super admin allowlist. Readable only by the subject (so the app can ask
+    // "am I one?"), never listable, and never writable from a client.
+    match /superAdmins/{uid} {
+      allow get: if isAuthenticated() && request.auth.uid == uid;
+      allow list: if false;
+      allow write: if false;
     }
 
     // Users collection (root level)
@@ -221,12 +253,17 @@ service cloud.firestore {
 
     // Companies collection
     match /companies/{companyId} {
-      allow read: if canReadCompanyDoc(companyId);
+      allow read: if canReadCompanyDoc(companyId) || isSuperAdmin();
+      // Enumerating tenants is impossible without this: a collection query has
+      // no companyId for canReadCompanyDoc to check.
+      allow list: if isSuperAdmin();
       allow create: if isAuthenticated();
       allow update: if (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageCompanySettings'))) ||
-        (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly());
-      allow delete: if belongsToCompany(companyId) && isAdmin();
+        (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly()) ||
+        isSuperAdmin();
+      allow delete: if (belongsToCompany(companyId) && isAdmin()) ||
+        isSuperAdmin();
 
       // Members subcollection — server-side truth for "who belongs to this
       // workspace".
@@ -288,9 +325,11 @@ service cloud.firestore {
       // Products subcollection
       match /products/{productId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canAddProducts'));
-        allow update: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddProducts')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canEditProducts') ||
            hasPermission(companyId, 'canStockIn') ||
            hasPermission(companyId, 'canStockOut') ||
@@ -306,9 +345,10 @@ service cloud.firestore {
            hasPermission(companyId, 'canDispatchSalesOrders') ||
            hasPermission(companyId, 'canCancelSalesOrders') ||
            hasPermission(companyId, 'canReceivePurchaseOrders') ||
-           hasPermission(companyId, 'canProcessReturns'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeleteProducts'));
+           hasPermission(companyId, 'canProcessReturns')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteProducts')));
       }
 
       // Categories subcollection
@@ -321,7 +361,8 @@ service cloud.firestore {
       // Transactions subcollection
       match /transactions/{transactionId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() ||
            hasPermission(companyId, 'canStockIn') ||
            hasPermission(companyId, 'canStockOut') ||
@@ -333,90 +374,109 @@ service cloud.firestore {
            hasPermission(companyId, 'canReleaseStock') ||
            hasPermission(companyId, 'canConfirmSalesOrders') ||
            hasPermission(companyId, 'canDispatchSalesOrders') ||
-           hasPermission(companyId, 'canCancelSalesOrders'));
-        allow update, delete: if belongsToCompany(companyId) && isAdmin();
+           hasPermission(companyId, 'canCancelSalesOrders')));
+        allow update, delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
       }
 
       // Stock Holds subcollection
       match /stockHolds/{holdId} {
         allow read: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canViewStockHolds'));
-        allow create: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() ||
            hasPermission(companyId, 'canHoldStock') ||
-           hasPermission(companyId, 'canConfirmSalesOrders'));
-        allow update: if belongsToCompany(companyId) &&
+           hasPermission(companyId, 'canConfirmSalesOrders')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() ||
            hasPermission(companyId, 'canReleaseStock') ||
            hasPermission(companyId, 'canHoldStock') ||
            hasPermission(companyId, 'canConfirmSalesOrders') ||
            hasPermission(companyId, 'canEditSalesOrders') ||
            hasPermission(companyId, 'canDispatchSalesOrders') ||
-           hasPermission(companyId, 'canCancelSalesOrders'));
-        allow delete: if belongsToCompany(companyId) && isAdmin();
+           hasPermission(companyId, 'canCancelSalesOrders')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
       }
 
       // Vendors subcollection
       match /vendors/{vendorId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canAddVendors'));
-        allow update: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canEditVendors'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeleteVendors'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddVendors')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditVendors')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteVendors')));
       }
 
       // Purchase Orders subcollection
       match /purchaseOrders/{orderId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canCreatePurchaseOrders'));
-        allow update: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreatePurchaseOrders')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canEditPurchaseOrders') ||
            hasPermission(companyId, 'canApprovePurchaseOrders') ||
            hasPermission(companyId, 'canReceivePurchaseOrders') ||
-           hasPermission(companyId, 'canCancelPurchaseOrders'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeletePurchaseOrders'));
+           hasPermission(companyId, 'canCancelPurchaseOrders')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeletePurchaseOrders')));
       }
 
       // Sales Orders subcollection
       match /salesOrders/{orderId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canCreateSalesOrders'));
-        allow update: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateSalesOrders')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canEditSalesOrders') ||
            hasPermission(companyId, 'canConfirmSalesOrders') ||
            hasPermission(companyId, 'canDispatchSalesOrders') ||
            hasPermission(companyId, 'canDeliverSalesOrders') ||
-           hasPermission(companyId, 'canCancelSalesOrders'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeleteSalesOrders'));
+           hasPermission(companyId, 'canCancelSalesOrders')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteSalesOrders')));
       }
 
       // Returns subcollection
       match /returns/{returnId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canCreateReturns'));
-        allow update: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateReturns')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canApproveReturns') ||
            hasPermission(companyId, 'canRejectReturns') ||
-           hasPermission(companyId, 'canProcessReturns'));
-        allow delete: if belongsToCompany(companyId) && isAdmin();
+           hasPermission(companyId, 'canProcessReturns')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
       }
 
       // Customers subcollection
       match /customers/{customerId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canAddCustomers'));
-        allow update: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canEditCustomers'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeleteCustomers'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canAddCustomers')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canEditCustomers')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteCustomers')));
       }
 
       // Batches subcollection
@@ -451,13 +511,16 @@ service cloud.firestore {
       match /invoices/{invoiceId} {
         allow read: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canViewInvoices'));
-        allow create: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canCreateInvoices'));
-        allow update: if belongsToCompany(companyId) &&
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateInvoices')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canEditInvoices') ||
-           hasPermission(companyId, 'canRecordPayments'));
-        allow delete: if belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canDeleteInvoices'));
+           hasPermission(companyId, 'canRecordPayments')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canDeleteInvoices')));
       }
 
       // Audit Logs subcollection (append-only, no edits/deletes)
@@ -501,6 +564,17 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
         allow update, delete: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
+      }
+
+      // Super admin: full control over everything under a company.
+      //
+      // Rules OR together, so this grants without weakening any rule above —
+      // and being a single scoped block it stays auditable, rather than
+      // sprinkling isSuperAdmin() through forty allow clauses. It also sits
+      // outside companyActive(), which is deliberate: a suspension has to be
+      // liftable.
+      match /{document=**} {
+        allow read, write: if isSuperAdmin();
       }
 
       // In-app feedback subcollection (append-only; any member may submit,

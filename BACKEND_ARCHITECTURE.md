@@ -177,3 +177,52 @@ of the visible token stream and delivered only in the final `answer`.
 Cloud Run, `asia-south1`, `--min-instances=1` (no cold starts) and `--cpu-boost`.
 Set `GEMINI_API_KEY` explicitly rather than relying on the fall-through to
 Vertex, so provider attribution is unambiguous.
+
+## Super admin
+
+Platform-wide administration (the `/super-admin` dashboard) is gated on a
+document existing at:
+
+```
+superAdmins/{uid}
+```
+
+The document's contents are irrelevant — the security rules only test that it
+exists (`isSuperAdmin()` in `firestore.rules`). Any field will do, e.g.
+`{ note: 'founder' }`.
+
+**Nothing in the app can create this document.** `/superAdmins` is
+`allow write: if false` for every client, including existing super admins, so
+the only ways to grant it are the Firebase console or the Admin SDK. That is
+deliberate: it is the one privilege that crosses the tenant boundary, so it
+must not be grantable by anything a compromised session could reach.
+
+To grant it, add the document by hand in the console under the user's auth uid.
+To revoke, delete the document — it takes effect on their next request, with no
+sign-out required.
+
+A super admin holds full read/write over every company, via a single scoped
+wildcard (`match /companies/{companyId}/{document=**}`) at the end of the
+companies block. That rule sits outside `companyActive()`, so a suspended
+workspace can always be reactivated.
+
+## Company lifecycle and plans
+
+Company docs carry two fields the app treats as optional, because every company
+created before this feature has neither:
+
+- `status` — `active` (default when absent) | `suspended` | `deleted`.
+  `companyActive()` in the rules blocks **writes** for anything not active.
+  Reads are deliberately left alone: rules `get()` calls are billed as document
+  reads, and gating reads too would be a large across-the-board cost for a
+  control that only needs to stop new data. A suspended tenant keeps read
+  access to its own books and is shown the reason.
+- `plan` — `{ planId, status, startedAt, note }`, defaulting to the free plan
+  when absent. **Nothing enforces a plan today**; `PlanDefinition.limits` is
+  carried but read by nothing. Paid tiers are added to `PlanCatalog`
+  (`lib/models/company_plan_model.dart`) and need no data migration.
+
+Deleting a company from the dashboard is a *soft* delete (sets `status`), which
+is reversible. The irreversible purge is a separate action, only reachable once
+a workspace is already deleted, and both require typing the workspace name.
+There are no backups configured on this project.

@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/super_admin_provider.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
@@ -496,6 +497,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     UserModel user,
   ) {
     return [
+      // The workspace's own plan, read-only. Tenants can see their tier; only
+      // a platform admin can change it.
+      Builder(
+        builder: (context) {
+          final plan = context.watch<SettingsProvider>().plan;
+          return _SettingsSectionBlock(
+            title: 'Plan',
+            accentColor: AppTheme.infoColor,
+            children: [
+              ListTile(
+                dense: true,
+                leading: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: AppTheme.infoColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: AppTheme.infoColor,
+                    size: 18,
+                  ),
+                ),
+                title: Text(
+                  plan.label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  plan.definition.description,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      const SizedBox(height: 12),
       _SettingsSectionBlock(
         title: 'Appearance',
         accentColor: AppTheme.accentColor,
@@ -612,6 +653,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+      // Cross-tenant platform administration. Gated on a superAdmins/{uid} doc
+      // rather than on AppPermissions, which is per-company role permission —
+      // the wrong axis entirely for a capability that spans every workspace.
+      // The security rules enforce the same check independently.
+      if (context.watch<SuperAdminProvider>().isSuperAdmin) ...[
+        _SettingsSectionBlock(
+          title: 'Platform',
+          accentColor: AppTheme.dangerColor,
+          children: [
+            _SettingsTile(
+              icon: Icons.admin_panel_settings_rounded,
+              iconColor: AppTheme.dangerColor,
+              title: 'Super Admin',
+              subtitle: 'Manage every workspace and its plan',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.superAdmin),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
       if (user.isAdmin) ...[
         _SettingsSectionBlock(
           title: 'Features',

@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../models/company_model.dart';
+import '../models/company_plan_model.dart';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,6 +17,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _vendorsEnabled = true;
   bool _barcodeEnabled = true;
   bool _initialized = false;
+
+  /// The company doc itself, for its plan and lifecycle status. Null until the
+  /// first load completes.
+  CompanyModel? _company;
   String? _errorMessage;
   String? _warningMessage;
   List<String> _companies = [];
@@ -26,6 +32,22 @@ class SettingsProvider extends ChangeNotifier {
   bool get barcodeEnabled => _barcodeEnabled;
   bool get isInitialized => _initialized;
   String? get errorMessage => _errorMessage;
+
+  CompanyModel? get company => _company;
+
+  /// The plan this workspace is on. Free until proven otherwise, so the UI
+  /// never renders a blank badge while the company doc is still loading.
+  CompanyPlan get plan => _company?.plan ?? const CompanyPlan();
+
+  /// False when the workspace has been suspended or deleted by a platform
+  /// admin. Writes are already blocked by companyActive() in firestore.rules;
+  /// this is what lets the app say so instead of surfacing permission errors.
+  bool get isWorkspaceUsable => _company?.isUsable ?? true;
+
+  CompanyStatus get workspaceStatus =>
+      _company?.status ?? CompanyStatus.active;
+
+  String get workspaceStatusNote => _company?.statusNote ?? '';
   String? get warningMessage => _warningMessage;
   List<String> get companies => List.unmodifiable(_companies);
   List<String> get sizes => List.unmodifiable(_sizes);
@@ -43,6 +65,7 @@ class SettingsProvider extends ChangeNotifier {
   String get companyId => _companyId;
 
   void reset() {
+    _company = null;
     _companyId = '';
     _pricingEnabled = true;
     _vendorsEnabled = true;
@@ -91,6 +114,9 @@ class SettingsProvider extends ChangeNotifier {
       final doc = await _companyDoc.get();
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>?;
+        // The company doc is already being read here, so pick up its lifecycle
+        // status too rather than paying for a second read elsewhere.
+        _company = CompanyModel.fromMap(data ?? const {}, doc.id);
         if (data != null && data.containsKey('settings')) {
           final settings = data['settings'] as Map<String, dynamic>? ?? {};
           _pricingEnabled = settings['pricingEnabled'] != false;
