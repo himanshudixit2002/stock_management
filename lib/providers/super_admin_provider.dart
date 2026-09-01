@@ -16,6 +16,12 @@ class SuperAdminProvider extends ChangeNotifier {
   final SuperAdminService _service;
 
   bool _isSuperAdmin = false;
+
+  /// Whether [resolveSuperAdmin] has answered yet. Without this the app cannot
+  /// tell "not checked" from "checked, not a super admin", and a super admin
+  /// would see a frame of the normal app before being routed to the dashboard.
+  bool _resolved = false;
+  bool _resolving = false;
   bool _isLoading = false;
   String? _errorMessage;
   List<CompanyModel> _companies = [];
@@ -27,6 +33,9 @@ class SuperAdminProvider extends ChangeNotifier {
   final Set<String> _statsInFlight = {};
 
   bool get isSuperAdmin => _isSuperAdmin;
+
+  /// True once the super admin check has completed for this session.
+  bool get isResolved => _resolved;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<CompanyModel> get companies => _companies;
@@ -48,11 +57,24 @@ class SuperAdminProvider extends ChangeNotifier {
   }
 
   /// Resolves whether this user is a super admin. Called once after sign-in.
+  ///
+  /// Routing depends on the answer, so this must run before the app decides
+  /// what to render — and it must settle even on failure, or a transient error
+  /// would leave the user staring at a spinner forever.
   Future<void> resolveSuperAdmin(String uid) async {
-    final result = await _service.isSuperAdmin(uid);
-    if (result == _isSuperAdmin) return;
-    _isSuperAdmin = result;
-    notifyListeners();
+    if (_resolved || _resolving) return;
+    _resolving = true;
+    try {
+      _isSuperAdmin = await _service.isSuperAdmin(uid);
+    } catch (_) {
+      // Treat an unresolvable check as "not a super admin": the normal app is
+      // the safe fallback, and the rules deny the dashboard regardless.
+      _isSuperAdmin = false;
+    } finally {
+      _resolving = false;
+      _resolved = true;
+      notifyListeners();
+    }
   }
 
   /// Starts streaming the company list. No-op unless this user is a super
@@ -165,6 +187,8 @@ class SuperAdminProvider extends ChangeNotifier {
     _companiesSubscription?.cancel();
     _companiesSubscription = null;
     _isSuperAdmin = false;
+    _resolved = false;
+    _resolving = false;
     _isLoading = false;
     _errorMessage = null;
     _companies = [];

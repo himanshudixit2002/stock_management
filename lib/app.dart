@@ -31,6 +31,7 @@ import 'providers/favorites_provider.dart';
 import 'providers/home_customization_provider.dart';
 import 'providers/super_admin_provider.dart';
 import 'models/company_model.dart';
+import 'screens/super_admin/super_admin_dashboard_screen.dart';
 import 'providers/billing_provider.dart';
 import 'providers/billing_settings_provider.dart';
 import 'providers/role_provider.dart';
@@ -428,14 +429,6 @@ class _AuthWrapperState extends State<AuthWrapper>
       // Full-catalog analytics fills in the dashboard/report numbers; the Home
       // shell already shows cached/first-page stats until this lands.
       context.read<ProductProvider>().loadAnalytics();
-
-      // One document read that decides whether the super admin entry point
-      // exists for this session. Backgrounded because nothing on the Home
-      // shell waits on it.
-      final uid = context.read<AuthProvider>().currentUser?.uid ?? '';
-      if (uid.isNotEmpty) {
-        context.read<SuperAdminProvider>().resolveSuperAdmin(uid);
-      }
     });
   }
 
@@ -533,6 +526,38 @@ class _AuthWrapperState extends State<AuthWrapper>
     if (authProvider.isLoggedIn) {
       final currentCompanyId = authProvider.currentUser!.companyId;
       final settings = context.read<SettingsProvider>();
+
+      // Platform administrators get the super admin dashboard and nothing
+      // else. Decided here, before any company provider is initialised, so a
+      // super admin session never streams a tenant's data it has no reason to
+      // load.
+      final superAdmin = context.watch<SuperAdminProvider>();
+      if (!superAdmin.isResolved) {
+        // One document read. Routing depends on it, so hold the shell rather
+        // than showing a frame of the normal app and then replacing it.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final uid = authProvider.currentUser?.uid ?? '';
+          if (uid.isNotEmpty) {
+            context.read<SuperAdminProvider>().resolveSuperAdmin(uid);
+          }
+        });
+        return const Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ),
+        );
+      }
+      if (superAdmin.isSuperAdmin) {
+        return const SuperAdminDashboardScreen();
+      }
 
       // A genuine company SWITCH (already bound to a *different* company) must
       // hard-reset and reload to avoid showing the previous tenant's data. The

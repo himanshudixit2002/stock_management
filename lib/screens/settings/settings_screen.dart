@@ -8,7 +8,6 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../../providers/super_admin_provider.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
@@ -653,26 +652,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      // Cross-tenant platform administration. Gated on a superAdmins/{uid} doc
-      // rather than on AppPermissions, which is per-company role permission —
-      // the wrong axis entirely for a capability that spans every workspace.
-      // The security rules enforce the same check independently.
-      if (context.watch<SuperAdminProvider>().isSuperAdmin) ...[
-        _SettingsSectionBlock(
-          title: 'Platform',
-          accentColor: AppTheme.dangerColor,
-          children: [
-            _SettingsTile(
-              icon: Icons.admin_panel_settings_rounded,
-              iconColor: AppTheme.dangerColor,
-              title: 'Super Admin',
-              subtitle: 'Manage every workspace and its plan',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.superAdmin),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-      ],
       if (user.isAdmin) ...[
         _SettingsSectionBlock(
           title: 'Features',

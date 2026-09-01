@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/company_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/super_admin_provider.dart';
+import '../../utils/dialogs.dart';
 import '../../utils/date_formats.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -71,11 +73,31 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const AppBarTitleRow(
           icon: Icons.admin_panel_settings_rounded,
           color: AppTheme.infoColor,
           title: 'Super Admin',
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout_rounded),
+            // This screen replaces the whole app for a platform admin, so it
+            // carries its own sign-out — Settings is never reachable from here.
+            onPressed: () async {
+              final confirmed = await showConfirmDialog(
+                context,
+                title: 'Sign out?',
+                message: 'You will be returned to the login screen.',
+                confirmLabel: 'Sign out',
+                icon: Icons.logout_rounded,
+              );
+              if (!confirmed || !context.mounted) return;
+              await context.read<AuthProvider>().logout();
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
