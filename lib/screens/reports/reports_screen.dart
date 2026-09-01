@@ -197,21 +197,28 @@ class _ReportsScreenState extends State<ReportsScreen>
             subtitle: 'Select a tab below or choose a deep report shortcut.',
             shortcuts: reportShortcuts,
             actions: [
-              // Date chip — tappable, compact
+              // Date chip — tappable, compact, polished
               GestureDetector(
                 onTap: _showDateRangeSheet,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.25)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: 11, color: AppTheme.primaryColor),
-                      const SizedBox(width: 4),
+                      Icon(Icons.calendar_today_rounded, size: 12, color: AppTheme.primaryColor),
+                      const SizedBox(width: 5),
                       Text(
                         dateLabel,
                         style: TextStyle(
@@ -220,7 +227,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                           color: AppTheme.primaryColor,
                         ),
                       ),
-                      Icon(Icons.arrow_drop_down, size: 14, color: AppTheme.primaryColor),
+                      Icon(Icons.arrow_drop_down_rounded, size: 16, color: AppTheme.primaryColor),
                     ],
                   ),
                 ),
@@ -236,25 +243,61 @@ class _ReportsScreenState extends State<ReportsScreen>
             ],
           ),
 
-          // ── Compact tab bar ──
+          // ── Polished Tab bar ──
           TabBar(
             controller: _tabController,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+            labelPadding: const EdgeInsets.symmetric(horizontal: 10),
             indicatorSize: TabBarIndicatorSize.label,
             indicatorColor: AppTheme.primaryColor,
             indicatorWeight: 2.5,
             labelColor: AppTheme.primaryColor,
             unselectedLabelColor: AppTheme.textSec(context),
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            unselectedLabelStyle: const TextStyle(fontSize: 13),
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+            unselectedLabelStyle: const TextStyle(fontSize: 12.5),
             tabs: const [
-              Tab(text: 'Summary'),
-              Tab(text: 'Builder'),
-              Tab(text: 'Charts'),
-              Tab(text: 'Forecast'),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.summarize_rounded, size: 14),
+                    SizedBox(width: 5),
+                    Text('Summary'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.tune_rounded, size: 14),
+                    SizedBox(width: 5),
+                    Text('Builder'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.insights_rounded, size: 14),
+                    SizedBox(width: 5),
+                    Text('Charts'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.speed_rounded, size: 14),
+                    SizedBox(width: 5),
+                    Text('Forecast'),
+                  ],
+                ),
+              ),
             ],
           ),
           const Divider(height: 1, thickness: 0.5),

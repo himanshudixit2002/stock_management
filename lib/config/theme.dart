@@ -314,7 +314,16 @@ class AppTheme {
     return Icons.check_circle_rounded;
   }
 
-  static ThemeData get lightTheme {
+  /// Built once and reused.
+  ///
+  /// This was a getter, so every rebuild of the `Consumer<ThemeProvider>` that
+  /// wraps `MaterialApp` constructed a brand-new [ThemeData] — including a
+  /// `ColorScheme.fromSeed`, which runs the Material 3 HCT algorithm to derive
+  /// thirteen tonal palettes. Both themes were rebuilt each time, on the
+  /// startup path, for a value that never changes.
+  static final ThemeData lightTheme = _buildLightTheme();
+
+  static ThemeData _buildLightTheme() {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -542,7 +551,10 @@ class AppTheme {
     );
   }
 
-  static ThemeData get darkTheme {
+  /// Built once and reused — see [lightTheme].
+  static final ThemeData darkTheme = _buildDarkTheme();
+
+  static ThemeData _buildDarkTheme() {
     const darkBg = Color(0xFF121212);
     const darkSurface = Color(0xFF1E1E1E);
     const darkCard = Color(0xFF252525);

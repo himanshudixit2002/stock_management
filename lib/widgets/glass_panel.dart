@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,12 +5,17 @@ import '../config/motion.dart';
 import '../config/theme.dart';
 import '../utils/responsive.dart';
 
-/// A frosted glass panel using BackdropFilter for liquid glass effect.
-/// On native platforms, skips BackdropFilter to avoid black backdrop artifacts.
+/// A raised surface panel.
+///
+/// This used to apply a `BackdropFilter` frosted-glass blur on web (native
+/// skipped it to avoid black backdrop artifacts). That was the app's single
+/// largest source of web jank: on CanvasKit every `BackdropFilter` forces a
+/// `saveLayer` and re-blurs everything painted behind it on each dirty frame,
+/// and there are ~155 of these across the app — ten at once on a screen like
+/// invoice detail. Web now renders the same opaque surface as native.
 class GlassPanel extends StatelessWidget {
   final Widget child;
   final double borderRadius;
-  final double? blurSigma;
   final EdgeInsetsGeometry? padding;
   final Border? border;
 
@@ -22,7 +26,6 @@ class GlassPanel extends StatelessWidget {
     super.key,
     required this.child,
     this.borderRadius = 16,
-    this.blurSigma,
     this.padding,
     this.border,
     this.useContentVariant = false,
@@ -30,39 +33,28 @@ class GlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sigma = blurSigma ?? 4.0;
     final surface = useContentVariant
-        ? (kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context))
-        : (kIsWeb ? AppTheme.glassSurface(context) : AppTheme.surface(context));
+        ? AppTheme.glassContent(context)
+        : AppTheme.surface(context);
     final borderColor = useContentVariant
         ? AppTheme.glassBorderCont(context)
-        : (kIsWeb ? AppTheme.glassBorder(context) : AppTheme.dividerC(context));
+        : AppTheme.dividerC(context);
 
-    final container = Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: border ?? Border.all(color: borderColor, width: 1),
-        boxShadow: kIsWeb
-            ? null
-            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
-      ),
-      child: child,
-    );
-
-    if (kIsWeb) {
-      return RepaintBoundary(
-        child: ClipRRect(
+    // No ClipRRect/BackdropFilter: an opaque, rounded DecoratedBox paints in a
+    // single draw call with no saveLayer, where the blurred version cost a
+    // full-region backdrop read + blur every frame the panel was dirty.
+    return RepaintBoundary(
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: surface,
           borderRadius: BorderRadius.circular(borderRadius),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-            child: container,
-          ),
+          border: border ?? Border.all(color: borderColor, width: 1),
+          boxShadow: AppTheme.isDark(context) ? [] : AppTheme.cardShadow,
         ),
-      );
-    }
-    return RepaintBoundary(child: container);
+        child: child,
+      ),
+    );
   }
 }
 
@@ -109,13 +101,12 @@ class _GlassCardState extends State<GlassCard> {
 
   @override
   Widget build(BuildContext context) {
-    final sigma = 4.0;
     final surface = widget.useContentVariant
-        ? (kIsWeb ? AppTheme.glassContent(context) : AppTheme.surface(context))
-        : (kIsWeb ? AppTheme.glassSurface(context) : AppTheme.surface(context));
+        ? AppTheme.glassContent(context)
+        : AppTheme.surface(context);
     final baseBorderColor = widget.useContentVariant
         ? AppTheme.glassBorderCont(context)
-        : (kIsWeb ? AppTheme.glassBorder(context) : AppTheme.dividerC(context));
+        : AppTheme.dividerC(context);
 
     final borderColor = (kIsWeb && _isHovered && widget.onTap != null)
         ? AppTheme.primaryColor.withValues(alpha: 0.5)
@@ -131,33 +122,24 @@ class _GlassCardState extends State<GlassCard> {
           color: borderColor,
           width: _isHovered && kIsWeb ? 1.5 : 1,
         ),
-        boxShadow: kIsWeb
-            ? (_isHovered && widget.onTap != null
-                  ? [
-                      BoxShadow(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null)
+        boxShadow: (kIsWeb && _isHovered && widget.onTap != null)
+            ? [
+                BoxShadow(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ]
             : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
       ),
       child: widget.child,
     );
 
-    final Widget panel;
-    if (kIsWeb) {
-      panel = ClipRRect(
-        borderRadius: BorderRadius.circular(widget.borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: container,
-        ),
-      );
-    } else {
-      panel = container;
-    }
+    // Opaque surface on every platform — see [GlassPanel] for why the web
+    // BackdropFilter was removed. Cards are the worst case for it: they appear
+    // many-per-screen inside scrolling lists, so every scroll frame re-blurred
+    // the backdrop once per visible card.
+    final Widget panel = container;
 
     if (widget.onTap != null) {
       final interactive = Semantics(
@@ -221,7 +203,6 @@ class GlassSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sigma = 4.0;
 
     final content = Container(
       decoration: BoxDecoration(
@@ -281,15 +262,7 @@ class GlassSectionCard extends StatelessWidget {
       ),
     );
 
-    if (kIsWeb) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: content,
-        ),
-      );
-    }
+    // Opaque on web too — see [GlassPanel] for why the BackdropFilter went.
     return content;
   }
 }

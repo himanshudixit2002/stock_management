@@ -52,17 +52,17 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return switch (widget.layout) {
-          ShimmerLayout.stat => _buildStatLayout(),
-          ShimmerLayout.listTile => _buildListTileLayout(),
-          ShimmerLayout.card => _buildCardLayout(),
-          ShimmerLayout.detail => _buildDetailLayout(),
-        };
-      },
-    );
+    // The AnimatedBuilder used to wrap the whole switch, so every frame of the
+    // shimmer rebuilt and re-laid-out the entire skeleton — including a
+    // `shrinkWrap: true` ListView, which measures every child on each pass.
+    // Only the gradient actually animates, so the animation now lives inside
+    // [_shimmerBox]; the structure is built once.
+    return switch (widget.layout) {
+      ShimmerLayout.stat => _buildStatLayout(),
+      ShimmerLayout.listTile => _buildListTileLayout(),
+      ShimmerLayout.card => _buildCardLayout(),
+      ShimmerLayout.detail => _buildDetailLayout(),
+    };
   }
 
   Widget _buildCardLayout() {
@@ -155,8 +155,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     required double height,
     required double borderRadius,
   }) {
-    final value = reduceMotion(context) ? 0.5 : _curved.value;
-    return Container(
+    Widget box(double value) => Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
@@ -170,6 +169,14 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
             AppTheme.dividerC(context),
           ],
         ),
+      ),
+    );
+
+    if (reduceMotion(context)) return box(0.5);
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _curved,
+        builder: (_, _) => box(_curved.value),
       ),
     );
   }

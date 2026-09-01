@@ -1334,11 +1334,25 @@ class DatabaseService {
     // loops previously fetched the same products, doubling the billed reads.
     final reservationDocs = <String, Map<String, dynamic>>{};
 
-    for (final productId in allProductIds) {
+    // Fetched in parallel: one product per round-trip meant confirming a
+    // 20-line order sat waiting on twenty sequential reads before the
+    // availability check could even start.
+    final reserveIds = [
+      for (final productId in allProductIds)
+        if ((nextQtyByProduct[productId] ?? 0) -
+                (prevQtyByProduct[productId] ?? 0) >
+            0)
+          productId,
+    ];
+    final reserveSnaps = await Future.wait(
+      reserveIds.map((id) => _products.doc(id).get()),
+    );
+
+    for (var i = 0; i < reserveIds.length; i++) {
+      final productId = reserveIds[i];
       final delta = (nextQtyByProduct[productId] ?? 0) -
           (prevQtyByProduct[productId] ?? 0);
-      if (delta <= 0) continue;
-      final productSnap = await _products.doc(productId).get();
+      final productSnap = reserveSnaps[i];
       if (!productSnap.exists) {
         throw Exception('Product not found for sales order reservation.');
       }
@@ -2457,9 +2471,17 @@ class DatabaseService {
     if (receivedByProduct.isEmpty) {
       throw Exception('Enter a quantity to receive.');
     }
+    // Read every product in parallel. These reads are independent, so awaiting
+    // them one at a time cost one full round-trip per line item — a 30-line
+    // order spent seconds just waiting before anything was written.
+    final receivedIds = receivedByProduct.keys.toList();
+    final receivedSnaps = await Future.wait(
+      receivedIds.map((id) => _products.doc(id).get()),
+    );
     final mergedLocations = <String, Map<String, int>>{};
-    for (final productId in receivedByProduct.keys) {
-      final snap = await _products.doc(productId).get();
+    for (var i = 0; i < receivedIds.length; i++) {
+      final productId = receivedIds[i];
+      final snap = receivedSnaps[i];
       if (!snap.exists) {
         throw Exception('Product not found while receiving this order.');
       }
@@ -2531,34 +2553,49 @@ class DatabaseService {
 
     await batch.commit();
 
-    // Update product costPrice if PO unit price differs
-    for (var i = 0; i < po.items.length; i++) {
-      final item = po.items[i];
-      if (item.unitPrice <= 0 || acceptedFor(i, item) <= 0) continue;
-      final productDoc = await _products.doc(item.productId).get();
+    // Update product costPrice if PO unit price differs. Reads first, all in
+    // parallel, then the writes in parallel — this used to be read-write,
+    // read-write, serially down the whole order.
+    final costItems = [
+      for (var i = 0; i < po.items.length; i++)
+        if (po.items[i].unitPrice > 0 && acceptedFor(i, po.items[i]) > 0)
+          po.items[i],
+    ];
+    final costDocs = await Future.wait(
+      costItems.map((item) => _products.doc(item.productId).get()),
+    );
+    final costWrites = <Future<void>>[];
+    for (var i = 0; i < costItems.length; i++) {
+      final item = costItems[i];
+      final productDoc = costDocs[i];
       if (!productDoc.exists) continue;
       final data = productDoc.data()!;
       final currentCost = (data['costPrice'] as num?)?.toDouble() ?? 0.0;
       if ((currentCost - item.unitPrice).abs() > 0.001) {
-        await _products.doc(item.productId).update({
-          'costPrice': item.unitPrice,
-          'updatedAt': Timestamp.now(),
-        });
-        await addPriceHistory(
-          PriceHistoryModel(
-            id: '',
-            productId: item.productId,
-            productName: item.productName,
-            field: 'costPrice',
-            oldValue: currentCost,
-            newValue: item.unitPrice,
-            changedBy: userId,
-            changedByName: userName,
-            timestamp: DateTime.now(),
+        costWrites.add(
+          _products.doc(item.productId).update({
+            'costPrice': item.unitPrice,
+            'updatedAt': Timestamp.now(),
+          }),
+        );
+        costWrites.add(
+          addPriceHistory(
+            PriceHistoryModel(
+              id: '',
+              productId: item.productId,
+              productName: item.productName,
+              field: 'costPrice',
+              oldValue: currentCost,
+              newValue: item.unitPrice,
+              changedBy: userId,
+              changedByName: userName,
+              timestamp: DateTime.now(),
+            ),
           ),
         );
       }
     }
+    await Future.wait(costWrites);
   }
 
   // ==================== SALES ORDERS ====================

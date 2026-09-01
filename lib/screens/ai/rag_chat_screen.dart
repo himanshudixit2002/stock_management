@@ -1,6 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:async';
-import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -660,9 +659,7 @@ class _RagChatScreenState extends State<RagChatScreen> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: AppBar(
+          child: AppBar(
               leading: const BackButton(),
               title: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -713,7 +710,6 @@ class _RagChatScreenState extends State<RagChatScreen> {
                 )
               ],
             ),
-          ),
         ),
       ),
       body: Container(
@@ -836,12 +832,10 @@ class _RagChatScreenState extends State<RagChatScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
+          child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.surface(context).withValues(alpha: 0.9),
+                color: AppTheme.surface(context),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: AppTheme.glassBorder(context), width: 1.5),
               ),
@@ -912,7 +906,6 @@ class _RagChatScreenState extends State<RagChatScreen> {
                 ],
               ),
             ),
-          ),
         ),
       ),
     );
@@ -941,10 +934,8 @@ class _QuickActionChip extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Material(
-            color: AppTheme.surface(context).withValues(alpha: 0.85),
+        child: Material(
+            color: AppTheme.surface(context),
             child: InkWell(
               onTap: onTap,
               child: Container(
@@ -967,7 +958,6 @@ class _QuickActionChip extends StatelessWidget {
               ),
             ),
           ),
-        ),
       ),
     );
   }

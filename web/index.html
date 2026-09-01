@@ -30,9 +30,20 @@
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://apis.google.com">
 
-  <!-- Start fetching the Flutter bootstrap and splash icon immediately, before HTML parsing completes -->
-  <link rel="preload" as="script" href="flutter_bootstrap.js" crossorigin>
+  <!-- Start fetching the splash icon immediately, before HTML parsing completes.
+       The Flutter loader itself is inlined at the bottom of <body>, so there is
+       no flutter_bootstrap.js request to preload. -->
   <link rel="preload" as="image" href="icons/Icon-192.png" fetchpriority="high">
+
+  <!-- The Firebase JS SDK is injected at runtime by firebase_core, which only
+       happens *after* main.dart.js has downloaded, parsed and booted (~1.4s in).
+       Preloading it here overlaps that download with the main bundle instead of
+       queueing behind it. The version is pinned by the firebase_core package —
+       bump it here when upgrading firebase_core. A stale URL costs only an
+       unused-preload console warning, never a broken load. -->
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -124,6 +135,58 @@
       setTimeout(hideStockmgmtHtmlSplash, 20000);
     })();
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>{{flutter_js}}</script>
+  <script>{{flutter_build_config}}</script>
+  <script>
+    (function () {
+      // Preload CanvasKit before the loader asks for it. The engine only
+      // requests it once main.dart.js is running, which serialises ~1.5MB of
+      // wasm behind ~1MB of JS. Mirrors the variant selection in flutter.js:
+      // canvaskit.js is a dynamic `import()` (hence modulepreload) and
+      // canvaskit.wasm is a cors-mode `fetch()` (hence as=fetch + crossorigin).
+      try {
+        var cfg = window._flutter && _flutter.buildConfig;
+        var rev = cfg && cfg.engineRevision;
+        if (rev && !cfg.useLocalCanvasKit) {
+          var chromium =
+            typeof ImageDecoder !== 'undefined' &&
+            typeof Intl.v8BreakIterator !== 'undefined' &&
+            typeof Intl.Segmenter !== 'undefined';
+          var base = 'https://www.gstatic.com/flutter-canvaskit/' + rev + '/' +
+            (chromium ? 'chromium/' : '');
+          [['canvaskit.js', 'modulepreload'], ['canvaskit.wasm', 'preload']]
+            .forEach(function (p) {
+              var l = document.createElement('link');
+              l.rel = p[1];
+              if (p[1] === 'preload') l.as = 'fetch';
+              l.href = base + p[0];
+              l.crossOrigin = 'anonymous';
+              document.head.appendChild(l);
+            });
+        }
+      } catch (e) { /* preload is best-effort; never block startup on it */ }
+
+      // Deliberately NO serviceWorkerSettings here. Passing it makes
+      // FlutterLoader `await` service-worker registration + the update check
+      // before it will even *request* main.dart.js — measured at a reproducible
+      // ~1.7s of dead time on every single load, warm cache included. We
+      // register the worker by hand once the app is running instead, which
+      // keeps offline-first PWA behaviour at zero startup cost.
+      _flutter.loader.load({
+        onEntrypointLoaded: async function (engineInitializer) {
+          var appRunner = await engineInitializer.initializeEngine();
+          await appRunner.runApp();
+          if ('serviceWorker' in navigator) {
+            var v = _flutter.buildConfig.serviceWorkerVersion;
+            navigator.serviceWorker
+              .register('flutter_service_worker.js?v=' + v)
+              .catch(function (e) {
+                console.warn('Service worker registration failed:', e);
+              });
+          }
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

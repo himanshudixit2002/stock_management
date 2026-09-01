@@ -130,49 +130,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       // Greeting hero header
                       ScaleFadeIn(
-                        child: GlassPanel(
-                          padding: const EdgeInsets.all(16),
-                          useContentVariant: true,
-                          child: Row(
-                            children: [
-                              const AnimatedIconBadge(
-                                icon: Icons.waving_hand_rounded,
-                                color: AppTheme.primaryColor,
-                                size: 44,
+                        child: Builder(
+                          builder: (context) {
+                            final hour = DateTime.now().hour;
+                            final timeGreeting = hour < 12
+                                ? 'Good morning'
+                                : (hour < 17
+                                    ? 'Good afternoon'
+                                    : 'Good evening');
+                            final timeIcon = hour < 12
+                                ? Icons.wb_sunny_rounded
+                                : (hour < 17
+                                    ? Icons.wb_sunny_outlined
+                                    : Icons.nights_stay_rounded);
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
+                              child: GlassPanel(
+                                padding: const EdgeInsets.all(16),
+                                borderRadius: 18,
+                                useContentVariant: true,
+                                child: Row(
                                   children: [
-                                    Selector<AuthProvider, String>(
-                                      selector: (_, auth) =>
-                                          auth.currentUser?.name ?? 'User',
-                                      builder: (context, name, _) => Text(
-                                        'Hi, $name',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.headlineSmall?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        gradient: AppTheme.heroGradient,
+                                        borderRadius: BorderRadius.circular(14),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        timeIcon,
+                                        color: AppTheme.onGradient,
+                                        size: 24,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      today,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Selector<AuthProvider, String>(
+                                            selector: (_, auth) =>
+                                                auth.currentUser?.name ?? 'User',
+                                            builder: (context, name, _) => Text(
+                                              '$timeGreeting, $name',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleLarge?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: -0.3,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            today,
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: AppTheme.textSec(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -790,27 +836,41 @@ class _StatCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                color.withValues(alpha: 0.12),
-                color.withValues(alpha: 0.06),
+                color.withValues(alpha: 0.14),
+                color.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(icon, color: color, size: 20),
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: color, size: 17),
+                  ),
                   if (onTap != null) ...[
                     const Spacer(),
                     Icon(
-                      Icons.arrow_forward_ios,
-                      size: 12,
-                      color: color.withValues(alpha: 0.5),
+                      Icons.arrow_forward_ios_rounded,
+                      size: 11,
+                      color: color.withValues(alpha: 0.6),
                     ),
                   ],
                 ],
@@ -819,7 +879,7 @@ class _StatCard extends StatelessWidget {
               CountUpText(
                 int.tryParse(value) ?? 0,
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 21,
                   fontWeight: FontWeight.w800,
                   color: color,
                   letterSpacing: -0.5,
@@ -831,9 +891,9 @@ class _StatCard extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 13,
-                  color: color.withValues(alpha: 0.85),
-                  fontWeight: FontWeight.w500,
+                  fontSize: 12.5,
+                  color: color.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -871,15 +931,31 @@ class _QuickActionCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.dividerC(context)),
+            border: Border.all(color: color.withValues(alpha: 0.16)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
@@ -893,11 +969,12 @@ class _QuickActionCard extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 1),
               Text(
                 subtitle,
                 style: TextStyle(
                   color: AppTheme.textSec(context),
-                  fontSize: 12,
+                  fontSize: 11.5,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1030,8 +1107,14 @@ class _TodayChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: 0.18),
+            color.withValues(alpha: 0.08),
+          ],
+        ),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
         label,

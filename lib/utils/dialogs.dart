@@ -1,6 +1,4 @@
-import 'dart:ui';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config/motion.dart';
@@ -47,13 +45,11 @@ Future<T?> _showAppDialog<T>(
           child: child,
         ),
       );
-      if (kIsWeb) {
-        final sigma = 6.0 * animation.value;
-        result = BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: result,
-        );
-      }
+      // No animated BackdropFilter on web. Ramping the blur sigma with the
+      // transition meant re-blurring the entire page behind the dialog on
+      // every frame of the open/close animation — the worst case for
+      // CanvasKit, and the thing that made dialogs feel like they stuttered
+      // open. The fade + scale carries the transition on its own.
       return result;
     },
   );

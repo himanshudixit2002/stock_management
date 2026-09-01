@@ -21,6 +21,11 @@ class SettingsProvider extends ChangeNotifier {
   /// The company doc itself, for its plan and lifecycle status. Null until the
   /// first load completes.
   CompanyModel? _company;
+
+  /// The raw `settings` sub-map from the company doc, kept so other providers
+  /// can reuse this read instead of fetching `companies/{id}` again. Null until
+  /// the doc has been read successfully.
+  Map<String, dynamic>? _rawSettings;
   String? _errorMessage;
   String? _warningMessage;
   List<String> _companies = [];
@@ -34,6 +39,10 @@ class SettingsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   CompanyModel? get company => _company;
+
+  /// The raw `settings` map from the company doc, or null if it has not been
+  /// read successfully yet. Callers that get null must fetch it themselves.
+  Map<String, dynamic>? get rawSettings => _rawSettings;
 
   /// The plan this workspace is on. Free until proven otherwise, so the UI
   /// never renders a blank badge while the company doc is still loading.
@@ -66,6 +75,7 @@ class SettingsProvider extends ChangeNotifier {
 
   void reset() {
     _company = null;
+    _rawSettings = null;
     _companyId = '';
     _pricingEnabled = true;
     _vendorsEnabled = true;
@@ -98,6 +108,7 @@ class SettingsProvider extends ChangeNotifier {
     _sizes = [];
     _locations = [];
     _errorMessage = null;
+    _rawSettings = null;
 
     // Seed feature toggles from the last-known cache so the Home grid gates
     // features correctly on first paint (no flash of actions that get hidden
@@ -117,6 +128,9 @@ class SettingsProvider extends ChangeNotifier {
         // The company doc is already being read here, so pick up its lifecycle
         // status too rather than paying for a second read elsewhere.
         _company = CompanyModel.fromMap(data ?? const {}, doc.id);
+        // Hand the raw map to [BillingSettingsProvider] so startup reads
+        // `companies/{id}` once instead of twice.
+        _rawSettings = data?['settings'] as Map<String, dynamic>? ?? const {};
         if (data != null && data.containsKey('settings')) {
           final settings = data['settings'] as Map<String, dynamic>? ?? {};
           _pricingEnabled = settings['pricingEnabled'] != false;

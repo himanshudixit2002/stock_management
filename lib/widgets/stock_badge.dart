@@ -113,11 +113,18 @@ class _StockBadgeState extends State<StockBadge>
       );
     }
 
+    // The pulse repaints continuously for as long as the badge is on screen.
+    // Without a RepaintBoundary that dirty rect propagates to the enclosing
+    // layer, so a product list with several low-stock items repainted the
+    // whole list at 60fps while sitting idle. The boundary confines each
+    // pulse to its own badge.
     final content = (_shouldPulse && !reduceMotion(context))
-        ? AnimatedBuilder(
-            animation: _controller,
-            builder: (_, _) =>
-                badge(Curves.easeInOut.transform(_controller.value)),
+        ? RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (_, _) =>
+                  badge(Curves.easeInOut.transform(_controller.value)),
+            ),
           )
         : badge(0);
 

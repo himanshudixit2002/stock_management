@@ -101,20 +101,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
         controller: _searchController,
         onChanged: (v) => setState(() => _query = v),
         textInputAction: TextInputAction.search,
+        style: const TextStyle(fontSize: 13.5),
         decoration: InputDecoration(
-          hintText: 'Search settings',
-          prefixIcon: const Icon(Icons.search_rounded),
+          hintText: 'Search settings...',
+          hintStyle: TextStyle(fontSize: 13, color: AppTheme.textTer(context)),
+          prefixIcon: Icon(Icons.search_rounded, size: 19, color: AppTheme.iconMute(context)),
           isDense: true,
           filled: true,
+          fillColor: AppTheme.surface(context),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: AppTheme.dividerC(context).withValues(alpha: 0.4)),
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: AppTheme.dividerC(context).withValues(alpha: 0.4)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           suffixIcon: _query.isEmpty
               ? null
               : IconButton(
                   tooltip: 'Clear',
-                  icon: const Icon(Icons.clear_rounded),
+                  icon: const Icon(Icons.clear_rounded, size: 18),
                   onPressed: () {
                     _searchController.clear();
                     setState(() => _query = '');
@@ -308,13 +320,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               statusBarColor: Colors.transparent,
             ),
       child: body,
-    );
-  }
-
-  EdgeInsets _settingsSwitchContentPadding(BuildContext context) {
-    return EdgeInsets.symmetric(
-      horizontal: _settingsWebLux(context) ? 18 : 12,
-      vertical: 0,
     );
   }
 
@@ -527,93 +532,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
     UserModel user,
     String initials,
   ) {
-    return GlassPanel(
-      borderRadius: 14,
-      useContentVariant: true,
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _showEditProfileDialog(context),
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: AppTheme.heroGradient,
-                  ),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.transparent,
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: AppTheme.isDark(context) ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: GlassPanel(
+        borderRadius: 16,
+        useContentVariant: true,
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showEditProfileDialog(context),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Stack(
                     children: [
-                      Text(
-                        user.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPri(context),
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppTheme.heroGradient,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Colors.transparent,
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.onGradient,
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 1),
-                      Text(
-                        user.email,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSec(context),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: AppTheme.successColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppTheme.surface(context),
+                              width: 2,
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    user.isAdmin ? 'ADMIN' : user.role.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryColor,
-                      letterSpacing: 0.8,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          user.name,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPri(context),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 1.5),
+                        Text(
+                          user.email,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSec(context),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: AppTheme.iconMute(context),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Text(
+                      user.isAdmin ? 'ADMIN' : user.role.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primaryColor,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: AppTheme.iconMute(context),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -772,11 +819,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Consumer<SettingsProvider>(
               builder: (context, settings, _) => SwitchListTile(
                 dense: true,
+                visualDensity: const VisualDensity(vertical: -1),
                 secondary: Container(
-                  padding: const EdgeInsets.all(5),
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.successColor.withValues(
+                      alpha: settings.pricingEnabled ? 0.18 : 0.10,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.successColor.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.attach_money_rounded,
@@ -786,12 +845,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 title: const Text(
                   'Enable Pricing',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
                   'Show cost & selling price on products',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -808,7 +867,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 0,
+                  vertical: 1,
                 ),
               ),
             ),
@@ -816,11 +875,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Consumer<SettingsProvider>(
               builder: (context, settings, _) => SwitchListTile(
                 dense: true,
+                visualDensity: const VisualDensity(vertical: -1),
                 secondary: Container(
-                  padding: const EdgeInsets.all(5),
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppTheme.indigoColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.indigoColor.withValues(
+                      alpha: settings.vendorsEnabled ? 0.18 : 0.10,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.indigoColor.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.local_shipping_rounded,
@@ -830,12 +901,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 title: const Text(
                   'Enable Vendors',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
                   'Track vendor assignments & costs',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -852,7 +923,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 0,
+                  vertical: 1,
                 ),
               ),
             ),
@@ -860,11 +931,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Consumer<SettingsProvider>(
               builder: (context, settings, _) => SwitchListTile(
                 dense: true,
+                visualDensity: const VisualDensity(vertical: -1),
                 secondary: Container(
-                  padding: const EdgeInsets.all(5),
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.warningColor.withValues(
+                      alpha: settings.barcodeEnabled ? 0.18 : 0.10,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.warningColor.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.qr_code_scanner,
@@ -874,12 +957,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 title: const Text(
                   'Enable Barcode Scanner',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
                   'Scan & manage product barcodes',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: AppTheme.textTer(context),
                   ),
                 ),
@@ -896,7 +979,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 0,
+                  vertical: 1,
                 ),
               ),
             ),
@@ -906,26 +989,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final billingSettings = context
                     .watch<BillingSettingsProvider>();
                 return SwitchListTile(
+                  dense: true,
+                  visualDensity: const VisualDensity(vertical: -1),
                   secondary: Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AppTheme.successColor.withValues(alpha: 0.1),
+                      color: AppTheme.successColor.withValues(
+                        alpha: billingSettings.billingEnabled ? 0.18 : 0.10,
+                      ),
                       borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.successColor.withValues(alpha: 0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.receipt_long_rounded,
                       color: AppTheme.successColor,
-                      size: 20,
+                      size: 18,
                     ),
                   ),
                   title: const Text(
                     'Enable Billing',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
                     'Invoicing, payments & PDF bills',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       color: AppTheme.textTer(context),
                     ),
                   ),
@@ -941,7 +1037,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                   },
-                  contentPadding: _settingsSwitchContentPadding(context),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 1,
+                  ),
                 );
               },
             ),
@@ -2800,10 +2899,17 @@ class _SectionHeader extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: webLux ? 4 : 3,
-                height: webLux ? 16 : 12,
+                width: webLux ? 4 : 3.5,
+                height: webLux ? 16 : 13,
                 decoration: BoxDecoration(
-                  color: color,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      color,
+                      color.withValues(alpha: 0.65),
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2811,12 +2917,12 @@ class _SectionHeader extends StatelessWidget {
               Text(
                 title.toUpperCase(),
                 style: TextStyle(
-                  fontSize: webLux ? 12.5 : 11,
-                  fontWeight: FontWeight.w800,
+                  fontSize: webLux ? 12.5 : 11.5,
+                  fontWeight: FontWeight.w700,
                   color: webLux
                       ? AppTheme.textSec(context)
                       : AppTheme.iconMute(context),
-                  letterSpacing: webLux ? 1.4 : 1.2,
+                  letterSpacing: webLux ? 1.3 : 1.0,
                 ),
               ),
             ],
@@ -2851,10 +2957,22 @@ class _SettingsCard extends StatelessWidget {
     final webLux = kIsWeb && Responsive.isDesktop(context);
     return Padding(
       padding: EdgeInsets.only(bottom: webLux ? 2 : 0),
-      child: GlassPanel(
-        borderRadius: webLux ? 18 : 16,
-        useContentVariant: true,
-        child: Column(children: children),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(webLux ? 18 : 16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: AppTheme.isDark(context) ? 0.2 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: GlassPanel(
+          borderRadius: webLux ? 18 : 16,
+          useContentVariant: true,
+          child: Column(children: children),
+        ),
       ),
     );
   }
@@ -2890,37 +3008,46 @@ class _SettingsTileState extends State<_SettingsTile> {
         color: Colors.transparent,
         child: ListTile(
           dense: true,
-          visualDensity: const VisualDensity(vertical: -2),
+          visualDensity: const VisualDensity(vertical: -1),
           leading: Container(
-            padding: const EdgeInsets.all(5),
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: widget.iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: widget.iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.iconColor.withValues(alpha: 0.08),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Icon(widget.icon, color: widget.iconColor, size: 18),
           ),
           title: Text(
             widget.title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
           ),
           subtitle: widget.subtitle != null
               ? Text(
                   widget.subtitle!,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: AppTheme.textTer(context),
                   ),
                 )
               : null,
           trailing: Icon(
-            Icons.arrow_forward_ios_rounded,
+            Icons.chevron_right_rounded,
             color: AppTheme.iconMute(context),
-            size: 13,
+            size: 18,
           ),
           onTap: widget.onTap,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
-            vertical: 0,
+            vertical: 1,
           ),
         ),
       );
@@ -2961,6 +3088,13 @@ class _SettingsTileState extends State<_SettingsTile> {
                     decoration: BoxDecoration(
                       color: widget.iconColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.iconColor.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Icon(widget.icon, color: widget.iconColor, size: 24),
                   ),

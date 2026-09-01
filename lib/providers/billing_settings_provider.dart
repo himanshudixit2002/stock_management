@@ -29,18 +29,32 @@ class BillingSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> initialize(String companyId) async {
+  /// Loads billing settings for [companyId].
+  ///
+  /// [companySettings] is the `settings` map from `companies/{companyId}` when
+  /// the caller has already read that doc — startup does, via
+  /// [SettingsProvider] — so passing it avoids a second read of the same
+  /// document. Omit it and this fetches the doc itself.
+  Future<void> initialize(
+    String companyId, {
+    Map<String, dynamic>? companySettings,
+  }) async {
     _companyId = companyId;
     _settings = const BillingSettings();
     _errorMessage = null;
     try {
-      final doc = await _companyDoc.get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>?;
-        final billing = data?['settings']?['billing'] as Map<String, dynamic>?;
-        if (billing != null) {
-          _settings = BillingSettings.fromMap(billing);
+      Map<String, dynamic>? billing;
+      if (companySettings != null) {
+        billing = companySettings['billing'] as Map<String, dynamic>?;
+      } else {
+        final doc = await _companyDoc.get();
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>?;
+          billing = data?['settings']?['billing'] as Map<String, dynamic>?;
         }
+      }
+      if (billing != null) {
+        _settings = BillingSettings.fromMap(billing);
       }
       final seqSnap = await _companyDoc
           .collection('billingSequences')

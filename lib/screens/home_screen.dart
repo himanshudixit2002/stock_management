@@ -19,7 +19,8 @@ import 'home/home_tab.dart';
 import 'products/product_list_screen.dart';
 import 'reports/reports_tab.dart';
 import 'ai/ask_ai_launcher.dart';
-import 'settings/settings_screen.dart';
+import 'settings/settings_screen.dart' deferred as settings_screen;
+import '../widgets/deferred_screen_loader.dart';
 import '../widgets/animations.dart';
 import '../widgets/floating_bottom_nav.dart';
 import '../widgets/offline_banner.dart';
@@ -398,7 +399,13 @@ class HomeScreenState extends State<HomeScreen>
       Icons.settings_outlined,
       'Settings',
       FloatingNavTabKind.settings,
-      (_) => const SettingsScreen(),
+      // Deferred: Settings is the largest single screen in the app and most
+      // sessions never open it. The tab already mounts lazily on first visit,
+      // so the loader is only ever seen once, on that first tap.
+      (_) => DeferredScreenLoader(
+        future: settings_screen.loadLibrary(),
+        builder: (_) => settings_screen.SettingsScreen(),
+      ),
     ),
   ];
 

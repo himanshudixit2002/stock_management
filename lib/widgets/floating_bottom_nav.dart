@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -165,17 +164,10 @@ class FloatingBottomNav extends StatelessWidget {
 
     final container = DecoratedBox(decoration: decoration, child: inner);
 
-    if (kIsWeb) {
-      return RepaintBoundary(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: container,
-          ),
-        ),
-      );
-    }
+    // The web build used to wrap this in a sigma-16 BackdropFilter. The nav is
+    // a persistent overlay above scrolling content, so that re-blurred a full
+    // pill-sized region of the backdrop on every scroll frame — the most
+    // expensive thing on screen, permanently. Opaque on every platform now.
     return RepaintBoundary(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),

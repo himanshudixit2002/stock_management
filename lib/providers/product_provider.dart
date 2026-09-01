@@ -323,6 +323,23 @@ class ProductProvider extends ChangeNotifier {
       _seedOutOfStock = null;
       _invalidateAnalytics();
       _applyFilters();
+      if (!_hasMoreProducts) {
+        // The first page *was* the whole catalog, so the analytics pass that
+        // follows would re-read every one of these documents. Adopt the page
+        // as the analytics set instead — most workspaces then load their
+        // products exactly once per startup.
+        _analyticsProducts = _products;
+        _analyticsFetchedAt = DateTime.now();
+        _lastDoc = null;
+        unawaited(
+          _statsCache.saveProductStats(
+            companyId,
+            total: _products.length,
+            lowStock: _products.where((p) => p.isLowStock).length,
+            outOfStock: _products.where((p) => p.isOutOfStock).length,
+          ),
+        );
+      }
     } catch (error) {
       _errorMessage = friendlyError(
         error,

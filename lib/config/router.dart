@@ -31,15 +31,15 @@ import '../screens/stock/transaction_history_screen.dart';
 import '../screens/excel/excel_import_screen.dart' deferred as excel_import;
 import '../screens/excel/excel_export_screen.dart' deferred as excel_export;
 import '../screens/excel/excel_update_screen.dart' deferred as excel_update;
-import '../screens/users/user_management_screen.dart';
-import '../screens/users/staff_permissions_screen.dart';
+import '../screens/users/user_management_screen.dart' deferred as users_mgmt;
+import '../screens/users/staff_permissions_screen.dart' deferred as staff_perms;
 import '../screens/vendors/vendor_list_screen.dart';
 import '../screens/vendors/vendor_detail_screen.dart';
 import '../screens/vendors/add_edit_vendor_screen.dart';
-import '../screens/legal/privacy_policy_screen.dart';
-import '../screens/legal/terms_screen.dart';
-import '../screens/legal/support_screen.dart';
-import '../screens/legal/data_deletion_screen.dart';
+import '../screens/legal/privacy_policy_screen.dart' deferred as legal_privacy;
+import '../screens/legal/terms_screen.dart' deferred as legal_terms;
+import '../screens/legal/support_screen.dart' deferred as legal_support;
+import '../screens/legal/data_deletion_screen.dart' deferred as legal_deletion;
 import '../screens/orders/purchase_order_list_screen.dart';
 import '../screens/orders/create_purchase_order_screen.dart';
 import '../screens/orders/purchase_order_detail_screen.dart';
@@ -57,23 +57,23 @@ import '../screens/batches/batch_list_screen.dart';
 import '../screens/batches/add_batch_screen.dart';
 import '../screens/batches/expiry_alerts_screen.dart';
 import '../screens/inventory/reorder_suggestions_screen.dart';
-import '../screens/inventory/stock_forecast_screen.dart';
+import '../screens/inventory/stock_forecast_screen.dart' deferred as forecast;
 import '../screens/inventory/stock_take_list_screen.dart';
 import '../screens/inventory/create_stock_take_screen.dart';
 import '../screens/inventory/stock_take_count_screen.dart';
-import '../screens/audit/audit_log_screen.dart';
-import '../screens/notifications/notifications_screen.dart';
-import '../screens/search/global_search_screen.dart';
-import '../screens/onboarding/onboarding_screen.dart';
-import '../screens/company/company_switcher_screen.dart';
+import '../screens/audit/audit_log_screen.dart' deferred as audit_log;
+import '../screens/notifications/notifications_screen.dart' deferred as notifs;
+import '../screens/search/global_search_screen.dart' deferred as search_all;
+import '../screens/onboarding/onboarding_screen.dart' deferred as onboarding;
+import '../screens/company/company_switcher_screen.dart' deferred as company_switch;
 import '../screens/favorites/favorites_screen.dart';
-import '../screens/settings/settings_screen.dart';
-import '../screens/warehouse/warehouse_zones_screen.dart';
-import '../screens/activity/activity_timeline_screen.dart';
-import '../screens/help/help_screen.dart';
-import '../screens/profile/profile_screen.dart';
-import '../screens/about/about_screen.dart';
-import '../screens/settings/home_customization_screen.dart';
+import '../screens/settings/settings_screen.dart' deferred as settings_scr;
+import '../screens/warehouse/warehouse_zones_screen.dart' deferred as warehouse;
+import '../screens/activity/activity_timeline_screen.dart' deferred as activity;
+import '../screens/help/help_screen.dart' deferred as help_scr;
+import '../screens/profile/profile_screen.dart' deferred as profile;
+import '../screens/about/about_screen.dart' deferred as about;
+import '../screens/settings/home_customization_screen.dart' deferred as home_custom;
 import '../screens/settings/data_health_screen.dart';
 import '../screens/settings/plan_features_screen.dart';
 import '../screens/super_admin/super_admin_dashboard_screen.dart';
@@ -309,8 +309,20 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     ),
 
     // -- Users --
-    AppRoutes.userManagement => _slideRoute(settings, const UserManagementScreen()),
-    AppRoutes.staffPermissions => _slideRoute(settings, const StaffPermissionsScreen()),
+    AppRoutes.userManagement => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: users_mgmt.loadLibrary(),
+        builder: (_) => users_mgmt.UserManagementScreen(),
+      ),
+    ),
+    AppRoutes.staffPermissions => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: staff_perms.loadLibrary(),
+        builder: (_) => staff_perms.StaffPermissionsScreen(),
+      ),
+    ),
 
     // -- Reports (deferred) --
     AppRoutes.reports => _slideRoute(settings, 
@@ -373,10 +385,34 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     }(),
 
     // -- Legal (public) --
-    AppRoutes.privacyPolicy => _slideRoute(settings, const PrivacyPolicyScreen()),
-    AppRoutes.terms => _slideRoute(settings, const TermsScreen()),
-    AppRoutes.support => _slideRoute(settings, const SupportScreen()),
-    AppRoutes.dataDeletion => _slideRoute(settings, const DataDeletionScreen()),
+    AppRoutes.privacyPolicy => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: legal_privacy.loadLibrary(),
+        builder: (_) => legal_privacy.PrivacyPolicyScreen(),
+      ),
+    ),
+    AppRoutes.terms => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: legal_terms.loadLibrary(),
+        builder: (_) => legal_terms.TermsScreen(),
+      ),
+    ),
+    AppRoutes.support => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: legal_support.loadLibrary(),
+        builder: (_) => legal_support.SupportScreen(),
+      ),
+    ),
+    AppRoutes.dataDeletion => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: legal_deletion.loadLibrary(),
+        builder: (_) => legal_deletion.DataDeletionScreen(),
+      ),
+    ),
 
     // -- Orders --
     AppRoutes.purchaseOrders => _slideRoute(settings, const PurchaseOrderListScreen()),
@@ -446,7 +482,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.reorderSuggestions => _slideRoute(settings, 
       const ReorderSuggestionsScreen(),
     ),
-    AppRoutes.stockForecast => _slideRoute(settings, const StockForecastScreen()),
+    AppRoutes.stockForecast => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: forecast.loadLibrary(),
+        builder: (_) => forecast.StockForecastScreen(),
+      ),
+    ),
     AppRoutes.stockTakes => _slideRoute(settings, const StockTakeListScreen()),
     AppRoutes.createStockTake => _slideRoute(settings, const CreateStockTakeScreen()),
     AppRoutes.stockTakeCount => () {
@@ -457,10 +499,34 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     }(),
 
     // -- Audit & Notifications --
-    AppRoutes.auditLog => _slideRoute(settings, const AuditLogScreen()),
-    AppRoutes.notifications => _slideRoute(settings, const NotificationsScreen()),
-    AppRoutes.globalSearch => _slideRoute(settings, const GlobalSearchScreen()),
-    AppRoutes.activityTimeline => _slideRoute(settings, const ActivityTimelineScreen()),
+    AppRoutes.auditLog => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: audit_log.loadLibrary(),
+        builder: (_) => audit_log.AuditLogScreen(),
+      ),
+    ),
+    AppRoutes.notifications => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: notifs.loadLibrary(),
+        builder: (_) => notifs.NotificationsScreen(),
+      ),
+    ),
+    AppRoutes.globalSearch => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: search_all.loadLibrary(),
+        builder: (_) => search_all.GlobalSearchScreen(),
+      ),
+    ),
+    AppRoutes.activityTimeline => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: activity.loadLibrary(),
+        builder: (_) => activity.ActivityTimelineScreen(),
+      ),
+    ),
 
     // -- Bulk (deferred) --
     AppRoutes.bulkStockIn => _slideRoute(settings, 
@@ -477,18 +543,60 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     ),
 
     // -- Onboarding & Company --
-    AppRoutes.onboarding => _slideRoute(settings, const OnboardingScreen()),
-    AppRoutes.companySwitcher => _slideRoute(settings, const CompanySwitcherScreen()),
+    AppRoutes.onboarding => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: onboarding.loadLibrary(),
+        builder: (_) => onboarding.OnboardingScreen(),
+      ),
+    ),
+    AppRoutes.companySwitcher => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: company_switch.loadLibrary(),
+        builder: (_) => company_switch.CompanySwitcherScreen(),
+      ),
+    ),
 
     // -- Favorites & Warehouse --
     AppRoutes.favorites => _slideRoute(settings, const FavoritesScreen()),
-    AppRoutes.warehouseZones => _slideRoute(settings, const WarehouseZonesScreen()),
+    AppRoutes.warehouseZones => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: warehouse.loadLibrary(),
+        builder: (_) => warehouse.WarehouseZonesScreen(),
+      ),
+    ),
 
     // -- Profile & Settings --
-    AppRoutes.profile => _slideRoute(settings, const ProfileScreen()),
-    AppRoutes.about => _slideRoute(settings, const AboutScreen()),
-    AppRoutes.help => _slideRoute(settings, const HelpScreen()),
-    AppRoutes.homeCustomization => _slideRoute(settings, const HomeCustomizationScreen()),
+    AppRoutes.profile => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: profile.loadLibrary(),
+        builder: (_) => profile.ProfileScreen(),
+      ),
+    ),
+    AppRoutes.about => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: about.loadLibrary(),
+        builder: (_) => about.AboutScreen(),
+      ),
+    ),
+    AppRoutes.help => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: help_scr.loadLibrary(),
+        builder: (_) => help_scr.HelpScreen(),
+      ),
+    ),
+    AppRoutes.homeCustomization => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: home_custom.loadLibrary(),
+        builder: (_) => home_custom.HomeCustomizationScreen(),
+      ),
+    ),
     AppRoutes.dataHealth => _slideRoute(settings, const DataHealthScreen()),
     AppRoutes.planFeatures => _slideRoute(settings, const PlanFeaturesScreen()),
 
@@ -516,8 +624,14 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       settings,
       StockLedgerScreen(initialProduct: settings.arguments as ProductModel?),
     ),
-    AppRoutes.settings => _slideRoute(settings, 
-      SettingsScreen(initialSection: settings.arguments as String?),
+    AppRoutes.settings => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_scr.loadLibrary(),
+        builder: (_) => settings_scr.SettingsScreen(
+          initialSection: settings.arguments as String?,
+        ),
+      ),
     ),
 
     // -- Roles --

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/company_model.dart';
 import '../services/super_admin_service.dart';
@@ -25,6 +26,15 @@ class SuperAdminProvider extends ChangeNotifier {
   /// on the super admin dashboard with no way back.
   String? _resolvedForUid;
   String? _resolvingUid;
+
+  /// Last *known* answer for this uid, restored from local storage.
+  ///
+  /// The `superAdmins/{uid}` read is a network round-trip, and gating the whole
+  /// shell on it charged every ordinary user a serial wait to spare the handful
+  /// of platform admins one frame of the normal app. This remembers the previous
+  /// answer so the wait is imposed only on someone already known to be an admin.
+  bool _cachedIsSuperAdmin = false;
+  String? _cachedForUid;
   bool _isLoading = false;
   String? _errorMessage;
   List<CompanyModel> _companies = [];
@@ -40,6 +50,28 @@ class SuperAdminProvider extends ChangeNotifier {
   /// True once the check has completed *for this user*. Routing depends on it,
   /// so it must never report a previous user's answer.
   bool isResolvedFor(String uid) => _resolvedForUid == uid;
+
+  /// Whether this uid was a super admin the last time we asked, per the local
+  /// cache. Used to decide whether routing may render optimistically while
+  /// [resolveSuperAdmin] is still in flight — never as the answer itself.
+  bool wasSuperAdmin(String uid) => _cachedForUid == uid && _cachedIsSuperAdmin;
+
+  static String _cacheKey(String uid) => 'super_admin_$uid';
+
+  /// Restores the cached answer for [uid]. Cheap and local; call it before the
+  /// first routing decision so the shell knows whether it may render early.
+  Future<void> primeFromCache(String uid) async {
+    if (uid.isEmpty || _cachedForUid == uid) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedIsSuperAdmin = prefs.getBool(_cacheKey(uid)) ?? false;
+    } catch (_) {
+      // No local storage (private mode, quota) — fall back to "not an admin",
+      // which just means an admin sees one frame of the normal app.
+      _cachedIsSuperAdmin = false;
+    }
+    _cachedForUid = uid;
+  }
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<CompanyModel> get companies => _companies;
@@ -124,8 +156,20 @@ class SuperAdminProvider extends ChangeNotifier {
         _resolvingUid = null;
         _isSuperAdmin = result;
         _resolvedForUid = uid;
+        _cachedIsSuperAdmin = result;
+        _cachedForUid = uid;
+        unawaited(_persistCache(uid, result));
         notifyListeners();
       }
+    }
+  }
+
+  Future<void> _persistCache(String uid, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_cacheKey(uid), value);
+    } catch (_) {
+      // Best-effort: losing the cache only costs a frame on the next launch.
     }
   }
 

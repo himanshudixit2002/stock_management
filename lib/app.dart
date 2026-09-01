@@ -236,6 +236,14 @@ class _AuthWrapperState extends State<AuthWrapper>
       await authProvider.initialize();
 
       if (authProvider.isLoggedIn && authProvider.currentUser != null) {
+        // Start the platform-admin check now, in parallel with provider
+        // startup, and restore the cached answer first so [build] knows whether
+        // it may render the normal shell while the read is still in flight.
+        final superAdmin = context.read<SuperAdminProvider>();
+        final uid = authProvider.currentUser!.uid;
+        await superAdmin.primeFromCache(uid);
+        unawaited(superAdmin.resolveSuperAdmin(uid));
+
         if (mounted) {
           if (kIsWeb) {
             // On web, paint the app shell immediately and load provider data in
@@ -359,8 +367,13 @@ class _AuthWrapperState extends State<AuthWrapper>
       // Streams start immediately and resolve in parallel.
       catProvider.initialize(companyId: companyId);
       stockProvider.initialize(companyId: companyId);
-      // Billing toggle gates the Home grid, so load it now (cheap single doc).
-      context.read<BillingSettingsProvider>().initialize(companyId);
+      // Billing toggle gates the Home grid, so load it now. [SettingsProvider]
+      // has just read `companies/{id}`; hand over that map so this does not
+      // read the same document a second time.
+      context.read<BillingSettingsProvider>().initialize(
+        companyId,
+        companySettings: settingsProvider.rawSettings,
+      );
 
       // First product PAGE only — the full catalog/analytics is deferred to
       // Phase 3 so Home never waits on it.
@@ -421,10 +434,14 @@ class _AuthWrapperState extends State<AuthWrapper>
       context.read<CustomerProvider>().initialize(companyId: companyId);
       context.read<BatchProvider>().initialize(companyId: companyId);
       context.read<StockTakeProvider>().initialize(companyId: companyId);
-      context.read<AuditLogProvider>().initialize(companyId: companyId);
       context.read<NotificationProvider>().initialize(companyId: companyId);
       context.read<PriceHistoryProvider>().initialize(companyId: companyId);
-      context.read<WarehouseZoneProvider>().initialize(companyId: companyId);
+      // AuditLogProvider and WarehouseZoneProvider are deliberately absent:
+      // each is read by exactly one screen, and that screen initializes it
+      // itself, so opening their listeners for every session bought nothing.
+      // The rest stay here because several screens read them without
+      // initializing (e.g. create_invoice_screen reads customers, vendors and
+      // sales orders), and those are reachable directly by route.
       context.read<BillingProvider>().initialize(companyId: companyId);
       // Full-catalog analytics fills in the dashboard/report numbers; the Home
       // shell already shows cached/first-page stats until this lands.
@@ -534,24 +551,32 @@ class _AuthWrapperState extends State<AuthWrapper>
       final superAdmin = context.watch<SuperAdminProvider>();
       final currentUid = authProvider.currentUser?.uid ?? '';
       if (!superAdmin.isResolvedFor(currentUid)) {
-        // One document read. Routing depends on it, so hold the shell rather
-        // than showing a frame of the normal app and then replacing it.
+        // Normally already in flight from [_initializeApp]; this covers the
+        // sign-in path, which reaches [build] without going through it again.
+        // [resolveSuperAdmin] is idempotent per uid, so a second call is free.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           context.read<SuperAdminProvider>().resolveSuperAdmin(currentUid);
         });
-        return const Scaffold(
-          body: Center(
-            child: SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: AppTheme.primaryColor,
+        // Only someone we already know is a platform admin waits here. For
+        // everyone else the normal shell renders immediately and the answer —
+        // which will be "no" — lands without changing anything. Holding the
+        // shell for all users charged a serial Firestore round-trip after auth
+        // to spare a handful of admins one frame.
+        if (superAdmin.wasSuperAdmin(currentUid)) {
+          return const Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppTheme.primaryColor,
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
       }
       if (superAdmin.isSuperAdmin) {
         return const SuperAdminDashboardScreen();

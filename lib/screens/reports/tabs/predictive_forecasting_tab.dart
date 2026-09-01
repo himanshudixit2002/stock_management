@@ -21,6 +21,7 @@ class PredictiveForecastingTab extends StatefulWidget {
 class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
   HealthQuadrant? _selectedQuadrantFilter;
   String _searchQuery = '';
+  bool _showAiBanner = true;
 
   // Run-rate forecasting walks every transaction for every product, so the
   // result is memoized against the provider lists it was built from (they are
@@ -92,271 +93,323 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
     }).toList();
 
     return FadeSlideIn(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Stock-Out Forecasting & Inventory Matrix',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPri(context),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Predictive run-rate analytics estimating remaining days of supply',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-            ),
-            const SizedBox(height: 14),
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Stock-Out Forecasting & Matrix',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPri(context),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Predictive run-rate analytics estimating remaining days of supply',
+                    style: TextStyle(fontSize: 11.5, color: AppTheme.textSec(context)),
+                  ),
+                  const SizedBox(height: 10),
 
-            GestureDetector(
-              onTap: () => openAskAi(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppTheme.primaryColor.withValues(alpha: 0.15),
-                      AppTheme.accentColor.withValues(alpha: 0.10),
+                  if (_showAiBanner) ...[
+                    GestureDetector(
+                      onTap: () => openAskAi(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.primaryColor.withValues(alpha: 0.14),
+                              AppTheme.accentColor.withValues(alpha: 0.08),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: AppTheme.primaryColor,
+                                size: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '⚡ RAG Smart AI Inventory Audit',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textPri(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    'Auto-reorder & detect margin leaks',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.textSec(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                              color: AppTheme.iconMute(context),
+                              tooltip: 'Dismiss',
+                              onPressed: () => setState(() => _showAiBanner = false),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // 2x2 Matrix Cards
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _quadrantCard(
+                          context,
+                          title: 'At Risk / Out',
+                          count: atRiskCount,
+                          color: AppTheme.dangerColor,
+                          icon: Icons.warning_amber_rounded,
+                          quadrant: HealthQuadrant.atRisk,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _quadrantCard(
+                          context,
+                          title: 'Dead Stock',
+                          count: deadStockCount,
+                          color: AppTheme.warningColor,
+                          icon: Icons.hourglass_disabled_rounded,
+                          quadrant: HealthQuadrant.deadStock,
+                        ),
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.25),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _quadrantCard(
+                          context,
+                          title: 'Overstocked',
+                          count: overstockedCount,
+                          color: AppTheme.accentColor,
+                          icon: Icons.inventory_2_rounded,
+                          quadrant: HealthQuadrant.overstocked,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _quadrantCard(
+                          context,
+                          title: 'Optimal Stock',
+                          count: optimalCount,
+                          color: AppTheme.successColor,
+                          icon: Icons.check_circle_outline_rounded,
+                          quadrant: HealthQuadrant.optimal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+
+          // Pinned Search Bar
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _SearchHeaderDelegate(
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search forecast catalog...',
+                    hintStyle: TextStyle(fontSize: 12.5, color: AppTheme.textTer(context)),
+                    prefixIcon: Icon(Icons.search_rounded, size: 17, color: AppTheme.iconMute(context)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppTheme.surface(context),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppTheme.dividerC(context).withValues(alpha: 0.4)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppTheme.dividerC(context).withValues(alpha: 0.4)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: AppTheme.primaryColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ),
+          ),
+
+          // Products List
+          if (filteredForecasts.isEmpty)
+            SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                alignment: Alignment.center,
+                child: Text(
+                  'No inventory items match this matrix filter',
+                  style: TextStyle(color: AppTheme.textSec(context), fontSize: 13),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                floatingNavContentInset(context) + 16,
+              ),
+              sliver: SliverList.builder(
+                itemCount: filteredForecasts.length,
+                itemBuilder: (context, index) {
+                  final forecast = filteredForecasts[index];
+                  final p = forecast.product;
+                  final daysStr = forecast.daysOfSupply > 365
+                      ? '> 1 Year'
+                      : '${forecast.daysOfSupply.toStringAsFixed(0)} Days';
+
+                  Color badgeColor;
+                  String quadrantLabel;
+                  switch (forecast.quadrant) {
+                    case HealthQuadrant.atRisk:
+                      badgeColor = AppTheme.dangerColor;
+                      quadrantLabel = 'Danger';
+                      break;
+                    case HealthQuadrant.deadStock:
+                      badgeColor = AppTheme.warningColor;
+                      quadrantLabel = 'Dead';
+                      break;
+                    case HealthQuadrant.overstocked:
+                      badgeColor = AppTheme.accentColor;
+                      quadrantLabel = 'Overstock';
+                      break;
+                    case HealthQuadrant.optimal:
+                      badgeColor = AppTheme.successColor;
+                      quadrantLabel = 'Optimal';
+                      break;
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    child: GlassPanel(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      borderRadius: 10,
+                      child: Row(
                         children: [
-                          Text(
-                            '⚡ RAG Smart AI Inventory Audit',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textPri(context),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: badgeColor.withValues(alpha: 0.14),
+                              shape: BoxShape.circle,
                             ),
+                            child: Icon(Icons.speed_rounded, color: badgeColor, size: 17),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Run live AI analysis to auto-reorder & detect margin leaks',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSec(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppTheme.primaryColor,
-                      size: 22,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _quadrantCard(
-                    context,
-                    title: 'At Risk / Stockout',
-                    count: atRiskCount,
-                    color: Colors.redAccent,
-                    icon: Icons.warning_amber_rounded,
-                    quadrant: HealthQuadrant.atRisk,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _quadrantCard(
-                    context,
-                    title: 'Dead Stock',
-                    count: deadStockCount,
-                    color: Colors.orangeAccent,
-                    icon: Icons.hourglass_disabled_rounded,
-                    quadrant: HealthQuadrant.deadStock,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _quadrantCard(
-                    context,
-                    title: 'Overstocked',
-                    count: overstockedCount,
-                    color: Colors.blueAccent,
-                    icon: Icons.inventory_2_rounded,
-                    quadrant: HealthQuadrant.overstocked,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _quadrantCard(
-                    context,
-                    title: 'Optimal Stock',
-                    count: optimalCount,
-                    color: Colors.green,
-                    icon: Icons.check_circle_outline_rounded,
-                    quadrant: HealthQuadrant.optimal,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            TextField(
-              onChanged: (val) => setState(() => _searchQuery = val),
-              decoration: InputDecoration(
-                hintText: 'Search forecast catalog...',
-                prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            Expanded(
-              child: filteredForecasts.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No inventory items match this matrix filter',
-                        style: TextStyle(color: AppTheme.textSec(context)),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.only(
-                        bottom: floatingNavContentInset(context) + 8,
-                      ),
-                      itemCount: filteredForecasts.length,
-                      itemBuilder: (context, index) {
-                        final forecast = filteredForecasts[index];
-                        final p = forecast.product;
-                        final daysStr = forecast.daysOfSupply > 365
-                            ? '> 1 Year'
-                            : '${forecast.daysOfSupply.toStringAsFixed(0)} Days';
-
-                        Color badgeColor;
-                        String quadrantLabel;
-                        switch (forecast.quadrant) {
-                          case HealthQuadrant.atRisk:
-                            badgeColor = Colors.redAccent;
-                            quadrantLabel = 'Stockout Danger';
-                            break;
-                          case HealthQuadrant.deadStock:
-                            badgeColor = Colors.orange;
-                            quadrantLabel = 'Dead Stock';
-                            break;
-                          case HealthQuadrant.overstocked:
-                            badgeColor = Colors.blue;
-                            quadrantLabel = 'Overstocked';
-                            break;
-                          case HealthQuadrant.optimal:
-                            badgeColor = Colors.green;
-                            quadrantLabel = 'Optimal';
-                            break;
-                        }
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: GlassPanel(
-                            padding: const EdgeInsets.all(12),
-                            borderRadius: 12,
-                            child: Row(
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: badgeColor.withValues(alpha: 0.15),
-                                    shape: BoxShape.circle,
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
                                   ),
-                                  child: Icon(Icons.speed_rounded, color: badgeColor, size: 20),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        p.name,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Current Qty: ${p.quantity} ${p.unit}  |  Daily Burn: ${forecast.dailyBurnRate.toStringAsFixed(1)}/day',
-                                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                                      ),
-                                    ],
+                                const SizedBox(height: 1.5),
+                                Text(
+                                  'Qty: ${p.quantity} ${p.unit}  •  Burn: ${forecast.dailyBurnRate.toStringAsFixed(1)}/d',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: AppTheme.textSec(context),
                                   ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: badgeColor.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        quadrantLabel,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: badgeColor,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Run-rate: $daysStr',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: badgeColor.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  quadrantLabel,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: badgeColor,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                daysStr,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
+                  );
+                },
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -382,19 +435,19 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.25) : AppTheme.card(context),
-          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? color.withValues(alpha: 0.22) : AppTheme.card(context),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? color : color.withValues(alpha: 0.3),
-            width: isSelected ? 2 : 1,
+            color: isSelected ? color : color.withValues(alpha: 0.25),
+            width: isSelected ? 1.8 : 1,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(width: 8),
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 7),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +455,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                   Text(
                     count.toString(),
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textPri(context),
                     ),
@@ -410,9 +463,11 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: AppTheme.textSec(context),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -421,5 +476,33 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
         ),
       ),
     );
+  }
+}
+
+class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+
+  _SearchHeaderDelegate({required this.child, this.height = 48.0});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      height: height,
+      color: AppTheme.bg(context),
+      alignment: Alignment.center,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchHeaderDelegate oldDelegate) {
+    return oldDelegate.height != height || oldDelegate.child != child;
   }
 }
