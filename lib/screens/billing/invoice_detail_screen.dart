@@ -163,7 +163,21 @@ class InvoiceDetailScreen extends StatelessWidget {
                   value: 'duplicate',
                   child: Text('Duplicate Invoice'),
                 ),
-              if (!invoice.isPaid && !invoice.isCancelled && canEdit)
+              // Cancelling is blocked once money has been taken (the cash
+              // would vanish from reports), so offer the credit note that
+              // actually unwinds the balance instead.
+              if (!invoice.isCancelled &&
+                  !invoice.isCreditNote &&
+                  invoice.amountPaid > 0.01 &&
+                  canEdit)
+                const PopupMenuItem(
+                  value: 'creditNote',
+                  child: Text('Issue Credit Note'),
+                ),
+              if (!invoice.isPaid &&
+                  !invoice.isCancelled &&
+                  invoice.amountPaid <= 0.01 &&
+                  canEdit)
                 const PopupMenuItem(
                   value: 'cancel',
                   child: Text('Cancel Invoice'),
@@ -611,12 +625,27 @@ class InvoiceDetailScreen extends StatelessWidget {
             context,
           ),
           if (invoice.totalDiscount > 0)
-            _row(
-              'Discount',
-              '- $sym${_numFormat.format(invoice.totalDiscount)}',
-              context,
-              color: AppTheme.dangerColor,
-            ),
+            if (invoice.invoiceDiscount > 0 && invoice.totalDiscount > invoice.invoiceDiscount) ...[
+              _row(
+                'Line Discount',
+                '- $sym${_numFormat.format(invoice.totalDiscount - invoice.invoiceDiscount)}',
+                context,
+                color: AppTheme.dangerColor,
+              ),
+              _row(
+                'Invoice Discount',
+                '- $sym${_numFormat.format(invoice.invoiceDiscount)}',
+                context,
+                color: AppTheme.dangerColor,
+              ),
+            ] else ...[
+              _row(
+                'Total Discount',
+                '- $sym${_numFormat.format(invoice.totalDiscount)}',
+                context,
+                color: AppTheme.dangerColor,
+              ),
+            ],
           if (invoice.totalTax > 0)
             _row(
               invoice.taxLabel,
@@ -910,6 +939,13 @@ class InvoiceDetailScreen extends StatelessWidget {
           }
         }
         break;
+      case 'creditNote':
+        await Navigator.pushNamed(
+          context,
+          AppRoutes.creditNote,
+          arguments: invoice,
+        );
+        break;
       case 'duplicate':
         final prefix = invoice.isPurchase
             ? bs.purchasePrefix
@@ -925,10 +961,16 @@ class InvoiceDetailScreen extends StatelessWidget {
           );
           final locations = context.read<SettingsProvider>().locations;
           final defaultLoc = locations.isNotEmpty ? locations.first : 'Main';
+          if (user == null) {
+            if (context.mounted) {
+              showErrorSnackBar(context, 'Please sign in again to continue.');
+            }
+            return;
+          }
           await billing.addInvoice(
             dup,
-            userId: user?.uid ?? '',
-            userName: user?.name ?? '',
+            userId: user.uid,
+            userName: user.name,
             defaultLocation: defaultLoc,
             autoCreateStandaloneSalesOrder: false,
             autoCreateStandalonePurchaseOrder: false,
@@ -957,10 +999,16 @@ class InvoiceDetailScreen extends StatelessWidget {
           ),
         );
         if (confirm == true) {
+          if (user == null) {
+            if (context.mounted) {
+              showErrorSnackBar(context, 'Please sign in again to continue.');
+            }
+            return;
+          }
           await billing.markAsCancelled(
             invoice.id,
-            userId: user?.uid ?? '',
-            userName: user?.name ?? '',
+            userId: user.uid,
+            userName: user.name,
           );
           if (context.mounted) {
             await showSuccessOverlay(

@@ -126,11 +126,15 @@ class PurchaseOrderProvider extends ChangeNotifier {
     }
   }
 
+  /// Receives a purchase order. [receivedByItemIndex] carries the per-line
+  /// quantities accepted (index into `po.items`); omit it to receive
+  /// everything still outstanding.
   Future<bool> receiveOrder({
     required PurchaseOrderModel po,
     required String userId,
     required String userName,
     required String location,
+    Map<int, int>? receivedByItemIndex,
   }) async {
     if (_isLoading) return false;
     _isLoading = true;
@@ -142,6 +146,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
         userId: userId,
         userName: userName,
         location: location,
+        receivedByItemIndex: receivedByItemIndex,
       );
       _isLoading = false;
       notifyListeners();

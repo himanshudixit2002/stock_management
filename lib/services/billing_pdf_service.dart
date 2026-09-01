@@ -282,7 +282,13 @@ class BillingPdfService {
       _totalRow('Subtotal', _fmt(invoice.subtotal, sym)),
     ];
     if (bs.enableDiscounts && invoice.totalDiscount > 0) {
-      rows.add(_totalRow('Discount', '- ${_fmt(invoice.totalDiscount, sym)}'));
+      if (invoice.invoiceDiscount > 0 && invoice.totalDiscount > invoice.invoiceDiscount) {
+        final lineDiscount = invoice.totalDiscount - invoice.invoiceDiscount;
+        rows.add(_totalRow('Line Discount', '- ${_fmt(lineDiscount, sym)}'));
+        rows.add(_totalRow('Invoice Discount', '- ${_fmt(invoice.invoiceDiscount, sym)}'));
+      } else {
+        rows.add(_totalRow('Total Discount', '- ${_fmt(invoice.totalDiscount, sym)}'));
+      }
     }
     if (bs.enableTax && invoice.totalTax > 0) {
       rows.add(_totalRow(bs.taxLabel, _fmt(invoice.totalTax, sym)));
@@ -529,16 +535,30 @@ class BillingPdfService {
               ],
             ),
             if (invoice.totalDiscount > 0)
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Discount', style: const pw.TextStyle(fontSize: 8)),
-                  pw.Text(
-                    '- ${_fmt(invoice.totalDiscount, sym)}',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                ],
-              ),
+              if (invoice.invoiceDiscount > 0 && invoice.totalDiscount > invoice.invoiceDiscount) ...[
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Line Discount', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- ${_fmt(invoice.totalDiscount - invoice.invoiceDiscount, sym)}', style: const pw.TextStyle(fontSize: 8)),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Invoice Discount', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- ${_fmt(invoice.invoiceDiscount, sym)}', style: const pw.TextStyle(fontSize: 8)),
+                  ],
+                ),
+              ] else ...[
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Total Discount', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('- ${_fmt(invoice.totalDiscount, sym)}', style: const pw.TextStyle(fontSize: 8)),
+                  ],
+                ),
+              ],
             if (invoice.totalTax > 0)
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

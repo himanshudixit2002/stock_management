@@ -490,54 +490,128 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       return;
     }
 
-    String? selectedLocation;
-    final result = await showDialog<String>(
+    // Lines with anything still outstanding. Each defaults to "all of what is
+    // left" so receiving a complete delivery stays one tap, while a short
+    // delivery can be entered line by line.
+    final pending = <int>[];
+    for (var i = 0; i < order.items.length; i++) {
+      final outstanding =
+          order.items[i].quantity - order.items[i].receivedQuantity;
+      if (outstanding > 0) pending.add(i);
+    }
+    if (pending.isEmpty) {
+      showInfoSnackBar(context, 'Nothing left to receive.');
+      return;
+    }
+
+    final controllers = <int, TextEditingController>{
+      for (final i in pending)
+        i: TextEditingController(
+          text: '${order.items[i].quantity - order.items[i].receivedQuantity}',
+        ),
+    };
+
+    String? selectedLocation = locations.length == 1 ? locations.first : null;
+
+    final result = await showDialog<(String, Map<int, int>)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Receive Items'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select the location to receive items into:'),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () async {
-                  final result = await showSearchablePicker(
-                    context: context,
-                    title: 'Location',
-                    selectedValue: selectedLocation,
-                    items: locations
-                        .map(
-                          (l) => PickerItem(
-                            value: l,
-                            label: l,
-                            icon: Icons.location_on_rounded,
-                            iconColor: AppTheme.primaryColor,
-                          ),
-                        )
-                        .toList(),
-                  );
-                  if (result != null) {
-                    setDialogState(() => selectedLocation = result);
-                  }
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Location',
-                    prefixIcon: Icon(Icons.location_on_rounded),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enter how many of each item arrived. Anything left over '
+                    'stays outstanding on the order.',
                   ),
-                  child: Text(
-                    selectedLocation ?? 'Tap to select',
-                    style: TextStyle(
-                      color: selectedLocation != null
-                          ? null
-                          : AppTheme.textSec(context),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showSearchablePicker(
+                        context: context,
+                        title: 'Location',
+                        selectedValue: selectedLocation,
+                        items: locations
+                            .map(
+                              (l) => PickerItem(
+                                value: l,
+                                label: l,
+                                icon: Icons.location_on_rounded,
+                                iconColor: AppTheme.primaryColor,
+                              ),
+                            )
+                            .toList(),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => selectedLocation = picked);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Location',
+                        prefixIcon: Icon(Icons.location_on_rounded),
+                      ),
+                      child: Text(
+                        selectedLocation ?? 'Tap to select',
+                        style: TextStyle(
+                          color: selectedLocation != null
+                              ? null
+                              : AppTheme.textSec(context),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  ...pending.map((i) {
+                    final item = order.items[i];
+                    final outstanding = item.quantity - item.receivedQuantity;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.productName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'of $outstanding outstanding',
+                                  style:
+                                      Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 84,
+                            child: TextField(
+                              controller: controllers[i],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.end,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
               ),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -545,9 +619,28 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: selectedLocation != null
-                  ? () => Navigator.pop(ctx, selectedLocation)
-                  : null,
+              onPressed: selectedLocation == null
+                  ? null
+                  : () {
+                      final quantities = <int, int>{};
+                      for (final i in pending) {
+                        final outstanding = order.items[i].quantity -
+                            order.items[i].receivedQuantity;
+                        final entered =
+                            int.tryParse(controllers[i]!.text.trim()) ?? 0;
+                        if (entered <= 0) continue;
+                        quantities[i] =
+                            entered > outstanding ? outstanding : entered;
+                      }
+                      if (quantities.isEmpty) {
+                        showErrorSnackBar(
+                          ctx,
+                          'Enter a quantity for at least one item.',
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx, (selectedLocation!, quantities));
+                    },
               child: const Text('Receive'),
             ),
           ],
@@ -555,7 +648,11 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       ),
     );
 
+    for (final c in controllers.values) {
+      c.dispose();
+    }
     if (result == null || !context.mounted) return;
+
     final user = context.read<AuthProvider>().currentUser;
     if (user == null) return;
 
@@ -563,13 +660,31 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       po: order,
       userId: user.uid,
       userName: user.name,
-      location: result,
+      location: result.$1,
+      receivedByItemIndex: result.$2,
     );
 
-    if (context.mounted && success) {
+    if (!context.mounted) return;
+    if (success) {
       context.read<ProductProvider>().invalidateAnalytics();
       HapticFeedback.mediumImpact();
-      showSuccessOverlay(context, message: 'Items received successfully');
+      final receivedAll = result.$2.entries.every((e) {
+        final item = order.items[e.key];
+        return e.value >= item.quantity - item.receivedQuantity;
+      });
+      final coveredEveryLine = result.$2.length == pending.length;
+      showSuccessOverlay(
+        context,
+        message: receivedAll && coveredEveryLine
+            ? 'Order received'
+            : 'Items received',
+      );
+    } else {
+      showErrorSnackBar(
+        context,
+        context.read<PurchaseOrderProvider>().errorMessage ??
+            'Receive failed',
+      );
     }
   }
 

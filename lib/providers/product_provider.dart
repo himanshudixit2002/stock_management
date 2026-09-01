@@ -113,7 +113,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel> get lowStockProducts {
     if (_analyticsProducts != null) {
       return _analyticsProducts!
-          .where((p) => p.quantity <= p.lowStockThreshold)
+          .where((p) => p.needsReorder)
           .toList();
     }
     return _lowStockProducts;
@@ -315,7 +315,7 @@ class ProductProvider extends ChangeNotifier {
       _lastDoc = result.lastDoc;
       _hasMoreProducts = result.hasMore;
       _lowStockProducts = _products
-          .where((p) => p.quantity <= p.lowStockThreshold)
+          .where((p) => p.needsReorder)
           .toList();
       // Authoritative page data is in — stop using the seed fallback.
       _seedTotal = null;
@@ -355,7 +355,7 @@ class ProductProvider extends ChangeNotifier {
       if (_analyticsProducts != null) return;
       _products = [..._products, ...result.products];
       _lowStockProducts = _products
-          .where((p) => p.quantity <= p.lowStockThreshold)
+          .where((p) => p.needsReorder)
           .toList();
       _lastDoc = result.lastDoc;
       _hasMoreProducts = result.hasMore;
@@ -469,7 +469,7 @@ class ProductProvider extends ChangeNotifier {
   /// Recomputes the derived lists and republishes after an in-place edit.
   void _afterLocalCatalogChange() {
     _lowStockProducts = _products
-        .where((p) => p.quantity <= p.lowStockThreshold)
+        .where((p) => p.needsReorder)
         .toList();
     _invalidateAnalytics();
     _applyFilters();
@@ -528,7 +528,7 @@ class ProductProvider extends ChangeNotifier {
       _analyticsProducts = products;
       _analyticsFetchedAt = DateTime.now();
       _lowStockProducts = products
-          .where((p) => p.quantity <= p.lowStockThreshold)
+          .where((p) => p.needsReorder)
           .toList();
       _lastDoc = null;
       _hasMoreProducts = false;

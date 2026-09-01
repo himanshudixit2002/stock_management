@@ -106,18 +106,38 @@ class ReturnProvider extends ChangeNotifier {
     if (_isLoading) return false;
     // Guard against double-processing: re-running would add/remove stock a
     // second time and double-count. Only an unprocessed return adjusts stock.
-    if (returnModel.status == ReturnStatus.processed) {
+    final latestSnap = await _databaseService.getReturnById(returnModel.id);
+    if (latestSnap == null) {
+      _errorMessage = 'Return not found.';
+      notifyListeners();
+      return false;
+    }
+    if (latestSnap.status == ReturnStatus.processed) {
       _errorMessage = 'This return has already been processed.';
       notifyListeners();
       return false;
     }
+    // Only an approved return may move stock. Previously anything that was not
+    // already processed went through — including a *rejected* return, which
+    // would happily push refused goods back into sellable stock.
+    if (latestSnap.status != ReturnStatus.approved) {
+      _errorMessage = latestSnap.status == ReturnStatus.rejected
+          ? 'This return was rejected and cannot be processed.'
+          : 'Approve this return before processing it.';
+      notifyListeners();
+      return false;
+    }
+    final actualReturn = latestSnap;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      for (final item in returnModel.items) {
+      for (final item in actualReturn.items) {
         if (item.quantity <= 0) continue;
         if (returnModel.type == ReturnType.customerReturn) {
+          final ref = 'Return #${returnModel.id.substring(0, 6)}';
+          // Goods always come back onto the books first, so the ledger shows
+          // what was physically received...
           await db.addStock(
             productId: item.productId,
             productName: item.productName,
@@ -125,8 +145,22 @@ class ReturnProvider extends ChangeNotifier {
             location: location,
             userId: userId,
             userName: userName,
-            reason: 'Return #${returnModel.id.substring(0, 6)}',
+            reason: ref,
           );
+          // ...then unsellable goods are written straight off again, rather
+          // than silently rejoining sellable stock. An unset condition keeps
+          // the previous behaviour, so existing returns are unaffected.
+          if (_isUnsellable(item.condition)) {
+            await db.recordDamage(
+              productId: item.productId,
+              productName: item.productName,
+              quantity: item.quantity,
+              location: location,
+              userId: userId,
+              userName: userName,
+              reason: '$ref — returned ${item.condition.trim().toLowerCase()}',
+            );
+          }
         } else {
           await db.removeStock(
             productId: item.productId,
@@ -141,23 +175,23 @@ class ReturnProvider extends ChangeNotifier {
       }
 
       final now = DateTime.now();
-      if (returnModel.relatedOrderId.isNotEmpty) {
+      if (actualReturn.relatedOrderId.isNotEmpty) {
         if (returnModel.type == ReturnType.customerReturn) {
-          final so = await db.getSalesOrderById(returnModel.relatedOrderId);
+          final so = await db.getSalesOrderById(actualReturn.relatedOrderId);
           if (so != null) {
             final synced = applyCustomerReturnToSalesOrder(
               so,
-              returnModel.items,
+              actualReturn.items,
               now,
             );
             await _databaseService.updateSalesOrder(synced);
           }
         } else {
-          final po = await db.getPurchaseOrderById(returnModel.relatedOrderId);
+          final po = await db.getPurchaseOrderById(actualReturn.relatedOrderId);
           if (po != null) {
             final synced = applyVendorReturnToPurchaseOrder(
               po,
-              returnModel.items,
+              actualReturn.items,
               now,
             );
             await _databaseService.updatePurchaseOrder(synced);
@@ -165,7 +199,7 @@ class ReturnProvider extends ChangeNotifier {
         }
       }
 
-      final updated = returnModel.copyWith(
+      final updated = actualReturn.copyWith(
         status: ReturnStatus.processed,
         updatedAt: now,
       );
@@ -179,6 +213,13 @@ class ReturnProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Conditions that mean returned goods must not rejoin sellable stock.
+  /// Anything else (including an unset condition) is treated as resaleable.
+  static bool _isUnsellable(String condition) {
+    const unsellable = {'damaged', 'defective', 'expired', 'broken'};
+    return unsellable.contains(condition.trim().toLowerCase());
   }
 
   void clearError() {

@@ -73,3 +73,15 @@ String? validateDropdown(String? value, [String fieldName = 'Selection']) {
   }
   return null;
 }
+
+String? validateLocationName(String? value) {
+  if (value == null || value.trim().isEmpty) return 'Location name is required';
+  final v = value.trim();
+  if (v.contains('.') || v.contains('/') || v.contains('~') || v.contains('*') || v.contains('[') || v.contains(']')) {
+    return 'Location name cannot contain ., /, ~, *, [, or ]';
+  }
+  if (RegExp(r'^__.*__$').hasMatch(v)) {
+    return 'Location name cannot be a reserved Firestore name';
+  }
+  return null;
+}

@@ -87,31 +87,37 @@ class StockTakeProvider extends ChangeNotifier {
     required String userId,
     required String userName,
   }) async {
+    if (stockTake.status == StockTakeStatus.completed) return true;
+
     try {
       _errorMessage = null;
+
+      final scopedLocation = stockTake.locationFilter.trim();
+
+      for (final item in stockTake.items) {
+        final variance = item.countedQty - item.expectedQty;
+        if (variance == 0) continue;
+
+        final location = scopedLocation.isNotEmpty
+            ? scopedLocation
+            : await _resolveUnscopedLocation(item.productId, item.productName);
+
+        await _databaseService.recordAdjustment(
+          productId: item.productId,
+          productName: item.productName,
+          adjustmentDelta: variance,
+          location: location,
+          userId: userId,
+          userName: userName,
+          reason: 'Stock Take: ${stockTake.name}',
+        );
+      }
 
       final completed = stockTake.copyWith(
         status: StockTakeStatus.completed,
         completedAt: DateTime.now(),
       );
       await _databaseService.updateStockTake(completed);
-
-      for (final item in stockTake.items) {
-        final variance = item.countedQty - item.expectedQty;
-        if (variance == 0) continue;
-
-        await _databaseService.recordAdjustment(
-          productId: item.productId,
-          productName: item.productName,
-          adjustmentDelta: variance,
-          location: stockTake.locationFilter.isNotEmpty
-              ? stockTake.locationFilter
-              : 'Default',
-          userId: userId,
-          userName: userName,
-          reason: 'Stock Take: ${stockTake.name}',
-        );
-      }
 
       return true;
     } catch (e) {
@@ -122,6 +128,38 @@ class StockTakeProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Picks the location a variance belongs to when the stock take was not
+  /// scoped to one.
+  ///
+  /// This used to post everything to the literal string 'Default' — a bucket
+  /// no product actually holds stock in, so every shortage threw "would result
+  /// in negative stock" and every surplus invented a phantom location. Resolve
+  /// it from the product instead, and refuse rather than guess when the stock
+  /// is genuinely spread across several locations.
+  Future<String> _resolveUnscopedLocation(
+    String productId,
+    String productName,
+  ) async {
+    final product = await _databaseService.getProduct(productId);
+    final stocked = product == null
+        ? const <String>[]
+        : product.locationQuantities.entries
+              .where((e) => e.value > 0)
+              .map((e) => e.key)
+              .toList();
+
+    if (stocked.length == 1) return stocked.first;
+    // Nothing on hand anywhere: a surplus has to land somewhere, and 'Main' is
+    // what DatabaseService._normalizeLocation treats as the default bucket.
+    if (stocked.isEmpty) return 'Main';
+
+    throw Exception(
+      '$productName holds stock in ${stocked.length} locations, so this count '
+      'cannot be applied to one of them. Run a stock take scoped to a single '
+      'location for this product.',
+    );
   }
 
   void clearError() {

@@ -25,6 +25,15 @@ class StockTransactionModel {
   final String vendorId;
   final String vendorName;
 
+  /// Signed effect on stock, where the sign cannot be inferred from [type].
+  /// Adjustments store [quantity] as an absolute value, so without this an
+  /// adjustment row cannot say whether stock went up or down — which makes a
+  /// running-balance ledger impossible to reconcile.
+  ///
+  /// Null on rows written before this field existed; treat that as unknown
+  /// rather than as zero.
+  final int? quantityDelta;
+
   StockTransactionModel({
     required this.id,
     required this.productId,
@@ -38,7 +47,21 @@ class StockTransactionModel {
     required this.date,
     this.vendorId = '',
     this.vendorName = '',
+    this.quantityDelta,
   });
+
+  /// Signed effect of this row on stock, or null when it cannot be determined
+  /// (a legacy adjustment with no [quantityDelta] recorded).
+  int? get signedEffect => switch (type) {
+    TransactionType.stockIn => quantity,
+    TransactionType.stockOut || TransactionType.damage => -quantity,
+    TransactionType.adjustment => quantityDelta,
+    // Transfers move stock between locations; net product stock is unchanged.
+    // Holds only reserve, they do not move anything.
+    TransactionType.transfer ||
+    TransactionType.hold ||
+    TransactionType.holdRelease => 0,
+  };
 
   String get typeLabel {
     return switch (type) {
@@ -107,6 +130,9 @@ class StockTransactionModel {
       date: safeTimestamp(map['date']),
       vendorId: safeString(map['vendorId']),
       vendorName: safeString(map['vendorName']),
+      quantityDelta: map['quantityDelta'] == null
+          ? null
+          : safeInt(map['quantityDelta']),
     );
   }
 
@@ -123,6 +149,7 @@ class StockTransactionModel {
       'date': Timestamp.fromDate(date),
       'vendorId': vendorId,
       'vendorName': vendorName,
+      if (quantityDelta != null) 'quantityDelta': quantityDelta,
     };
   }
 
@@ -139,6 +166,7 @@ class StockTransactionModel {
     DateTime? date,
     String? vendorId,
     String? vendorName,
+    int? quantityDelta,
   }) {
     return StockTransactionModel(
       id: id ?? this.id,
@@ -153,6 +181,7 @@ class StockTransactionModel {
       date: date ?? this.date,
       vendorId: vendorId ?? this.vendorId,
       vendorName: vendorName ?? this.vendorName,
+      quantityDelta: quantityDelta ?? this.quantityDelta,
     );
   }
 }

@@ -184,6 +184,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         // Instead, the excel_service.dart will just auto-create them or import will proceed gracefully.
       }
 
+      final warnings = <String>[];
       List<ProductModel> products;
       try {
         products = _excelService.convertToProducts(
@@ -191,11 +192,18 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           categoryMap,
           vendorMap,
           fallbackLocations: settingsProvider.locations,
+          warnings: warnings,
         );
       } catch (e) {
         throw Exception('Failed to process product data: $e');
       }
 
+      if (warnings.isNotEmpty) {
+        // Just show the first few warnings to avoid spamming the user
+        final displayWarnings = warnings.take(3).join('\n');
+        final suffix = warnings.length > 3 ? '\n...and ${warnings.length - 3} more warnings.' : '';
+        productProvider.setWarning('Import Warnings:\n$displayWarnings$suffix');
+      }
       // Sync companies, locations, sub-categories from import to Settings so filters work
       final companies = products
           .map((p) => p.company)

@@ -5,6 +5,7 @@ import '../models/purchase_order_model.dart';
 import '../models/sales_order_model.dart';
 import '../utils/error_helpers.dart';
 import '../utils/invoice_search.dart';
+import '../utils/invoice_totals.dart';
 import '../utils/purchase_order_bill_sync.dart';
 import '../utils/sales_order_invoice_sync.dart';
 import '../services/database_service.dart';
@@ -24,6 +25,19 @@ class BillingProvider extends ChangeNotifier {
 
   List<InvoiceModel> get salesInvoices =>
       _invoices.where((i) => i.invoiceType == InvoiceType.sales).toList();
+
+  /// Credit notes raised against sales invoices. Excluded from receivables:
+  /// a credit reduces the balance of the invoice it references rather than
+  /// standing as its own claim.
+  List<InvoiceModel> get creditNotes =>
+      _invoices.where((i) => i.isCreditNote).toList();
+
+  /// Credit notes raised against a specific invoice, newest first.
+  List<InvoiceModel> creditNotesForInvoice(String invoiceId) =>
+      _invoices
+          .where((i) => i.isCreditNote && i.creditedInvoiceId == invoiceId)
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   List<InvoiceModel> get purchaseInvoices =>
       _invoices.where((i) => i.invoiceType == InvoiceType.purchase).toList();
@@ -89,15 +103,30 @@ class BillingProvider extends ChangeNotifier {
     return null;
   }
 
-  double get totalInvoiced => _invoices
-      .where((i) => !i.isCancelled)
+  double get totalSalesInvoiced => _invoices
+      .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.sales)
       .fold(0.0, (s, i) => s + i.grandTotal);
 
-  double get totalReceived => _invoices
-      .where((i) => !i.isCancelled)
+  double get totalSalesReceived => _invoices
+      .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.sales)
       .fold(0.0, (s, i) => s + i.amountPaid);
 
-  double get totalOutstanding => totalInvoiced - totalReceived;
+  double get totalAccountsReceivable => totalSalesInvoiced - totalSalesReceived;
+
+  double get totalPurchaseInvoiced => _invoices
+      .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.purchase)
+      .fold(0.0, (s, i) => s + i.grandTotal);
+
+  double get totalPurchasePaid => _invoices
+      .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.purchase)
+      .fold(0.0, (s, i) => s + i.amountPaid);
+
+  double get totalAccountsPayable => totalPurchaseInvoiced - totalPurchasePaid;
+  
+  // Keep legacy for compatibility if they are used elsewhere, but ideally remove them
+  double get totalInvoiced => totalSalesInvoiced;
+  double get totalReceived => totalSalesReceived;
+  double get totalOutstanding => totalAccountsReceivable;
 
   int get overdueCount => _invoices
       .where(
@@ -251,6 +280,11 @@ class BillingProvider extends ChangeNotifier {
         }
 
         if (shouldDeductStock) {
+          // Lines already taken out of stock, so a failure part-way through can
+          // be undone. Without this the invoice was saved, some lines were
+          // silently deducted, stockDeducted stayed false (so cancelling would
+          // never put them back), and the caller was still handed a success id.
+          final applied = <_AppliedDeduction>[];
           try {
             for (final item in invoice.items) {
               if (item.quantity <= 0 || item.productId.isEmpty) continue;
@@ -269,6 +303,16 @@ class BillingProvider extends ChangeNotifier {
                     sourceId: id,
                     reason: 'INV #${invoice.invoiceNumber} hold consumed',
                   );
+              if (consumedHold > 0) {
+                applied.add(
+                  _AppliedDeduction(
+                    productId: item.productId,
+                    productName: item.productName,
+                    location: itemLocation,
+                    quantity: consumedHold,
+                  ),
+                );
+              }
               final remainingQty = item.quantity - consumedHold;
               if (remainingQty <= 0) continue;
               await _databaseService.removeStock(
@@ -279,6 +323,14 @@ class BillingProvider extends ChangeNotifier {
                 userId: userId,
                 userName: userName,
                 reason: 'INV #${invoice.invoiceNumber}',
+              );
+              applied.add(
+                _AppliedDeduction(
+                  productId: item.productId,
+                  productName: item.productName,
+                  location: itemLocation,
+                  quantity: remainingQty,
+                ),
               );
             }
             await _databaseService.setInvoiceStockDeducted(id, true);
@@ -304,9 +356,24 @@ class BillingProvider extends ChangeNotifier {
               );
             }
           } catch (stockErr) {
-            _errorMessage =
-                'Invoice created but stock or order sync failed: $stockErr';
+            // Put back whatever already left stock, and park the invoice as a
+            // draft so it is never presented as a completed sale that moved no
+            // goods. The user can fix the cause and re-issue it.
+            final undone = await _rollbackDeductions(
+              applied,
+              userId: userId,
+              userName: userName,
+              reason: 'Rolled back INV #${invoice.invoiceNumber}',
+            );
+            await _parkInvoiceAsDraft(id, invoice);
+            _errorMessage = undone
+                ? 'Could not deduct stock for this invoice, so it was saved as '
+                      'a draft and no stock was moved: $stockErr'
+                : 'Could not deduct stock for this invoice ($stockErr), and '
+                      'reversing the partial deduction also failed. Check '
+                      'stock levels for this invoice before re-issuing it.';
             notifyListeners();
+            return null;
           }
         }
       }
@@ -331,6 +398,7 @@ class BillingProvider extends ChangeNotifier {
         }
 
         if (shouldAddStock) {
+          final applied = <_AppliedDeduction>[];
           try {
             for (final item in invoice.items) {
               if (item.quantity <= 0 || item.productId.isEmpty) continue;
@@ -345,6 +413,14 @@ class BillingProvider extends ChangeNotifier {
                 userId: userId,
                 userName: userName,
                 reason: 'BILL #${invoice.invoiceNumber}',
+              );
+              applied.add(
+                _AppliedDeduction(
+                  productId: item.productId,
+                  productName: item.productName,
+                  location: itemLocation,
+                  quantity: item.quantity,
+                ),
               );
             }
             await _databaseService.setInvoiceStockDeducted(id, true);
@@ -370,9 +446,23 @@ class BillingProvider extends ChangeNotifier {
               );
             }
           } catch (stockErr) {
-            _errorMessage =
-                'Invoice created but stock or purchase order sync failed: $stockErr';
+            // A bill adds stock, so rolling back means taking it out again.
+            final undone = await _rollbackDeductions(
+              applied,
+              userId: userId,
+              userName: userName,
+              reason: 'Rolled back BILL #${invoice.invoiceNumber}',
+              inbound: true,
+            );
+            await _parkInvoiceAsDraft(id, invoice);
+            _errorMessage = undone
+                ? 'Could not receive stock for this bill, so it was saved as a '
+                      'draft and no stock was moved: $stockErr'
+                : 'Could not receive stock for this bill ($stockErr), and '
+                      'reversing the partial receipt also failed. Check stock '
+                      'levels for this bill before re-issuing it.';
             notifyListeners();
+            return null;
           }
         }
       }
@@ -380,6 +470,90 @@ class BillingProvider extends ChangeNotifier {
       return id;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to create invoice.');
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Reverses stock movements already applied for an invoice whose remaining
+  /// lines failed. [inbound] true means the original movements *added* stock
+  /// (a purchase bill), so undoing them removes it again.
+  ///
+  /// Reversing a consumed hold restores the on-hand count but not the
+  /// reservation — the hold stays consumed. Stock totals end up correct; a
+  /// reservation may need re-creating by hand.
+  Future<bool> _rollbackDeductions(
+    List<_AppliedDeduction> applied, {
+    required String userId,
+    required String userName,
+    required String reason,
+    bool inbound = false,
+  }) async {
+    var allUndone = true;
+    for (final entry in applied.reversed) {
+      try {
+        if (inbound) {
+          await _databaseService.removeStock(
+            productId: entry.productId,
+            productName: entry.productName,
+            quantity: entry.quantity,
+            location: entry.location,
+            userId: userId,
+            userName: userName,
+            reason: reason,
+          );
+        } else {
+          await _databaseService.addStock(
+            productId: entry.productId,
+            productName: entry.productName,
+            quantity: entry.quantity,
+            location: entry.location,
+            userId: userId,
+            userName: userName,
+            reason: reason,
+          );
+        }
+      } catch (_) {
+        allUndone = false;
+      }
+    }
+    return allUndone;
+  }
+
+  /// Parks an invoice back as a draft after its stock leg failed, so it is
+  /// never left looking like a completed document that moved no goods.
+  Future<void> _parkInvoiceAsDraft(String id, InvoiceModel invoice) async {
+    try {
+      await _databaseService.updateInvoice(
+        invoice.copyWith(
+          id: id,
+          status: InvoiceStatus.draft,
+          stockDeducted: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+    } catch (_) {
+      // Best effort: the caller already surfaces the underlying stock error.
+    }
+  }
+
+  /// Raises a credit note against [sourceInvoiceId], reducing that invoice's
+  /// balance. Returns the credit note id, or null on failure.
+  Future<String?> issueCreditNote({
+    required String sourceInvoiceId,
+    required InvoiceModel creditNote,
+  }) async {
+    _errorMessage = null;
+    try {
+      return await _databaseService.issueCreditNote(
+        sourceInvoiceId: sourceInvoiceId,
+        creditNote: creditNote,
+      );
+    } catch (e) {
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Failed to issue credit note.',
+      );
       notifyListeners();
       return null;
     }
@@ -425,6 +599,19 @@ class BillingProvider extends ChangeNotifier {
   }) async {
     final inv = getInvoiceById(id);
     if (inv == null) return false;
+    
+    // Check the money, not the status: a part-paid invoice that is past due
+    // carries status `overdue`, so a status-based guard would let it through
+    // and strand the cash (cancelled invoices are excluded from both
+    // totalInvoiced and totalReceived).
+    if (inv.amountPaid > 0.01) {
+      _errorMessage =
+          'This invoice has payments recorded against it. Refund or issue a '
+          'credit note instead of cancelling it.';
+      notifyListeners();
+      return false;
+    }
+    
     final operationLocation = defaultLocation.trim().isEmpty
         ? 'Main'
         : defaultLocation.trim();
@@ -559,21 +746,11 @@ class BillingProvider extends ChangeNotifier {
   }
 
   Future<bool> recordPayment(String invoiceId, PaymentRecord payment) async {
-    final inv = getInvoiceById(invoiceId);
-    if (inv == null) return false;
-    final newPaid = inv.amountPaid + payment.amount;
-    final newDue = inv.grandTotal - newPaid;
-    final newStatus = newDue <= 0.01
-        ? InvoiceStatus.paid
-        : InvoiceStatus.partiallyPaid;
     _errorMessage = null;
     try {
       await _databaseService.recordPaymentOnInvoice(
         invoiceId,
         payment,
-        newPaid,
-        newDue < 0 ? 0 : newDue,
-        newStatus,
       );
       return true;
     } catch (e) {
@@ -624,13 +801,18 @@ class BillingProvider extends ChangeNotifier {
           ),
         )
         .toList();
-    double subtotal = 0;
-    double totalTax = 0;
-    for (final item in items) {
-      subtotal += item.lineSubtotal;
-      totalTax += item.lineTax;
-    }
-    final grandTotal = subtotal + totalTax;
+    final totals = calculateInvoiceTotals(
+      lines: items.map((i) => InvoiceTotalsLineInput(
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        lineDiscountPercent: i.discountPercent,
+        lineTaxRate: i.taxRate,
+      )).toList(),
+      invoiceDiscountPercent: 0,
+      invoiceDiscountAmount: 0,
+      taxEnabled: defaultTaxRate > 0 || items.any((i) => i.taxRate > 0),
+      discountEnabled: items.any((i) => i.discountPercent > 0),
+    );
     return InvoiceModel(
       id: '',
       invoiceNumber: invoiceNumber,
@@ -639,10 +821,12 @@ class BillingProvider extends ChangeNotifier {
       status: InvoiceStatus.draft,
       items: items,
       taxLabel: taxLabel,
-      subtotal: subtotal,
-      totalTax: totalTax,
-      grandTotal: grandTotal,
-      amountDue: grandTotal,
+      subtotal: totals.subtotal,
+      totalTax: totals.totalTax,
+      grandTotal: totals.grandTotal,
+      amountDue: totals.grandTotal,
+      totalDiscount: totals.totalDiscount,
+      invoiceDiscount: totals.invoiceDiscount,
       invoiceDate: now,
       dueDate: dueDate,
       termsText: termsText,
@@ -677,13 +861,18 @@ class BillingProvider extends ChangeNotifier {
           ),
         )
         .toList();
-    double subtotal = 0;
-    double totalTax = 0;
-    for (final item in items) {
-      subtotal += item.lineSubtotal;
-      totalTax += item.lineTax;
-    }
-    final grandTotal = subtotal + totalTax;
+    final totals = calculateInvoiceTotals(
+      lines: items.map((i) => InvoiceTotalsLineInput(
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        lineDiscountPercent: i.discountPercent,
+        lineTaxRate: i.taxRate,
+      )).toList(),
+      invoiceDiscountPercent: 0,
+      invoiceDiscountAmount: 0,
+      taxEnabled: defaultTaxRate > 0 || items.any((i) => i.taxRate > 0),
+      discountEnabled: items.any((i) => i.discountPercent > 0),
+    );
     return InvoiceModel(
       id: '',
       invoiceType: InvoiceType.purchase,
@@ -694,10 +883,12 @@ class BillingProvider extends ChangeNotifier {
       status: InvoiceStatus.draft,
       items: items,
       taxLabel: taxLabel,
-      subtotal: subtotal,
-      totalTax: totalTax,
-      grandTotal: grandTotal,
-      amountDue: grandTotal,
+      subtotal: totals.subtotal,
+      totalTax: totals.totalTax,
+      grandTotal: totals.grandTotal,
+      amountDue: totals.grandTotal,
+      totalDiscount: totals.totalDiscount,
+      invoiceDiscount: totals.invoiceDiscount,
       invoiceDate: now,
       dueDate: dueDate,
       termsText: termsText,
@@ -819,4 +1010,20 @@ class BillingProvider extends ChangeNotifier {
     _invoicesSubscription?.cancel();
     super.dispose();
   }
+}
+
+/// One stock movement already applied while posting an invoice, kept so it can
+/// be reversed if a later line fails.
+class _AppliedDeduction {
+  final String productId;
+  final String productName;
+  final String location;
+  final int quantity;
+
+  const _AppliedDeduction({
+    required this.productId,
+    required this.productName,
+    required this.location,
+    required this.quantity,
+  });
 }

@@ -194,6 +194,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
       return _filterByType(billing.invoices)
           .where(
             (i) =>
+                i.invoiceType == InvoiceType.sales &&
                 i.invoiceDate.isAfter(
                   start.subtract(const Duration(seconds: 1)),
                 ) &&

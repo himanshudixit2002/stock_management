@@ -21,7 +21,7 @@ class AiAgentService {
     if (!_ready) return [];
     final url = Uri.parse('${AiBackend.baseUrl}/api/agent/autopilot');
     try {
-      final response = await http.get(url, headers: AiBackend.headers());
+      final response = await http.get(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['recommendations'] as List? ?? [];
@@ -38,7 +38,7 @@ class AiAgentService {
     if (!_ready) return [];
     final url = Uri.parse('${AiBackend.baseUrl}/api/agent/anomalies');
     try {
-      final response = await http.get(url, headers: AiBackend.headers());
+      final response = await http.get(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['anomalies'] as List? ?? [];
@@ -55,7 +55,7 @@ class AiAgentService {
     if (!_ready) return [];
     final url = Uri.parse('${AiBackend.baseUrl}/api/agent/forecast');
     try {
-      final response = await http.get(url, headers: AiBackend.headers());
+      final response = await http.get(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['forecasts'] as List? ?? [];
@@ -72,7 +72,7 @@ class AiAgentService {
     if (!_ready) return [];
     final url = Uri.parse('${AiBackend.baseUrl}/api/agent/location_balance');
     try {
-      final response = await http.get(url, headers: AiBackend.headers());
+      final response = await http.get(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['transfer_suggestions'] as List? ?? [];
@@ -91,7 +91,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: AiBackend.headers(),
+        headers: await AiBackend.headers(),
         body: jsonEncode({
           'detected_items': detectedItems,
         }),
@@ -113,7 +113,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: AiBackend.headers(),
+        headers: await AiBackend.headers(),
         body: jsonEncode({'speech_text': speechText}),
       );
       if (response.statusCode == 200) {
@@ -130,7 +130,7 @@ class AiAgentService {
     if (!_ready) return null;
     final url = Uri.parse('${AiBackend.baseUrl}/api/swarm/autopilot');
     try {
-      final response = await http.post(url, headers: AiBackend.headers());
+      final response = await http.post(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -147,7 +147,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: AiBackend.headers(),
+        headers: await AiBackend.headers(),
         body: jsonEncode({'po_id': poId}),
       );
       if (response.statusCode == 200) {
@@ -164,7 +164,7 @@ class AiAgentService {
     if (!_ready) return null;
     final url = Uri.parse('${AiBackend.baseUrl}/api/agent/safety_stock');
     try {
-      final response = await http.get(url, headers: AiBackend.headers());
+      final response = await http.get(url, headers: await AiBackend.headers());
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>?;
       }
@@ -182,7 +182,7 @@ class AiAgentService {
     try {
       final response = await http.post(
         url,
-        headers: AiBackend.headers(companyId),
+        headers: await AiBackend.headers(companyId),
         body: jsonEncode({'products': products}),
       );
       return response.statusCode == 200;

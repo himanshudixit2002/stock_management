@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/parse_helpers.dart';
 
-enum InvoiceType { sales, purchase }
+/// A credit note is a third document type rather than a negative invoice, so
+/// it never lands in receivables/payables totals by accident. It reduces the
+/// balance of the invoice it references instead.
+enum InvoiceType { sales, purchase, creditNote }
 
 enum InvoiceStatus {
   draft,
@@ -151,6 +154,7 @@ class InvoiceModel {
   final String taxLabel;
   final double subtotal;
   final double totalDiscount;
+  final double invoiceDiscount;
   final double totalTax;
   final double grandTotal;
   final double amountPaid;
@@ -163,6 +167,9 @@ class InvoiceModel {
   final String linkedSalesOrderId;
   final String linkedPurchaseOrderId;
   final String linkedCreditNoteId;
+
+  /// Total credited back against this invoice by credit notes.
+  final double creditedAmount;
 
   /// True after inventory was adjusted for this document: sales stock removed or purchase stock added.
   final bool stockDeducted;
@@ -188,6 +195,7 @@ class InvoiceModel {
     this.taxLabel = 'GST',
     this.subtotal = 0,
     this.totalDiscount = 0,
+    this.invoiceDiscount = 0,
     this.totalTax = 0,
     this.grandTotal = 0,
     this.amountPaid = 0,
@@ -200,6 +208,7 @@ class InvoiceModel {
     this.linkedSalesOrderId = '',
     this.linkedPurchaseOrderId = '',
     this.linkedCreditNoteId = '',
+    this.creditedAmount = 0,
     this.stockDeducted = false,
     this.createdBy = '',
     this.createdByName = '',
@@ -209,9 +218,15 @@ class InvoiceModel {
 
   bool get isSales => invoiceType == InvoiceType.sales;
   bool get isPurchase => invoiceType == InvoiceType.purchase;
+  bool get isCreditNote => invoiceType == InvoiceType.creditNote;
 
-  String get partyName => isSales ? customerName : vendorName;
-  String get partyId => isSales ? customerId : vendorId;
+  /// Credit notes are always customer-side, so they read their party from the
+  /// customer fields like a sales invoice does.
+  String get partyName => isPurchase ? vendorName : customerName;
+  String get partyId => isPurchase ? vendorId : customerId;
+
+  /// The invoice this credit note was raised against, if any.
+  String get creditedInvoiceId => linkedSalesOrderId;
 
   String get statusLabel => switch (status) {
     InvoiceStatus.draft => 'Draft',
@@ -239,12 +254,14 @@ class InvoiceModel {
 
   static InvoiceType _typeFromString(String s) => switch (s) {
     'purchase' => InvoiceType.purchase,
+    'creditNote' => InvoiceType.creditNote,
     _ => InvoiceType.sales,
   };
 
   static String _typeToString(InvoiceType t) => switch (t) {
     InvoiceType.sales => 'sales',
     InvoiceType.purchase => 'purchase',
+    InvoiceType.creditNote => 'creditNote',
   };
 
   static InvoiceStatus _statusFromString(String s) => switch (s) {
@@ -297,6 +314,7 @@ class InvoiceModel {
       taxLabel: safeString(map['taxLabel'], 'GST'),
       subtotal: safeDouble(map['subtotal']),
       totalDiscount: safeDouble(map['totalDiscount']),
+      invoiceDiscount: safeDouble(map['invoiceDiscount']),
       totalTax: safeDouble(map['totalTax']),
       grandTotal: safeDouble(map['grandTotal']),
       amountPaid: safeDouble(map['amountPaid']),
@@ -309,6 +327,7 @@ class InvoiceModel {
       linkedSalesOrderId: safeString(map['linkedSalesOrderId']),
       linkedPurchaseOrderId: safeString(map['linkedPurchaseOrderId']),
       linkedCreditNoteId: safeString(map['linkedCreditNoteId']),
+      creditedAmount: safeDouble(map['creditedAmount']),
       stockDeducted: map['stockDeducted'] == true,
       createdBy: safeString(map['createdBy']),
       createdByName: safeString(map['createdByName']),
@@ -333,6 +352,7 @@ class InvoiceModel {
     'taxLabel': taxLabel,
     'subtotal': subtotal,
     'totalDiscount': totalDiscount,
+      'invoiceDiscount': invoiceDiscount,
     'totalTax': totalTax,
     'grandTotal': grandTotal,
     'amountPaid': amountPaid,
@@ -345,6 +365,7 @@ class InvoiceModel {
     'linkedSalesOrderId': linkedSalesOrderId,
     'linkedPurchaseOrderId': linkedPurchaseOrderId,
     'linkedCreditNoteId': linkedCreditNoteId,
+    'creditedAmount': creditedAmount,
     'stockDeducted': stockDeducted,
     'createdBy': createdBy,
     'createdByName': createdByName,
@@ -369,6 +390,7 @@ class InvoiceModel {
     String? taxLabel,
     double? subtotal,
     double? totalDiscount,
+    double? invoiceDiscount,
     double? totalTax,
     double? grandTotal,
     double? amountPaid,
@@ -381,6 +403,7 @@ class InvoiceModel {
     String? linkedSalesOrderId,
     String? linkedPurchaseOrderId,
     String? linkedCreditNoteId,
+    double? creditedAmount,
     bool? stockDeducted,
     String? createdBy,
     String? createdByName,
@@ -404,6 +427,7 @@ class InvoiceModel {
       taxLabel: taxLabel ?? this.taxLabel,
       subtotal: subtotal ?? this.subtotal,
       totalDiscount: totalDiscount ?? this.totalDiscount,
+      invoiceDiscount: invoiceDiscount ?? this.invoiceDiscount,
       totalTax: totalTax ?? this.totalTax,
       grandTotal: grandTotal ?? this.grandTotal,
       amountPaid: amountPaid ?? this.amountPaid,
@@ -417,6 +441,7 @@ class InvoiceModel {
       linkedPurchaseOrderId:
           linkedPurchaseOrderId ?? this.linkedPurchaseOrderId,
       linkedCreditNoteId: linkedCreditNoteId ?? this.linkedCreditNoteId,
+      creditedAmount: creditedAmount ?? this.creditedAmount,
       stockDeducted: stockDeducted ?? this.stockDeducted,
       createdBy: createdBy ?? this.createdBy,
       createdByName: createdByName ?? this.createdByName,

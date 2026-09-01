@@ -21,7 +21,7 @@ class LowStockScreen extends StatelessWidget {
     final analyticsProducts = productProvider.analyticsProducts;
     final lowStock =
         analyticsProducts
-            .where((p) => p.quantity <= p.lowStockThreshold)
+            .where((p) => p.needsReorder)
             .toList()
           ..sort((a, b) {
             final aRatio = a.lowStockThreshold > 0

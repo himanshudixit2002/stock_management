@@ -105,6 +105,7 @@ FastPosCheckoutPayload buildFastPosInvoice({
       taxLabel: billingSettings.taxLabel,
       subtotal: totals.subtotal,
       totalDiscount: totals.totalDiscount,
+      invoiceDiscount: totals.invoiceDiscount,
       totalTax: totals.totalTax,
       grandTotal: totals.grandTotal,
       amountPaid: paidAmount,

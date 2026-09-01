@@ -112,7 +112,7 @@ class _ReportsExportSheetState extends State<ReportsExportSheet> {
         lowStock: {},
         outOfStock: {},
         totalProducts: products.length,
-        lowStockCount: products.where((p) => p.quantity <= p.lowStockThreshold).length,
+        lowStockCount: products.where((p) => p.needsReorder).length,
         outOfStockCount: products.where((p) => p.quantity <= 0).length,
         healthScore: 100,
       );

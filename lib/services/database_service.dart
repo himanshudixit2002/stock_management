@@ -124,11 +124,21 @@ class DatabaseService {
     final products = await _products
         .where('categoryId', isEqualTo: category.id)
         .get();
-    if (products.docs.isNotEmpty) {
-      final batch = _firestore.batch();
-      for (var doc in products.docs) {
-        batch.update(doc.reference, {'categoryName': category.name});
+        
+    var batch = _firestore.batch();
+    int opCount = 0;
+    
+    for (var doc in products.docs) {
+      batch.update(doc.reference, {'categoryName': category.name});
+      opCount++;
+      if (opCount >= kFirestoreBatchLimit) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
       }
+    }
+    
+    if (opCount > 0) {
       await batch.commit();
     }
   }
@@ -408,9 +418,20 @@ class DatabaseService {
       );
       txn.set(auditRef, auditLog.toMap());
 
+      // Merge the whole map rather than writing 'locationQuantities.$location'.
+      // A dotted key is a Firestore *field path*, so a location containing a
+      // dot ("Rack 1.2") would create a nested map that _toIntMap reads back
+      // as 0 — silently destroying the stock. This also keeps addStock
+      // consistent with removeStock, which already writes the map whole.
+      final locMap = _toIntMap(
+        (snapshot.data()?['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      final bucket = _normalizeLocation(location);
+      locMap[bucket] = (locMap[bucket] ?? 0) + quantity;
+
       final updates = <String, dynamic>{
-        'quantity': FieldValue.increment(quantity),
-        'locationQuantities.$location': FieldValue.increment(quantity),
+        'quantity': _sumMapValues(locMap),
+        'locationQuantities': locMap,
         'updatedAt': Timestamp.now(),
       };
       if (vendorId.isNotEmpty) {
@@ -544,6 +565,50 @@ class DatabaseService {
 
   int _sumMapValues(Map<String, int> map) {
     return map.values.fold<int>(0, (total, value) => total + value);
+  }
+
+  /// Throws unless [quantity] units can leave [location] without eating into
+  /// stock that is on hold.
+  ///
+  /// [removeStock] has always enforced this; damage, transfer and adjustment
+  /// did not, so reserved units could be written off or moved away and leave
+  /// heldQuantity > quantity (availableQuantity then clamps to 0 and a
+  /// confirmed order silently loses its reservation).
+  ///
+  /// Two checks, because reservations are tracked two ways: per-location, and
+  /// product-level (the kUnassignedHoldLocation bucket) which is not tied to
+  /// any one location.
+  void _assertAvailableAtLocation(
+    Map<String, dynamic> productData,
+    String location,
+    int quantity,
+  ) {
+    final allLocQty = _toIntMap(
+      (productData['locationQuantities'] as Map<dynamic, dynamic>?),
+    );
+    final allHeldQty = _toIntMap(
+      (productData['heldLocationQuantities'] as Map<dynamic, dynamic>?),
+    );
+    final unit = productData['unit'] ?? 'pcs';
+
+    final availableHere =
+        (allLocQty[location] ?? 0) - (allHeldQty[location] ?? 0);
+    if (availableHere < quantity) {
+      throw Exception(
+        'Not enough available stock at $location. '
+        'Available: ${availableHere < 0 ? 0 : availableHere} $unit',
+      );
+    }
+
+    final totalOnHand = _sumMapValues(allLocQty);
+    final totalHeld = _sumMapValues(allHeldQty);
+    if (totalOnHand - quantity < totalHeld) {
+      final globalAvailable = totalOnHand - totalHeld;
+      throw Exception(
+        'Some units are on hold. Available: '
+        '${globalAvailable < 0 ? 0 : globalAvailable} $unit',
+      );
+    }
   }
 
   String _normalizeLocation(String location) {
@@ -1044,10 +1109,59 @@ class DatabaseService {
     if (quantity <= 0) return 0;
     location = _normalizeLocation(location);
 
+    // Pick the candidate holds BEFORE opening the transaction. A query issued
+    // inside runTransaction is not a transactional read: it takes part in no
+    // conflict detection, so the quantities it returns can be stale and the
+    // writes derived from them are blind. Two concurrent despatches could
+    // therefore consume the same hold twice. Only the ordering is decided here
+    // (createdAt / sourceType / sourceId are immutable); every quantity is
+    // re-read transactionally below.
+    final candidateQuery = await _stockHolds
+        .where('productId', isEqualTo: productId)
+        .where('location', isEqualTo: location)
+        .where('status', whereIn: ['active', 'partially_consumed'])
+        .get();
+
+    bool matchesSource(Map<String, dynamic> d) =>
+        sourceId.isNotEmpty &&
+        (d['sourceType']?.toString() ?? '') == sourceType &&
+        (d['sourceId']?.toString() ?? '') == sourceId;
+    bool isManualHold(Map<String, dynamic> d) =>
+        (d['sourceType']?.toString() ?? 'manual') == 'manual';
+
+    final sortedDocs = candidateQuery.docs.toList()
+      ..sort((a, b) {
+        final aTime =
+            (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return aTime.compareTo(bTime);
+      });
+
+    // Consume this source's own holds first, then fall back to manual holds.
+    // Never consume holds reserved by a *different* order/invoice, so one
+    // document can't silently eat another order's reservation.
+    final orderedRefs = <DocumentReference<Map<String, dynamic>>>[
+      ...sortedDocs.where((d) => matchesSource(d.data())).map((d) => d.reference),
+      ...sortedDocs
+          .where((d) => !matchesSource(d.data()) && isManualHold(d.data()))
+          .map((d) => d.reference),
+    ];
+    if (orderedRefs.isEmpty) return 0;
+
     return _firestore.runTransaction((txn) async {
       final productRef = _products.doc(productId);
       final productSnap = await txn.get(productRef);
       if (!productSnap.exists) throw Exception('Product not found');
+
+      // All reads must precede all writes inside a transaction, so re-read
+      // every candidate hold up front.
+      final holdSnaps = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final ref in orderedRefs) {
+        holdSnaps.add(await txn.get(ref));
+      }
 
       final data = productSnap.data()!;
       final heldLocationQuantities = _toIntMap(
@@ -1060,43 +1174,20 @@ class DatabaseService {
       final consumeQty = heldAtLocation < quantity ? heldAtLocation : quantity;
       if (consumeQty <= 0) return 0;
 
-      final holdQuery = await _stockHolds
-          .where('productId', isEqualTo: productId)
-          .where('location', isEqualTo: location)
-          .where('status', whereIn: ['active', 'partially_consumed'])
-          .get();
-      final sortedDocs = holdQuery.docs.toList()
-        ..sort((a, b) {
-          final aTime =
-              (a.data()['createdAt'] as Timestamp?)?.toDate() ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final bTime =
-              (b.data()['createdAt'] as Timestamp?)?.toDate() ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          return aTime.compareTo(bTime);
-        });
-
       var remainingToConsume = consumeQty;
       var actualConsumed = 0;
       final now = DateTime.now();
 
-      bool matchesSource(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
-          sourceId.isNotEmpty &&
-          (d.data()['sourceType']?.toString() ?? '') == sourceType &&
-          (d.data()['sourceId']?.toString() ?? '') == sourceId;
-      bool isManualHold(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
-          (d.data()['sourceType']?.toString() ?? 'manual') == 'manual';
-
-      // Consume this source's own holds first, then fall back to manual holds.
-      // Never consume holds reserved by a *different* order/invoice, so one
-      // document can't silently eat another order's reservation.
-      final prioritizedDocs = sortedDocs.where(matchesSource).toList();
-      prioritizedDocs.addAll(
-        sortedDocs.where((d) => !matchesSource(d) && isManualHold(d)),
-      );
-      for (final doc in prioritizedDocs) {
+      for (final snap in holdSnaps) {
         if (remainingToConsume <= 0) break;
-        final hold = StockHoldModel.fromMap(doc.data(), doc.id);
+        if (!snap.exists) continue;
+        final hold = StockHoldModel.fromMap(snap.data()!, snap.id);
+        // Re-check status from the transactional read: another despatch may
+        // have consumed this hold between the query above and here.
+        if (hold.status != StockHoldStatus.active &&
+            hold.status != StockHoldStatus.partiallyConsumed) {
+          continue;
+        }
         final available = hold.remainingQuantity;
         if (available <= 0) continue;
         final take = available < remainingToConsume
@@ -1106,7 +1197,7 @@ class DatabaseService {
         final remainingAfter =
             hold.quantity - newConsumed - hold.releasedQuantity;
         final status = remainingAfter <= 0 ? 'consumed' : 'partially_consumed';
-        txn.update(doc.reference, {
+        txn.update(snap.reference, {
           'consumedQuantity': newConsumed,
           'status': status,
           'updatedAt': Timestamp.fromDate(now),
@@ -1270,6 +1361,13 @@ class DatabaseService {
       }
     }
 
+    // Reservations for every product are planned first and committed in one
+    // transaction below. Creating them one product at a time (each its own
+    // transaction) meant a later product running short left the earlier
+    // products' holds already committed — orphaned reservations against an
+    // order that never got confirmed.
+    final plannedHolds = <_PlannedHold>[];
+
     for (final productId in allProductIds) {
       final prevQty = prevQtyByProduct[productId] ?? 0;
       final nextQty = nextQtyByProduct[productId] ?? 0;
@@ -1313,17 +1411,13 @@ class DatabaseService {
           var reserveQty = available < remaining ? available : remaining;
           if (reserveQty > globalBudget) reserveQty = globalBudget;
           if (reserveQty <= 0) continue;
-          await createStockHold(
-            productId: productId,
-            productName: productNames[productId] ?? '',
-            quantity: reserveQty,
-            location: loc,
-            userId: userId,
-            userName: userName,
-            sourceType: StockHoldSourceType.salesOrder,
-            sourceId: order.id,
-            challanNumber: 'SO-${order.id.substring(0, 6)}',
-            reason: 'SO #${order.id.substring(0, 6)} confirmed',
+          plannedHolds.add(
+            _PlannedHold(
+              productId: productId,
+              productName: productNames[productId] ?? '',
+              location: loc,
+              quantity: reserveQty,
+            ),
           );
           remaining -= reserveQty;
           globalBudget -= reserveQty;
@@ -1409,6 +1503,132 @@ class DatabaseService {
         }
       }
     }
+
+    await _commitPlannedHolds(
+      plannedHolds,
+      userId: userId,
+      userName: userName,
+      sourceType: StockHoldSourceType.salesOrder,
+      sourceId: order.id,
+      challanNumber: 'SO-${order.id.substring(0, 6)}',
+      reason: 'SO #${order.id.substring(0, 6)} confirmed',
+    );
+  }
+
+  /// Writes every planned reservation in a single transaction: all products are
+  /// read first, availability is re-validated against those transactional
+  /// reads, and only then are the hold docs, product updates and ledger rows
+  /// written. Either the whole order is reserved or none of it is.
+  Future<void> _commitPlannedHolds(
+    List<_PlannedHold> planned, {
+    required String userId,
+    required String userName,
+    required StockHoldSourceType sourceType,
+    required String sourceId,
+    String challanNumber = '',
+    String reason = '',
+  }) async {
+    if (planned.isEmpty) return;
+
+    final productIds = planned.map((e) => e.productId).toSet();
+    final now = DateTime.now();
+
+    await _firestore.runTransaction((txn) async {
+      // Reads first — Firestore requires it, and re-reading here is what makes
+      // the availability check race-free.
+      final refs = <String, DocumentReference<Map<String, dynamic>>>{};
+      final data = <String, Map<String, dynamic>>{};
+      for (final productId in productIds) {
+        final ref = _products.doc(productId);
+        final snap = await txn.get(ref);
+        if (!snap.exists) {
+          throw Exception('Product not found for sales order reservation.');
+        }
+        refs[productId] = ref;
+        data[productId] = snap.data()!;
+      }
+
+      final locMaps = <String, Map<String, int>>{};
+      final heldMaps = <String, Map<String, int>>{};
+      for (final productId in productIds) {
+        locMaps[productId] = _toIntMap(
+          (data[productId]!['locationQuantities'] as Map<dynamic, dynamic>?),
+        );
+        heldMaps[productId] = _toIntMap(
+          (data[productId]!['heldLocationQuantities']
+              as Map<dynamic, dynamic>?),
+        );
+      }
+
+      for (final hold in planned) {
+        final locMap = locMaps[hold.productId]!;
+        final heldMap = heldMaps[hold.productId]!;
+        final unit = data[hold.productId]!['unit'] ?? 'pcs';
+        final name = data[hold.productId]!['name'] ?? hold.productName;
+
+        final onHand = locMap[hold.location] ?? 0;
+        final held = heldMap[hold.location] ?? 0;
+        if (onHand - held < hold.quantity) {
+          throw Exception(
+            'Not enough available stock to reserve for $name at '
+            '${hold.location}. Available: ${onHand - held < 0 ? 0 : onHand - held} $unit',
+          );
+        }
+        // Location-less manual holds are not tied to a location, so the total
+        // reserved must also stay within the product-level available count.
+        if (_sumMapValues(locMap) - _sumMapValues(heldMap) < hold.quantity) {
+          throw Exception(
+            'Not enough available stock to reserve for $name — some units are '
+            'already on hold.',
+          );
+        }
+        heldMap[hold.location] = held + hold.quantity;
+
+        final holdRef = _stockHolds.doc();
+        txn.set(
+          holdRef,
+          StockHoldModel(
+            id: holdRef.id,
+            productId: hold.productId,
+            productName: hold.productName,
+            location: hold.location,
+            quantity: hold.quantity,
+            status: StockHoldStatus.active,
+            sourceType: sourceType,
+            sourceId: sourceId,
+            challanNumber: challanNumber,
+            reason: reason,
+            createdBy: userId,
+            createdByName: userName,
+            createdAt: now,
+            updatedAt: now,
+          ).toMap(),
+        );
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: hold.productId,
+            productName: hold.productName,
+            type: TransactionType.hold,
+            quantity: hold.quantity,
+            location: hold.location,
+            reason: reason.isNotEmpty ? reason : 'Stock hold created',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+      }
+
+      for (final productId in productIds) {
+        txn.update(refs[productId]!, {
+          'heldQuantity': _sumMapValues(heldMaps[productId]!),
+          'heldLocationQuantities': heldMaps[productId],
+          'updatedAt': Timestamp.now(),
+        });
+      }
+    });
   }
 
   /// Active (or partially-consumed) holds for a given source, optionally
@@ -1500,12 +1720,8 @@ class DatabaseService {
       final locQty =
           ((data['locationQuantities'] as Map?)?[location] as num?)?.toInt() ??
           0;
-      final unit = data['unit'] ?? 'pcs';
-      if (locQty < quantity) {
-        throw Exception(
-          'Damage qty exceeds stock at $location. Available: $locQty $unit',
-        );
-      }
+      // Held units are reserved for an order; they must not be written off.
+      _assertAvailableAtLocation(data, location, quantity);
 
       final stockTransaction = StockTransactionModel(
         id: '',
@@ -1591,11 +1807,11 @@ class DatabaseService {
       if (!snapshot.exists) throw Exception('Product not found');
 
       final data = snapshot.data()!;
-      final locQty = (data['locationQuantities'] as Map?)?[from] ?? 0;
-      final unit = data['unit'] ?? 'pcs';
-      if (locQty < quantity) {
-        throw Exception('Not enough stock at $from. Available: $locQty $unit');
-      }
+      final locQty =
+          ((data['locationQuantities'] as Map?)?[from] as num?)?.toInt() ?? 0;
+      // Reservations are location-bound, so stock on hold at [from] cannot be
+      // moved out from under the order holding it.
+      _assertAvailableAtLocation(data, from, quantity);
 
       final stockTransaction = StockTransactionModel(
         id: '',
@@ -1687,6 +1903,14 @@ class DatabaseService {
         );
       }
 
+      // A downward correction must not cut into reserved units. Counting short
+      // on stock that is on hold means the reservation is the thing that is
+      // wrong, so make the user release it first rather than silently leaving
+      // heldQuantity above the on-hand count.
+      if (adjustmentDelta < 0) {
+        _assertAvailableAtLocation(data, location, -adjustmentDelta);
+      }
+
       if (newLocQty <= 0) {
         locMap.remove(location);
       } else {
@@ -1704,6 +1928,9 @@ class DatabaseService {
         productName: productName,
         type: TransactionType.adjustment,
         quantity: adjustmentDelta.abs(),
+        // Keep the sign: quantity is absolute, so without this the ledger
+        // cannot tell an increase from a decrease.
+        quantityDelta: adjustmentDelta,
         location: location,
         reason: reason,
         userId: userId,
@@ -1745,7 +1972,86 @@ class DatabaseService {
     String newLocation,
   ) async {
     _ensureCompanyId();
-    await _transactions.doc(transactionId).update({'location': newLocation});
+    
+    await _firestore.runTransaction((txn) async {
+      final txDocRef = _transactions.doc(transactionId);
+      final txDoc = await txn.get(txDocRef);
+      if (!txDoc.exists) throw Exception('Transaction not found');
+      
+      final txData = txDoc.data()!;
+      final oldLocation = txData['location'] as String? ?? 'Main';
+      if (oldLocation == newLocation) return;
+      
+      final productId = txData['productId'] as String?;
+      if (productId == null || productId.isEmpty) {
+        txn.update(txDocRef, {'location': newLocation});
+        return;
+      }
+      
+      final typeStr = txData['type'] as String? ?? '';
+      final qty = (txData['quantity'] as num?)?.toInt() ?? 0;
+      
+      final productRef = _products.doc(productId);
+      final productSnap = await txn.get(productRef);
+      
+      if (productSnap.exists) {
+        final productData = productSnap.data()!;
+        final locationQuantities = _toIntMap(
+          (productData['locationQuantities'] as Map<dynamic, dynamic>?),
+        );
+        
+        final oldLocQty = locationQuantities[oldLocation] ?? 0;
+        final newLocQty = locationQuantities[newLocation] ?? 0;
+        
+        // An adjustment's stored quantity is an absolute value, so its
+        // direction cannot be recovered from the ledger row alone. Correcting
+        // one by moving it would have to guess the sign, so refuse instead.
+        if (typeStr == 'adjustment') {
+          throw Exception('Cannot update location for an adjustment.');
+        }
+
+        // Signed effect this row originally had on its location. These must be
+        // the serialized values from StockTransactionModel (`stock_out`, not
+        // `out`) — a mismatch silently inverts the correction.
+        final isDeduction = typeStr == 'stock_out' || typeStr == 'damage';
+        final delta = isDeduction ? -qty : qty;
+
+        // Undo the original effect at the old location...
+        final revertedOld = oldLocQty - delta;
+        if (revertedOld < 0) {
+          throw Exception(
+            'Cannot move this entry: $oldLocation does not hold enough stock '
+            'to reverse it.',
+          );
+        }
+        if (revertedOld == 0) {
+          locationQuantities.remove(oldLocation);
+        } else {
+          locationQuantities[oldLocation] = revertedOld;
+        }
+
+        // ...and re-apply it at the new one.
+        final appliedNew = newLocQty + delta;
+        if (appliedNew < 0) {
+          throw Exception(
+            'Cannot move this entry: $newLocation does not hold enough stock '
+            'to absorb it.',
+          );
+        }
+        if (appliedNew == 0) {
+          locationQuantities.remove(newLocation);
+        } else {
+          locationQuantities[newLocation] = appliedNew;
+        }
+        
+        txn.update(productRef, {
+          'locationQuantities': locationQuantities,
+          'updatedAt': Timestamp.now(),
+        });
+      }
+      
+      txn.update(txDocRef, {'location': newLocation});
+    });
   }
 
   Stream<List<StockTransactionModel>> getProductTransactions(String productId) {
@@ -1896,7 +2202,32 @@ class DatabaseService {
     await _vendors.doc(vendor.id).update(vendor.toMap());
   }
 
+  /// Refuses to delete a vendor that is still referenced. Stock transactions
+  /// and purchase orders are financial history — deleting the vendor must not
+  /// erase them, so the caller is told to reassign first instead.
   Future<void> deleteVendor(String vendorId) async {
+    final referencingTxn = await _transactions
+        .where('vendorId', isEqualTo: vendorId)
+        .limit(1)
+        .get();
+    if (referencingTxn.docs.isNotEmpty) {
+      throw Exception(
+        'Cannot delete this vendor. It is referenced by existing stock '
+        'transactions.',
+      );
+    }
+
+    final referencingPo = await _purchaseOrders
+        .where('vendorId', isEqualTo: vendorId)
+        .limit(1)
+        .get();
+    if (referencingPo.docs.isNotEmpty) {
+      throw Exception(
+        'Cannot delete this vendor. It is referenced by existing purchase '
+        'orders.',
+      );
+    }
+
     await _vendors.doc(vendorId).delete();
   }
 
@@ -2084,17 +2415,67 @@ class DatabaseService {
     });
   }
 
+  /// Receives stock against a purchase order.
+  ///
+  /// [receivedByItemIndex] gives the quantity accepted for each line, keyed by
+  /// its index in `po.items`; omit it to receive every outstanding unit. This
+  /// is what makes a partial goods receipt possible — the previous version
+  /// forced receivedQuantity = quantity on every line and stamped the order
+  /// 'received', so POStatus.partial was unreachable from the receive action.
   Future<void> receivePurchaseOrder({
     required PurchaseOrderModel po,
     required String userId,
     required String userName,
     required String location,
+    Map<int, int>? receivedByItemIndex,
   }) async {
+    final bucket = _normalizeLocation(location);
+
+    /// Units to accept for [index], clamped to what is still outstanding.
+    int acceptedFor(int index, POItem item) {
+      final outstanding = item.quantity - item.receivedQuantity;
+      if (outstanding <= 0) return 0;
+      final requested = receivedByItemIndex == null
+          ? outstanding
+          : (receivedByItemIndex[index] ?? 0);
+      if (requested <= 0) return 0;
+      return requested > outstanding ? outstanding : requested;
+    }
+
+    // Pre-read every product being received. A WriteBatch cannot read, and the
+    // previous 'locationQuantities.$location' shorthand is a Firestore *field
+    // path* — a location containing a dot ("Rack 1.2") wrote a nested map that
+    // reads back as 0, silently losing the received stock. Reading first lets
+    // us merge and write the map whole, the same way addStock now does.
+    final receivedByProduct = <String, int>{};
+    for (var i = 0; i < po.items.length; i++) {
+      final qty = acceptedFor(i, po.items[i]);
+      if (qty <= 0) continue;
+      receivedByProduct[po.items[i].productId] =
+          (receivedByProduct[po.items[i].productId] ?? 0) + qty;
+    }
+    if (receivedByProduct.isEmpty) {
+      throw Exception('Enter a quantity to receive.');
+    }
+    final mergedLocations = <String, Map<String, int>>{};
+    for (final productId in receivedByProduct.keys) {
+      final snap = await _products.doc(productId).get();
+      if (!snap.exists) {
+        throw Exception('Product not found while receiving this order.');
+      }
+      final locMap = _toIntMap(
+        (snap.data()?['locationQuantities'] as Map<dynamic, dynamic>?),
+      );
+      locMap[bucket] = (locMap[bucket] ?? 0) + receivedByProduct[productId]!;
+      mergedLocations[productId] = locMap;
+    }
+
     var batch = _firestore.batch();
     int opCount = 0;
 
-    for (final item in po.items) {
-      final qty = item.quantity - item.receivedQuantity;
+    for (var i = 0; i < po.items.length; i++) {
+      final item = po.items[i];
+      final qty = acceptedFor(i, item);
       if (qty <= 0) continue;
       final txn = StockTransactionModel(
         id: '',
@@ -2102,7 +2483,7 @@ class DatabaseService {
         productName: item.productName,
         type: TransactionType.stockIn,
         quantity: qty,
-        location: location,
+        location: bucket,
         reason: 'PO #${po.id.substring(0, 6)}',
         userId: userId,
         userName: userName,
@@ -2110,9 +2491,10 @@ class DatabaseService {
       );
       batch.set(_transactions.doc(), txn.toMap());
       opCount++;
+      final locMap = mergedLocations[item.productId]!;
       batch.update(_products.doc(item.productId), {
-        'quantity': FieldValue.increment(qty),
-        'locationQuantities.$location': FieldValue.increment(qty),
+        'quantity': _sumMapValues(locMap),
+        'locationQuantities': locMap,
         'updatedAt': Timestamp.now(),
       });
       opCount++;
@@ -2124,13 +2506,25 @@ class DatabaseService {
       }
     }
 
-    final updatedItems = po.items
-        .map((i) => i.copyWith(receivedQuantity: i.quantity).toMap())
-        .toList();
+    // Advance each line by what was actually accepted, and derive the order
+    // status from the result rather than assuming everything arrived.
+    final updatedLines = <POItem>[];
+    for (var i = 0; i < po.items.length; i++) {
+      final item = po.items[i];
+      final qty = acceptedFor(i, item);
+      updatedLines.add(
+        qty <= 0
+            ? item
+            : item.copyWith(receivedQuantity: item.receivedQuantity + qty),
+      );
+    }
+    final fullyReceived = updatedLines.every(
+      (l) => l.quantity <= 0 || l.receivedQuantity >= l.quantity,
+    );
     batch.update(_purchaseOrders.doc(po.id), {
-      'status': 'received',
-      'items': updatedItems,
-      'receivedDate': Timestamp.now(),
+      'status': fullyReceived ? 'received' : 'partial',
+      'items': updatedLines.map((l) => l.toMap()).toList(),
+      if (fullyReceived) 'receivedDate': Timestamp.now(),
       'updatedAt': Timestamp.now(),
     });
     opCount++;
@@ -2138,8 +2532,9 @@ class DatabaseService {
     await batch.commit();
 
     // Update product costPrice if PO unit price differs
-    for (final item in po.items) {
-      if (item.unitPrice <= 0) continue;
+    for (var i = 0; i < po.items.length; i++) {
+      final item = po.items[i];
+      if (item.unitPrice <= 0 || acceptedFor(i, item) <= 0) continue;
       final productDoc = await _products.doc(item.productId).get();
       if (!productDoc.exists) continue;
       final data = productDoc.data()!;
@@ -2234,6 +2629,16 @@ class DatabaseService {
 
   Future<void> updateReturn(ReturnModel r) async {
     await _returns.doc(r.id).update(r.toMap());
+  }
+
+  /// Reads a return straight from the server so callers can re-check its
+  /// status before moving stock. The cached list can be stale, which is how a
+  /// return could be processed twice from two devices.
+  Future<ReturnModel?> getReturnById(String id) async {
+    if (id.isEmpty) return null;
+    final doc = await _returns.doc(id).get();
+    if (!doc.exists) return null;
+    return ReturnModel.fromMap(doc.data()!, doc.id);
   }
 
   // ==================== CUSTOMERS ====================
@@ -2395,11 +2800,20 @@ class DatabaseService {
 
   Future<void> markAllNotificationsRead() async {
     final snap = await _notifications.where('isRead', isEqualTo: false).get();
-    final b = _firestore.batch();
+    // Firestore rejects a batch over 500 ops, so chunk like the other bulk
+    // writers rather than failing outright on a busy workspace.
+    var b = _firestore.batch();
+    var opCount = 0;
     for (final d in snap.docs) {
       b.update(d.reference, {'isRead': true});
+      opCount++;
+      if (opCount >= kFirestoreBatchLimit) {
+        await b.commit();
+        b = _firestore.batch();
+        opCount = 0;
+      }
     }
-    await b.commit();
+    if (opCount > 0) await b.commit();
   }
 
   Future<void> deleteNotification(String id) async {
@@ -2496,8 +2910,21 @@ class DatabaseService {
   }
 
   Future<String> addInvoice(InvoiceModel invoice) async {
-    final ref = await _invoices.add(invoice.toMap());
-    return ref.id;
+    final ref = _invoices.doc();
+    final id = ref.id;
+    
+    await _firestore.runTransaction((txn) async {
+      txn.set(ref, invoice.toMap());
+      
+      if (invoice.linkedSalesOrderId.isNotEmpty) {
+        txn.update(_salesOrders.doc(invoice.linkedSalesOrderId), {'invoiceId': id});
+      }
+      if (invoice.linkedPurchaseOrderId.isNotEmpty) {
+        txn.update(_purchaseOrders.doc(invoice.linkedPurchaseOrderId), {'invoiceId': id});
+      }
+    });
+    
+    return id;
   }
 
   Future<void> setInvoiceStockDeducted(String invoiceId, bool value) async {
@@ -2659,23 +3086,121 @@ class DatabaseService {
     });
   }
 
+  /// Issues a credit note against [sourceInvoiceId] and reduces that invoice's
+  /// outstanding balance, in one transaction.
+  ///
+  /// This is the supported way to unwind money on an invoice that has already
+  /// taken payment — cancelling such an invoice is blocked, because cancelled
+  /// documents drop out of both invoiced and received totals and the cash
+  /// simply disappears from the reports.
+  ///
+  /// Returns the new credit note's id.
+  Future<String> issueCreditNote({
+    required String sourceInvoiceId,
+    required InvoiceModel creditNote,
+  }) async {
+    if (creditNote.grandTotal <= 0) {
+      throw ArgumentError('Credit note amount must be greater than zero.');
+    }
+
+    final noteRef = _invoices.doc();
+    await _firestore.runTransaction((txn) async {
+      final sourceRef = _invoices.doc(sourceInvoiceId);
+      final snap = await txn.get(sourceRef);
+      if (!snap.exists) throw Exception('Invoice not found');
+
+      final data = snap.data()!;
+      final status = data['status'] as String? ?? 'sent';
+      if (status == 'cancelled') {
+        throw Exception('Cannot credit a cancelled invoice.');
+      }
+
+      final grandTotal = (data['grandTotal'] as num?)?.toDouble() ?? 0.0;
+      final amountPaid = (data['amountPaid'] as num?)?.toDouble() ?? 0.0;
+      final existingCredit = (data['creditedAmount'] as num?)?.toDouble() ?? 0.0;
+
+      final creditable = grandTotal - amountPaid - existingCredit;
+      if (creditNote.grandTotal > creditable + 0.01) {
+        throw Exception(
+          'Credit exceeds the outstanding balance on this invoice '
+          '(${creditable < 0 ? 0 : creditable}).',
+        );
+      }
+
+      final newCredited = existingCredit + creditNote.grandTotal;
+      final newDue = grandTotal - amountPaid - newCredited;
+
+      txn.set(
+        noteRef,
+        creditNote
+            .copyWith(
+              invoiceType: InvoiceType.creditNote,
+              // Reuse linkedSalesOrderId as the back-reference; see
+              // InvoiceModel.creditedInvoiceId.
+              linkedSalesOrderId: sourceInvoiceId,
+            )
+            .toMap(),
+      );
+      txn.update(sourceRef, {
+        'creditedAmount': newCredited,
+        'amountDue': newDue < 0 ? 0 : newDue,
+        'status': newDue <= 0.01 ? 'paid' : status,
+        'linkedCreditNoteId': noteRef.id,
+        'updatedAt': Timestamp.now(),
+      });
+    });
+    return noteRef.id;
+  }
+
   Future<void> recordPaymentOnInvoice(
     String invoiceId,
     PaymentRecord payment,
-    double newAmountPaid,
-    double newAmountDue,
-    InvoiceStatus newStatus,
   ) async {
-    await _invoices.doc(invoiceId).update({
-      'payments': FieldValue.arrayUnion([payment.toMap()]),
-      'amountPaid': newAmountPaid,
-      'amountDue': newAmountDue,
-      'status': newStatus == InvoiceStatus.paid
+    await _firestore.runTransaction((txn) async {
+      final docRef = _invoices.doc(invoiceId);
+      final snap = await txn.get(docRef);
+      if (!snap.exists) throw Exception('Invoice not found');
+      
+      final data = snap.data()!;
+      final double grandTotal = (data['grandTotal'] as num?)?.toDouble() ?? 0.0;
+      final double currentPaid = (data['amountPaid'] as num?)?.toDouble() ?? 0.0;
+      final double currentDue = grandTotal - currentPaid;
+      
+      if (payment.amount <= 0) {
+        throw Exception('Payment amount must be greater than zero.');
+      }
+      if (payment.amount > currentDue + 0.01) {
+        throw Exception('Payment amount exceeds amount due');
+      }
+      
+      final newPaid = currentPaid + payment.amount;
+      final newDue = grandTotal - newPaid;
+      
+      final currentStatus = data['status'] as String? ?? 'sent';
+      if (currentStatus == 'draft' || currentStatus == 'cancelled') {
+        throw Exception('Cannot record payment on a $currentStatus invoice');
+      }
+      
+      // A part-paid invoice that is still past its due date stays overdue —
+      // otherwise taking any payment quietly clears it from the overdue list.
+      final dueDate = (data['dueDate'] as Timestamp?)?.toDate();
+      final stillOverdue =
+          dueDate != null && DateTime.now().isAfter(dueDate);
+      final newStatus = newDue <= 0.01
           ? 'paid'
-          : newStatus == InvoiceStatus.partiallyPaid
-          ? 'partiallyPaid'
-          : 'sent',
-      'updatedAt': Timestamp.now(),
+          : (stillOverdue ? 'overdue' : 'partiallyPaid');
+      
+      final paymentsRaw = data['payments'] as List<dynamic>? ?? [];
+      final paymentsList = List<Map<String, dynamic>>.from(paymentsRaw);
+      paymentsList.add(payment.toMap());
+      
+      txn.update(docRef, {
+        'payments': paymentsList,
+        'amountPaid': newPaid,
+        'amountDue': newDue < 0 ? 0 : newDue,
+        'status': newStatus,
+        'updatedAt': Timestamp.now(),
+      });
     });
   }
 }
@@ -2700,4 +3225,19 @@ class BulkWriteException implements Exception {
       'Saved $committed of $total row(s) before the operation failed ($cause). '
       'The $committed already-saved row(s) may be duplicated if you retry — '
       'review your data before re-importing.';
+}
+
+/// One reservation planned for a sales order, pending an atomic commit.
+class _PlannedHold {
+  final String productId;
+  final String productName;
+  final String location;
+  final int quantity;
+
+  const _PlannedHold({
+    required this.productId,
+    required this.productName,
+    required this.location,
+    required this.quantity,
+  });
 }

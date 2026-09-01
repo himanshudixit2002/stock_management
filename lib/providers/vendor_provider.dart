@@ -263,7 +263,7 @@ class VendorProvider extends ChangeNotifier {
     final items = <Map<String, dynamic>>[];
     for (final p in allProducts) {
       if (p.preferredVendorId == vendorId &&
-          p.quantity <= p.lowStockThreshold) {
+          p.needsReorder) {
         final suggestedQty = (p.lowStockThreshold * 2) - p.quantity;
         items.add({
           'productId': p.id,
@@ -285,7 +285,7 @@ class VendorProvider extends ChangeNotifier {
   ) {
     final map = <String, List<ProductModel>>{};
     for (final p in allProducts) {
-      if (p.preferredVendorId.isNotEmpty && p.quantity <= p.lowStockThreshold) {
+      if (p.preferredVendorId.isNotEmpty && p.needsReorder) {
         final key = p.preferredVendorName.isNotEmpty
             ? p.preferredVendorName
             : p.preferredVendorId;

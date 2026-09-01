@@ -388,6 +388,7 @@ Future<String?> showAddNameDialog(
   required String title,
   required String labelText,
   String hint = '',
+  String? Function(String?)? validator,
   required Future<bool> Function(String) onAdd,
 }) async {
   final nameController = TextEditingController();
@@ -426,6 +427,13 @@ Future<String?> showAddNameDialog(
                 if (name.isEmpty) {
                   setDialogState(() => errorText = 'Enter a name');
                   return;
+                }
+                if (validator != null) {
+                  final vError = validator(name);
+                  if (vError != null) {
+                    setDialogState(() => errorText = vError);
+                    return;
+                  }
                 }
                 final ok = await onAdd(name);
                 if (!ctx.mounted) return;

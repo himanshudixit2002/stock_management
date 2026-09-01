@@ -26,7 +26,7 @@ class _StockBadgeState extends State<StockBadge>
 
   /// Pulse only when stock is low or out (quantity at/under the threshold).
   bool get _shouldPulse =>
-      widget.product.quantity <= widget.product.lowStockThreshold;
+      widget.product.needsReorder;
 
   void _syncPulse() {
     if (_shouldPulse && !reduceMotion(context)) {

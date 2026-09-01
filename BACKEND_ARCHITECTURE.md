@@ -1,5 +1,8 @@
 # SmartShelfKart — Inventory Agent Backend
 
+> [!WARNING]
+> **Security Gap**: The Cloud Run service `rag_backend` must verify a Firebase ID token and derive `companyId` from the token's claims, rather than relying on a client-supplied `x-company-id` header. Currently, any client can access any tenant's data by spoofing this header. The client has been updated to send the `Authorization: Bearer <idToken>` header, but the backend enforcement is out of scope for this repository and must be implemented on the Cloud Run side.
+
 The assistant answers questions about live inventory, and executes stock changes
 on request. It is built around one principle: **inventory is structured,
 relational, numeric data, so the agent queries it rather than retrieving it.**

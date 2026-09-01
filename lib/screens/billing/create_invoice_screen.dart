@@ -232,6 +232,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   double get _subtotal => _totals.subtotal;
 
   double get _totalDiscount => _totals.totalDiscount;
+  double get _invoiceDiscount => _totals.invoiceDiscount;
 
   double get _totalTax => _totals.totalTax;
 
@@ -319,6 +320,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       taxLabel: bs.taxLabel,
       subtotal: _subtotal,
       totalDiscount: _totalDiscount,
+      invoiceDiscount: _invoiceDiscount,
       totalTax: _totalTax,
       grandTotal: _grandTotal,
       amountDue: _grandTotal,

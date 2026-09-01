@@ -19,7 +19,8 @@ class ExportResult {
 class ParseResult {
   final List<Map<String, dynamic>> data;
   final int skippedRows;
-  ParseResult(this.data, this.skippedRows);
+  final List<String> warnings;
+  ParseResult(this.data, this.skippedRows, [this.warnings = const []]);
 }
 
 class ExcelService {
@@ -810,6 +811,7 @@ class ExcelService {
     Map<String, CategoryModel> categoryMap,
     Map<String, VendorModel> vendorMap, {
     List<String>? fallbackLocations,
+    List<String>? warnings,
   }) {
     final now = DateTime.now();
     final defaultLoc =
@@ -817,6 +819,7 @@ class ExcelService {
         ? fallbackLocations.first
         : 'Default';
     return data.map((item) {
+      final productName = item['name']?.toString().trim() ?? 'Unknown';
       final categoryName = item['category']?.toString() ?? '';
       final category = categoryMap[categoryName.toLowerCase()];
 
@@ -827,6 +830,8 @@ class ExcelService {
 
       var locQuantities = _parseLocationString(
         item['locations']?.toString() ?? '',
+        warnings,
+        productName,
       );
       var quantity = _parseInt(item['quantity']);
 
@@ -1016,7 +1021,7 @@ class ExcelService {
       final strValue = value
           .trim()
           .replaceAll(',', '')
-          .replaceAll(RegExp(r'[^\d.]'), '');
+          .replaceAll(RegExp(r'[^\d.\-]'), '');
       if (strValue.isEmpty) return 0;
       return double.tryParse(strValue) ?? 0;
     }
@@ -1025,7 +1030,7 @@ class ExcelService {
 
   /// Parses "Location1:10, Location2:5" or "Location1:10; Location2:5" into a map.
   /// If no colon is present (e.g. "Warehouse"), it assumes a quantity of 0.
-  Map<String, int> _parseLocationString(String locStr) {
+  Map<String, int> _parseLocationString(String locStr, [List<String>? warnings, String? productName]) {
     if (locStr.trim().isEmpty) return {};
     final result = <String, int>{};
     final parts = locStr.split(RegExp(r'[,;]'));
@@ -1035,10 +1040,17 @@ class ExcelService {
       final colonIdx = trimmed.lastIndexOf(':');
       if (colonIdx > 0) {
         final name = trimmed.substring(0, colonIdx).trim();
-        final qty = int.tryParse(trimmed.substring(colonIdx + 1).trim()) ?? 0;
-        if (name.isNotEmpty) result[name] = qty;
+        final qtyStr = trimmed.substring(colonIdx + 1).trim();
+        final qty = int.tryParse(qtyStr);
+        if (qty == null) {
+          warnings?.add('Product "${productName ?? 'Unknown'}": non-numeric quantity "$qtyStr" for location "$name", defaulted to 0.');
+        }
+        if (name.isNotEmpty) result[name] = qty ?? 0;
       } else {
-        if (trimmed.isNotEmpty) result[trimmed] = 0;
+        if (trimmed.isNotEmpty) {
+          warnings?.add('Product "${productName ?? 'Unknown'}": bare location "$trimmed" found without quantity, defaulted to 0.');
+          result[trimmed] = 0;
+        }
       }
     }
     return result;

@@ -79,6 +79,7 @@ class AppRoutes {
   static const String profitLoss = '/reports/pnl';
   static const String abcAnalysis = '/reports/abc';
   static const String valuationTrends = '/reports/valuation';
+  static const String stockLedger = '/reports/stock-ledger';
   static const String auditLog = '/audit-log';
   static const String globalSearch = '/search';
   static const String bulkStockIn = '/bulk/stock-in';
@@ -94,6 +95,7 @@ class AppRoutes {
   static const String activityTimeline = '/activity-timeline';
   static const String help = '/help';
   static const String homeCustomization = '/settings/home-customization';
+  static const String dataHealth = '/settings/data-health';
   static const String roles = '/roles';
   static const String roleEditor = '/roles/editor';
   static const String invoices = '/billing/invoices';
@@ -101,6 +103,9 @@ class AppRoutes {
   static const String invoiceDetail = '/billing/invoices/detail';
   static const String billingSettings = '/billing/settings';
   static const String billingReports = '/billing/reports';
+  static const String paymentsLedger = '/billing/payments';
+  static const String creditNote = '/billing/credit-note';
+  static const String aging = '/reports/aging';
   static const String customerStatement = '/billing/customer-statement';
   static const String vendorStatement = '/billing/vendor-statement';
   static const String fastPos = '/pos/fast';

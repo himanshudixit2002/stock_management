@@ -20,6 +20,49 @@ class AuthService {
     ).join();
   }
 
+  /// Records the user in `companies/{companyId}/members/{uid}` — the
+  /// server-verifiable record of who belongs to a workspace.
+  ///
+  /// Membership is otherwise only asserted by `companyMemberships` on the
+  /// user's own doc, which the client writes about itself and which the
+  /// security rules then trust. A member doc cannot be forged that way: the
+  /// rules require [joinCode] to actually resolve to this company, or the
+  /// caller to be the workspace creator.
+  ///
+  /// Best-effort on purpose: nothing reads member docs yet (see the CUTOVER
+  /// note in firestore.rules), so a failure here must not block sign-in. Once
+  /// the migration has run and belongsToCompany() reads members, this becomes
+  /// load-bearing and should start throwing.
+  Future<void> _ensureMemberDoc({
+    required String companyId,
+    required String uid,
+    required String role,
+    required String roleId,
+    String joinCode = '',
+    String email = '',
+    String name = '',
+  }) async {
+    if (companyId.isEmpty || uid.isEmpty) return;
+    try {
+      await _firestore
+          .collection('companies')
+          .doc(companyId)
+          .collection('members')
+          .doc(uid)
+          .set({
+            'uid': uid,
+            'role': role,
+            'roleId': roleId,
+            'email': email,
+            'name': name,
+            if (joinCode.isNotEmpty) 'joinCode': joinCode,
+            'joinedAt': Timestamp.now(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      // Deliberately swallowed — see the doc comment above.
+    }
+  }
+
   /// Allocates [joinCodeIndex] doc and sets [permanentJoinCode] on the company.
   Future<String> _allocatePermanentJoinCode(
     String companyId,
@@ -185,6 +228,15 @@ class AuthService {
             .collection('users')
             .doc(result.user!.uid)
             .set(userModel.toMap());
+
+        await _ensureMemberDoc(
+          companyId: companyDoc.id,
+          uid: result.user!.uid,
+          role: 'admin',
+          roleId: RoleModel.ownerRoleId,
+          email: email,
+          name: name,
+        );
 
         await _seedDefaultRoles(companyDoc.id);
 
@@ -548,6 +600,13 @@ class AuthService {
       });
     }
 
+    await _ensureMemberDoc(
+      companyId: companyDoc.id,
+      uid: uid,
+      role: 'admin',
+      roleId: RoleModel.ownerRoleId,
+    );
+
     return membership;
   }
 
@@ -658,6 +717,20 @@ class AuthService {
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
     final data = userDoc.data() ?? {};
+
+    // Record the server-verifiable membership. The code is passed through so
+    // the rules can confirm it really maps to this company — unlike
+    // companyMemberships below, which the client asserts about itself.
+    await _ensureMemberDoc(
+      companyId: companyId,
+      uid: uid,
+      role: membership.role,
+      roleId: membership.roleId,
+      joinCode: normalized,
+      email: (data['email'] ?? '') as String,
+      name: (data['name'] ?? '') as String,
+    );
+
     final existing =
         (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
         [];

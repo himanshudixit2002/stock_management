@@ -194,7 +194,7 @@ class RagApiService {
       try {
         final response = await http.post(
           url,
-          headers: AiBackend.headers(),
+          headers: await AiBackend.headers(),
           body: jsonEncode(_body(question, context, history)),
         );
         if (response.statusCode == 200) {
@@ -283,7 +283,7 @@ class RagApiService {
 
     try {
       final request = http.Request('POST', url);
-      AiBackend.headers().forEach((k, v) => request.headers[k] = v);
+      (await AiBackend.headers()).forEach((k, v) => request.headers[k] = v);
       request.body = jsonEncode(_body(question, context, history));
 
       final response = await client.send(request);
@@ -334,7 +334,7 @@ class RagApiService {
     try {
       final response = await http.post(
         Uri.parse('${AiBackend.baseUrl}/api/inventory/sync'),
-        headers: AiBackend.headers(),
+        headers: await AiBackend.headers(),
         body: jsonEncode({'products': products}),
       );
       return response.statusCode == 200;
@@ -349,7 +349,7 @@ class RagApiService {
     try {
       await http.post(
         Uri.parse('${AiBackend.baseUrl}/api/cache/clear'),
-        headers: AiBackend.headers(),
+        headers: await AiBackend.headers(),
       );
     } catch (e) {
       debugPrint('Ask AI: cache clear failed: $e');

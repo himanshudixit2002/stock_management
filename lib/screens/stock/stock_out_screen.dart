@@ -22,6 +22,7 @@ import '../../widgets/success_overlay.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../models/stock_hold_model.dart';
+import '../../utils/validators.dart';
 
 class StockOutScreen extends StatefulWidget {
   final ProductModel? product;
@@ -795,6 +796,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                     title: 'Add new location',
                                     labelText: 'Location name',
                                     hint: 'e.g. Main Warehouse',
+                                  validator: validateLocationName,
                                     onAdd: (name) =>
                                         settingsProvider.addLocation(name),
                                   );

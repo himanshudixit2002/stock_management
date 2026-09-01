@@ -196,7 +196,7 @@ class ReportAnalyticsService {
       }
     }
 
-    final lowStockCount = products.where((p) => p.quantity <= p.lowStockThreshold && p.quantity > 0).length;
+    final lowStockCount = products.where((p) => p.needsReorder && p.quantity > 0).length;
     final outCount = products.where((p) => p.quantity <= 0).length;
 
     if (outCount > 0 || lowStockCount > 0) {

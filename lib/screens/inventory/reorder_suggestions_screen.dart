@@ -78,7 +78,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
 
     final items = <_ReorderItem>[];
     for (final p in products) {
-      if (p.quantity > p.lowStockThreshold) continue;
+      if (!p.needsReorder) continue;
 
       final totalOut = stockOutByProduct[p.id] ?? 0;
       final avgDaily = totalOut / 30.0;

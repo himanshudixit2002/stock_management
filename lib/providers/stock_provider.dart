@@ -18,6 +18,11 @@ class StockProvider extends ChangeNotifier {
 
   List<StockTransactionModel> _recentTransactions = [];
   bool _isLoading = false;
+
+  /// True only while a stock mutation is in flight. Kept separate from
+  /// [_isLoading], which is also true while the transactions stream loads —
+  /// gating mutations on that rejected every action during startup.
+  bool _operationInFlight = false;
   String? _errorMessage;
 
   /// True when the transactions stream hit [transactionFetchLimit], meaning
@@ -638,6 +643,7 @@ class StockProvider extends ChangeNotifier {
     _recentTransactions = [];
     _stockHolds = [];
     _isLoading = false;
+    _operationInFlight = false;
     _errorMessage = null;
     _filterStartDate = null;
     _filterEndDate = null;
@@ -763,7 +769,12 @@ class StockProvider extends ChangeNotifier {
     String vendorId = '',
     String vendorName = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
@@ -775,6 +786,7 @@ class StockProvider extends ChangeNotifier {
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -791,11 +803,13 @@ class StockProvider extends ChangeNotifier {
         vendorName: vendorName,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Stock operation failed.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -812,7 +826,12 @@ class StockProvider extends ChangeNotifier {
     String vendorId = '',
     String vendorName = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
@@ -824,6 +843,7 @@ class StockProvider extends ChangeNotifier {
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -840,11 +860,13 @@ class StockProvider extends ChangeNotifier {
         vendorName: vendorName,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Stock operation failed.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -859,13 +881,19 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     required String reason,
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -880,11 +908,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Stock operation failed.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -900,7 +930,12 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     String reason = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
@@ -912,6 +947,7 @@ class StockProvider extends ChangeNotifier {
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -927,11 +963,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Stock operation failed.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -946,7 +984,12 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     String reason = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (adjustmentDelta == 0) {
       _errorMessage = 'No adjustment needed — count matches current stock.';
       notifyListeners();
@@ -958,6 +1001,7 @@ class StockProvider extends ChangeNotifier {
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -972,11 +1016,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Adjustment failed.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -1006,7 +1052,12 @@ class StockProvider extends ChangeNotifier {
     String notes = '',
     DateTime? expiresAt,
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
@@ -1020,6 +1071,7 @@ class StockProvider extends ChangeNotifier {
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -1038,6 +1090,7 @@ class StockProvider extends ChangeNotifier {
         expiresAt: expiresAt,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -1046,6 +1099,7 @@ class StockProvider extends ChangeNotifier {
         fallback: 'Failed to create stock hold.',
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -1062,13 +1116,19 @@ class StockProvider extends ChangeNotifier {
     String notes = '',
     DateTime? expiresAt,
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (items.where((e) => e.quantity > 0).isEmpty) {
       _errorMessage = 'Add at least one item with a quantity.';
       notifyListeners();
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -1082,6 +1142,7 @@ class StockProvider extends ChangeNotifier {
         expiresAt: expiresAt,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -1090,6 +1151,7 @@ class StockProvider extends ChangeNotifier {
         fallback: 'Failed to create stock holds.',
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -1101,8 +1163,14 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     String reason = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -1113,11 +1181,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to release hold.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -1130,13 +1200,19 @@ class StockProvider extends ChangeNotifier {
     required String userName,
     String reason = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -1148,11 +1224,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to unhold stock.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }
@@ -1166,13 +1244,19 @@ class StockProvider extends ChangeNotifier {
     String location = '',
     String reason = '',
   }) async {
-    if (_isLoading) return false;
+    if (_operationInFlight) {
+      _errorMessage =
+          'Another stock operation is still running. Please wait.';
+      notifyListeners();
+      return false;
+    }
     if (quantity <= 0) {
       _errorMessage = 'Quantity must be greater than zero.';
       notifyListeners();
       return false;
     }
     _isLoading = true;
+    _operationInFlight = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -1185,11 +1269,13 @@ class StockProvider extends ChangeNotifier {
         reason: reason,
       );
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = friendlyError(e, fallback: 'Failed to despatch hold.');
       _isLoading = false;
+      _operationInFlight = false;
       notifyListeners();
       return false;
     }

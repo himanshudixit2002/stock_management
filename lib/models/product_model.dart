@@ -78,11 +78,14 @@ class ProductModel {
     this.barcode = '',
   });
 
-  bool get isOutOfStock => quantity <= 0;
-  bool get isLowStock => quantity > 0 && quantity <= lowStockThreshold;
-  bool get isInStock => quantity > lowStockThreshold;
   int get availableQuantity =>
       quantity - heldQuantity < 0 ? 0 : quantity - heldQuantity;
+      
+  bool get isOutOfStock => availableQuantity <= 0;
+  bool get isLowStock => quantity > 0 && needsReorder;
+  bool get isLowAvailable => availableQuantity > 0 && availableQuantity <= lowStockThreshold;
+  bool get isInStock => availableQuantity > 0;
+  bool get needsReorder => availableQuantity <= lowStockThreshold;
   bool get hasPackUnit => unitsPerPack > 1;
 
   List<String> get locations => locationQuantities.keys.toList();

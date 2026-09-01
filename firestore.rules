@@ -82,9 +82,23 @@ service cloud.firestore {
     }
 
     // Self-serve profile/workspace updates must not rewrite identity or permission overrides.
+    // Self-serve profile/workspace updates must not rewrite identity or
+    // permission overrides. Switching workspaces legitimately rewrites
+    // companyId/role/roleId (see AuthService.switchCompany), so those stay
+    // writable — but companyId may only move to a workspace already listed in
+    // companyMemberships.
+    //
+    // KNOWN GAP: companyMemberships is itself self-written (join-by-code and
+    // createAdditionalCompany write it from the client), so a determined user
+    // can append a membership for a workspace they do not belong to and then
+    // switch into it. Closing this requires membership to become server-side
+    // truth — see the `members` subcollection note below. Do not treat this
+    // function as a tenant-isolation boundary until that lands.
     function selfUserUpdateDoesNotEscalate() {
       return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['email', 'uid', 'createdAt', 'permissions']);
+          .hasAny(['email', 'uid', 'createdAt', 'permissions'])
+        && (request.resource.data.companyId == resource.data.companyId
+            || hasMembershipForCompany(request.resource.data.companyId));
     }
 
     function canReadCompanyDoc(companyId) {
@@ -123,7 +137,14 @@ service cloud.firestore {
         (request.auth.uid == userId ||
          (userDocExists() && getUserData().companyId == resource.data.companyId));
 
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // A user bootstraps their own doc. They may claim a privileged role only
+      // for a workspace the company doc already says they created (adminUid is
+      // server-side truth, not a client assertion). Everyone else lands as a
+      // non-privileged member with no per-user permission overrides.
+      allow create: if isAuthenticated() && request.auth.uid == userId
+        && request.resource.data.permissions.size() == 0
+        && (request.resource.data.role in ['staff', 'viewer', 'manager']
+            || isCompanyCreator(request.resource.data.companyId));
 
       allow update: if (isAuthenticated() && request.auth.uid == userId &&
           selfUserUpdateDoesNotEscalate()) ||
@@ -179,6 +200,50 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageCompanySettings'))) ||
         (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly());
       allow delete: if belongsToCompany(companyId) && isAdmin();
+
+      // Members subcollection — server-side truth for "who belongs to this
+      // workspace".
+      //
+      // WHY THIS EXISTS: membership is currently proved by companyMemberships
+      // on the user's own doc, which the client writes itself
+      // (AuthService.joinCompanyByCode / createAdditionalCompany). That is
+      // self-written data authorising itself: append a membership for any
+      // workspace, switch companyId to it, and belongsToCompany() passes.
+      //
+      // A member doc cannot be forged the same way: creating one requires
+      // naming a join code that actually maps to this company, and it always
+      // lands as 'staff'. Only an admin can change a role afterwards.
+      //
+      // CUTOVER (not yet done — do NOT skip the order):
+      //   1. Deploy these rules (additive; nothing reads members yet).
+      //   2. Ship the client build that writes member docs on join/register.
+      //   3. Run scripts/migrate_members.js to backfill every existing user.
+      //   4. Verify every active user has a member doc, THEN change
+      //      belongsToCompany() to:
+      //        exists(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid))
+      //      and drop hasMembershipForCompany()'s use of the user doc.
+      // Flipping step 4 before step 3 completes locks out every existing user.
+      match /members/{memberUid} {
+        allow read: if isAuthenticated() &&
+          (request.auth.uid == memberUid || belongsToCompany(companyId));
+
+        // Self-serve join: entitlement is proved by the join code, not by
+        // anything the user can write about themselves.
+        allow create: if isAuthenticated() && request.auth.uid == memberUid
+          && request.resource.data.uid == memberUid
+          && (
+            (request.resource.data.role == 'staff'
+              && request.resource.data.joinCode is string
+              && exists(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode))
+              && get(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode)).data.companyId == companyId)
+            || isCompanyCreator(companyId)
+          );
+
+        // Admins may add members directly (staff invite flow) and are the only
+        // ones who can change or revoke a role.
+        allow create, update, delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageUsers'));
+      }
 
       // Roles subcollection
       match /roles/{roleId} {
@@ -371,7 +436,7 @@ service cloud.firestore {
       // Audit Logs subcollection (append-only, no edits/deletes)
       match /auditLogs/{logId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) && request.resource.data.userId == request.auth.uid;
         allow update, delete: if false;
       }
 
@@ -379,14 +444,16 @@ service cloud.firestore {
       match /notifications/{notifId} {
         allow read: if belongsToCompany(companyId);
         allow create: if belongsToCompany(companyId);
+        // Company-wide alerts with no per-user owner: any member may mark one
+        // read. Deleting is destructive, so keep that to admins.
         allow update: if belongsToCompany(companyId);
-        allow delete: if belongsToCompany(companyId);
+        allow delete: if belongsToCompany(companyId) && isAdmin();
       }
 
       // Price History subcollection (append-only)
       match /priceHistory/{historyId} {
         allow read: if belongsToCompany(companyId);
-        allow create: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId) && request.resource.data.changedBy == request.auth.uid;
         allow update, delete: if false;
       }
 
@@ -401,7 +468,8 @@ service cloud.firestore {
 
       // Invite codes subcollection
       match /invites/{inviteId} {
-        allow read: if isAuthenticated();
+        allow get: if isAuthenticated();
+        allow list: if belongsToCompany(companyId) && (isAdmin() || hasPermission(companyId, 'canManageUsers'));
         allow create: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
         allow update, delete: if belongsToCompany(companyId) &&

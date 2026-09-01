@@ -56,22 +56,39 @@ InvoiceTotals calculateInvoiceTotals({
 
     if (taxEnabled) {
       final taxableAfterLineDiscount = lineSubtotal - lineDiscount;
-      totalTax += taxableAfterLineDiscount * line.lineTaxRate / 100;
+      final taxRate = line.lineTaxRate < 0 ? 0.0 : line.lineTaxRate;
+      totalTax += taxableAfterLineDiscount * taxRate / 100;
     }
   }
 
   final invoicePct = discountEnabled ? invoiceDiscountPercent.clamp(0, 100) : 0.0;
   final invoiceFlat = discountEnabled ? invoiceDiscountAmount : 0.0;
-  final invoiceDiscount =
-      (subtotal - totalLineDiscount) * invoicePct / 100 + invoiceFlat;
+  
+  final preInvoiceTaxable = subtotal - totalLineDiscount;
+  double invoiceDiscount =
+      preInvoiceTaxable * invoicePct / 100 + invoiceFlat;
+  
+  // Clamp invoice discount so it doesn't exceed the remaining amount
+  if (invoiceDiscount > preInvoiceTaxable) {
+    invoiceDiscount = preInvoiceTaxable;
+  }
+  if (invoiceDiscount < 0) {
+    invoiceDiscount = 0;
+  }
 
   final totalDiscount = totalLineDiscount + invoiceDiscount;
   final taxableAmount = subtotal - totalDiscount;
-  if (taxEnabled && invoicePct > 0) {
-    totalTax *= (1 - invoicePct / 100);
-  } else if (!taxEnabled) {
+  
+  if (taxEnabled) {
+    if (preInvoiceTaxable > 0) {
+      totalTax *= (taxableAmount / preInvoiceTaxable);
+    } else {
+      totalTax = 0;
+    }
+  } else {
     totalTax = 0;
   }
+  
   final grandTotal = taxableAmount + totalTax;
 
   return InvoiceTotals(

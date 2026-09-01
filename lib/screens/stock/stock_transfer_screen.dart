@@ -20,6 +20,7 @@ import '../../widgets/searchable_picker.dart';
 import '../../widgets/product_picker.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../utils/validators.dart';
 
 class StockTransferScreen extends StatefulWidget {
   final ProductModel? product;
@@ -398,6 +399,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       title: 'Add new location',
                                       labelText: 'Location name',
                                       hint: 'e.g. Main Warehouse',
+                                  validator: validateLocationName,
                                       onAdd: (name) =>
                                           settingsProvider.addLocation(name),
                                     );
@@ -500,6 +502,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                       title: 'Add new location',
                                       labelText: 'Location name',
                                       hint: 'e.g. Main Warehouse',
+                                  validator: validateLocationName,
                                       onAdd: (name) =>
                                           settingsProvider.addLocation(name),
                                     );

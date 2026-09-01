@@ -74,6 +74,11 @@ import '../screens/help/help_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/about/about_screen.dart';
 import '../screens/settings/home_customization_screen.dart';
+import '../screens/settings/data_health_screen.dart';
+import '../screens/reports/stock_ledger_screen.dart';
+import '../screens/reports/aging_screen.dart';
+import '../screens/billing/payments_ledger_screen.dart';
+import '../screens/billing/credit_note_screen.dart';
 import '../screens/roles/role_list_screen.dart';
 import '../screens/roles/role_editor_screen.dart';
 import '../screens/pos/fast_pos_screen.dart' deferred as pos;
@@ -480,6 +485,20 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.about => _slideRoute(settings, const AboutScreen()),
     AppRoutes.help => _slideRoute(settings, const HelpScreen()),
     AppRoutes.homeCustomization => _slideRoute(settings, const HomeCustomizationScreen()),
+    AppRoutes.dataHealth => _slideRoute(settings, const DataHealthScreen()),
+    AppRoutes.aging => _slideRoute(settings, const AgingScreen()),
+    AppRoutes.creditNote => _slideRoute(
+      settings,
+      CreditNoteScreen(invoice: settings.arguments as InvoiceModel),
+    ),
+    AppRoutes.paymentsLedger => _slideRoute(
+      settings,
+      const PaymentsLedgerScreen(),
+    ),
+    AppRoutes.stockLedger => _slideRoute(
+      settings,
+      StockLedgerScreen(initialProduct: settings.arguments as ProductModel?),
+    ),
     AppRoutes.settings => _slideRoute(settings, 
       SettingsScreen(initialSection: settings.arguments as String?),
     ),

@@ -22,6 +22,7 @@ import '../../widgets/product_picker.dart';
 import '../../config/routes.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
+import '../../utils/validators.dart';
 
 class StockInScreen extends StatefulWidget {
   final ProductModel? product;
@@ -438,6 +439,7 @@ class _StockInScreenState extends State<StockInScreen> {
                                   title: 'Add new location',
                                   labelText: 'Location name',
                                   hint: 'e.g. Main Warehouse',
+                                  validator: validateLocationName,
                                   onAdd: (name) =>
                                       settingsProvider.addLocation(name),
                                 );
