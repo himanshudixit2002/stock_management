@@ -216,10 +216,13 @@ class _PlanCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        e.key,
-                        style: Theme.of(context).textTheme.bodySmall,
+                      Expanded(
+                        child: Text(
+                          e.key,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '${e.value}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(

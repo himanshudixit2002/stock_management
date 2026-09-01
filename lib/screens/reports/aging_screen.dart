@@ -107,10 +107,15 @@ class _AgingTab extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          b.label,
-                          style: Theme.of(context).textTheme.bodySmall,
+                        // Both sides were unbounded: a long amount on a narrow
+                        // phone pushed the label off the row.
+                        Expanded(
+                          child: Text(
+                            b.label,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           Money.of(context, value),
                           style: Theme.of(context).textTheme.bodyMedium
@@ -155,12 +160,18 @@ class _PartyTile extends StatelessWidget {
         child: ExpansionTile(
           shape: const Border(),
           collapsedShape: const Border(),
+          // A long customer name against an unbounded trailing amount wrapped
+          // to several lines on a phone. Cap it and let the amount win.
           title: Text(
             row.partyName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           subtitle: Text(
             '${row.invoices.length} open • oldest ${worst.label.toLowerCase()}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           trailing: Text(

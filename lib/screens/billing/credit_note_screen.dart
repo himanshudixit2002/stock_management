@@ -253,7 +253,10 @@ class _Row extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Expanded(
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          const SizedBox(width: 8),
           Text(
             Money.of(context, value),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(

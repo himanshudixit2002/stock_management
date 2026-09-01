@@ -36,12 +36,30 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
     super.initState();
     // Safe to call repeatedly; the provider ignores a second subscription.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<SuperAdminProvider>().startWatching();
+      if (!mounted) return;
+      final provider = context.read<SuperAdminProvider>();
+      provider.startWatching();
+      // Counts otherwise arrive only for tiles scrolled into view, which would
+      // make the estate totals a partial sum presented as a whole.
+      provider.addListener(_loadAllStatsOnce);
     });
+  }
+
+  bool _requestedAllStats = false;
+
+  void _loadAllStatsOnce() {
+    if (_requestedAllStats || !mounted) return;
+    final provider = context.read<SuperAdminProvider>();
+    if (provider.companies.isEmpty) return;
+    _requestedAllStats = true;
+    provider.loadAllStats();
   }
 
   @override
   void dispose() {
+    if (mounted) {
+      context.read<SuperAdminProvider>().removeListener(_loadAllStatsOnce);
+    }
     _searchController.dispose();
     super.dispose();
   }
@@ -107,6 +125,11 @@ class _SuperAdminDashboardScreenState extends State<SuperAdminDashboardScreen> {
               active: all.where((c) => c.isActive).length,
               suspended: provider.suspendedCount,
               deleted: provider.deletedCount,
+            ),
+            _EstateTotals(
+              totals: provider.totalsAcrossCompanies,
+              covered: provider.statsLoadedCount,
+              of: all.length,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -211,16 +234,133 @@ class _Summary extends StatelessWidget {
       child: GlassPanel(
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Row(
+          // Four columns leaves ~85dp each on a 375dp phone, which clips the
+          // longer labels. Two rows of two below the tablet breakpoint.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final stats = [
+                _Stat(label: 'Companies', value: total),
+                _Stat(
+                  label: 'Active',
+                  value: active,
+                  color: AppTheme.successColor,
+                ),
+                _Stat(
+                  label: 'Suspended',
+                  value: suspended,
+                  color: AppTheme.warningColor,
+                ),
+                _Stat(
+                  label: 'Deleted',
+                  value: deleted,
+                  color: AppTheme.dangerColor,
+                ),
+              ];
+              if (constraints.maxWidth >= 420) {
+                return Row(children: stats);
+              }
+              return Column(
+                children: [
+                  Row(children: stats.sublist(0, 2)),
+                  const SizedBox(height: 12),
+                  Row(children: stats.sublist(2)),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What the whole estate holds, summed from the per-company counts.
+class _EstateTotals extends StatelessWidget {
+  const _EstateTotals({required this.totals, required this.covered,
+      required this.of});
+
+  final CompanyStats totals;
+  final int covered;
+  final int of;
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = covered >= of;
+    final items = <(IconData, String, int)>[
+      (Icons.people_rounded, 'Users', totals.users),
+      (Icons.inventory_2_rounded, 'Products', totals.products),
+      (Icons.receipt_rounded, 'Invoices', totals.invoices),
+      (Icons.shopping_cart_rounded, 'Orders',
+          totals.salesOrders + totals.purchaseOrders),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: GlassPanel(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Stat(label: 'Companies', value: total),
-              _Stat(label: 'Active', value: active, color: AppTheme.successColor),
-              _Stat(
-                label: 'Suspended',
-                value: suspended,
-                color: AppTheme.warningColor,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Across all workspaces',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  // Counts stream in per company, so say what this covers
+                  // rather than presenting a partial sum as the whole estate.
+                  if (!complete)
+                    Text(
+                      '$covered of $of loaded',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
               ),
-              _Stat(label: 'Deleted', value: deleted, color: AppTheme.dangerColor),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 18,
+                runSpacing: 10,
+                children: [
+                  for (final (icon, label, value) in items)
+                    SizedBox(
+                      width: 120,
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 16, color: AppTheme.infoColor),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$value',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style:
+                                      Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -242,12 +382,21 @@ class _Stat extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$value',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  )),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            '$value',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );

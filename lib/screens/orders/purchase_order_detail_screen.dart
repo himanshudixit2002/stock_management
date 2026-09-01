@@ -518,9 +518,14 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Receive Items'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
+          // double.maxFinite lets the dialog decide the width, so this never
+          // overflows a narrow phone; the constraint stops it sprawling on
+          // desktop. A hard 420 overflowed a 360dp screen.
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,7 +614,8 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
                       ),
                     );
                   }),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

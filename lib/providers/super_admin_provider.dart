@@ -53,6 +53,40 @@ class SuperAdminProvider extends ChangeNotifier {
 
   CompanyStats? statsFor(String companyId) => _stats[companyId];
 
+  /// Counts summed across every company whose stats have loaded.
+  ///
+  /// Stats arrive per company as tiles scroll into view, so this grows as they
+  /// land — [statsLoadedCount] says how much of the estate it covers, because
+  /// a total that silently represents half the tenants would be misleading.
+  CompanyStats get totalsAcrossCompanies {
+    var users = 0, products = 0, invoices = 0, so = 0, po = 0;
+    for (final s in _stats.values) {
+      users += s.users;
+      products += s.products;
+      invoices += s.invoices;
+      so += s.salesOrders;
+      po += s.purchaseOrders;
+    }
+    return CompanyStats(
+      users: users,
+      products: products,
+      invoices: invoices,
+      salesOrders: so,
+      purchaseOrders: po,
+    );
+  }
+
+  /// How many companies have their counts loaded.
+  int get statsLoadedCount => _stats.length;
+
+  /// Loads counts for every company, so the totals cover the whole estate
+  /// rather than only the tiles that happened to be scrolled past.
+  Future<void> loadAllStats() async {
+    for (final company in _companies) {
+      await loadStats(company.id);
+    }
+  }
+
   CompanyModel? companyById(String id) {
     for (final c in _companies) {
       if (c.id == id) return c;

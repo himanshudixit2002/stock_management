@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stock_management/providers/super_admin_provider.dart';
+import 'package:stock_management/models/company_model.dart';
 import 'package:stock_management/services/super_admin_service.dart';
 
 /// Answers from a fixed allowlist, and records every uid it was asked about.
@@ -9,10 +10,20 @@ class _FakeService extends SuperAdminService {
   final Set<String> superAdmins;
   final List<String> asked = [];
 
+  /// Per-company counts this fake will report.
+  Map<String, CompanyStats> stats = const {};
+  final List<String> statsAsked = [];
+
   @override
   Future<bool> isSuperAdmin(String uid) async {
     asked.add(uid);
     return superAdmins.contains(uid);
+  }
+
+  @override
+  Future<CompanyStats> companyStats(String companyId) async {
+    statsAsked.add(companyId);
+    return stats[companyId] ?? CompanyStats.empty;
   }
 }
 
@@ -109,4 +120,70 @@ void main() {
       expect(provider.statsFor('anything'), isNull);
     });
   });
+
+  group('totalsAcrossCompanies', () {
+    test('is zero before any counts have loaded', () {
+      final provider = SuperAdminProvider(service: _FakeService({}));
+      expect(provider.totalsAcrossCompanies.products, 0);
+      expect(provider.statsLoadedCount, 0);
+    });
+
+    test('sums every loaded company', () async {
+      final service = _FakeService({})
+        ..stats = {
+          'a': const CompanyStats(
+            users: 2, products: 10, invoices: 3,
+            salesOrders: 1, purchaseOrders: 4,
+          ),
+          'b': const CompanyStats(
+            users: 5, products: 7, invoices: 2,
+            salesOrders: 6, purchaseOrders: 0,
+          ),
+        };
+      final provider = SuperAdminProvider(service: service);
+      await provider.loadStats('a');
+      await provider.loadStats('b');
+
+      final totals = provider.totalsAcrossCompanies;
+      expect(totals.users, 7);
+      expect(totals.products, 17);
+      expect(totals.invoices, 5);
+      expect(totals.salesOrders, 7);
+      expect(totals.purchaseOrders, 4);
+      expect(provider.statsLoadedCount, 2);
+    });
+
+    test('counts each company once however often it is requested', () async {
+      final service = _FakeService({})
+        ..stats = {'a': const CompanyStats(products: 10)};
+      final provider = SuperAdminProvider(service: service);
+      await provider.loadStats('a');
+      await provider.loadStats('a');
+      await provider.loadStats('a');
+
+      // statsLoadedCount feeds the "n of m loaded" caveat on the totals card,
+      // so double counting would misreport how complete the figure is.
+      expect(service.statsAsked, ['a']);
+      expect(provider.statsLoadedCount, 1);
+      expect(provider.totalsAcrossCompanies.products, 10);
+    });
+
+    test('a failed count still marks the company as covered', () async {
+      // Otherwise the card would claim to be waiting on it forever.
+      final provider = SuperAdminProvider(service: _ThrowingStatsService());
+      await provider.loadStats('a');
+      expect(provider.statsLoadedCount, 1);
+      expect(provider.totalsAcrossCompanies.products, 0);
+    });
+  });
+}
+
+/// Fails every count lookup.
+class _ThrowingStatsService extends SuperAdminService {
+  @override
+  Future<bool> isSuperAdmin(String uid) async => true;
+
+  @override
+  Future<CompanyStats> companyStats(String companyId) async =>
+      throw Exception('denied');
 }
