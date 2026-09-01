@@ -13,6 +13,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/billing_settings_provider.dart';
+import 'settings_search.dart';
 import '../../utils/responsive.dart';
 import '../../utils/dialogs.dart';
 import '../../config/motion.dart';
@@ -31,6 +32,124 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _didAutoOpen = false;
+
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Narrows the section list to what matches [_query].
+  ///
+  /// Settings spans twelve sections and forty-odd destinations, so scanning for
+  /// one is the slow part. Matching a section title keeps the whole section;
+  /// otherwise only the tiles that match survive, and a section left with
+  /// nothing is dropped rather than shown as an empty header.
+  List<Widget> _applySearch(List<Widget> sections) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return sections;
+
+    bool tileMatches(_SettingsTile t) =>
+        settingsEntryMatches(t.title, t.subtitle, q);
+
+    final out = <Widget>[];
+    for (final section in sections) {
+      if (section is! _SettingsSectionBlock) {
+        out.add(section);
+        continue;
+      }
+      if (settingsSectionMatches(section.title, q)) {
+        out.add(
+          _SettingsSectionBlock(
+            key: ValueKey('${section.title}|$q|all'),
+            title: section.title,
+            accentColor: section.accentColor,
+            children: section.children,
+          ),
+        );
+        continue;
+      }
+      final hits = section.children
+          .whereType<_SettingsTile>()
+          .where(tileMatches)
+          .toList();
+      if (hits.isEmpty) continue;
+      out.add(
+        _SettingsSectionBlock(
+          key: ValueKey('${section.title}|$q'),
+          title: section.title,
+          accentColor: section.accentColor,
+          children: [
+            for (var i = 0; i < hits.length; i++) ...[
+              if (i > 0) const Divider(height: 1, indent: 48),
+              hits[i],
+            ],
+          ],
+        ),
+      );
+    }
+    return out;
+  }
+
+  Widget _buildSettingsSearchField(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (v) => setState(() => _query = v),
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search settings',
+          prefixIcon: const Icon(Icons.search_rounded),
+          isDense: true,
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear',
+                  icon: const Icon(Icons.clear_rounded),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// Shown when a search matches nothing, so the screen never just goes blank.
+  Widget _buildNoSettingsMatch(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 40,
+            color: Theme.of(context).textTheme.bodySmall?.color,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Nothing matches "$_query"',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Try a different word, or clear the search.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 
   bool _settingsWebLux(BuildContext context) =>
       kIsWeb && Responsive.isDesktop(context);
@@ -104,7 +223,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           navInset,
     );
     final webGrid = _settingsWebLux(context);
-    final sectionBlocks = _buildSettingsSectionBlocks(context, user);
+    final allSections = _buildSettingsSectionBlocks(context, user);
+    final sectionBlocks = _applySearch(allSections);
+    final noMatches = sectionBlocks.isEmpty && _query.trim().isNotEmpty;
 
     final body = SafeArea(
       bottom: false,
@@ -123,15 +244,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (isTabShell) _buildSettingsContextHeader(context),
                       _buildSettingsProfileCard(context, user, initials),
                       SizedBox(height: _settingsSectionGap(context)),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return _buildWebSettingsSectionColumns(
-                            context,
-                            sectionBlocks,
-                            constraints.maxWidth,
-                          );
-                        },
-                      ),
+                      _buildSettingsSearchField(context),
+                      if (noMatches)
+                        _buildNoSettingsMatch(context)
+                      else
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return _buildWebSettingsSectionColumns(
+                              context,
+                              sectionBlocks,
+                              constraints.maxWidth,
+                            );
+                          },
+                        ),
                       SizedBox(height: _settingsWebLux(context) ? 0 : 20),
                       _buildSettingsLogoutButton(
                         context,
@@ -150,7 +275,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildSettingsContextHeader(context),
                     _buildSettingsProfileCard(context, user, initials),
                     SizedBox(height: _settingsSectionGap(context)),
-                    ..._interleaveSettingsSectionGaps(context, sectionBlocks),
+                    _buildSettingsSearchField(context),
+                    if (noMatches)
+                      _buildNoSettingsMatch(context)
+                    else
+                      ..._interleaveSettingsSectionGaps(context, sectionBlocks),
                     SizedBox(height: _settingsWebLux(context) ? 0 : 20),
                     _buildSettingsLogoutButton(context),
                   ],
@@ -220,6 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case 'Appearance':
       case 'Home Page':
       case 'Tools':
+      case 'Plan':
         return 1;
       default:
         return 2;
@@ -909,15 +1039,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Administration',
           accentColor: AppTheme.warningColor,
           children: [
-            _SettingsTile(
-              icon: Icons.receipt_long_rounded,
-              iconColor: AppTheme.successColor,
-              title: 'Billing Settings',
-              subtitle: 'Company profile, tax, numbering & terms',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.billingSettings),
-            ),
-            const Divider(height: 1, indent: 48),
+            // Every other billing destination is gated on the company's
+            // billing switch (see FeatureMap's HomeActionFeatureGate.billing).
+            // This one was not, so turning billing off still left its settings
+            // sitting in the menu.
+            if (context.watch<BillingSettingsProvider>().billingEnabled) ...[
+              _SettingsTile(
+                icon: Icons.receipt_long_rounded,
+                iconColor: AppTheme.successColor,
+                title: 'Billing Settings',
+                subtitle: 'Company profile, tax, numbering & terms',
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.billingSettings),
+              ),
+              const Divider(height: 1, indent: 48),
+            ],
             if (user.hasPermission(AppPermissions.manageUsers)) ...[
               _SettingsTile(
                 icon: Icons.people_rounded,
@@ -2563,6 +2699,7 @@ class _SettingsSectionBlock extends StatefulWidget {
   final List<Widget> children;
 
   const _SettingsSectionBlock({
+    super.key,
     required this.title,
     required this.accentColor,
     required this.children,
