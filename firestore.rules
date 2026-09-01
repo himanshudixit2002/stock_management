@@ -164,6 +164,17 @@ service cloud.firestore {
         get(/databases/$(database)/documents/companies/$(companyId)).data.adminUid == request.auth.uid;
     }
 
+    // Fields on a company doc that only a platform admin may write.
+    //
+    // Without this a company's own admin could update their doc freely, which
+    // meant they could lift their own suspension (making the whole suspension
+    // control decorative against the exact person it targets), award
+    // themselves a paid plan, or hand ownership to someone else.
+    function companyPrivilegedFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['status', 'statusNote', 'statusChangedAt', 'plan', 'adminUid']);
+    }
+
     // Creator may set/clear permanentJoinCode when their active companyId is another workspace.
     function companyPermanentJoinCodeUpdateOnly() {
       return request.resource.data.diff(resource.data).affectedKeys()
@@ -216,10 +227,13 @@ service cloud.firestore {
     }
 
     // App metadata (e.g. first-user flag)
+    // App-wide metadata. isAdmin() is company-agnostic — it only tests the
+    // caller's own role field — so gating writes on it let ANY tenant's admin
+    // write global state. Nothing in the app writes here, so platform admins
+    // only.
     match /metadata/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
     // Notifications (created by Cloud Functions, read by recipients)
@@ -257,11 +271,20 @@ service cloud.firestore {
       // Enumerating tenants is impossible without this: a collection query has
       // no companyId for canReadCompanyDoc to check.
       allow list: if isSuperAdmin();
-      allow create: if isAuthenticated();
-      allow update: if (belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canManageCompanySettings'))) ||
-        (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly()) ||
-        isSuperAdmin();
+      // Signing up creates a workspace, so this stays open — but you may only
+      // create one you own, and you may not hand yourself a plan or a
+      // lifecycle state on the way in.
+      allow create: if isAuthenticated()
+        && request.resource.data.adminUid == request.auth.uid
+        && (!('status' in request.resource.data)
+            || request.resource.data.status == 'active')
+        && (!('plan' in request.resource.data)
+            || request.resource.data.plan.planId == 'free');
+      allow update: if isSuperAdmin() ||
+        (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageCompanySettings')) &&
+          companyPrivilegedFieldsUnchanged()) ||
+        (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly());
       allow delete: if (belongsToCompany(companyId) && isAdmin()) ||
         isSuperAdmin();
 

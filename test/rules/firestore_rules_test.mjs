@@ -36,6 +36,8 @@ async function seed() {
     await setDoc(doc(db,'companies/companyS'),{companyName:'Suspended',adminUid:'ownerS',status:'suspended'});
     await setDoc(doc(db,'users/staffS'),{uid:'staffS',email:'s@s.com',role:'admin',roleId:'admin',companyId:'companyS',permissions:{},companyMemberships:[{companyId:'companyS'}]});
     await setDoc(doc(db,'companies/companyS/products/p1'),{name:'Frozen',quantity:1});
+    await setDoc(doc(db,'users/ownerB'),{uid:'ownerB',email:'o@b.com',role:'admin',roleId:'admin',companyId:'companyB',permissions:{},companyMemberships:[{companyId:'companyB'}]});
+    await setDoc(doc(db,'metadata/app'),{firstUserCreated:true});
   });
 }
 
@@ -149,6 +151,43 @@ await check('super admin can still write to a suspended company (to lift it)', (
   assertSucceeds(updateDoc(doc(as('root'),'companies/companyS'),{status:'active'})));
 await check('an active companys member is unaffected', () =>
   assertSucceeds(setDoc(doc(as('ownerA'),'companies/companyA/products/pOk'),{name:'Ok',quantity:1})));
+
+console.log('\n--- COMPANY DOC SELF-SERVICE ---');
+// A company admin could previously write any field on their own company doc.
+// That made suspension decorative against the very person it targets, and
+// would have handed out free plan upgrades the moment paid tiers existed.
+await check('a suspended company admin cannot lift their own suspension', () =>
+  assertFails(updateDoc(doc(as('staffS'),'companies/companyS'),{status:'active'})));
+await check('a company admin cannot set their own plan', () =>
+  assertFails(updateDoc(doc(as('ownerA'),'companies/companyA'),{plan:{planId:'enterprise',status:'active'}})));
+await check('a company admin cannot reassign ownership', () =>
+  assertFails(updateDoc(doc(as('ownerA'),'companies/companyA'),{adminUid:'mallory'})));
+await check('a company admin cannot edit another companys doc', () =>
+  assertFails(updateDoc(doc(as('ownerA'),'companies/companyB'),{companyName:'Pwned'})));
+await check('a company admin cannot promote a user in another company', () =>
+  assertFails(updateDoc(doc(as('ownerA'),'users/ownerB'),{role:'staff'})));
+await check('a company admin cannot write app-wide metadata', () =>
+  assertFails(updateDoc(doc(as('ownerA'),'metadata/app'),{firstUserCreated:false})));
+
+console.log('\n--- COMPANY CREATION ---');
+await check('cannot create a company owned by someone else', () =>
+  assertFails(setDoc(doc(as('mallory'),'companies/cX1'),{companyName:'X',adminUid:'victim'})));
+await check('cannot create a company on a paid plan', () =>
+  assertFails(setDoc(doc(as('mallory'),'companies/cX2'),{companyName:'X',adminUid:'mallory',plan:{planId:'enterprise'}})));
+await check('cannot create a company already suspended', () =>
+  assertFails(setDoc(doc(as('mallory'),'companies/cX3'),{companyName:'X',adminUid:'mallory',status:'suspended'})));
+await check('cannot create a company already deleted', () =>
+  assertFails(setDoc(doc(as('mallory'),'companies/cX4'),{companyName:'X',adminUid:'mallory',status:'deleted'})));
+await check('signing up creates a workspace you own', () =>
+  assertSucceeds(setDoc(doc(as('newbie'),'companies/cNew'),{companyName:'New',adminUid:'newbie',createdAt:new Date()})));
+await check('a company admin can still rename their own company', () =>
+  assertSucceeds(updateDoc(doc(as('ownerA'),'companies/companyA'),{companyName:'Renamed'})));
+await check('a company admin can still edit their own settings', () =>
+  assertSucceeds(updateDoc(doc(as('ownerA'),'companies/companyA'),{settings:{pricingEnabled:false}})));
+await check('a super admin can still change plan and status', async () => {
+  await assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{plan:{planId:'free',status:'active'}}));
+  return assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{status:'suspended'}));
+});
 
 await env.cleanup();
 console.log(`\n${pass} passed, ${fail} failed`);
