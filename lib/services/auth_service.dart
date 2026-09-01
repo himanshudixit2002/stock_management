@@ -84,10 +84,13 @@ class AuthService {
           });
         });
       } catch (e) {
+        // A collision is the only reason to try another code. Anything else
+        // (permission denied, offline) will fail identically 40 more times, so
+        // surface it instead of burning attempts and reporting the wrong cause.
         if (e is StateError && e.message == 'collision') {
           continue;
         }
-        continue;
+        rethrow;
       }
       try {
         await _firestore.collection('companies').doc(companyId).update({
@@ -201,7 +204,14 @@ class AuthService {
           'createdAt': Timestamp.now(),
         });
 
-        await _allocatePermanentJoinCode(companyDoc.id, companyName);
+        // Best effort. The code only matters for inviting people, and the
+        // company switcher allocates one on demand via
+        // ensurePermanentJoinCodeForCompany. Failing signup over it stranded
+        // the account: the company existed, the user doc did not, and the
+        // email could not be reused.
+        try {
+          await _allocatePermanentJoinCode(companyDoc.id, companyName);
+        } catch (_) {}
 
         final membership = CompanyMembership(
           companyId: companyDoc.id,
@@ -220,14 +230,32 @@ class AuthService {
           companyName: companyName,
           phone: phone,
           createdAt: DateTime.now(),
+          // The per-user permissions map is for OVERRIDES. Omitting it makes
+          // UserModel fall back to defaultPermissions, which writes a populated
+          // map — and a self-created user doc may not carry permission grants,
+          // so the write is rejected and signup dies after the company exists.
+          // An owner needs no overrides anyway: effectivePermissions returns
+          // allTrue() for an admin, and the owner role doc carries the rest.
+          permissions: const {},
           companyMemberships: [membership],
         );
 
-        // Create user doc first so Firestore rules can verify membership
-        await _firestore
-            .collection('users')
-            .doc(result.user!.uid)
-            .set(userModel.toMap());
+        // The user doc is what makes the account usable: without it
+        // getUserData returns null, the app treats the session as signed out,
+        // and the email cannot be re-registered. If it fails, take the empty
+        // company back down so a retry starts clean instead of accumulating
+        // orphans.
+        try {
+          await _firestore
+              .collection('users')
+              .doc(result.user!.uid)
+              .set(userModel.toMap());
+        } catch (e) {
+          try {
+            await _firestore.collection('companies').doc(companyDoc.id).delete();
+          } catch (_) {}
+          rethrow;
+        }
 
         await _ensureMemberDoc(
           companyId: companyDoc.id,
@@ -238,7 +266,11 @@ class AuthService {
           name: name,
         );
 
-        await _seedDefaultRoles(companyDoc.id);
+        // Roles are seeded last and are recoverable, so a failure here must
+        // not strand the account either.
+        try {
+          await _seedDefaultRoles(companyDoc.id);
+        } catch (_) {}
 
         return userModel;
       }

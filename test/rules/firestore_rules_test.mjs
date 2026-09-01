@@ -2,7 +2,7 @@ import fs from 'fs';
 import {
   initializeTestEnvironment, assertFails, assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 
 const RULES = new URL('../../firestore.rules', import.meta.url).pathname;
 const env = await initializeTestEnvironment({
@@ -184,6 +184,19 @@ await check('a company admin can still rename their own company', () =>
   assertSucceeds(updateDoc(doc(as('ownerA'),'companies/companyA'),{companyName:'Renamed'})));
 await check('a company admin can still edit their own settings', () =>
   assertSucceeds(updateDoc(doc(as('ownerA'),'companies/companyA'),{settings:{pricingEnabled:false}})));
+await check('a half-finished signup can delete its own empty company', async () => {
+  // If the user doc write fails, belongsToCompany() is false because the doc
+  // is what it reads. Without a creator branch the company is undeletable and
+  // the account is stranded: unusable, and the email cannot be reused.
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyOrphan'),{companyName:'Half',adminUid:'halfUser'}));
+  return assertSucceeds(deleteDoc(doc(as('halfUser'),'companies/companyOrphan')));
+});
+await check('you cannot delete a company you did not create', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyOther'),{companyName:'Other',adminUid:'someoneElse'}));
+  return assertFails(deleteDoc(doc(as('mallory'),'companies/companyOther')));
+});
 await check('a super admin can still change plan and status', async () => {
   await assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{plan:{planId:'free',status:'active'}}));
   return assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{status:'suspended'}));

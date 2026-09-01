@@ -285,7 +285,13 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageCompanySettings')) &&
           companyPrivilegedFieldsUnchanged()) ||
         (isCompanyCreator(companyId) && companyPermanentJoinCodeUpdateOnly());
+      // isCompanyCreator is here so a half-finished signup can clean up after
+      // itself: if the user doc write fails, belongsToCompany() is false (the
+      // doc is what it reads), leaving the company undeletable and the account
+      // stranded. adminUid is server-side truth, so this grants nothing beyond
+      // deleting a workspace you created.
       allow delete: if (belongsToCompany(companyId) && isAdmin()) ||
+        isCompanyCreator(companyId) ||
         isSuperAdmin();
 
       // Members subcollection — server-side truth for "who belongs to this
