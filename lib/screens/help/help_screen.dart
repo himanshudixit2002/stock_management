@@ -423,7 +423,7 @@ class _QuickStartStep extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
+                  gradient: AppTheme.primaryGrad(context),
                   shape: BoxShape.circle,
                 ),
                 child: Center(

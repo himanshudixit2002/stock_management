@@ -74,7 +74,110 @@ class DataHealthService {
       _checkSuspiciousLocationNames(products),
       _checkOrphanedHolds(holds, products, salesOrders),
       _checkInvoiceProductRefs(invoices, products),
+      _checkHoldsWithoutReservation(holds, products),
+      _checkOverCreditedInvoices(invoices),
     ];
+  }
+
+  /// Hold documents that still reserve stock the product no longer records.
+  ///
+  /// The signature of two now-fixed bugs. Editing a product wrote the whole
+  /// model back, and the edit form never populated `heldQuantity` — so a
+  /// threshold change set it to 0 while the hold documents stayed `active`,
+  /// releasing reserved stock for someone else to sell. Renaming a location
+  /// migrated `locationQuantities` but not `heldLocationQuantities`, stranding
+  /// every reservation at a name that held nothing.
+  ///
+  /// Both write paths are fixed; this finds workspaces already carrying the
+  /// damage, where the fix cannot tell what the right figure was.
+  DataHealthCheck _checkHoldsWithoutReservation(
+    List<StockHoldModel> holds,
+    List<ProductModel> products,
+  ) {
+    final findings = <DataHealthFinding>[];
+    final byId = {for (final p in products) p.id: p};
+
+    // What the hold documents say is reserved, per product.
+    final reservedByProduct = <String, int>{};
+    for (final h in holds) {
+      final active =
+          h.status == StockHoldStatus.active ||
+          h.status == StockHoldStatus.partiallyConsumed;
+      if (!active || h.remainingQuantity <= 0) continue;
+      reservedByProduct[h.productId] =
+          (reservedByProduct[h.productId] ?? 0) + h.remainingQuantity;
+    }
+
+    reservedByProduct.forEach((productId, reserved) {
+      final p = byId[productId];
+      // A hold on a deleted product is already reported by _checkOrphanedHolds.
+      if (p == null) return;
+      if (p.heldQuantity >= reserved) return;
+      findings.add(
+        DataHealthFinding(
+          checkId: 'hold_not_reserved',
+          title: 'Reservations the product does not know about',
+          detail:
+              '${p.name}: hold records reserve $reserved unit(s), but the '
+              'product only shows ${p.heldQuantity} reserved. Those units look '
+              'available and can be sold twice.',
+          remedy:
+              'Release and re-create the affected holds, then recount this '
+              'product.',
+          severity: DataHealthSeverity.critical,
+          entityType: 'Product',
+          entityId: p.id,
+          entityName: p.name,
+        ),
+      );
+    });
+
+    return DataHealthCheck(
+      id: 'hold_not_reserved',
+      label: 'Holds match the stock they reserve',
+      description:
+          'Every active hold is reflected in its product\'s reserved count.',
+      findings: findings,
+    );
+  }
+
+  /// Invoices credited or paid beyond their total.
+  ///
+  /// Recording a payment ignored `creditedAmount`, so a credited invoice could
+  /// be paid in full as well — the workspace over-collected and the credit note
+  /// was silently annihilated. The payment path now subtracts it; this reports
+  /// documents where that already happened, because the money has to be
+  /// reconciled by hand.
+  DataHealthCheck _checkOverCreditedInvoices(List<InvoiceModel> invoices) {
+    final findings = <DataHealthFinding>[];
+    for (final inv in invoices) {
+      if (inv.isCancelled || inv.isDraft) continue;
+      final settled = inv.amountPaid + inv.creditedAmount;
+      if (settled <= inv.grandTotal + 0.01) continue;
+      findings.add(
+        DataHealthFinding(
+          checkId: 'invoice_over_settled',
+          title: 'Invoice settled beyond its total',
+          detail:
+              '${inv.invoiceNumber}: ${inv.amountPaid.toStringAsFixed(2)} paid '
+              'plus ${inv.creditedAmount.toStringAsFixed(2)} credited against a '
+              'total of ${inv.grandTotal.toStringAsFixed(2)}.',
+          remedy:
+              'Refund the excess, or cancel the duplicate credit note against '
+              'this invoice.',
+          severity: DataHealthSeverity.critical,
+          entityType: 'Invoice',
+          entityId: inv.id,
+          entityName: inv.invoiceNumber,
+        ),
+      );
+    }
+    return DataHealthCheck(
+      id: 'invoice_over_settled',
+      label: 'Invoices not over-settled',
+      description: 'Payments plus credits never exceed an invoice total.',
+      findings: findings,
+    );
   }
 
   /// heldQuantity above the on-hand count means availableQuantity clamps to 0

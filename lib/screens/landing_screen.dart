@@ -59,17 +59,18 @@ class LandingScreen extends StatelessWidget {
         gradient: AppTheme.isDark(context)
             ? const LinearGradient(
                 colors: [
-                  Color(0xFF0F2926),
-                  Color(0xFF161616),
-                  Color(0xFF121212),
+                  Color(0xFF0E1A19),
+                  Color(0xFF141719),
+                  Color(0xFF101214),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               )
             : const LinearGradient(
                 colors: [
-                  Color(0xFFE6F7F5),
-                  Color(0xFFF8FAFC),
+                  // A light wash of the brand teal.
+                  Color(0xFFECFDF9),
+                  Color(0xFFFAFAFA),
                   Color(0xFFFFFFFF),
                 ],
                 begin: Alignment.topCenter,
@@ -209,8 +210,13 @@ class LandingScreen extends StatelessWidget {
           bottom: BorderSide(color: AppTheme.dividerC(context)),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      // Wrap, not Row: four badges plus three separators do not fit on one
+      // line at 375dp, and a fixed Row overflowed there.
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 10,
         children: [
           _CapBadge(Icons.shield_rounded, 'Secure'),
           _capDot(context),
@@ -390,7 +396,10 @@ class LandingScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Free forever. No credit card required.',
+            // Reconciled with the founding-member offer on the register
+            // screen: "free forever" read as a contradiction next to a
+            // cohort-limited promotion.
+            'Full MAX access, free. No credit card required.',
             style: TextStyle(
               fontSize: 13,
               color: Colors.white.withValues(alpha: 0.85),

@@ -21,6 +21,7 @@ import '../../models/user_model.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/permission_gate.dart';
 import '../../utils/debouncer.dart';
+import '../../models/company_plan_model.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -164,6 +165,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
       FeatureCategory.inventory,
       user?.effectivePermissions ?? UserModel.defaultPermissions,
       placement: FeaturePlacement.tabShortcut,
+      plan: context.select<SettingsProvider, CompanyPlan>((s) => s.plan),
     );
 
     return PermissionGate(
@@ -202,7 +204,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
+                            gradient: AppTheme.primaryGrad(context),
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(color: AppTheme.primaryColor.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))

@@ -231,6 +231,35 @@ class ProductModel {
     };
   }
 
+  /// Fields that only the stock engine may write.
+  ///
+  /// `quantity` and `locationQuantities` are moved by the transactional stock
+  /// paths; `heldQuantity` and `heldLocationQuantities` are moved by the
+  /// reservation paths. `createdAt`/`createdBy` are set once. A product *edit*
+  /// owns none of these, and rewriting them from a form's in-memory model is
+  /// how reservations got silently zeroed: the edit screen never populated the
+  /// held fields, so they serialised as 0 and `{}` and overwrote live holds.
+  static const Set<String> stockOwnedFields = {
+    'quantity',
+    'locationQuantities',
+    'heldQuantity',
+    'heldLocationQuantities',
+    'createdAt',
+    'createdBy',
+    'createdByName',
+  };
+
+  /// [toMap] without the fields an edit must never touch.
+  ///
+  /// Use for updates of an existing product; [toMap] remains correct for
+  /// creating one, where these fields are genuinely being set for the first
+  /// time.
+  Map<String, dynamic> toEditableMap() {
+    final map = toMap();
+    map.removeWhere((key, _) => stockOwnedFields.contains(key));
+    return map;
+  }
+
   ProductModel copyWith({
     String? id,
     String? name,

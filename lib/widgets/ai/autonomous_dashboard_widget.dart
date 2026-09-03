@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
+import '../../providers/vendor_provider.dart';
 import '../../services/ai_agent_service.dart';
+import '../../services/stock_calculations.dart';
 import '../animations.dart';
 
 class AutonomousDashboardWidget extends StatefulWidget {
@@ -21,6 +23,18 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   List<Map<String, dynamic>> _forecasts = [];
   List<Map<String, dynamic>> _transfers = [];
 
+  /// Why the panel has nothing to show, when the reason is a failure.
+  ///
+  /// Every fetch used to return an empty list on error, so a backend that was
+  /// down or a token that was rejected rendered as a confident "no issues" —
+  /// the most misleading possible answer for a panel whose whole job is to
+  /// raise problems.
+  String? _loadError;
+
+  /// True when the inventory sync failed, so any advice below was computed
+  /// from whatever the backend last held rather than current stock.
+  bool _syncFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,7 +44,12 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
   }
 
   Future<void> _loadAgentData() async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    var syncOk = true;
 
     // Sync actual live user inventory items from ProductProvider & StockProvider
     try {
@@ -42,19 +61,29 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
       final stockProvider = Provider.of<StockProvider>(context, listen: false);
       final transactions = stockProvider.allTransactions;
       final now = DateTime.now();
-      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      DateTime? firstAt;
+      for (final t in transactions) {
+        if (firstAt == null || t.date.isBefore(firstAt)) firstAt = t.date;
+      }
+
+      // Lead time per vendor, so the backend's reorder-point maths uses the
+      // figure the user actually entered against their supplier.
+      final vendors = Provider.of<VendorProvider>(context, listen: false).vendors;
+      final leadTimeByVendor = {
+        for (final v in vendors)
+          if (v.leadTimeDays > 0) v.id: v.leadTimeDays,
+      };
 
       final realProducts = productProvider.analyticsProducts.map((p) {
-        final pOut = transactions
-            .where((t) => t.productId == p.id && t.date.isAfter(thirtyDaysAgo))
-            .fold<int>(0, (sum, t) {
-              final typeStr = t.type.toString().toLowerCase();
-              if (typeStr.contains('stockout') || typeStr.contains('damage')) {
-                return sum + t.quantity;
-              }
-              return sum;
-            });
-        final double realVelocity = pOut > 0 ? (pOut / 30.0) : 0.0;
+        // The shared definition. This used to count damage as demand and match
+        // transaction types by substring on `toString()`, so its velocity ran
+        // higher than every other screen's for the same product.
+        final double realVelocity = StockCalculations.dailyBurnRate(
+          transactions,
+          p.id,
+          now: now,
+          firstTransactionAt: firstAt,
+        );
 
         return {
           'id': p.id,
@@ -66,15 +95,26 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
           'cost_price': p.costPrice,
           'selling_price': p.sellingPrice,
           'sales_velocity': double.parse(realVelocity.toStringAsFixed(2)),
-          'lead_time_days': 3,
+          // The preferred vendor's own lead time. This was hardcoded to 3 for
+          // every product, though BACKEND_ARCHITECTURE.md documents it as
+          // joined from the vendor and the backend derives reorder_point and
+          // safety_stock from it — so a user who set a 21-day lead time got
+          // advice computed as if stock could be replaced in three.
+          'lead_time_days': leadTimeByVendor[p.preferredVendorId] ?? 7,
           'location': p.locationQuantities.isNotEmpty ? p.locationQuantities.keys.first : 'Main Store',
         };
       }).toList();
 
       if (realProducts.isNotEmpty) {
-        await AiAgentService.syncUserInventory(realProducts);
+        syncOk = await AiAgentService.syncUserInventory(realProducts);
       }
-    } catch (_) {}
+    } catch (e) {
+      // Was a bare `catch (_) {}`, so a failed sync was invisible and the
+      // recommendations below were presented as though they were based on
+      // current stock when they were not.
+      debugPrint('Autonomous dashboard inventory sync failed: $e');
+      syncOk = false;
+    }
 
     try {
       final results = await Future.wait([
@@ -86,17 +126,28 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
 
       if (mounted) {
         setState(() {
-          _autopilotRecs = results[0];
-          _anomalies = results[1];
-          _forecasts = results[2];
-          _transfers = results[3];
+          _autopilotRecs = results[0].items;
+          _anomalies = results[1].items;
+          _forecasts = results[2].items;
+          _transfers = results[3].items;
+          // Any failure is reported; an empty panel then means "nothing to
+          // report", which is the only time it should.
+          _loadError = results.firstWhere(
+            (r) => r.isError,
+            orElse: () => const AgentResult.ok([]),
+          ).error;
+          _syncFailed = !syncOk;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint('Autonomous dashboard load error: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _loadError = 'Could not load assistant insights.';
+          _syncFailed = !syncOk;
+          _isLoading = false;
+        });
       }
     }
   }
@@ -179,6 +230,28 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // A panel that exists to raise problems must never render a failure
+            // as an all-clear. These say which it is.
+            if (!_isLoading && _loadError != null) ...[
+              _Notice(
+                icon: Icons.cloud_off_rounded,
+                color: AppTheme.dangerColor,
+                message:
+                    '$_loadError These insights are unavailable — this is not '
+                    'a clean bill of health.',
+              ),
+              const SizedBox(height: 12),
+            ] else if (!_isLoading && _syncFailed) ...[
+              _Notice(
+                icon: Icons.sync_problem_rounded,
+                color: AppTheme.warningColor,
+                message:
+                    'Current stock could not be sent to the assistant, so the '
+                    'suggestions below may be based on older figures.',
+              ),
+              const SizedBox(height: 12),
+            ],
 
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -550,6 +623,48 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A one-line status strip inside the assistant panel.
+class _Notice extends StatelessWidget {
+  const _Notice({
+    required this.icon,
+    required this.color,
+    required this.message,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                color: AppTheme.textSec(context),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

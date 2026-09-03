@@ -19,17 +19,18 @@ import asyncio
 import voice
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv()
 
+import auth
 import deterministic
 import llm as llm_factory
 import writes
@@ -44,12 +45,23 @@ app = FastAPI(
     description="Grounded, tool-calling inventory assistant over live Firestore data",
 )
 
+# The app's own origins only. This was "*", which combined with the missing
+# token check meant any page on the internet could read a tenant's inventory.
+_ALLOWED_ORIGINS = [
+    "https://stockmanagement-27af8.web.app",
+    "https://stockmanagement-27af8.firebaseapp.com",
+    "https://smartshelfkart.com",
+    "https://www.smartshelfkart.com",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "x-company-id"],
 )
 
 
@@ -85,6 +97,8 @@ class QueryResponse(BaseModel):
 
 
 def _cid(header: Optional[str], body: Optional[str]) -> str:
+    """Unverified company id. Only /health may use this — every other route
+    goes through auth.verified_company_id, which proves the caller is a member."""
     cid = (header or body or "").strip()
     if not cid or cid == "default":
         raise HTTPException(
@@ -101,7 +115,11 @@ def _sid(request: QueryRequest, company_id: str) -> str:
     return (request.session_id or company_id or "default").strip() or "default"
 
 
-def _inputs(request: QueryRequest, company_id: str) -> Dict[str, Any]:
+def _inputs(
+    request: QueryRequest,
+    company_id: str,
+    permissions: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
     return {
         "question": request.question,
         "retries": 0,
@@ -110,6 +128,9 @@ def _inputs(request: QueryRequest, company_id: str) -> Dict[str, Any]:
         "company_id": company_id,
         "business_type": request.business_type or "retail_store",
         "session_id": _sid(request, company_id),
+        # Carried into the graph so the write choke point can refuse a change
+        # the caller is not entitled to make. Reads are unaffected.
+        "permissions": permissions,
     }
 
 
@@ -139,9 +160,10 @@ def _catalog_if_mutated(state: Dict[str, Any], company_id: str) -> Optional[List
 
 @app.post("/api/chat", response_model=QueryResponse)
 async def chat_endpoint(
-    request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    request: QueryRequest,
+    principal: auth.Principal = Depends(auth.verified_principal_rate_limited),
 ):
-    company_id = _cid(x_company_id, request.company_id)
+    company_id = principal.company_id
     business_type = request.business_type or "retail_store"
 
     facts = await asyncio.to_thread(fact_store.get, company_id)
@@ -159,7 +181,7 @@ async def chat_endpoint(
             response_kind=cached.get("response_kind", "prose"),
         )
 
-    inputs = _inputs(request, company_id)
+    inputs = _inputs(request, company_id, principal.granted())
     inputs["facts"] = facts
     state = await rag_pipeline.ainvoke(inputs)
 
@@ -214,9 +236,10 @@ def _sse(payload: Dict[str, Any]) -> str:
 
 @app.post("/api/chat/stream")
 async def stream_chat_endpoint(
-    request: QueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    request: QueryRequest,
+    principal: auth.Principal = Depends(auth.verified_principal_rate_limited),
 ):
-    company_id = _cid(x_company_id, request.company_id)
+    company_id = principal.company_id
     business_type = request.business_type or "retail_store"
 
     async def events():
@@ -243,7 +266,7 @@ async def stream_chat_endpoint(
 
         yield _sse({"type": "status", "message": "Reading live inventory..."})
 
-        inputs = _inputs(request, company_id)
+        inputs = _inputs(request, company_id, principal.granted())
         inputs["facts"] = facts
 
         state: Dict[str, Any] = {}
@@ -370,9 +393,10 @@ class ProductIngestRequest(BaseModel):
 @app.post("/api/ingest")
 async def ingest_endpoint(
     request: ProductIngestRequest,
-    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+    # Creates and overwrites product documents, so it needs the same grant the
+    # app requires to add a product. Membership alone used to be enough.
+    company_id: str = Depends(auth.require_permission("canAddProducts")),
 ):
-    company_id = _cid(x_company_id, None)
     products = [p.model_dump() for p in request.products]
     for product in products:
         db_instance.upsert_product(product, company_id=company_id)
@@ -391,9 +415,10 @@ class InventorySyncRequest(BaseModel):
 @app.post("/api/inventory/sync")
 async def sync_inventory_endpoint(
     request: InventorySyncRequest,
-    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+    # Replaces the workspace's whole product set — strictly more destructive
+    # than editing one, so it is gated on the edit grant.
+    company_id: str = Depends(auth.require_permission("canEditProducts")),
 ):
-    company_id = _cid(x_company_id, None)
     if request.products:
         db_instance.replace_user_inventory(request.products, company_id=company_id)
     fact_store.bump(company_id)
@@ -403,15 +428,14 @@ async def sync_inventory_endpoint(
 
 
 @app.get("/api/inventory")
-async def get_inventory(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+async def get_inventory(company_id: str = Depends(auth.verified_company_id)):
     facts = await asyncio.to_thread(fact_store.get, company_id)
     return {"products": [p.to_dict() for p in facts.products]}
 
 
 @app.get("/api/inventory/reconcile")
 async def reconcile_inventory(
-    x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    company_id: str = Depends(auth.verified_company_id)
 ):
     """Report products whose total and per-location stock disagree.
 
@@ -419,7 +443,6 @@ async def reconcile_inventory(
     judgement only the owner can make, so this surfaces the drift and leaves the
     repair to them.
     """
-    company_id = _cid(x_company_id, None)
     facts = await asyncio.to_thread(fact_store.get, company_id)
     drift = facts.inconsistencies()
     return {
@@ -436,8 +459,7 @@ async def reconcile_inventory(
 
 
 @app.get("/api/inventory/ledger")
-def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+def get_inventory_ledger(company_id: str = Depends(auth.verified_company_id)):
     return {"action_ledger": db_instance._get_company(company_id)["action_ledger"]}
 
 
@@ -446,8 +468,7 @@ def get_inventory_ledger(x_company_id: Optional[str] = Header(None, alias="x-com
 # ---------------------------------------------------------------------------
 
 @app.get("/api/agent/autopilot")
-async def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+async def autopilot_scan(company_id: str = Depends(auth.verified_company_id)):
     facts = await asyncio.to_thread(fact_store.get, company_id)
     recommendations = [
         {
@@ -480,8 +501,7 @@ async def autopilot_scan(x_company_id: Optional[str] = Header(None, alias="x-com
 
 
 @app.get("/api/agent/forecast")
-async def predictive_forecast(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+async def predictive_forecast(company_id: str = Depends(auth.verified_company_id)):
     facts = await asyncio.to_thread(fact_store.get, company_id)
     forecasts = [
         {
@@ -523,8 +543,7 @@ async def predictive_forecast(x_company_id: Optional[str] = Header(None, alias="
 
 
 @app.get("/api/agent/anomalies")
-async def detect_anomalies(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+async def detect_anomalies(company_id: str = Depends(auth.verified_company_id)):
     facts = await asyncio.to_thread(fact_store.get, company_id)
     anomalies: List[Dict[str, Any]] = []
 
@@ -580,9 +599,8 @@ async def detect_anomalies(x_company_id: Optional[str] = Header(None, alias="x-c
 
 @app.get("/api/agent/safety_stock")
 async def statistical_safety_stock_endpoint(
-    x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    company_id: str = Depends(auth.verified_company_id)
 ):
-    company_id = _cid(x_company_id, None)
     facts = await asyncio.to_thread(fact_store.get, company_id)
 
     # ABC by annualised revenue contribution from real movement.
@@ -622,8 +640,7 @@ async def statistical_safety_stock_endpoint(
 
 
 @app.get("/api/agent/location_balance")
-async def location_balance(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+async def location_balance(company_id: str = Depends(auth.verified_company_id)):
     facts = await asyncio.to_thread(fact_store.get, company_id)
     suggestions = []
     for p in facts.products:
@@ -671,9 +688,11 @@ class VisualAuditRequest(BaseModel):
 @app.post("/api/agent/visual_audit")
 async def process_visual_audit(
     request: VisualAuditRequest,
-    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+    # Writes counted quantities straight over system stock — the same thing a
+    # stock adjustment does, so it takes the same grant.
+    company_id: str = Depends(auth.require_permission("canAdjustStock")),
 ):
-    company_id = _cid(x_company_id, None)
+    auth.rate_limit(company_id)
     facts = await asyncio.to_thread(fact_store.get, company_id, True)
     resolver = ProductResolver(facts.products)
 
@@ -730,9 +749,11 @@ class VoiceCommandRequest(BaseModel):
 @app.post("/api/agent/voice_command")
 async def process_voice_command_endpoint(
     request: VoiceCommandRequest,
-    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+    # Spoken commands move stock, so this is a write route despite reading like
+    # a query one.
+    company_id: str = Depends(auth.require_permission("canAdjustStock")),
 ):
-    company_id = _cid(x_company_id, None)
+    auth.rate_limit(company_id)
     result = await asyncio.to_thread(
         voice.process_voice_command, request.speech_text, company_id
     )
@@ -771,9 +792,8 @@ class GuardrailValidationRequest(BaseModel):
 
 @app.post("/api/swarm/trigger")
 def trigger_swarm_event(
-    request: SwarmEventRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    request: SwarmEventRequest, company_id: str = Depends(auth.verified_company_id_rate_limited)
 ):
-    company_id = _cid(x_company_id, None)
     return {
         "status": "success",
         "result": swarm_instance.process_event_trigger(
@@ -783,8 +803,7 @@ def trigger_swarm_event(
 
 
 @app.post("/api/swarm/autopilot")
-def run_swarm_autopilot(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = _cid(x_company_id, None)
+def run_swarm_autopilot(company_id: str = Depends(auth.verified_company_id_rate_limited)):
     return {
         "status": "success",
         "sweep_results": swarm_instance.run_full_autopilot_sweep(company_id=company_id),
@@ -793,7 +812,9 @@ def run_swarm_autopilot(x_company_id: Optional[str] = Header(None, alias="x-comp
 
 
 @app.get("/api/swarm/logs")
-def get_swarm_logs():
+def get_swarm_logs(company_id: str = Depends(auth.verified_company_id)):
+    # Was completely unscoped: it returned the swarm's episodic memory and every
+    # pending PO to any caller, across all tenants.
     return {
         "status": "success",
         "episodic_memory": list(swarm_instance.episodic_memory),
@@ -802,24 +823,28 @@ def get_swarm_logs():
 
 
 @app.post("/api/swarm/approve_po")
-def approve_pending_po_endpoint(request: POApprovalRequest):
+def approve_pending_po_endpoint(
+    request: POApprovalRequest,
+    # Approving commits a purchase order, so it needs the grant the app requires
+    # to raise one. It was previously open to any member of the workspace.
+    company_id: str = Depends(auth.require_permission("canCreatePurchaseOrders")),
+):
+    # Was unauthenticated: anyone could approve any tenant's purchase order by id.
     return swarm_instance.approve_pending_po(request.po_id)
 
 
 @app.post("/api/swarm/query")
 def query_swarm(
-    request: SwarmQueryRequest, x_company_id: Optional[str] = Header(None, alias="x-company-id")
+    request: SwarmQueryRequest, company_id: str = Depends(auth.verified_company_id_rate_limited)
 ):
-    company_id = _cid(x_company_id, None)
     return {"status": "success", "result": swarm_instance.process_query(request.query, company_id=company_id)}
 
 
 @app.post("/api/guardrails/validate")
 async def validate_guardrails(
     request: GuardrailValidationRequest,
-    x_company_id: Optional[str] = Header(None, alias="x-company-id"),
+    company_id: str = Depends(auth.verified_company_id),
 ):
-    company_id = _cid(x_company_id, None)
     facts = await asyncio.to_thread(fact_store.get, company_id)
     product = facts.lookup(request.barcode) if request.barcode else None
     item = (
@@ -843,19 +868,16 @@ async def validate_guardrails(
 # ---------------------------------------------------------------------------
 
 @app.post("/api/cache/clear")
-def clear_cache(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
-    company_id = x_company_id.strip() if x_company_id else None
+def clear_cache(company_id: str = Depends(auth.verified_company_id)):
+    # Scoped to the verified company. Previously a request with no header
+    # cleared *every* company's cached answers.
     answer_cache.clear(company_id)
-    if company_id:
-        fact_store.bump(company_id)
-    return {
-        "status": "success",
-        "scope": company_id or "all companies",
-    }
+    fact_store.bump(company_id)
+    return {"status": "success", "scope": company_id}
 
 
 @app.get("/api/cache/stats")
-def get_cache_stats():
+def get_cache_stats(company_id: str = Depends(auth.verified_company_id)):
     return {
         "status": "success",
         "answer_cache": answer_cache.stats(),
@@ -865,17 +887,16 @@ def get_cache_stats():
 
 
 @app.get("/health")
-async def health_check(x_company_id: Optional[str] = Header(None, alias="x-company-id")):
+async def health_check():
+    # Deliberately unauthenticated so Cloud Run can probe it, and deliberately
+    # tenant-free: it used to accept an x-company-id and report that workspace's
+    # inventory fingerprint and source, which leaked whether a company id was
+    # real to anyone who asked.
     payload: Dict[str, Any] = {
         "status": "ok",
         "llm": llm_factory.health()["models"],
         "provider": llm_factory.active_provider() or "lazy",
     }
-    if x_company_id:
-        facts = await asyncio.to_thread(fact_store.get, x_company_id)
-        payload["inventory"] = facts.summary()
-        payload["source"] = facts.source
-        payload["fingerprint"] = facts.fingerprint
     return payload
 
 

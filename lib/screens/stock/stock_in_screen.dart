@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../widgets/entity_picker_field.dart';
+import '../../widgets/form_section.dart';
 import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
@@ -12,7 +14,6 @@ import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
-import '../../widgets/glass_panel.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/quantity_stepper.dart';
@@ -176,12 +177,21 @@ class _StockInScreenState extends State<StockInScreen> {
               vendorId: vendorId,
               vendorName: vendorName,
             );
+            messenger.hideCurrentSnackBar();
             if (undone) {
               productProvider.refreshProducts();
-              messenger.hideCurrentSnackBar();
               if (localContext.mounted) {
                 showSuccessSnackBar(localContext, 'Stock-in undone');
               }
+            } else if (localContext.mounted) {
+              // There was no else branch, so a failed undo just closed the
+              // snackbar and looked like it had worked. It fails for a real
+              // reason — most often the units were reserved by an order in the
+              // meantime — and the user needs to know the stock is still there.
+              showErrorSnackBar(
+                localContext,
+                stockProvider.errorMessage ?? 'Could not undo the stock-in.',
+              );
             }
           },
         );
@@ -328,291 +338,111 @@ class _StockInScreenState extends State<StockInScreen> {
                   padding: EdgeInsets.all(
                     Responsive.horizontalPadding(context),
                   ),
-                  child: FadeSlideIn(
-                    child: GlassPanel(
-                      borderRadius: 20,
-                      padding: const EdgeInsets.all(16),
-                      useContentVariant: true,
-                      child: Form(
-                      key: _formKey,
-                      autovalidateMode: _submitted
-                          ? AutovalidateMode.onUserInteraction
-                          : AutovalidateMode.disabled,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Select Product *',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: AppTheme.textPri(context),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Material(
-                            color: AppTheme.inputFill(context),
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: _submitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Grouped into named sections rather than one flat
+                        // Column in a single panel: this screen asks for six
+                        // unrelated things and previously read as an
+                        // undifferentiated wall of fields.
+                        FormSection(
+                          title: 'Product',
+                          subtitle: 'What is arriving',
+                          icon: Icons.inventory_2_rounded,
+                          index: 0,
+                          children: [
+                            EntityPickerField(
+                              label: 'Product *',
+                              icon: Icons.inventory_2_rounded,
+                              value: _selectedProduct?.name,
+                              placeholder: 'Tap to select a product',
+                              detail: _selectedProduct == null
+                                  ? null
+                                  : '${_selectedProduct!.quantity} '
+                                        '${_selectedProduct!.baseUnit} on hand',
+                              errorText: _submitted && _selectedProduct == null
+                                  ? 'Choose the product being received'
+                                  : null,
                               onTap: () => _pickProduct(products),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppTheme.inputBorder(context),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: _selectedProduct != null
-                                          ? AppTheme.primaryColor
-                                          : AppTheme.textSec(context),
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _selectedProduct != null
-                                          ? Text(
-                                              _selectedProduct!.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
-                                            )
-                                          : Text(
-                                              'Tap to select a product...',
-                                              style: TextStyle(
-                                                color: AppTheme.textSec(
-                                                  context,
-                                                ),
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_drop_down_rounded,
-                                      color: AppTheme.textSec(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              onClear: () =>
+                                  setState(() => _selectedProduct = null),
                             ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Location selector
-                          GestureDetector(
-                            onTap: () async {
-                              final settingsProvider = context.read<SettingsProvider>();
-                              final result = await showSearchablePicker(
-                                context: context,
-                                title: 'Location',
-                                selectedValue: _selectedLocation,
-                                addNewLabel: 'Add new location',
-                                addNewValue: '__create_new__',
-                                items: settingsLocations.map((loc) {
-                                  final qty =
-                                      _selectedProduct?.locationQuantities[loc];
-                                  return PickerItem(
-                                    value: loc,
-                                    label: loc,
-                                    subtitle: qty != null
-                                        ? '$qty in stock'
-                                        : null,
-                                    icon: Icons.location_on_rounded,
-                                    iconColor: AppTheme.primaryColor,
-                                  );
-                                }).toList(),
-                              );
-                              if (result == null || !context.mounted) return;
-                              if (result == '__create_new__') {
-                                final newName = await showAddNameDialog(
-                                  context,
-                                  title: 'Add new location',
-                                  labelText: 'Location name',
-                                  hint: 'e.g. Main Warehouse',
-                                  validator: validateLocationName,
-                                  onAdd: (name) =>
-                                      settingsProvider.addLocation(name),
-                                );
-                                if (newName != null && mounted) {
-                                  setState(() => _selectedLocation = newName);
+                          ],
+                        ),
+                        FormSection(
+                          title: 'Destination',
+                          subtitle: 'Where it lands, and who supplied it',
+                          icon: Icons.location_on_rounded,
+                          accent: AppTheme.infoColor,
+                          index: 1,
+                          children: [
+                            _buildLocationField(context, settingsLocations),
+                            _buildVendorField(context),
+                          ],
+                        ),
+                        FormSection(
+                          title: 'Quantity',
+                          subtitle: 'How much is being added',
+                          icon: Icons.add_box_rounded,
+                          accent: AppTheme.successColor,
+                          index: 2,
+                          children: [
+                            QuantityStepper(
+                              controller: _quantityController,
+                              label: 'Quantity to Add *',
+                              unitsPerPack:
+                                  _selectedProduct?.unitsPerPack ?? 1,
+                              packUnit: _selectedProduct?.packUnit ?? 'box',
+                              baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter quantity';
                                 }
-                              } else {
-                                setState(() => _selectedLocation = result);
-                              }
-                            },
-                            child: InputDecorator(
-                              decoration: InputDecoration(
-                                labelText: 'Location *',
-                                prefixIcon: const Icon(
-                                  Icons.location_on_rounded,
-                                ),
-                                suffixIcon: _selectedLocation != null
-                                    ? IconButton(
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          size: 18,
-                                        ),
-                                        onPressed: () => setState(
-                                          () => _selectedLocation = null,
-                                        ),
-                                      )
-                                    : const Icon(Icons.arrow_drop_down),
-                                errorText:
-                                    _submitted && _selectedLocation == null
-                                    ? 'Please select a location'
-                                    : null,
-                              ),
-                              child: Text(
-                                _selectedLocation ?? 'Select location',
-                                style: TextStyle(
-                                  color: _selectedLocation != null
-                                      ? AppTheme.textPri(context)
-                                      : AppTheme.textSec(context),
-                                ),
-                              ),
+                                final qty = int.tryParse(value);
+                                if (qty == null || qty <= 0) {
+                                  return 'Enter a valid quantity';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-
-                          Consumer<SettingsProvider>(
-                            builder: (context, settings, _) {
-                              if (!settings.vendorsEnabled) {
-                                return const SizedBox.shrink();
-                              }
-                              final vendorProvider = context
-                                  .watch<VendorProvider>();
-                              final activeVendors =
-                                  vendorProvider.activeVendors;
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: GestureDetector(
-                                  onTap: () async {
-                                    final result = await showSearchablePicker(
-                                      context: context,
-                                      title: 'Vendor',
-                                      selectedValue: _selectedVendorId.isEmpty
-                                          ? null
-                                          : _selectedVendorId,
-                                      items: activeVendors
-                                          .map(
-                                            (v) => PickerItem(
-                                              value: v.id,
-                                              label: v.name,
-                                              icon:
-                                                  Icons.local_shipping_rounded,
-                                            ),
-                                          )
-                                          .toList(),
-                                    );
-                                    if (result != null && mounted) {
-                                      final v = vendorProvider.getVendorById(
-                                        result,
-                                      );
-                                      setState(() {
-                                        _selectedVendorId = result;
-                                        _selectedVendorName = v?.name ?? '';
-                                      });
-                                    }
-                                  },
-                                  child: InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: 'Vendor (optional)',
-                                      prefixIcon: const Icon(
-                                        Icons.local_shipping_rounded,
-                                      ),
-                                      suffixIcon: _selectedVendorId.isNotEmpty
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.close_rounded,
-                                                size: 18,
-                                              ),
-                                              onPressed: () => setState(() {
-                                                _selectedVendorId = '';
-                                                _selectedVendorName = '';
-                                              }),
-                                            )
-                                          : const Icon(Icons.arrow_drop_down),
-                                    ),
-                                    child: Text(
-                                      _selectedVendorName.isEmpty
-                                          ? 'Select vendor'
-                                          : _selectedVendorName,
-                                      style: TextStyle(
-                                        color: _selectedVendorName.isNotEmpty
-                                            ? AppTheme.textPri(context)
-                                            : AppTheme.textSec(context),
-                                      ),
-                                    ),
+                            TextFormField(
+                              controller: _reasonController,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) =>
+                                  _isLoading ? null : _addStock(),
+                              decoration: const InputDecoration(
+                                labelText: 'Notes (optional)',
+                                prefixIcon: Icon(Icons.note_rounded),
+                                hintText: 'e.g., New shipment received',
+                              ),
+                              maxLines: 2,
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _addStock,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
-                                ),
-                              );
-                            },
+                                )
+                              : const Icon(Icons.check_rounded),
+                          label: const Text('Add Stock'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.successColor,
                           ),
-
-                          const SizedBox(height: 16),
-
-                          QuantityStepper(
-                            controller: _quantityController,
-                            label: 'Quantity to Add *',
-                            unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
-                            packUnit: _selectedProduct?.packUnit ?? 'box',
-                            baseUnit: _selectedProduct?.baseUnit ?? 'pcs',
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Enter quantity';
-                              }
-                              final qty = int.tryParse(value);
-                              if (qty == null || qty <= 0) {
-                                return 'Enter a valid quantity';
-                              }
-                              return null;
-                            },
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          TextFormField(
-                            controller: _reasonController,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: 'Notes (optional)',
-                              prefixIcon: Icon(Icons.note_rounded),
-                              hintText: 'e.g., New shipment received',
-                            ),
-                            maxLines: 2,
-                          ),
-                          const SizedBox(height: 20),
-
-                          ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _addStock,
-                            icon: _isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.check_rounded),
-                            label: const Text('Add Stock'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.successColor,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ),
                   ),
                 ),
               ),
@@ -622,4 +452,134 @@ class _StockInScreenState extends State<StockInScreen> {
       ),
     );
   }
+
+  /// Location picker, extracted so the form body reads as a list of sections.
+  Widget _buildLocationField(BuildContext context, List<String> locations) {
+    return GestureDetector(
+      onTap: () async {
+        final settingsProvider = context.read<SettingsProvider>();
+        final result = await showSearchablePicker(
+          context: context,
+          title: 'Location',
+          selectedValue: _selectedLocation,
+          addNewLabel: 'Add new location',
+          addNewValue: '__create_new__',
+          items: locations.map((loc) {
+            final qty = _selectedProduct?.locationQuantities[loc];
+            return PickerItem(
+              value: loc,
+              label: loc,
+              subtitle: qty != null ? '$qty in stock' : null,
+              icon: Icons.location_on_rounded,
+              iconColor: AppTheme.primary(context),
+            );
+          }).toList(),
+        );
+        if (result == null || !context.mounted) return;
+        if (result == '__create_new__') {
+          final newName = await showAddNameDialog(
+            context,
+            title: 'Add new location',
+            labelText: 'Location name',
+            hint: 'e.g. Main Warehouse',
+            validator: validateLocationName,
+            onAdd: (name) => settingsProvider.addLocation(name),
+          );
+          if (newName != null && mounted) {
+            setState(() => _selectedLocation = newName);
+          }
+        } else {
+          setState(() => _selectedLocation = result);
+        }
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Location *',
+          prefixIcon: const Icon(Icons.location_on_rounded),
+          suffixIcon: _selectedLocation != null
+              ? IconButton(
+                  tooltip: 'Clear location',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () => setState(() => _selectedLocation = null),
+                )
+              : const Icon(Icons.arrow_drop_down),
+          errorText: _submitted && _selectedLocation == null
+              ? 'Please select a location'
+              : null,
+        ),
+        child: Text(
+          _selectedLocation ?? 'Select location',
+          style: TextStyle(
+            color: _selectedLocation != null
+                ? AppTheme.textPri(context)
+                : AppTheme.textSec(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Vendor picker. Renders nothing when the workspace has vendors switched off.
+  Widget _buildVendorField(BuildContext context) {
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        if (!settings.vendorsEnabled) return const SizedBox.shrink();
+        final vendorProvider = context.watch<VendorProvider>();
+        final activeVendors = vendorProvider.activeVendors;
+        return GestureDetector(
+          onTap: () async {
+            final result = await showSearchablePicker(
+              context: context,
+              title: 'Vendor',
+              selectedValue:
+                  _selectedVendorId.isEmpty ? null : _selectedVendorId,
+              items: activeVendors
+                  .map(
+                    (v) => PickerItem(
+                      value: v.id,
+                      label: v.name,
+                      icon: Icons.local_shipping_rounded,
+                    ),
+                  )
+                  .toList(),
+            );
+            if (result != null && mounted) {
+              final v = vendorProvider.getVendorById(result);
+              setState(() {
+                _selectedVendorId = result;
+                _selectedVendorName = v?.name ?? '';
+              });
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Vendor (optional)',
+              prefixIcon: const Icon(Icons.local_shipping_rounded),
+              suffixIcon: _selectedVendorId.isNotEmpty
+                  ? IconButton(
+                      tooltip: 'Clear vendor',
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () => setState(() {
+                        _selectedVendorId = '';
+                        _selectedVendorName = '';
+                      }),
+                    )
+                  : const Icon(Icons.arrow_drop_down),
+            ),
+            child: Text(
+              _selectedVendorName.isEmpty
+                  ? 'Select vendor'
+                  : _selectedVendorName,
+              style: TextStyle(
+                color: _selectedVendorName.isNotEmpty
+                    ? AppTheme.textPri(context)
+                    : AppTheme.textSec(context),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
 }

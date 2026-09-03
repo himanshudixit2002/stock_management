@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
 import '../models/product_model.dart';
+import '../services/company_settings_writer.dart';
+import '../services/database_service.dart';
 import '../services/stats_cache.dart';
 import '../utils/error_helpers.dart';
 
@@ -64,6 +66,15 @@ class SettingsProvider extends ChangeNotifier {
 
   DocumentReference get _companyDoc =>
       _firestore.collection('companies').doc(_companyId);
+
+  /// Writes into the nested `settings` map. See [CompanySettingsWriter] for
+  /// why this must never be `set({'settings.x': ...}, merge: true)`.
+  CompanySettingsWriter get _settingsWriter => CompanySettingsWriter(
+    _firestore.collection('companies').doc(_companyId),
+  );
+
+  Future<void> _writeSetting(String key, Object? value) =>
+      _settingsWriter.write(key, value);
 
   CollectionReference<Map<String, dynamic>> get _products =>
       _companyDoc.collection('products');
@@ -128,11 +139,23 @@ class SettingsProvider extends ChangeNotifier {
         // The company doc is already being read here, so pick up its lifecycle
         // status too rather than paying for a second read elsewhere.
         _company = CompanyModel.fromMap(data ?? const {}, doc.id);
+        // The write path enforces the plan's caps, and this is the only place
+        // the plan is read. Without this hand-off DatabaseService would keep
+        // the uncapped default and every limit would be decorative.
+        DatabaseService().setPlan(_company!.plan);
+        // Recover anything the old broken write path stranded in top-level
+        // `settings.*` fields before reading, so a workspace that has been
+        // saving into the void gets its real values back on this load rather
+        // than falling to defaults again.
+        final healed = data == null
+            ? null
+            : await _settingsWriter.healFlatKeys(data);
         // Hand the raw map to [BillingSettingsProvider] so startup reads
         // `companies/{id}` once instead of twice.
-        _rawSettings = data?['settings'] as Map<String, dynamic>? ?? const {};
-        if (data != null && data.containsKey('settings')) {
-          final settings = data['settings'] as Map<String, dynamic>? ?? {};
+        final settings =
+            healed ?? data?['settings'] as Map<String, dynamic>? ?? const {};
+        _rawSettings = settings;
+        if (settings.isNotEmpty) {
           _pricingEnabled = settings['pricingEnabled'] != false;
           _vendorsEnabled = settings['vendorsEnabled'] != false;
           _barcodeEnabled = settings['barcodeEnabled'] != false;
@@ -176,9 +199,7 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.pricingEnabled': enabled,
-      }, SetOptions(merge: true));
+      await _writeSetting('pricingEnabled', enabled);
       return true;
     } catch (e) {
       _pricingEnabled = previous;
@@ -199,9 +220,7 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.vendorsEnabled': enabled,
-      }, SetOptions(merge: true));
+      await _writeSetting('vendorsEnabled', enabled);
       return true;
     } catch (e) {
       _vendorsEnabled = previous;
@@ -222,9 +241,7 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.barcodeEnabled': enabled,
-      }, SetOptions(merge: true));
+      await _writeSetting('barcodeEnabled', enabled);
       return true;
     } catch (e) {
       _barcodeEnabled = previous;
@@ -246,9 +263,7 @@ class SettingsProvider extends ChangeNotifier {
     _companies.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.companies': FieldValue.arrayUnion([trimmed]),
-      }, SetOptions(merge: true));
+      await _writeSetting('companies', FieldValue.arrayUnion([trimmed]));
       return true;
     } catch (e) {
       _companies.remove(trimmed);
@@ -267,9 +282,7 @@ class SettingsProvider extends ChangeNotifier {
     _companies.removeAt(idx);
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.companies': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
+      await _writeSetting('companies', FieldValue.arrayRemove([actual]));
       return true;
     } catch (e) {
       _companies.add(actual);
@@ -300,27 +313,27 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.companies': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
-      await _companyDoc.set({
-        'settings.companies': FieldValue.arrayUnion([newTrimmed]),
-      }, SetOptions(merge: true));
-      var lastDoc = await _products
+      // One write: arrayRemove then arrayUnion were two round-trips, and a
+      // failure between them dropped the company from settings entirely.
+      await _writeSetting('companies', List<String>.from(_companies));
+      var page = await _products
           .where('company', isEqualTo: actual)
           .limit(kFirestoreBatchLimit)
           .get();
-      while (lastDoc.docs.isNotEmpty) {
+      while (page.docs.isNotEmpty) {
         final batch = _firestore.batch();
-        for (final doc in lastDoc.docs) {
+        for (final doc in page.docs) {
           batch.update(doc.reference, {'company': newTrimmed});
         }
         await batch.commit();
-        if (lastDoc.docs.length < kFirestoreBatchLimit) break;
-        lastDoc = await _products
+        if (page.docs.length < kFirestoreBatchLimit) break;
+        // No cursor: the documents just written no longer match the filter, so
+        // re-running the query returns the remainder. Positioning
+        // startAfterDocument on a document that has left the result set is
+        // undefined, and it could skip products past the first page.
+        page = await _products
             .where('company', isEqualTo: actual)
             .limit(kFirestoreBatchLimit)
-            .startAfterDocument(lastDoc.docs.last)
             .get();
       }
       return true;
@@ -350,9 +363,7 @@ class SettingsProvider extends ChangeNotifier {
     _companies.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.companies': FieldValue.arrayUnion(toAdd),
-      }, SetOptions(merge: true));
+      await _writeSetting('companies', FieldValue.arrayUnion(toAdd));
       return true;
     } catch (e) {
       for (final n in toAdd) {
@@ -377,9 +388,7 @@ class SettingsProvider extends ChangeNotifier {
     _sizes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.sizes': FieldValue.arrayUnion([trimmed]),
-      }, SetOptions(merge: true));
+      await _writeSetting('sizes', FieldValue.arrayUnion([trimmed]));
       return true;
     } catch (e) {
       _sizes.remove(trimmed);
@@ -396,9 +405,7 @@ class SettingsProvider extends ChangeNotifier {
     _sizes.removeAt(idx);
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.sizes': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
+      await _writeSetting('sizes', FieldValue.arrayRemove([actual]));
       return true;
     } catch (e) {
       _sizes.add(actual);
@@ -429,27 +436,24 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.sizes': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
-      await _companyDoc.set({
-        'settings.sizes': FieldValue.arrayUnion([newTrimmed]),
-      }, SetOptions(merge: true));
-      var lastDoc = await _products
+      // One write — see renameCompany.
+      await _writeSetting('sizes', List<String>.from(_sizes));
+      var page = await _products
           .where('size', isEqualTo: actual)
           .limit(kFirestoreBatchLimit)
           .get();
-      while (lastDoc.docs.isNotEmpty) {
+      while (page.docs.isNotEmpty) {
         final batch = _firestore.batch();
-        for (final doc in lastDoc.docs) {
+        for (final doc in page.docs) {
           batch.update(doc.reference, {'size': newTrimmed});
         }
         await batch.commit();
-        if (lastDoc.docs.length < kFirestoreBatchLimit) break;
-        lastDoc = await _products
+        if (page.docs.length < kFirestoreBatchLimit) break;
+        // No cursor — the updated documents leave the filter, so re-running
+        // returns the remainder. See renameCompany.
+        page = await _products
             .where('size', isEqualTo: actual)
             .limit(kFirestoreBatchLimit)
-            .startAfterDocument(lastDoc.docs.last)
             .get();
       }
       return true;
@@ -479,9 +483,7 @@ class SettingsProvider extends ChangeNotifier {
     _sizes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.sizes': FieldValue.arrayUnion(toAdd),
-      }, SetOptions(merge: true));
+      await _writeSetting('sizes', FieldValue.arrayUnion(toAdd));
       return true;
     } catch (e) {
       for (final n in toAdd) {
@@ -506,9 +508,7 @@ class SettingsProvider extends ChangeNotifier {
     _locations.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.locations': FieldValue.arrayUnion([trimmed]),
-      }, SetOptions(merge: true));
+      await _writeSetting('locations', FieldValue.arrayUnion([trimmed]));
       return true;
     } catch (e) {
       _locations.remove(trimmed);
@@ -527,9 +527,7 @@ class SettingsProvider extends ChangeNotifier {
     _locations.removeAt(idx);
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.locations': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
+      await _writeSetting('locations', FieldValue.arrayRemove([actual]));
       return true;
     } catch (e) {
       _locations.add(actual);
@@ -560,71 +558,58 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.locations': FieldValue.arrayRemove([actual]),
-      }, SetOptions(merge: true));
-      await _companyDoc.set({
-        'settings.locations': FieldValue.arrayUnion([newTrimmed]),
-      }, SetOptions(merge: true));
+      // One write, not arrayRemove followed by arrayUnion. Those were two
+      // separate round-trips, and a failure between them dropped the location
+      // from settings altogether.
+      await _writeSetting('locations', List<String>.from(_locations));
 
-      final locPath = FieldPath(['locationQuantities', actual]);
-      var lastDoc = await _products
-          .where(locPath, isNotEqualTo: null)
+      // Products: move both the stock and the reservations at this location.
+      //
+      // No startAfterDocument cursor here. An updated document no longer
+      // carries the old key, so it drops straight out of the filter and the
+      // next unpaged query naturally returns the remainder. Paging with a
+      // cursor positioned on a document that has left the result set is
+      // undefined, and it silently skipped products past the first page.
+      await _renameProductLocationKey(
+        'locationQuantities',
+        actual,
+        newTrimmed,
+      );
+      // heldLocationQuantities was never migrated, so every reservation was
+      // left pointing at a name that no longer held any stock — which the app's
+      // own Data Health scan then reported as critical, and which stopped
+      // despatch resolving its holds.
+      await _renameProductLocationKey(
+        'heldLocationQuantities',
+        actual,
+        newTrimmed,
+      );
+
+      // Stock holds carry their own location field.
+      await _renameHoldLocations(actual, newTrimmed);
+
+      // Transactions: exact match only.
+      //
+      // This used to select on `loc.contains(actual)` and rewrite with
+      // `replaceAll`, so renaming "A" to "Zone-1" turned "Warehouse A" into
+      // "Warehouse Zone-1" and "AISLE-3" into "Zone-1ISLE-3" — corrupting the
+      // history of locations the user never touched. renameCompany had always
+      // done this correctly with an equality filter.
+      var txnPage = await _transactions
+          .where('location', isEqualTo: actual)
           .limit(kFirestoreBatchLimit)
           .get();
-      while (lastDoc.docs.isNotEmpty) {
+      while (txnPage.docs.isNotEmpty) {
         final batch = _firestore.batch();
-        var batchCount = 0;
-        for (final doc in lastDoc.docs) {
-          final data = doc.data();
-          final locQty = Map<String, dynamic>.from(
-            data['locationQuantities'] is Map
-                ? data['locationQuantities'] as Map
-                : {},
-          );
-          final qty = locQty[actual];
-          if (qty != null) {
-            locQty.remove(actual);
-            final qtyInt = qty is int ? qty : (qty as num).toInt();
-            locQty[newTrimmed] = (locQty[newTrimmed] as int? ?? 0) + qtyInt;
-            batch.update(doc.reference, {'locationQuantities': locQty});
-            batchCount++;
-          }
+        for (final doc in txnPage.docs) {
+          batch.update(doc.reference, {'location': newTrimmed});
         }
-        if (batchCount > 0) await batch.commit();
-        if (lastDoc.docs.length < kFirestoreBatchLimit) break;
-        lastDoc = await _products
-            .where(locPath, isNotEqualTo: null)
+        await batch.commit();
+        if (txnPage.docs.length < kFirestoreBatchLimit) break;
+        txnPage = await _transactions
+            .where('location', isEqualTo: actual)
             .limit(kFirestoreBatchLimit)
-            .startAfterDocument(lastDoc.docs.last)
             .get();
-      }
-
-      DocumentSnapshot? lastTxnDoc;
-      while (true) {
-        Query<Map<String, dynamic>> q = _transactions
-            .orderBy(FieldPath.documentId)
-            .limit(kFirestoreBatchLimit);
-        if (lastTxnDoc != null) {
-          q = q.startAfterDocument(lastTxnDoc);
-        }
-        final txnSnap = await q.get();
-        if (txnSnap.docs.isEmpty) break;
-        final toUpdate = txnSnap.docs.where((d) {
-          final loc = d.data()['location']?.toString() ?? '';
-          return loc.contains(actual);
-        }).toList();
-        if (toUpdate.isNotEmpty) {
-          final batch = _firestore.batch();
-          for (final doc in toUpdate) {
-            final loc = doc.data()['location']?.toString() ?? '';
-            final newLoc = loc.replaceAll(actual, newTrimmed);
-            batch.update(doc.reference, {'location': newLoc});
-          }
-          await batch.commit();
-        }
-        if (txnSnap.docs.length < kFirestoreBatchLimit) break;
-        lastTxnDoc = txnSnap.docs.last;
       }
       return true;
     } catch (e) {
@@ -633,6 +618,75 @@ class SettingsProvider extends ChangeNotifier {
       _errorMessage = friendlyError(e, fallback: 'Failed to rename location.');
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Moves a key inside one of the products' location maps.
+  ///
+  /// [path] addresses the specific key (`locationQuantities.<old>` or
+  /// `heldLocationQuantities.<old>`) so only products that actually use it are
+  /// read. The whole map is rewritten rather than using a dotted shorthand,
+  /// because a location name containing a dot would otherwise be taken as a
+  /// field path and write a nested map that reads back as zero.
+  Future<void> _renameProductLocationKey(
+    String field,
+    String from,
+    String to,
+  ) async {
+    final path = FieldPath([field, from]);
+    var page = await _products
+        .where(path, isNotEqualTo: null)
+        .limit(kFirestoreBatchLimit)
+        .get();
+    while (page.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      var writes = 0;
+      for (final doc in page.docs) {
+        final raw = doc.data()[field];
+        final map = Map<String, dynamic>.from(raw is Map ? raw : {});
+        final qty = map.remove(from);
+        if (qty == null) continue;
+        final qtyInt = qty is int ? qty : (qty as num).toInt();
+        final existing = map[to];
+        final existingInt = existing == null
+            ? 0
+            : (existing is int ? existing : (existing as num).toInt());
+        map[to] = existingInt + qtyInt;
+        batch.update(doc.reference, {field: map});
+        writes++;
+      }
+      if (writes > 0) await batch.commit();
+      if (page.docs.length < kFirestoreBatchLimit) break;
+      // Re-query without a cursor: the documents just written no longer match
+      // the filter, so the next page is the remainder.
+      page = await _products
+          .where(path, isNotEqualTo: null)
+          .limit(kFirestoreBatchLimit)
+          .get();
+    }
+  }
+
+  /// Repoints stock holds recorded against [from].
+  ///
+  /// Holds keep their own `location`, and it was never migrated — so after a
+  /// rename every reservation referred to a place that no longer had any stock.
+  Future<void> _renameHoldLocations(String from, String to) async {
+    final holds = _companyDoc.collection('stockHolds');
+    var page = await holds
+        .where('location', isEqualTo: from)
+        .limit(kFirestoreBatchLimit)
+        .get();
+    while (page.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in page.docs) {
+        batch.update(doc.reference, {'location': to});
+      }
+      await batch.commit();
+      if (page.docs.length < kFirestoreBatchLimit) break;
+      page = await holds
+          .where('location', isEqualTo: from)
+          .limit(kFirestoreBatchLimit)
+          .get();
     }
   }
 
@@ -653,9 +707,7 @@ class SettingsProvider extends ChangeNotifier {
     _locations.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.locations': FieldValue.arrayUnion(toAdd),
-      }, SetOptions(merge: true));
+      await _writeSetting('locations', FieldValue.arrayUnion(toAdd));
       return true;
     } catch (e) {
       for (final n in toAdd) {

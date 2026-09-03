@@ -45,6 +45,27 @@ class _ReturnItemRow {
   final TextEditingController pieceController = TextEditingController();
   final TextEditingController reasonController = TextEditingController();
 
+  /// What state the goods came back in.
+  ///
+  /// [ReturnProvider] has always branched on this to write unsellable stock
+  /// straight off again instead of letting it rejoin sellable inventory — but
+  /// nothing in the app ever set the field, so that branch was unreachable and
+  /// every return, including physically destroyed goods, went back on the shelf.
+  String condition = _ReturnItemRow.resaleable;
+
+  /// The empty string is what the model defaults to, and
+  /// `ReturnProvider._isUnsellable` treats it as resaleable.
+  static const String resaleable = '';
+
+  /// Matches the vocabulary `_isUnsellable` already recognises.
+  static const List<({String value, String label})> conditions = [
+    (value: resaleable, label: 'Good — back to stock'),
+    (value: 'damaged', label: 'Damaged'),
+    (value: 'defective', label: 'Defective'),
+    (value: 'expired', label: 'Expired'),
+    (value: 'broken', label: 'Broken'),
+  ];
+
   int get baseQuantity => toBaseQuantity(
     packs: int.tryParse(qtyController.text) ?? 0,
     pieces: int.tryParse(pieceController.text) ?? 0,
@@ -124,6 +145,9 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
             productName: i.productName,
             quantity: i.baseQuantity,
             reason: i.reasonController.text.trim(),
+            // Was omitted, so it defaulted to '' and ReturnProvider's
+            // write-off branch never ran.
+            condition: i.condition,
           ),
         )
         .toList();
@@ -868,6 +892,34 @@ class _CreateReturnScreenState extends State<CreateReturnScreen> {
                                         ),
                                       ),
                                     ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Decides whether these units rejoin sellable
+                                  // stock or are written off on arrival. The
+                                  // write-off path existed all along and could
+                                  // never run, because nothing set this.
+                                  DropdownButtonFormField<String>(
+                                    initialValue: item.condition,
+                                    isDense: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Condition',
+                                      isDense: true,
+                                      helperText:
+                                          'Anything but "Good" is written off '
+                                          'instead of returning to stock',
+                                    ),
+                                    items: [
+                                      for (final c
+                                          in _ReturnItemRow.conditions)
+                                        DropdownMenuItem(
+                                          value: c.value,
+                                          child: Text(c.label),
+                                        ),
+                                    ],
+                                    onChanged: (v) => setState(
+                                      () => item.condition =
+                                          v ?? _ReturnItemRow.resaleable,
+                                    ),
                                   ),
                                 ],
                               ),

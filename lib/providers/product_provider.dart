@@ -878,10 +878,17 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  /// Applies edits to many products.
+  ///
+  /// [includeStock] is for the Excel import only, where the merged quantity is
+  /// the intended new value. Everything else (bulk edit, the Excel *update*
+  /// screen) must leave it false so a stale snapshot cannot revert stock
+  /// movements or zero reservations made since it was loaded.
   Future<int> bulkUpdateProducts(
     List<ProductModel> products, {
     required String userId,
     required String userName,
+    bool includeStock = false,
   }) async {
     _errorMessage = null;
     try {
@@ -897,6 +904,7 @@ class ProductProvider extends ChangeNotifier {
           .toList();
       final count = await _databaseService.bulkUpdateProducts(
         productsWithAudit,
+        includeStock: includeStock,
       );
       await refreshProducts();
       return count;

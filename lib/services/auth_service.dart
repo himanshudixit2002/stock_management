@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/company_plan_model.dart';
 import '../models/user_model.dart';
+import 'promo_service.dart';
 import '../models/role_model.dart';
 
 class AuthService {
@@ -181,6 +183,34 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// The plan map a brand-new workspace is created with.
+  ///
+  /// This changes nothing about what a signup *gets*: a company doc with no
+  /// `plan` field already falls back to [PlanCatalog.defaultId], which is MAX,
+  /// and the security rules permit a self-signup to write `planId == 'max'` and
+  /// nothing else. Writing it explicitly makes the grant visible in the console
+  /// and attributes it to the founding-member offer while that is running.
+  ///
+  /// The cap is advisory — nothing counts signups atomically — so passing it
+  /// only changes the note, never the tier. Best-effort throughout: a promo
+  /// read must never be able to fail a registration.
+  Future<Map<String, dynamic>> _signupPlan() async {
+    var note = '';
+    try {
+      final promo = await PromoService().fetch();
+      if (promo != null && promo.enabled && !promo.isFull) {
+        note = 'Founding member — first ${promo.capCount} workspaces';
+      }
+    } catch (_) {
+      // No promo, or unreadable: fall through to a plain MAX grant.
+    }
+    return CompanyPlan(
+      planId: PlanCatalog.maxId,
+      startedAt: DateTime.now(),
+      note: note,
+    ).toMap();
+  }
+
   /// Register a new admin user: creates Firebase Auth account, a company doc,
   /// seeds default roles, and creates a user doc with the Owner role.
   Future<UserModel?> register({
@@ -202,6 +232,7 @@ class AuthService {
           'phone': phone,
           'adminUid': result.user!.uid,
           'createdAt': Timestamp.now(),
+          'plan': await _signupPlan(),
         });
 
         // Best effort. The code only matters for inviting people, and the
@@ -591,7 +622,34 @@ class AuthService {
     await companyRef.delete();
   }
 
-  Future<void> deleteStaffUser(String staffUid) async {
+  /// Removes a staff member from [companyId].
+  ///
+  /// The member doc has to go too. It is the server-verified record of
+  /// belonging: the AI backend authorises purely on it, so leaving it behind
+  /// let a removed employee keep full assistant-mediated read and write on the
+  /// workspace. It is also what a self-created user doc is checked against, so
+  /// a stale one let them re-create their own user doc and walk straight back
+  /// in. Deleting the user doc alone revoked nothing durable.
+  ///
+  /// The Firebase Auth account itself survives — deleting another user's
+  /// account needs the Admin SDK and cannot be done from the client. That is
+  /// fine once the member doc is gone: with no user doc and no membership,
+  /// every rule and every backend route denies them.
+  Future<void> deleteStaffUser(String staffUid, {String companyId = ''}) async {
+    final cid = companyId.trim();
+    if (cid.isNotEmpty) {
+      try {
+        await _firestore
+            .collection('companies')
+            .doc(cid)
+            .collection('members')
+            .doc(staffUid)
+            .delete();
+      } catch (_) {
+        // Best-effort: an older workspace may have no member doc at all, and
+        // the user doc below is what the app itself reads.
+      }
+    }
     await _firestore.collection('users').doc(staffUid).delete();
   }
 
@@ -722,6 +780,20 @@ class AuthService {
           ),
         });
 
+    // Publish to the shared code index so joinCompany can resolve this without
+    // a collectionGroup query (which has no rule and always denies). The index
+    // holds only the company id and name — the invite doc above remains the
+    // source of truth for expiry, and joinCompany re-reads it to enforce that.
+    // Best-effort: an admin who cannot write the index still produced a valid
+    // invite, and failing the whole call would be worse than a code that only
+    // resolves once the index write succeeds.
+    try {
+      await _firestore.collection('joinCodeIndex').doc(code).set({
+        'companyId': companyId,
+        'companyName': companyName,
+      });
+    } catch (_) {}
+
     return code;
   }
 
@@ -737,13 +809,27 @@ class AuthService {
     String companyId;
     String companyName;
 
-    final inviteQuery = await _firestore
-        .collectionGroup('invites')
-        .where('code', isEqualTo: normalized)
-        .limit(1)
-        .get();
+    // Best-effort only. There is no collection-group rule for `invites` — and
+    // one cannot be written safely, since rules cannot constrain a query, so
+    // `allow list` here would let anyone enumerate every workspace's codes.
+    // This therefore throws permission-denied today. It used to do so
+    // *unguarded*, which aborted the method before the joinCodeIndex lookup
+    // below and made every join fail, valid codes included. Both code kinds are
+    // published to joinCodeIndex now, so the fallback is the real path; this
+    // stays only so an environment that does grant the query keeps its
+    // single-read shortcut.
+    QuerySnapshot<Map<String, dynamic>>? inviteQuery;
+    try {
+      inviteQuery = await _firestore
+          .collectionGroup('invites')
+          .where('code', isEqualTo: normalized)
+          .limit(1)
+          .get();
+    } catch (_) {
+      inviteQuery = null;
+    }
 
-    if (inviteQuery.docs.isNotEmpty) {
+    if (inviteQuery != null && inviteQuery.docs.isNotEmpty) {
       final invite = inviteQuery.docs.first.data();
       final expiresAt = (invite['expiresAt'] as Timestamp?)?.toDate();
       if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
@@ -774,9 +860,27 @@ class AuthService {
           (co.data()?['permanentJoinCode'] as String?)?.trim().toUpperCase() ??
           '';
       if (onCompany != normalized) {
-        throw Exception(
-          'This join code is no longer valid. Ask for the current code.',
-        );
+        // Not the permanent code, so it has to be an invite. The index only
+        // told us which company to look in; the invite doc is what carries the
+        // expiry, and it is readable by id.
+        final inviteDoc = await _firestore
+            .collection('companies')
+            .doc(companyId)
+            .collection('invites')
+            .doc(normalized)
+            .get();
+        if (!inviteDoc.exists) {
+          throw Exception(
+            'This join code is no longer valid. Ask for the current code.',
+          );
+        }
+        final expiresAt = (inviteDoc.data()?['expiresAt'] as Timestamp?)
+            ?.toDate();
+        if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
+          throw Exception(
+            'This invite code has expired. Ask the admin for a new one.',
+          );
+        }
       }
     }
 

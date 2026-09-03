@@ -33,10 +33,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       title: 'Favorites',
       iconColor: AppTheme.warningColor,
       isEmpty: favorites.isEmpty,
-      emptyState: const EmptyStateWidget(
+      emptyState: EmptyStateWidget(
         icon: Icons.star_outline_rounded,
         title: 'No Favorites Yet',
         subtitle: 'Star products for quick access. They will appear here.',
+        // An empty state with no way forward is a dead end; browsing products
+        // is the only thing that can populate this list.
+        buttonText: 'Browse products',
+        onButtonPressed: () =>
+            Navigator.pushNamed(context, AppRoutes.productList),
       ),
       body: RefreshIndicator(
         color: AppTheme.primaryColor,

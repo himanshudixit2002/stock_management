@@ -50,7 +50,7 @@ class GlassPanel extends StatelessWidget {
           color: surface,
           borderRadius: BorderRadius.circular(borderRadius),
           border: border ?? Border.all(color: borderColor, width: 1),
-          boxShadow: AppTheme.isDark(context) ? [] : AppTheme.cardShadow,
+          boxShadow: AppTheme.shadowFor(context),
         ),
         child: child,
       ),
@@ -130,7 +130,7 @@ class _GlassCardState extends State<GlassCard> {
                   offset: const Offset(0, 2),
                 ),
               ]
-            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
+            : AppTheme.shadowFor(context),
       ),
       child: widget.child,
     );
@@ -213,7 +213,7 @@ class GlassSectionCard extends StatelessWidget {
         border: Border.all(color: AppTheme.glassBorderCont(context), width: 1),
         boxShadow: kIsWeb
             ? null
-            : (AppTheme.isDark(context) ? [] : AppTheme.cardShadow),
+            : AppTheme.shadowFor(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

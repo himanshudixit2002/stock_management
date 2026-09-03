@@ -252,18 +252,23 @@ class _OverrideEditorState extends State<_OverrideEditor> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     setState(() => _saving = true);
-    final ok = await context.read<AuthProvider>().updateStaffPermissions(
-      widget.user.uid,
-      _overrides,
-    );
-    if (mounted) {
-      if (ok) {
-        showSuccessOverlay(context, message: 'Permission overrides saved');
-      } else {
-        Navigator.pop(context);
-        showErrorSnackBar(context, 'Failed to save');
-      }
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.updateStaffPermissions(widget.user.uid, _overrides);
+    if (!mounted) return;
+    // _saving was only ever cleared by popping on failure, so a *successful*
+    // save left the sheet open with a permanently disabled "Saving..." button
+    // and no way to save again.
+    setState(() => _saving = false);
+    if (ok) {
+      showSuccessOverlay(context, message: 'Permission overrides saved');
+      Navigator.pop(context);
+    } else {
+      showErrorSnackBar(
+        context,
+        auth.errorMessage ?? 'Could not save the permission overrides.',
+      );
     }
   }
 

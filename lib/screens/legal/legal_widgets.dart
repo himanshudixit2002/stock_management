@@ -21,7 +21,7 @@ Widget legalHero(
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
+            gradient: AppTheme.primaryGrad(context),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Center(child: Icon(icon, color: Colors.white, size: 26)),
@@ -75,13 +75,17 @@ Widget legalSection(String title) {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 4,
-          height: 18,
-          margin: const EdgeInsets.only(top: 2, right: 10),
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(4),
+        // Builder so the accent bar can read the theme without threading a
+        // context through every legalSection() call site.
+        Builder(
+          builder: (context) => Container(
+            width: 4,
+            height: 18,
+            margin: const EdgeInsets.only(top: 2, right: 10),
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGrad(context),
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ),
         Expanded(

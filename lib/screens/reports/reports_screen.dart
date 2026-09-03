@@ -12,11 +12,13 @@ import '../../config/theme.dart';
 import '../../utils/responsive.dart';
 import '../../config/feature_map.dart';
 import '../../widgets/tab_context_header.dart';
+import '../../widgets/truncated_data_banner.dart';
 import 'tabs/executive_summary_tab.dart';
 import 'tabs/custom_report_builder_tab.dart';
 import 'tabs/analytics_charts_tab.dart';
 import 'tabs/predictive_forecasting_tab.dart';
 import 'widgets/reports_export_sheet.dart';
+import '../../models/company_plan_model.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -160,9 +162,14 @@ class _ReportsScreenState extends State<ReportsScreen>
     final perms = context.select<AuthProvider, Map<String, bool>>(
       (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
-    final (barcodeEnabled, vendorsEnabled, pricingEnabled) = context
-        .select<SettingsProvider, (bool, bool, bool)>(
-          (s) => (s.barcodeEnabled, s.vendorsEnabled, s.pricingEnabled),
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan) = context
+        .select<SettingsProvider, (bool, bool, bool, CompanyPlan)>(
+          (s) => (
+            s.barcodeEnabled,
+            s.vendorsEnabled,
+            s.pricingEnabled,
+            s.plan,
+          ),
         );
     final billingOn = context.select<BillingSettingsProvider, bool>(
       (b) => b.billingEnabled,
@@ -178,6 +185,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       barcodeEnabled: barcodeEnabled,
       vendorsEnabled: vendorsEnabled,
       pricingEnabled: pricingEnabled,
+      plan: plan,
     );
 
     final dateLabel = start != null && end != null
@@ -242,6 +250,10 @@ class _ReportsScreenState extends State<ReportsScreen>
               ),
             ],
           ),
+
+          // Says so when the ledger window is capped, rather than letting every
+          // tab below quietly under-report.
+          const TruncatedDataBanner(),
 
           // ── Polished Tab bar ──
           TabBar(

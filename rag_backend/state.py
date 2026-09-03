@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Set, TypedDict
 
 
 class GraphState(TypedDict, total=False):
@@ -11,6 +11,12 @@ class GraphState(TypedDict, total=False):
     company_id: str
     business_type: str
     session_id: str
+
+    # The permission keys the caller holds ('*' for admin/owner), or None when
+    # they could not be established. Every write the agent performs goes through
+    # the Admin SDK, which bypasses firestore.rules, so this is what stops the
+    # assistant doing on someone's behalf what the app itself would refuse them.
+    permissions: Optional[Set[str]]
 
     # --- routing ---
     intent: str          # EXECUTION | ANALYTICS | KNOWLEDGE

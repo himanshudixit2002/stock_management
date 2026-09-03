@@ -599,6 +599,17 @@ class _FastPosScreenState extends State<FastPosScreen> {
       showErrorSnackBar(context, 'Session expired. Please login again.');
       return null;
     }
+    // A credit sale is a debt, and a debt needs someone to owe it. Without a
+    // customer the invoice was saved with customerId '' — the stock left, the
+    // amount counted towards receivables, and it appeared on nobody's
+    // statement, so there was no one to chase.
+    if (_checkoutMode == FastCheckoutMode.credit && _selectedCustomer == null) {
+      showErrorSnackBar(
+        context,
+        'Choose a customer for a credit sale, or take payment now.',
+      );
+      return null;
+    }
 
     final billing = context.read<BillingProvider>();
     final bs = context.read<BillingSettingsProvider>().settings;

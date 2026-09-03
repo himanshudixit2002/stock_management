@@ -91,13 +91,23 @@ InvoiceTotals calculateInvoiceTotals({
   
   final grandTotal = taxableAmount + totalTax;
 
+  // Rounded to the cent as it leaves. These figures are persisted and then
+  // compared against payments, so binary-float residue accumulates: an invoice
+  // could sit at amountDue ~0.004 — settled to a human, non-zero to the code —
+  // and thousands of those add up in the reports' outstanding totals. Rounding
+  // once here, at the point the numbers become the document, keeps every later
+  // comparison exact. The epsilons elsewhere stay as a second line of defence
+  // for documents written before this.
   return InvoiceTotals(
-    subtotal: subtotal,
-    lineDiscount: totalLineDiscount,
-    invoiceDiscount: invoiceDiscount,
-    totalDiscount: totalDiscount,
-    taxableAmount: taxableAmount,
-    totalTax: totalTax,
-    grandTotal: grandTotal,
+    subtotal: _cents(subtotal),
+    lineDiscount: _cents(totalLineDiscount),
+    invoiceDiscount: _cents(invoiceDiscount),
+    totalDiscount: _cents(totalDiscount),
+    taxableAmount: _cents(taxableAmount),
+    totalTax: _cents(totalTax),
+    grandTotal: _cents(grandTotal),
   );
 }
+
+/// Rounds to two decimal places, the smallest unit any of this is billed in.
+double _cents(double value) => (value * 100).roundToDouble() / 100;

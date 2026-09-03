@@ -704,6 +704,18 @@ class AppPermissions {
 
   static Map<String, bool> allFalse() => {for (final p in all) p.key: false};
 
+  /// Every `canView*` permission granted, everything else denied.
+  ///
+  /// Used by the platform console's read-only workspace inspector. Because the
+  /// whole app already gates its mutating affordances on these keys through
+  /// PermissionGate, handing a session this map hides every create/edit/delete
+  /// control without touching a single screen. It is a UI convenience, not the
+  /// safety control — the security rules grant a platform admin only read and
+  /// delete under `companies/{id}`, which is what actually refuses a write.
+  static Map<String, bool> viewOnly() => {
+    for (final p in all) p.key: p.key.startsWith('canView'),
+  };
+
   /// Backward-compatibility mapping from old permission keys to new ones.
   /// Used during migration of existing user documents.
   static const Map<String, List<String>> legacyKeyMapping = {

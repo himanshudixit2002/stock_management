@@ -436,6 +436,14 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       locationQuantities: isEditing
           ? widget.product!.locationQuantities
           : const {},
+      // Carried through even though updateProduct no longer writes them: the
+      // model is used for the success message and any local echo, and leaving
+      // them at the constructor defaults is what made this screen read as
+      // "0 reserved" for a product with live holds.
+      heldQuantity: isEditing ? widget.product!.heldQuantity : 0,
+      heldLocationQuantities: isEditing
+          ? widget.product!.heldLocationQuantities
+          : const {},
       description: _descriptionController.text.trim(),
       lowStockThreshold: int.tryParse(_lowStockController.text) ?? 10,
       costPrice: double.tryParse(_costPriceController.text) ?? 0,
@@ -472,9 +480,13 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       success = await productProvider.addProduct(product);
     }
 
+    // Guard first. Every sibling stock screen checks `mounted` before this
+    // setState; this one did not, so leaving the screen while the save was in
+    // flight threw "setState() called after dispose()".
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success && mounted) {
+    if (success) {
       HapticFeedback.lightImpact();
       showSuccessOverlay(
         context,

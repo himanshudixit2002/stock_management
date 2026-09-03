@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../utils/currency.dart';
 import '../../config/feature_access.dart';
 import '../../config/feature_map.dart';
 import '../../config/theme.dart';
 import '../../models/company_plan_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/billing_settings_provider.dart';
+import '../../providers/product_provider.dart';
+import '../../providers/plan_catalog_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/date_formats.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+
+/// Formats a plan price.
+///
+/// Deliberately the platform's own currency rather than the tenant's configured
+/// one — these are what SmartShelfKart charges, not amounts in the customer's
+/// books. Routed through Money so it gets thousands grouping, which raw string
+/// interpolation did not.
+String _platformPrice(num value) =>
+    Money.withSymbol(AppTheme.currencySymbol, value, decimals: 0);
 
 /// What this workspace is on, and exactly which features this user can reach.
 ///
@@ -31,7 +43,13 @@ class PlanFeaturesScreen extends StatelessWidget {
     );
 
     final permissions = user?.effectivePermissions ?? const <String, bool>{};
+    // Watched so a tier the platform admin re-prices or re-caps is reflected
+    // here without the tenant restarting the app.
+    context.watch<PlanCatalogProvider>();
     final plan = settings.plan;
+    final productCount = context.select<ProductProvider, int>(
+      (p) => p.totalProducts,
+    );
 
     final gates = FeatureGateState(
       billing: billingOn,
@@ -50,7 +68,7 @@ class PlanFeaturesScreen extends StatelessWidget {
     }
 
     final available = FeatureMap.all
-        .where((e) => resolveFeatureAccess(e, permissions, gates) == FeatureAccess.available)
+        .where((e) => resolveFeatureAccess(e, permissions, gates, plan: plan) == FeatureAccess.available)
         .length;
 
     return Scaffold(
@@ -67,6 +85,7 @@ class PlanFeaturesScreen extends StatelessWidget {
           children: [
             _PlanCard(
               plan: plan,
+              productCount: productCount,
               available: available,
               total: FeatureMap.all.length,
             ),
@@ -90,6 +109,7 @@ class PlanFeaturesScreen extends StatelessWidget {
                   entries: grouped[category]!,
                   permissions: permissions,
                   gates: gates,
+                  plan: plan,
                 ),
             const SizedBox(height: 32),
           ],
@@ -104,113 +124,165 @@ class _PlanCard extends StatelessWidget {
     required this.plan,
     required this.available,
     required this.total,
+    required this.productCount,
   });
 
   final CompanyPlan plan;
   final int available;
   final int total;
 
+  /// Products currently in this workspace, or null if not loaded yet. Shown
+  /// against the cap so a limit is visible before it bites.
+  final int? productCount;
+
   @override
   Widget build(BuildContext context) {
-    return GlassPanel(
+    return Container(
+      decoration: AppTheme.cardDeco(context).copyWith(
+        gradient: AppTheme.heroGrad(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.infoColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
                     Icons.workspace_premium_rounded,
-                    color: AppTheme.infoColor,
+                    color: Colors.white,
+                    size: 28,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${plan.label} plan',
+                        plan.label,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.onGradient,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         plan.definition.description,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.onGradient.withValues(alpha: 0.9),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                if (!plan.isActive)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warningColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Attention',
-                      style: TextStyle(
-                        color: AppTheme.warningColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (plan.definition.nominalPrice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2, right: 8),
+                    child: Text(
+                      '${_platformPrice(plan.definition.nominalPrice!)}/mo',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.onGradient.withValues(alpha: 0.6),
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: AppTheme.onGradient.withValues(alpha: 0.6),
+                        decorationThickness: 2.0,
                       ),
                     ),
                   ),
+                if (plan.definition.promotionalPrice == 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: AppTheme.coloredShadow(Colors.black.withValues(alpha: 0.1)),
+                    ),
+                    child: const Text(
+                      'FREE FOREVER',
+                      style: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  )
+                else if (plan.definition.promotionalPrice != null)
+                   Text(
+                      '${_platformPrice(plan.definition.promotionalPrice!)}/mo',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: AppTheme.onGradient,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
               ],
             ),
-            const Divider(height: 24),
+            const SizedBox(height: 24),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: _MiniStat(
-                    label: 'Features you can use',
+                    label: 'Features unlocked',
                     value: '$available of $total',
+                    color: AppTheme.onGradient,
                   ),
                 ),
                 Expanded(
                   child: _MiniStat(
-                    label: 'Since',
+                    label: 'Active since',
                     value: plan.startedAt != null
                         ? AppDates.day.format(plan.startedAt!)
                         : '—',
+                    color: AppTheme.onGradient,
                   ),
                 ),
               ],
             ),
-            // The free plan applies no caps, so say so plainly rather than
-            // leaving people to wonder what they are up against.
-            if (plan.definition.limits.isEmpty) ...[
-              const SizedBox(height: 12),
+            if (plan.effectiveLimits.isEmpty) ...[
+              const SizedBox(height: 20),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.all_inclusive_rounded,
-                    size: 16,
-                    color: AppTheme.successColor,
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(
+                      Icons.all_inclusive_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'No limits on products, orders, invoices or users.',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      'No limits on products, orders, invoices, users, or AI capabilities.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.onGradient,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
               ),
             ] else
-              ...plan.definition.limits.entries.map(
+              // effectiveLimits, not the tier's own: a per-workspace override
+              // is the number that actually applies, and showing the tier value
+              // would tell someone with extra headroom the wrong figure.
+              ...plan.effectiveLimits.entries.map(
                 (e) => Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Row(
@@ -218,15 +290,18 @@ class _PlanCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          e.key,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          PlanLimitKeys.labelOf(e.key),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.onGradient.withValues(alpha: 0.9)),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '${e.value}',
+                        e.key == PlanLimitKeys.products && productCount != null
+                            ? '$productCount / ${e.value}'
+                            : '${e.value}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: AppTheme.onGradient,
                         ),
                       ),
                     ],
@@ -235,7 +310,7 @@ class _PlanCard extends StatelessWidget {
               ),
             if (plan.note.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text(plan.note, style: Theme.of(context).textTheme.bodySmall),
+              Text(plan.note, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.onGradient.withValues(alpha: 0.8))),
             ],
           ],
         ),
@@ -245,10 +320,11 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.label, required this.value});
+  const _MiniStat({required this.label, required this.value, this.color});
 
   final String label;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -259,9 +335,10 @@ class _MiniStat extends StatelessWidget {
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
+            color: color,
           ),
         ),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color?.withValues(alpha: 0.8))),
       ],
     );
   }
@@ -273,19 +350,21 @@ class _CategoryBlock extends StatelessWidget {
     required this.entries,
     required this.permissions,
     required this.gates,
+    required this.plan,
   });
 
   final FeatureCategory category;
   final List<FeatureEntry> entries;
   final Map<String, bool> permissions;
   final FeatureGateState gates;
+  final CompanyPlan plan;
 
   @override
   Widget build(BuildContext context) {
     final meta = FeatureMap.categoryMeta[category];
     final color = FeatureMap.categoryColor(category);
     final usable = entries
-        .where((e) => resolveFeatureAccess(e, permissions, gates) == FeatureAccess.available)
+        .where((e) => resolveFeatureAccess(e, permissions, gates, plan: plan) == FeatureAccess.available)
         .length;
 
     return Padding(
@@ -326,7 +405,7 @@ class _CategoryBlock extends StatelessWidget {
                 .map(
                   (e) => _FeatureRow(
                     entry: e,
-                    access: resolveFeatureAccess(e, permissions, gates),
+                    access: resolveFeatureAccess(e, permissions, gates, plan: plan),
                     gates: gates,
                   ),
                 )
@@ -363,6 +442,9 @@ class _FeatureRow extends StatelessWidget {
       FeatureAccess.available => null,
       FeatureAccess.needsPermission => 'Ask an admin for access',
       FeatureAccess.featureOff => '$offGate is switched off for this workspace',
+      FeatureAccess.needsPlan =>
+        'Not included in your plan — ask your platform administrator to '
+            'upgrade this workspace',
     };
 
     final muted = Theme.of(context).textTheme.bodySmall?.color;
@@ -375,9 +457,12 @@ class _FeatureRow extends StatelessWidget {
           Icon(
             available
                 ? Icons.check_circle_rounded
-                : (access == FeatureAccess.featureOff
-                      ? Icons.toggle_off_rounded
-                      : Icons.lock_outline_rounded),
+                : switch (access) {
+                    FeatureAccess.featureOff => Icons.toggle_off_rounded,
+                    FeatureAccess.needsPlan =>
+                      Icons.workspace_premium_outlined,
+                    _ => Icons.lock_outline_rounded,
+                  },
             size: 18,
             color: available ? AppTheme.successColor : muted,
           ),

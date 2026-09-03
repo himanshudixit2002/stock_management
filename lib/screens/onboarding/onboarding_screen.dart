@@ -264,7 +264,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             width: iconSize,
             height: iconSize,
             decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
+              gradient: AppTheme.primaryGrad(context),
               borderRadius: BorderRadius.circular(isSmall ? 24 : 32),
               boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
             ),

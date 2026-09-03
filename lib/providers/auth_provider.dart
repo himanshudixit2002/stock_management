@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../config/permissions.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../providers/role_provider.dart';
@@ -18,11 +19,87 @@ class AuthProvider extends ChangeNotifier {
   RoleProvider? _roleProvider;
   StreamSubscription<User?>? _authStateSub;
 
-  UserModel? get currentUser => _currentUser;
+  /// A stand-in user used while a platform admin inspects a workspace.
+  ///
+  /// Null in every ordinary session.
+  UserModel? _inspectionUser;
+
+  /// The user the rest of the app should behave as.
+  ///
+  /// During a workspace inspection this is a synthetic, view-only user bound to
+  /// the inspected workspace, so every screen loads that tenant's data with its
+  /// mutating controls gated off. [signedInUser] remains the real account.
+  UserModel? get currentUser => _inspectionUser ?? _currentUser;
+
+  /// The account actually signed in, ignoring any inspection override.
+  UserModel? get signedInUser => _currentUser;
+
+  bool get isInspecting => _inspectionUser != null;
+
+  /// Rebinds this session to [companyId] as a read-only observer.
+  void beginInspection({
+    required String companyId,
+    required String companyName,
+  }) {
+    final real = _currentUser;
+    if (real == null) return;
+    _inspectionUser =
+        real.copyWith(
+            companyId: companyId,
+            companyName: companyName,
+            // Not 'admin'/'owner': UserModel.effectivePermissions short-circuits
+            // to allTrue() for those, which would hand the inspector every
+            // write control in the UI.
+            role: 'viewer',
+            roleId: '',
+            permissions: AppPermissions.viewOnly(),
+          )
+          // Set directly so a later role-stream emission cannot resolve this
+          // synthetic user against the inspected tenant's role documents.
+          ..resolvedPermissions = AppPermissions.viewOnly();
+    notifyListeners();
+  }
+
+  void endInspection() {
+    if (_inspectionUser == null) return;
+    _inspectionUser = null;
+    notifyListeners();
+  }
+
+  /// Drops any inspection override without notifying.
+  ///
+  /// For teardown paths (logout, session expiry, account deletion) that clear
+  /// [_currentUser] and notify once themselves. Inspection used to be cleared
+  /// *only* by the banner's "Return to console" button, so signing out mid-
+  /// inspection left [_inspectionUser] set: [currentUser] then still returned a
+  /// synthetic user carrying the inspected tenant's companyId and the previous
+  /// admin's uid, and the next person to sign in on this instance had every
+  /// provider bound to a workspace they had never touched.
+  void _clearInspection() {
+    _inspectionUser = null;
+  }
+
+  /// True (with an error surfaced) when a mutation was attempted mid-inspection.
+  ///
+  /// Guards the calls that take their target workspace from the *real* account
+  /// while the rest of the app is bound to the inspected one — acting on them
+  /// would quietly change the inspector's own workspace.
+  bool _refuseWhileInspecting() {
+    if (!isInspecting) return false;
+    _errorMessage =
+        'You are inspecting another workspace. Return to the console first.';
+    notifyListeners();
+    return true;
+  }
+
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isLoggedIn => _currentUser != null;
-  bool get isAdmin => _currentUser?.isAdmin ?? false;
+  // Follows [currentUser], not the real account: during an inspection the
+  // synthetic user is a 'viewer', and reporting isAdmin from the real admin
+  // account left admin-only controls on screen throughout a session the banner
+  // was calling view-only.
+  bool get isAdmin => currentUser?.isAdmin ?? false;
   bool get sessionExpired => _sessionExpired;
 
   /// Re-resolve when the roles stream emits (roles load after first frame).
@@ -92,6 +169,7 @@ class AuthProvider extends ChangeNotifier {
       if (firebaseUser == null && _currentUser != null) {
         _sessionExpired = true;
         detachRoleProvider();
+        _clearInspection();
         _currentUser = null;
         notifyListeners();
       } else if (firebaseUser != null && _currentUser == null && !_isLoading) {
@@ -230,6 +308,7 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = e.toString();
     }
     detachRoleProvider();
+    _clearInspection();
     _currentUser = null;
     notifyListeners();
   }
@@ -244,7 +323,11 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Stream<List<UserModel>> getAllUsers() {
-    final companyId = _currentUser?.companyId ?? '';
+    // [currentUser], so User Management lists the workspace the rest of the app
+    // is bound to. Reading the real account here meant that while inspecting
+    // tenant B — banner, providers and all — this screen streamed tenant A's
+    // users.
+    final companyId = currentUser?.companyId ?? '';
     return _authService.getAllUsers(companyId: companyId);
   }
 
@@ -330,6 +413,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.deleteAccount(password);
       detachRoleProvider();
+      _clearInspection();
       _currentUser = null;
       _isLoading = false;
       notifyListeners();
@@ -347,7 +431,12 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await _authService.deleteStaffUser(staffUid);
+      await _authService.deleteStaffUser(
+        staffUid,
+        // The workspace on screen, so removing someone while inspecting revokes
+        // them from the tenant being looked at rather than the inspector's own.
+        companyId: currentUser?.companyId ?? '',
+      );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -410,6 +499,10 @@ class AuthProvider extends ChangeNotifier {
 
   Future<String?> generateInviteCode() async {
     if (_currentUser == null) return null;
+    // Targets the real account's workspace, so during an inspection this would
+    // mint a code for the inspector's own company while the UI showed someone
+    // else's. Inspection is read-only; refuse rather than act on the wrong one.
+    if (_refuseWhileInspecting()) return null;
     try {
       return await _authService.generateInviteCode(
         companyId: _currentUser!.companyId,
@@ -446,6 +539,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<String?> regeneratePermanentJoinCode() async {
     if (_currentUser == null) return null;
+    if (_refuseWhileInspecting()) return null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -532,6 +626,7 @@ class AuthProvider extends ChangeNotifier {
     required String adminPassword,
     String roleId = '',
   }) async {
+    if (_refuseWhileInspecting()) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -564,14 +659,48 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = AuthService.getErrorMessage(e);
       _isLoading = false;
+      await _abandonSessionIfNotAdmin();
       notifyListeners();
       return false;
     }
   }
 
-  /// Ensure roles exist and migrate legacy user if needed.
-  Future<void> ensureRbacReady() async {
+  /// Signs out when the Firebase session no longer matches [_currentUser].
+  ///
+  /// createUserWithEmailAndPassword leaves the *new* account signed in, and
+  /// registerStaff signs back in as the admin to undo that. If the admin
+  /// mistyped their password both attempts fail and we land here still
+  /// authenticated as the freshly created staff user while [_currentUser] holds
+  /// the admin. The auth listener does not correct it (it only fires when
+  /// _currentUser is null), so the UI kept rendering admin identity and
+  /// permissions over a session that had neither — and every Firestore read
+  /// silently denied, because that account has no user doc yet.
+  Future<void> _abandonSessionIfNotAdmin() async {
+    final signedIn = _authService.currentUser;
     if (_currentUser == null) return;
+    if (signedIn != null && signedIn.uid == _currentUser!.uid) return;
+    try {
+      await _authService.logout();
+    } catch (_) {}
+    detachRoleProvider();
+    _clearInspection();
+    _currentUser = null;
+    _sessionExpired = true;
+    _errorMessage =
+        'Your admin password was not accepted, so the session was ended for '
+        'safety. Sign in again — the new staff account may need to be removed.';
+  }
+
+  /// Ensure roles exist and migrate legacy user if needed.
+  ///
+  /// No-op while inspecting: this seeds role documents, and app.dart calls it
+  /// during the inspection bind. Keyed off the real account it wrote into the
+  /// *inspector's* workspace instead of the one on screen; keyed off the
+  /// inspected one it would be a write from a session that is meant to be
+  /// read-only. Neither is wanted, and a workspace being inspected has been
+  /// used already, so its roles are already seeded.
+  Future<void> ensureRbacReady() async {
+    if (_currentUser == null || isInspecting) return;
     final companyId = _currentUser!.companyId;
     await _authService.ensureRolesSeeded(companyId);
     if (_currentUser!.roleId.isEmpty) {

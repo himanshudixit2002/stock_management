@@ -95,9 +95,10 @@ service cloud.firestore {
     // takeover: set role:'admin' on your own doc, which makes isAdmin() true,
     // which unlocks the admin branch of every other rule.
     //
-    //  * role/roleId may only become privileged for a workspace the company
-    //    doc says you created (server-side truth, not a claim). Switching into
-    //    a workspace where you are staff/viewer/manager is unaffected.
+    //  * role may only become privileged for a workspace the company doc says
+    //    you created (server-side truth, not a claim). Switching into a
+    //    workspace where you are staff/viewer/manager is unaffected.
+    //  * roleId must match the member doc — see selfRoleIdIsVerified below.
     //  * companyId may only move to a workspace you hold a member doc for.
     //    companyMemberships is self-written and cannot gate this: forging an
     //    entry would otherwise let you switch into any workspace and read it.
@@ -106,14 +107,41 @@ service cloud.firestore {
     // current workspace (companyId unchanged is always allowed); switching
     // needs scripts/migrate_members.js to have run.
     function selfUserUpdateDoesNotEscalate() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['email', 'uid', 'createdAt', 'permissions'])
-        && (!request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['role', 'roleId'])
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let target = request.resource.data.companyId;
+      return !changed.hasAny(['email', 'uid', 'createdAt', 'permissions'])
+        && (!changed.hasAny(['role'])
             || request.resource.data.role in ['staff', 'viewer', 'manager']
-            || isCompanyCreator(request.resource.data.companyId))
-        && (request.resource.data.companyId == resource.data.companyId
-            || hasMemberDoc(request.resource.data.companyId));
+            || (target != '' && isCompanyCreator(target)))
+        && (!changed.hasAny(['roleId']) || selfRoleIdIsVerified(target))
+        && (target == resource.data.companyId
+            || target == ''
+            || hasMemberDoc(target));
+    }
+
+    // roleId is not a label. hasPermission() resolves the caller's permissions
+    // through companies/{cid}/roles/{roleId}, and the seeded owner/admin role
+    // docs carry AppPermissions.allTrue() — so pointing your own user doc at
+    // one grants every permission in the workspace. That made roleId exactly as
+    // powerful as role:'admin', which the clause above already blocks, and it
+    // was reachable from a viewer account in a single self-write.
+    //
+    // The member doc is the server-verified record of what this workspace
+    // actually granted you: self-serve joins land on the staff role and only an
+    // admin can change one afterwards. So a self-set roleId must match it.
+    // Leaving every workspace (companyId '') has no company to verify against,
+    // so it may only land on a role that carries no inherent privilege.
+    function selfRoleIdIsVerified(target) {
+      return target == ''
+        ? request.resource.data.get('roleId', '') in ['staff', 'viewer', 'manager', '']
+        : (isCompanyCreator(target)
+           || (hasMemberDoc(target)
+               && memberDocFor(target).get('roleId', '')
+                  == request.resource.data.get('roleId', '')));
+    }
+
+    function memberDocFor(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid)).data;
     }
 
     // Super admin allowlist. No client can write /superAdmins, so membership
@@ -189,11 +217,51 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The tier catalog. A price list is public information, and it has to be
+    // readable by the signed-out register screen, so this is world-readable by
+    // design. Nothing tenant-specific may ever be stored here.
+    //
+    // Writable only by a platform admin: these documents decide what every
+    // workspace is capped at.
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Marketing configuration for the signed-out screens — the founding-member
+    // offer's copy and its advisory counter.
+    //
+    // World-readable for the same reason as /plans: the register and login
+    // screens read it before anyone has authenticated, and the /metadata rule
+    // below requires auth. It holds copy and a count and must hold nothing
+    // else.
+    match /publicConfig/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // What platform admins did, across every tenant.
+    //
+    // Append-only by construction: a platform admin can write history but never
+    // rewrite it, which is the entire point of keeping this separate from the
+    // per-company auditLogs a tenant admin can reach.
+    match /platformAuditLogs/{logId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // Users collection (root level)
     match /users/{userId} {
-      allow read: if isAuthenticated() &&
+      // Platform admins read across tenants. This branch has to live here:
+      // users are a ROOT collection, so the companies/{id}/{document=**} grant
+      // below structurally cannot reach them. Without it the super admin
+      // console's global user list is denied outright and every per-company
+      // user count silently reads 0 — the console appeared to show only the
+      // admin's own workspace.
+      allow read: if isSuperAdmin() ||
+        (isAuthenticated() &&
         (request.auth.uid == userId ||
-         (userDocExists() && getUserData().companyId == resource.data.companyId));
+         (userDocExists() && getUserData().companyId == resource.data.companyId)));
 
       // A user bootstraps their own doc. They may claim a privileged role only
       // for a workspace the company doc already says they created (adminUid is
@@ -206,6 +274,21 @@ service cloud.firestore {
         (request.auth.uid == userId
           && request.resource.data.permissions.size() == 0
           && (request.resource.data.role in ['staff', 'viewer', 'manager']
+              || isCompanyCreator(request.resource.data.companyId))
+          // A self-created doc may only name a workspace the caller can prove
+          // they belong to. Update already required this; create did not, and
+          // self-delete is allowed — so deleting your own user doc and
+          // re-creating it with someone else's companyId was a complete
+          // cross-tenant breach: belongsToCompany() would then pass for a
+          // workspace you were never invited to, exposing its products,
+          // transactions, customers, invoices and orders. Target ids are not
+          // secret; joinCodeIndex hands them to any signed-in caller.
+          //
+          // '' is the workspace-less state (see leaveCompany), which grants
+          // nothing. Registration writes its doc before the member doc exists,
+          // so the creator check carries that case.
+          && (request.resource.data.companyId == ''
+              || hasMemberDoc(request.resource.data.companyId)
               || isCompanyCreator(request.resource.data.companyId)))
         // An admin provisioning a teammate may set any role. AuthService
         // signs back in as the admin before writing, so this is the branch
@@ -216,14 +299,21 @@ service cloud.firestore {
                                  'canManageUsers')))
       );
 
+      // isSuperAdmin() here is lifecycle, matching the company doc's own
+      // `allow update: if isSuperAdmin()`. Purging a workspace has to detach the
+      // people who were in it: without this their user docs kept pointing at a
+      // company that no longer exists, and they signed in to an empty,
+      // permission-less app with no explanation and no way out.
       allow update: if (isAuthenticated() && request.auth.uid == userId &&
           selfUserUpdateDoesNotEscalate()) ||
         (belongsToCompany(resource.data.companyId) &&
-         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')));
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers'))) ||
+        isSuperAdmin();
 
       allow delete: if (isAuthenticated() && request.auth.uid == userId) ||
         (belongsToCompany(resource.data.companyId) &&
-         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')));
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers'))) ||
+        isSuperAdmin();
     }
 
     // App metadata (e.g. first-user flag)
@@ -251,18 +341,31 @@ service cloud.firestore {
     match /joinCodeIndex/{code} {
       allow get: if isAuthenticated();
       allow list: if false;
+      // Publishing a code for your OWN workspace only. Widened from
+      // creator-only to any admin so invite codes can be indexed here too:
+      // joinCompany's collectionGroup('invites') query has no matching rule and
+      // always failed, which broke every join. An admin who can invite people
+      // can already publish the workspace's permanent code, so this grants
+      // nothing new — and the entry still names a company they belong to.
       allow create: if isAuthenticated() &&
         request.resource.data.keys().hasAll(['companyId', 'companyName']) &&
         request.resource.data.companyId is string &&
         request.resource.data.companyName is string &&
         exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)) &&
-        get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.adminUid == request.auth.uid;
+        (get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.adminUid == request.auth.uid ||
+         (belongsToCompany(request.resource.data.companyId) &&
+          (isAdmin() || hasPermission(request.resource.data.companyId, 'canManageUsers'))));
       allow update: if false;
-      allow delete: if isAuthenticated() &&
+      // The super admin branch is first and unconditional because a purge
+      // deletes the company doc, and every other branch needs that doc to
+      // exist. Leaving these behind kept resolving a dead company id for any
+      // signed-in caller.
+      allow delete: if isSuperAdmin() ||
+        (isAuthenticated() &&
         resource.data.companyId is string &&
         exists(/databases/$(database)/documents/companies/$(resource.data.companyId)) &&
         (get(/databases/$(database)/documents/companies/$(resource.data.companyId)).data.adminUid == request.auth.uid ||
-         (belongsToCompany(resource.data.companyId) && isAdmin()));
+         (belongsToCompany(resource.data.companyId) && isAdmin())));
     }
 
     // Companies collection
@@ -279,7 +382,7 @@ service cloud.firestore {
         && (!('status' in request.resource.data)
             || request.resource.data.status == 'active')
         && (!('plan' in request.resource.data)
-            || request.resource.data.plan.planId == 'free');
+            || request.resource.data.plan.planId == 'max');
       allow update: if isSuperAdmin() ||
         (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageCompanySettings')) &&
@@ -326,6 +429,13 @@ service cloud.firestore {
           && request.resource.data.uid == memberUid
           && (
             (request.resource.data.role == 'staff'
+              // roleId, not role, is what hasPermission() resolves against, and
+              // selfUserUpdateDoesNotEscalate now trusts this doc as the record
+              // of what the workspace granted. Pinning it here closes the hop
+              // that would otherwise remain: mint a member doc reading
+              // role:'staff', roleId:'admin' with a valid join code, then
+              // mirror that roleId onto your own user doc as "verified".
+              && request.resource.data.get('roleId', 'staff') == 'staff'
               && request.resource.data.joinCode is string
               && exists(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode))
               && get(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode)).data.companyId == companyId)
@@ -595,15 +705,22 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
       }
 
-      // Super admin: full control over everything under a company.
+      // Super admin: read everything under a company, and delete (purge only).
       //
       // Rules OR together, so this grants without weakening any rule above —
       // and being a single scoped block it stays auditable, rather than
       // sprinkling isSuperAdmin() through forty allow clauses. It also sits
       // outside companyActive(), which is deliberate: a suspension has to be
       // liftable.
+      //
+      // create/update are deliberately NOT granted. The platform admin's write
+      // powers are lifecycle only — plan and status, which are fields on the
+      // company doc and covered by its own `allow update: if isSuperAdmin()`
+      // above. This is also what makes the read-only workspace inspector a real
+      // control rather than a UI convention: a write that slips past the
+      // view-only permission map is denied by the server.
       match /{document=**} {
-        allow read, write: if isSuperAdmin();
+        allow read, delete: if isSuperAdmin();
       }
 
       // In-app feedback subcollection (append-only; any member may submit,

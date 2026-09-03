@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../widgets/app_bar_title_row.dart';
 import '../../utils/url_helper.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -300,14 +301,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
 
+    // The same gradient ground on both paths. This screen renders either as a
+    // shell tab or as a pushed sub-route, and only the pushed one used to get
+    // the gradient — so Settings looked different depending on how you reached
+    // it.
+    final grounded = Container(
+      decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+      child: body,
+    );
+
     if (widget.initialSection != null) {
       return Scaffold(
         backgroundColor: AppTheme.bg(context),
-        appBar: AppBar(title: const Text('Settings')),
-        body: Container(
-          decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-          child: body,
+        appBar: AppBar(
+          title: AppBarTitleRow(
+            icon: Icons.settings_rounded,
+            color: AppTheme.primary(context),
+            title: 'Settings',
+          ),
         ),
+        body: grounded,
       );
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -319,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : SystemUiOverlayStyle.dark.copyWith(
               statusBarColor: Colors.transparent,
             ),
-      child: body,
+      child: grounded,
     );
   }
 
@@ -426,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: EdgeInsets.all(_settingsWebLux(context) ? 20 : 10),
       decoration: BoxDecoration(
-        gradient: AppTheme.heroGradient,
+        gradient: AppTheme.heroGrad(context),
         borderRadius: BorderRadius.circular(_settingsWebLux(context) ? 20 : 14),
         boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
         border: _settingsWebLux(context)
@@ -561,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: AppTheme.heroGradient,
+                          gradient: AppTheme.heroGrad(context),
                           boxShadow: [
                             BoxShadow(
                               color: AppTheme.primaryColor.withValues(alpha: 0.3),
@@ -1396,7 +1409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final lux = _settingsWebLux(context);
             final btn = Container(
               decoration: BoxDecoration(
-                gradient: AppTheme.dangerGradient,
+                gradient: AppTheme.dangerGrad(context),
                 borderRadius: BorderRadius.circular(lux ? 16 : 14),
                 boxShadow: AppTheme.coloredShadow(AppTheme.dangerColor),
               ),

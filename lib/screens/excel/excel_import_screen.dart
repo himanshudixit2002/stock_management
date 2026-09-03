@@ -234,7 +234,12 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         existingProducts: productProvider.allProducts,
       );
 
-      if (mergeResult.updateCount > 0 && mounted) {
+      // Abort rather than proceed when unmounted. The condition used to be
+      // `updateCount > 0 && mounted`, so leaving the screen mid-import skipped
+      // the confirmation and fell straight through to bulkUpdateProducts — an
+      // unconfirmed bulk mutation of the catalogue.
+      if (mergeResult.updateCount > 0) {
+        if (!mounted) return;
         final proceed = await showConfirmDialog(
           context,
           title: 'Smart Merge',
@@ -247,7 +252,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
           icon: Icons.merge_rounded,
         );
         if (!proceed) {
-          setState(() => _isImporting = false);
+          if (mounted) setState(() => _isImporting = false);
           return;
         }
       }
@@ -265,6 +270,10 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
             mergedProducts,
             userId: user.uid,
             userName: user.name,
+            // The whole point of a merge import is to change stock: the merged
+            // quantity is existing + imported, computed in
+            // matchExistingProducts.
+            includeStock: true,
           );
         } catch (e) {
           throw Exception('Failed to update existing products: $e');
@@ -284,6 +293,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         }
       }
 
+      if (!mounted) return;
       setState(() => _isImporting = false);
 
       final total = updatedCount + createdCount;
@@ -304,6 +314,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _isImporting = false;

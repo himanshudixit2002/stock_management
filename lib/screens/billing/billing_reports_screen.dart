@@ -204,13 +204,31 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
     }
 
     final filtered = _filterByType(billing.invoices);
-    final totalInvoiced = filtered.fold(0.0, (s, i) => s + i.grandTotal);
-    final totalOutstanding = filtered.fold(
-      0.0,
-      (double s, InvoiceModel i) => s + i.amountDue,
-    );
+    // Credit notes are money going the other way; counting their grandTotal as
+    // "invoiced" inflates the figure. They still reduce the balance below, via
+    // InvoiceModel.outstanding on the invoice they were raised against.
+    final totalInvoiced = filtered
+        .where((i) => !i.isCreditNote)
+        .fold(0.0, (s, i) => s + i.grandTotal);
+
+    // Receivables and payables are kept apart. Summing them — which "All" did,
+    // and "All" is the default — produced a number that was neither: 100k owed
+    // to you plus 80k you owe read as "Outstanding 180,000", and it went *up*
+    // as your own debts grew. aging_service.dart carries a comment naming this
+    // exact mistake.
+    double outstandingOf(InvoiceType type) => filtered
+        .where((i) => i.invoiceType == type)
+        .fold(0.0, (s, i) => s + i.outstanding);
+    final receivable = outstandingOf(InvoiceType.sales);
+    final payable = outstandingOf(InvoiceType.purchase);
+
     final overdueCount = filtered
-        .where((i) => i.isOverdue || (i.overdueDays > 0 && !i.isPaid))
+        .where(
+          (i) =>
+              !i.isCreditNote &&
+              i.outstanding > 0 &&
+              (i.isOverdue || i.overdueDays > 0),
+        )
         .length;
 
     return Column(
@@ -250,12 +268,24 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
               color: AppTheme.primaryColor,
             ),
             const SizedBox(width: 8),
-            _RevenueCard(
-              label: 'Outstanding',
-              value: '$sym${_numFmt.format(totalOutstanding)}',
-              color: AppTheme.dangerColor,
-            ),
-            const SizedBox(width: 8),
+            // Under "All" both sides are shown separately, because their sum
+            // means nothing. With a type selected only that side is relevant.
+            if (_typeFilter != InvoiceType.purchase) ...[
+              _RevenueCard(
+                label: 'Receivable',
+                value: '$sym${_numFmt.format(receivable)}',
+                color: AppTheme.dangerColor,
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (_typeFilter != InvoiceType.sales) ...[
+              _RevenueCard(
+                label: 'Payable',
+                value: '$sym${_numFmt.format(payable)}',
+                color: AppTheme.warningColor,
+              ),
+              const SizedBox(width: 8),
+            ],
             _RevenueCard(
               label: 'Overdue',
               value: '$overdueCount invoices',
@@ -508,13 +538,28 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
   ) {
     final taxByRate = <double, double>{};
     for (final inv in invoices) {
+      // Output tax only. A purchase bill's tax is input tax the workspace
+      // *paid*; folding it in here overstated what was collected, on a figure
+      // people file returns from.
+      if (!inv.isSales && !inv.isCreditNote) continue;
+
+      // InvoiceItem.lineTax knows nothing about the invoice-level discount,
+      // while calculateInvoiceTotals scales tax down by it — so summing raw
+      // line tax over-reported every discounted invoice. On a 1,000 subtotal
+      // with a 10% invoice discount at 18% tax, the invoice stores 162 and this
+      // used to say 180. Applying the invoice's own ratio keeps the report and
+      // the document in agreement.
+      final lineTaxTotal = inv.items.fold<double>(0, (s, i) => s + i.lineTax);
+      final ratio = lineTaxTotal > 0 ? inv.totalTax / lineTaxTotal : 0.0;
+
       for (final item in inv.items) {
-        if (item.taxRate > 0) {
-          taxByRate[item.taxRate] =
-              (taxByRate[item.taxRate] ?? 0) + item.lineTax;
-        }
+        if (item.taxRate <= 0) continue;
+        // A credit note reverses tax that was collected.
+        final signed = (item.lineTax * ratio) * (inv.isCreditNote ? -1 : 1);
+        taxByRate[item.taxRate] = (taxByRate[item.taxRate] ?? 0) + signed;
       }
     }
+    taxByRate.removeWhere((_, v) => v.abs() < 0.01);
     final sorted = taxByRate.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final totalTax = sorted.fold(0.0, (s, e) => s + e.value);

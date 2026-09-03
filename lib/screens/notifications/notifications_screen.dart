@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/responsive.dart';
@@ -81,9 +82,12 @@ class NotificationsScreen extends StatelessWidget {
       isLoading: provider.isLoading,
       shimmerLayout: ShimmerLayout.listTile,
       isEmpty: notifications.isEmpty,
-      emptyState: const EmptyStateWidget(
+      emptyState: EmptyStateWidget(
         icon: Icons.notifications_off_rounded,
         title: 'No Notifications Yet',
+        buttonText: 'Add a product',
+        onButtonPressed: () =>
+            Navigator.pushNamed(context, AppRoutes.addProduct),
         subtitle:
             'Notifications appear when stock runs low, orders change status, '
             'returns are filed, or batch items near expiry. '

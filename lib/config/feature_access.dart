@@ -1,3 +1,4 @@
+import '../models/company_plan_model.dart';
 import 'feature_map.dart';
 import 'home_actions.dart' show HomeActionFeatureGate;
 
@@ -16,6 +17,13 @@ enum FeatureAccess {
 
   /// A company-level feature switch that this feature depends on is off.
   featureOff,
+
+  /// The workspace's plan does not include this feature.
+  ///
+  /// A third distinct answer on purpose: "ask an admin for permission" and
+  /// "switch it on for the workspace" are both wrong advice when the fix is to
+  /// move to a higher tier.
+  needsPlan,
 }
 
 /// The company-level feature switches, as one value.
@@ -61,8 +69,15 @@ class FeatureGateState {
 FeatureAccess resolveFeatureAccess(
   FeatureEntry entry,
   Map<String, bool> permissions,
-  FeatureGateState gates,
-) {
+  FeatureGateState gates, {
+  CompanyPlan? plan,
+}) {
+  // The plan is checked first: a feature the tier does not include cannot be
+  // unlocked by a permission or a company switch, so that is the only useful
+  // thing to say about it.
+  if (plan != null && !plan.allowsFeature(entry.id)) {
+    return FeatureAccess.needsPlan;
+  }
   if (gates.blockedGatesFor(entry).isNotEmpty) return FeatureAccess.featureOff;
   if (entry.permissionKey != null && permissions[entry.permissionKey] != true) {
     return FeatureAccess.needsPermission;

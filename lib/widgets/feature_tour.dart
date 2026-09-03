@@ -253,7 +253,7 @@ class _FeatureTourState extends State<FeatureTour>
     final badge = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: AppTheme.heroGradient,
+        gradient: AppTheme.heroGrad(context),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(

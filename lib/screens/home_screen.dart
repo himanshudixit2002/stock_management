@@ -27,6 +27,7 @@ import '../widgets/offline_banner.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/branded_splash.dart';
 import '../widgets/floating_nav_padding.dart';
+import '../models/company_plan_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -244,9 +245,14 @@ class HomeScreenState extends State<HomeScreen>
     // Narrow subscriptions: only these four flags matter here, and watching the
     // whole providers rebuilt the entire shell (every mounted tab body) on any
     // unrelated settings change.
-    final (barcodeEnabled, vendorsEnabled, pricingEnabled) = context
-        .select<SettingsProvider, (bool, bool, bool)>(
-          (s) => (s.barcodeEnabled, s.vendorsEnabled, s.pricingEnabled),
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan) = context
+        .select<SettingsProvider, (bool, bool, bool, CompanyPlan)>(
+          (s) => (
+            s.barcodeEnabled,
+            s.vendorsEnabled,
+            s.pricingEnabled,
+            s.plan,
+          ),
         );
     final billingOn = context.select<BillingSettingsProvider, bool>(
       (b) => b.billingEnabled,
@@ -259,7 +265,14 @@ class HomeScreenState extends State<HomeScreen>
       barcodeEnabled: barcodeEnabled,
       vendorsEnabled: vendorsEnabled,
       pricingEnabled: pricingEnabled,
+      plan: plan,
     );
+
+    // The assistant is the one plan-locked feature in the catalog (Starter and
+    // Growth lock it), and this FAB is its real entry point — it was rendered
+    // unconditionally, with neither a plan nor a permission check, so the tier's
+    // headline paid feature was reachable on every tier.
+    final aiAvailable = plan.allowsFeature('aiAssistant');
 
     final tabs = _visibleTabs(perms);
 
@@ -289,7 +302,9 @@ class HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
-        floatingActionButton: _buildAskAIFab(context, isWide: true),
+        floatingActionButton: aiAvailable
+            ? _buildAskAIFab(context, isWide: true)
+            : null,
       );
     } else {
       scaffold = Scaffold(
@@ -318,15 +333,16 @@ class HomeScreenState extends State<HomeScreen>
                   onTap: switchToTab,
                 ),
               ),
-              Positioned(
-                right: 16,
-                // Sits just above the pill using the same shared geometry the
-                // pill positions itself with. The old hardcoded 100 overlapped
-                // it by 14-28px once the device's gesture/navigation inset was
-                // taken into account.
-                bottom: floatingNavTopOffset(context) + 12,
-                child: _buildAskAIFab(context, isWide: false),
-              ),
+              if (aiAvailable)
+                Positioned(
+                  right: 16,
+                  // Sits just above the pill using the same shared geometry the
+                  // pill positions itself with. The old hardcoded 100 overlapped
+                  // it by 14-28px once the device's gesture/navigation inset was
+                  // taken into account.
+                  bottom: floatingNavTopOffset(context) + 12,
+                  child: _buildAskAIFab(context, isWide: false),
+                ),
             ],
           ),
         ),
@@ -569,7 +585,7 @@ class HomeScreenState extends State<HomeScreen>
   Widget _buildAskAIFab(BuildContext context, {required bool isWide}) {
     return Container(
       decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
+        gradient: AppTheme.primaryGrad(context),
         shape: isWide ? BoxShape.rectangle : BoxShape.circle,
         borderRadius: isWide ? BorderRadius.circular(24) : null,
         boxShadow: [
@@ -667,7 +683,7 @@ class _RailQuickActionsButton extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
+                  gradient: AppTheme.primaryGrad(context),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(

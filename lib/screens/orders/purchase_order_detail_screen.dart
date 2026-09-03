@@ -748,9 +748,23 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
       message: 'This action cannot be undone.',
     );
     if (!confirm || !context.mounted) return;
+    // Captured before the await: the messenger has to outlive this route,
+    // because a successful delete pops it.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     final success = await context.read<PurchaseOrderProvider>().deleteOrder(
       order.id,
     );
-    if (context.mounted && success) Navigator.pop(context);
+    if (!context.mounted) return;
+    // Both outcomes used to be silent — a successful delete just popped, and a
+    // failed one did nothing at all, so the row stayed with no explanation.
+    if (success) {
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Purchase order deleted')),
+      );
+    } else {
+      showErrorSnackBar(context, 'Could not delete this order.');
+    }
   }
 }

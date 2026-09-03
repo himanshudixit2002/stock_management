@@ -358,12 +358,43 @@ class SalesOrderProvider extends ChangeNotifier {
     _isMutating = true;
     _errorMessage = null;
     notifyListeners();
+    // A live invoice already moved this stock and holds the receivable.
+    // Cancelling the order used to put the goods back and merely drop the
+    // invoice's back-reference, leaving the invoice `sent` with
+    // stockDeducted: true — so cancelling that invoice afterwards restored the
+    // same units a second time (+20 for 10 shipped) while the customer was
+    // still billed. Cancel the invoice first; that path reverses its own stock.
+    if (order.invoiceId.isNotEmpty) {
+      final invoice = _databaseService.companyId.isEmpty
+          ? null
+          : await _databaseService.getInvoiceById(order.invoiceId);
+      if (invoice != null && !invoice.isCancelled) {
+        _errorMessage =
+            'Invoice ${invoice.invoiceNumber} was raised from this order. '
+            'Cancel that invoice first — it will return the stock.';
+        _isMutating = false;
+        notifyListeners();
+        return false;
+      }
+    }
+
     try {
-      // Reverse stock if order was dispatched or delivered
+      // Reverse stock if order was dispatched or delivered.
+      //
+      // Each line is zeroed as its stock goes back, so a failure partway leaves
+      // the order consistent with what happened and a retry resumes instead of
+      // restoring the earlier lines twice.
+      var working = order;
       if (order.status == SOStatus.dispatched ||
           order.status == SOStatus.delivered) {
-        for (final item in order.items) {
-          final qty = item.dispatchedQuantity;
+        for (var i = 0; i < working.items.length; i++) {
+          final item = working.items[i];
+          // Units already returned by the customer are back on the shelf
+          // *and* were already added by processReturn, which leaves
+          // dispatchedQuantity untouched and only advances returnedQuantity.
+          // Restoring the full dispatched figure therefore counted them twice:
+          // an order of 10 with 4 returned put 14 back for 10 shipped.
+          final qty = item.dispatchedQuantity - item.returnedQuantity;
           if (qty <= 0 || item.productId.isEmpty) continue;
           await _databaseService.addStock(
             productId: item.productId,
@@ -374,6 +405,11 @@ class SalesOrderProvider extends ChangeNotifier {
             userName: userName,
             reason: 'Cancelled SO #${order.id.substring(0, 6)}',
           );
+
+          final lines = List.of(working.items);
+          lines[i] = item.copyWith(dispatchedQuantity: item.returnedQuantity);
+          working = working.copyWith(items: lines);
+          await _databaseService.updateSalesOrder(working);
         }
       }
       await _databaseService.syncSalesOrderHoldsOnConfirmOrEdit(
@@ -384,14 +420,15 @@ class SalesOrderProvider extends ChangeNotifier {
         defaultLocation: defaultLocation,
       );
 
-      // Cancel linked invoice if exists
+      // Only reached once the guard above has confirmed there is no live
+      // invoice, so this drops a reference to one that is already cancelled.
       if (order.invoiceId.isNotEmpty) {
         try {
           await _databaseService.clearSalesOrderInvoiceId(order.id);
         } catch (_) {}
       }
 
-      final updated = order.copyWith(
+      final updated = working.copyWith(
         status: SOStatus.cancelled,
         updatedAt: DateTime.now(),
       );

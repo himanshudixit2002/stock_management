@@ -21,6 +21,22 @@ class CustomTextField extends StatefulWidget {
   final bool showValidationIcons;
   final GlobalKey<FormFieldState>? formFieldKey;
 
+  /// What the keyboard's action key does — `next` to move to the following
+  /// field, `done` to submit.
+  ///
+  /// Without this every field in the app showed "done" and there was no way to
+  /// chain them, because this widget owned its FocusNode privately.
+  final TextInputAction? textInputAction;
+
+  /// An externally owned focus node, so a form can move focus between fields.
+  ///
+  /// When null the widget creates and disposes its own, as before.
+  final FocusNode? focusNode;
+
+  /// Fired when the action key is pressed. Pair with [textInputAction] to get
+  /// next-field traversal or submit-on-enter.
+  final void Function(String)? onSubmitted;
+
   const CustomTextField({
     super.key,
     required this.controller,
@@ -39,6 +55,9 @@ class CustomTextField extends StatefulWidget {
     this.autofillHints,
     this.showValidationIcons = false,
     this.formFieldKey,
+    this.textInputAction,
+    this.focusNode,
+    this.onSubmitted,
   });
 
   @override
@@ -46,20 +65,40 @@ class CustomTextField extends StatefulWidget {
 }
 
 class _CustomTextFieldState extends State<CustomTextField> {
-  final _focusNode = FocusNode();
+  /// Only set when the caller did not supply one — a node this widget did not
+  /// create must not be disposed here.
+  FocusNode? _ownedFocusNode;
+  FocusNode get _focusNode => widget.focusNode ?? _ownedFocusNode!;
+
   bool? _validationResult; // null = not validated, true = valid, false = error
   bool _hasFocus = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.focusNode == null) _ownedFocusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(CustomTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode == widget.focusNode) return;
+    oldWidget.focusNode?.removeListener(_onFocusChange);
+    _ownedFocusNode?.removeListener(_onFocusChange);
+    if (widget.focusNode == null) {
+      _ownedFocusNode ??= FocusNode();
+    } else {
+      _ownedFocusNode?.dispose();
+      _ownedFocusNode = null;
+    }
     _focusNode.addListener(_onFocusChange);
   }
 
   @override
   void dispose() {
     _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
+    _ownedFocusNode?.dispose();
     super.dispose();
   }
 
@@ -132,6 +171,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
             focusNode: _focusNode,
             obscureText: widget.obscureText,
             keyboardType: widget.keyboardType,
+            textInputAction: widget.textInputAction,
+            onFieldSubmitted: widget.onSubmitted == null
+                ? null
+                : (value) => widget.onSubmitted!(value),
             inputFormatters: widget.inputFormatters,
             validator: (v) {
               final result = widget.validator?.call(v);

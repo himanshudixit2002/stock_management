@@ -10,6 +10,7 @@ import '../../providers/vendor_provider.dart';
 import '../../utils/responsive.dart';
 import '../../config/theme.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/promo_banner.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
@@ -31,6 +32,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  // One node per field after the first, so the keyboard's Next key walks the
+  // form in the order it is read rather than dismissing.
+  final _phoneFocus = FocusNode();
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _didAttemptSubmit = false;
@@ -43,6 +52,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneFocus.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -167,6 +181,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 20),
 
+                          // Above the form and above the error: this is the
+                          // reason someone signs up today rather than later.
+                          // Renders nothing when no offer is configured.
+                          const PromoBanner(),
+
                           Consumer<AuthProvider>(
                             builder: (context, auth, _) {
                               if (auth.errorMessage == null ||
@@ -282,6 +301,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     return null;
                                   },
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _phoneFocus.requestFocus(),
                                 ),
                                 CustomTextField(
                                   controller: _phoneController,
@@ -305,6 +326,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     return null;
                                   },
+                                  focusNode: _phoneFocus,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _nameFocus.requestFocus(),
                                 ),
                               ],
                             ),
@@ -376,6 +400,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     return null;
                                   },
+                                  focusNode: _nameFocus,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _emailFocus.requestFocus(),
                                 ),
                                 CustomTextField(
                                   controller: _emailController,
@@ -385,6 +412,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   keyboardType: TextInputType.emailAddress,
                                   autofillHints: const [AutofillHints.email],
                                   validator: validateEmail,
+                                  focusNode: _emailFocus,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _passwordFocus.requestFocus(),
                                 ),
                                 CustomTextField(
                                   controller: _passwordController,
@@ -419,6 +449,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     return null;
                                   },
+                                  focusNode: _passwordFocus,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) => _confirmFocus.requestFocus(),
                                 ),
                                 if (_passwordController.text.isNotEmpty)
                                   Padding(
@@ -458,6 +491,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     return null;
                                   },
+                                  focusNode: _confirmFocus,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _register(),
                                 ),
                                 if (_confirmPasswordController
                                     .text
@@ -511,7 +547,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             label: 'Create account',
                             child: Container(
                               decoration: BoxDecoration(
-                                gradient: AppTheme.primaryGradient,
+                                gradient: AppTheme.primaryGrad(context),
                                 borderRadius: BorderRadius.circular(14),
                                 boxShadow: AppTheme.coloredShadow(
                                   AppTheme.primaryColor,

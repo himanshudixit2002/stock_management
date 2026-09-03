@@ -143,13 +143,37 @@ class CompanyStats {
   final int invoices;
   final int salesOrders;
   final int purchaseOrders;
+  final int transactions;
+  final int customers;
+  final int vendors;
+  final int batches;
+  final int returns;
+  final int categories;
+  final int roles;
+
+  /// True when the user count could not be read at all, as opposed to being
+  /// genuinely zero.
+  ///
+  /// Users are the one figure that comes from a root collection rather than a
+  /// company subcollection, so it is the one a rules gap can deny on its own.
+  /// Reporting a denied count as 0 is what let a missing rule look like an
+  /// empty workspace; the UI shows "—" instead when this is set.
+  final bool usersUnknown;
 
   const CompanyStats({
     this.users = 0,
+    this.usersUnknown = false,
     this.products = 0,
     this.invoices = 0,
     this.salesOrders = 0,
     this.purchaseOrders = 0,
+    this.transactions = 0,
+    this.customers = 0,
+    this.vendors = 0,
+    this.batches = 0,
+    this.returns = 0,
+    this.categories = 0,
+    this.roles = 0,
   });
 
   static const CompanyStats empty = CompanyStats();

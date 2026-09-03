@@ -170,6 +170,40 @@ ANALYTICS_TOOLS = READ_TOOLS
 
 WRITE_TOOL_NAMES = {t.__name__ for t in WRITE_TOOLS}
 
+# The `AppPermissions` key each write tool corresponds to, using the same
+# strings the Flutter client uses. Everything here writes through the Firebase
+# Admin SDK, which bypasses firestore.rules entirely — so without this map a
+# viewer who is denied `canStockIn` in the app could simply ask the assistant to
+# add stock instead, and it would succeed.
+WRITE_TOOL_PERMISSIONS = {
+    "create_product": "canAddProducts",
+    "update_stock": "canAdjustStock",
+    "create_purchase_order": "canCreatePurchaseOrders",
+    "transfer_stock": "canTransfer",
+    "audit_inventory": "canAdjustStock",
+    "set_reorder_threshold": "canEditProducts",
+}
+
+
+def permission_for_tool(tool: str) -> str:
+    """The permission [tool] needs, or '' when it only reads."""
+    return WRITE_TOOL_PERMISSIONS.get(tool, "")
+
+
+def may_run_tool(tool: str, permissions) -> bool:
+    """Whether a caller holding [permissions] may run [tool].
+
+    [permissions] is the set of granted keys, or None when the caller's grants
+    could not be established — in which case reads are still fine but writes are
+    refused, so a Firestore hiccup denies rather than allows.
+    """
+    needed = permission_for_tool(tool)
+    if not needed:
+        return True
+    if permissions is None:
+        return False
+    return "*" in permissions or needed in permissions
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -865,10 +899,32 @@ def _guardrail_check(tool: str, product: ProductFact, args: Dict[str, Any]):
     return None
 
 
-def _execute_pending(action: Dict[str, Any], facts: InventoryFacts, company_id: str) -> Tuple[str, Dict[str, Any]]:
-    """Run a previously previewed action against fresh facts."""
+def _execute_pending(
+    action: Dict[str, Any],
+    facts: InventoryFacts,
+    company_id: str,
+    permissions=None,
+) -> Tuple[str, Dict[str, Any]]:
+    """Run a previously previewed action against fresh facts.
+
+    The permission check lives here rather than at preview time because this is
+    the single choke point every chat-driven write passes through — a refusal
+    here cannot be routed around by a differently-worded request.
+    """
     tool = action["tool"]
     args = action["args"]
+
+    if not may_run_tool(tool, permissions):
+        needed = permission_for_tool(tool)
+        return (
+            "You don't have permission to make that change, so I've left "
+            f"everything as it was. Ask an admin for the **{needed}** "
+            "permission if you need it.",
+            {
+                "tool": tool,
+                "result": {"success": False, "error": "permission_denied"},
+            },
+        )
 
     if tool == "create_product":
         result = writes.create_product(company_id=company_id, **args)
@@ -1060,7 +1116,11 @@ async def execution_agent_node(state: GraphState) -> GraphState:
             fresh = await asyncio.to_thread(fact_store.get, company_id, True)
             state["facts"] = fresh
             message, record = await asyncio.to_thread(
-                _execute_pending, pending, fresh, company_id
+                _execute_pending,
+                pending,
+                fresh,
+                company_id,
+                state.get("permissions"),
             )
             state["generation"] = message
             state["executed_actions"] = [record]

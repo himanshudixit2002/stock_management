@@ -9,6 +9,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/permission_gate.dart';
+import '../../utils/dialogs.dart';
 import '../../widgets/success_overlay.dart';
 
 class RoleEditorScreen extends StatefulWidget {
@@ -266,7 +267,18 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
         permissions: _permissions,
         updatedAt: DateTime.now(),
       );
-      await provider.updateRole(updated);
+      if (!await provider.updateRole(updated)) {
+        if (mounted) {
+          showErrorSnackBar(
+            context,
+            provider.errorMessage ?? 'Could not update the role.',
+          );
+          // Re-enable the button: the change did not save, so the user needs to
+          // be able to retry rather than sit on a dead "Saving..." control.
+          setState(() => _saving = false);
+        }
+        return;
+      }
     } else {
       final now = DateTime.now();
       final companyId = provider.roles.isNotEmpty
@@ -282,9 +294,21 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
         createdAt: now,
         updatedAt: now,
       );
-      await provider.addRole(role);
+      if (!await provider.addRole(role)) {
+        if (mounted) {
+          showErrorSnackBar(
+            context,
+            provider.errorMessage ?? 'Could not create the role.',
+          );
+          setState(() => _saving = false);
+        }
+        return;
+      }
     }
 
+    // Only reached once the write actually landed. This used to run
+    // unconditionally, so a rejected permission change was reported as saved
+    // and then silently reverted when the roles stream caught up.
     if (mounted) {
       await showSuccessOverlay(
         context,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../widgets/entity_picker_field.dart';
 import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
@@ -47,9 +48,15 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       _reasonController.text.trim().isNotEmpty ||
       (_selectedProduct != null && widget.product == null);
 
+  /// Units at the source location that are not already reserved.
+  ///
+  /// Was reading `locationQuantities` directly, so it presented on-hand as
+  /// "available" and its validator accepted quantities the server rejected —
+  /// 100 at Main with 90 held read as 100 available. `availableAtLocation`
+  /// subtracts the holds, matching stock_out_screen.
   int get _availableAtFrom {
     if (_selectedProduct == null || _fromLocation.isEmpty) return 0;
-    return _selectedProduct!.locationQuantities[_fromLocation] ?? 0;
+    return _selectedProduct!.availableAtLocation(_fromLocation);
   }
 
   @override
@@ -296,70 +303,24 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'Select Product *',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: AppTheme.textPri(context),
-                            ),
+                          // Was a hand-built pseudo-field duplicated across the
+                          // stock screens; EntityPickerField also gives it a
+                          // validation error state, which it never had.
+                          EntityPickerField(
+                            label: 'Product *',
+                            icon: Icons.inventory_2_rounded,
+                            value: _selectedProduct?.name,
+                            placeholder: 'Tap to select a product',
+                            detail: _selectedProduct == null
+                                ? null
+                                : '${_selectedProduct!.quantity} '
+                                      '${_selectedProduct!.baseUnit} on hand',
+                            errorText: _submitted && _selectedProduct == null
+                                ? 'Choose the product being transferred'
+                                : null,
+                            onTap: () => _pickProduct(products),
                           ),
-                          const SizedBox(height: 8),
-                          Material(
-                            color: AppTheme.inputFill(context),
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              onTap: () => _pickProduct(products),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppTheme.inputBorder(context),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: _selectedProduct != null
-                                          ? AppTheme.primaryColor
-                                          : AppTheme.textSec(context),
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _selectedProduct != null
-                                          ? Text(
-                                              _selectedProduct!.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
-                                            )
-                                          : Text(
-                                              'Tap to select a product...',
-                                              style: TextStyle(
-                                                color: AppTheme.textSec(
-                                                  context,
-                                                ),
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_drop_down_rounded,
-                                      color: AppTheme.textSec(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+
 
                           const SizedBox(height: 20),
 

@@ -337,6 +337,9 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
             productsToUpdate,
             userId: user.uid,
             userName: user.name,
+            // This screen exists to overwrite quantities and locations from the
+            // sheet, so the stock fields are the intended payload here.
+            includeStock: true,
           );
         }
       }

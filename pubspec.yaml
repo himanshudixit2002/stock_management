@@ -59,6 +59,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   # Virtual clock for timer-based unit tests (Debouncer).
   fake_async: ^1.3.1
+  # In-memory Firestore, so the settings write path can be tested for real.
+  # Its dotted-key semantics match the SDK's — set() takes a key literally,
+  # update() reads it as a field path — which is the whole bug these tests pin.
+  fake_cloud_firestore: ^3.1.0
   flutter_launcher_icons: ^0.14.3
 
 flutter_launcher_icons:
@@ -83,3 +87,22 @@ flutter:
     - assets/images/logo.png
     - assets/fonts/NotoSans-Regular.ttf
     - assets/lottie/
+
+  # Inter, bundled rather than fetched at runtime: the app previously set no
+  # fontFamily at all and rendered in whatever the platform defaulted to — the
+  # CanvasKit fallback on web. Bundling means no network dependency and no flash
+  # of fallback text, and the app looks identical on every platform.
+  #
+  # NotoSans above is NOT a UI font — it is loaded by rootBundle in the PDF
+  # services and never reaches the widget tree.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

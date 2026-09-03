@@ -9,7 +9,9 @@ import '../../providers/stock_provider.dart';
 import '../../services/stock_calculations.dart';
 import '../../utils/date_formats.dart';
 import '../../widgets/app_bar_title_row.dart';
+import '../../config/routes.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/product_picker.dart';
 
@@ -127,21 +129,34 @@ class _Ledger extends StatelessWidget {
       stream: context.read<StockProvider>().getProductTransactions(product.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          // A skeleton of the ledger rather than a bare spinner — the shape of
+          // what is coming is more reassuring than an indeterminate circle.
+          return const ShimmerLoading(layout: ShimmerLayout.listTile);
         }
         if (snapshot.hasError) {
           return EmptyStateWidget(
             icon: Icons.error_outline_rounded,
             title: 'Could not load movements',
-            subtitle: '${snapshot.error}',
+            // Deliberately not the raw exception: a stack trace rendered
+            // into the UI tells the user nothing and leaks internals.
+            subtitle:
+                'Something went wrong reading this product\'s history. '
+                'Check your connection and try again.',
           );
         }
         final transactions = snapshot.data ?? const <StockTransactionModel>[];
         if (transactions.isEmpty) {
-          return const EmptyStateWidget(
+          return EmptyStateWidget(
             icon: Icons.history_rounded,
             title: 'No movements yet',
-            subtitle: 'This product has no recorded stock movements.',
+            subtitle:
+                'Stock in, stock out and adjustments for this product will '
+                'appear here.',
+            // The empty state used to be a dead end, even though recording
+            // stock is the only thing the user could do next.
+            buttonText: 'Record stock in',
+            onButtonPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.stockIn),
           );
         }
 

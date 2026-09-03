@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore --project rules-test \"node firestore_rules_test.mjs\""
+    "test": "firebase emulators:exec --only firestore --project rules-test \"node firestore_rules_test.mjs\"",
+    "test:semantics": "firebase emulators:exec --only firestore --project rules-test \"node settings_write_semantics.mjs\"",
+    "test:all": "npm run test && npm run test:semantics"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",

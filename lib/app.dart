@@ -29,9 +29,12 @@ import 'providers/price_history_provider.dart';
 import 'providers/warehouse_zone_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/home_customization_provider.dart';
+import 'providers/plan_catalog_provider.dart';
+import 'providers/promo_provider.dart';
 import 'providers/super_admin_provider.dart';
 import 'models/company_model.dart';
-import 'screens/super_admin/super_admin_dashboard_screen.dart';
+import 'screens/super_admin/inspection_banner.dart';
+import 'screens/super_admin/super_admin_shell.dart';
 import 'providers/billing_provider.dart';
 import 'providers/billing_settings_provider.dart';
 import 'providers/role_provider.dart';
@@ -100,6 +103,8 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => BillingSettingsProvider()),
         ChangeNotifierProvider(create: (_) => RoleProvider()),
         ChangeNotifierProvider(create: (_) => SuperAdminProvider()),
+        ChangeNotifierProvider(create: (_) => PromoProvider()),
+        ChangeNotifierProvider(create: (_) => PlanCatalogProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
       ],
       child: Consumer<ThemeProvider>(
@@ -134,7 +139,9 @@ class StockManagementApp extends StatelessWidget {
             );
             return MediaQuery(
               data: mediaQuery.copyWith(textScaler: clampedTextScaler),
-              child: child ?? const SizedBox(),
+              // Wraps every route: while a platform admin is inspecting a
+              // workspace read-only, the banner must not be navigable away.
+              child: InspectionBanner(child: child ?? const SizedBox()),
             );
           },
         ),
@@ -228,6 +235,9 @@ class _AuthWrapperState extends State<AuthWrapper>
   }
 
   Future<void> _initializeApp() async {
+    // Owned by PlanCatalogProvider now: hydrating the global catalog is only
+    // half the job, the other half is telling widgets to rebuild.
+    context.read<PlanCatalogProvider>().start();
     try {
       setState(() {
         _initError = null;
@@ -242,7 +252,12 @@ class _AuthWrapperState extends State<AuthWrapper>
         final superAdmin = context.read<SuperAdminProvider>();
         final uid = authProvider.currentUser!.uid;
         await superAdmin.primeFromCache(uid);
-        unawaited(superAdmin.resolveSuperAdmin(uid));
+        unawaited(
+          superAdmin.resolveSuperAdmin(
+            uid,
+            actorEmail: authProvider.currentUser!.email,
+          ),
+        );
 
         if (mounted) {
           if (kIsWeb) {
@@ -462,6 +477,8 @@ class _AuthWrapperState extends State<AuthWrapper>
                 begin: Alignment(-0.85, -1),
                 end: Alignment(0.85, 1),
                 colors: [
+                  // Matches web/index.html's splash gradient so the handoff
+                  // from the HTML shell to the Flutter app is seamless.
                   Color(0xFF0F766E),
                   Color(0xFF0D9488),
                   Color(0xFF0891B2),
@@ -556,7 +573,10 @@ class _AuthWrapperState extends State<AuthWrapper>
         // [resolveSuperAdmin] is idempotent per uid, so a second call is free.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          context.read<SuperAdminProvider>().resolveSuperAdmin(currentUid);
+          context.read<SuperAdminProvider>().resolveSuperAdmin(
+            currentUid,
+            actorEmail: authProvider.currentUser?.email ?? '',
+          );
         });
         // Only someone we already know is a platform admin waits here. For
         // everyone else the normal shell renders immediately and the answer —
@@ -578,8 +598,12 @@ class _AuthWrapperState extends State<AuthWrapper>
           );
         }
       }
-      if (superAdmin.isSuperAdmin) {
-        return const SuperAdminDashboardScreen();
+      // A platform admin gets the console instead of the app — except while
+      // inspecting a workspace, when the ordinary shell renders bound to that
+      // tenant (currentUser is the synthetic view-only user, so
+      // currentCompanyId above is already the inspected workspace).
+      if (superAdmin.isSuperAdmin && !superAdmin.isInspecting) {
+        return const SuperAdminShell();
       }
 
       // A genuine company SWITCH (already bound to a *different* company) must

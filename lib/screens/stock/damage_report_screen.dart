@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../widgets/entity_picker_field.dart';
 import '../../config/routes.dart';
 import '../../models/product_model.dart';
 import '../../providers/product_provider.dart';
@@ -60,9 +61,16 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       _reasonController.text.trim().isNotEmpty ||
       (_selectedProduct != null && widget.product == null);
 
+  /// Units at the selected location that are not already reserved.
+  ///
+  /// Was reading `locationQuantities` directly, so it showed on-hand under an
+  /// "available" label and let the inline validator accept a quantity the
+  /// server then refused: 100 at Main with 90 held displayed "Available: 100"
+  /// and happily took 50. `availableAtLocation` subtracts the holds, which is
+  /// what stock_out_screen has always used.
   int get _availableAtLocation {
     if (_selectedProduct == null || _selectedLocation.isEmpty) return 0;
-    return _selectedProduct!.locationQuantities[_selectedLocation] ?? 0;
+    return _selectedProduct!.availableAtLocation(_selectedLocation);
   }
 
   @override
@@ -367,70 +375,24 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'Select Product *',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: AppTheme.textPri(context),
-                            ),
+                          // Was a hand-built pseudo-field duplicated across the
+                          // stock screens; EntityPickerField also gives it a
+                          // validation error state, which it never had.
+                          EntityPickerField(
+                            label: 'Product *',
+                            icon: Icons.inventory_2_rounded,
+                            value: _selectedProduct?.name,
+                            placeholder: 'Tap to select a product',
+                            detail: _selectedProduct == null
+                                ? null
+                                : '${_selectedProduct!.quantity} '
+                                      '${_selectedProduct!.baseUnit} on hand',
+                            errorText: _submitted && _selectedProduct == null
+                                ? 'Choose the product being reported'
+                                : null,
+                            onTap: () => _pickProduct(products),
                           ),
-                          const SizedBox(height: 8),
-                          Material(
-                            color: AppTheme.inputFill(context),
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              onTap: () => _pickProduct(products),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppTheme.inputBorder(context),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: _selectedProduct != null
-                                          ? AppTheme.primaryColor
-                                          : AppTheme.textSec(context),
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _selectedProduct != null
-                                          ? Text(
-                                              _selectedProduct!.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
-                                            )
-                                          : Text(
-                                              'Tap to select a product...',
-                                              style: TextStyle(
-                                                color: AppTheme.textSec(
-                                                  context,
-                                                ),
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_drop_down_rounded,
-                                      color: AppTheme.textSec(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+
 
                           // Stock by location breakdown
                           if (_selectedProduct != null &&

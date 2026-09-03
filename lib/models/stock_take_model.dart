@@ -11,6 +11,16 @@ class StockTakeItem {
   final int variance;
   final String notes;
 
+  /// True once this line's count has been written to stock.
+  ///
+  /// Completing a stock take applies each line in its own transaction, so a
+  /// failure partway leaves some already applied. Without this marker the whole
+  /// take stayed `inProgress` and a retry re-applied every earlier line — a
+  /// three-item count where item 2 threw left item 1's −5 committed, and
+  /// resubmitting took another 5 off, leaving the product short of the figure
+  /// that had just been physically verified.
+  final bool applied;
+
   StockTakeItem({
     required this.productId,
     this.productName = '',
@@ -18,6 +28,7 @@ class StockTakeItem {
     this.countedQty = 0,
     this.variance = 0,
     this.notes = '',
+    this.applied = false,
   });
 
   factory StockTakeItem.fromMap(Map<String, dynamic> map) {
@@ -28,6 +39,7 @@ class StockTakeItem {
       countedQty: safeInt(map['countedQty']),
       variance: safeInt(map['variance']),
       notes: safeString(map['notes']),
+      applied: map['applied'] == true,
     );
   }
 
@@ -38,6 +50,7 @@ class StockTakeItem {
     'countedQty': countedQty,
     'variance': variance,
     'notes': notes,
+    'applied': applied,
   };
 
   StockTakeItem copyWith({
@@ -47,6 +60,7 @@ class StockTakeItem {
     int? countedQty,
     int? variance,
     String? notes,
+    bool? applied,
   }) {
     return StockTakeItem(
       productId: productId ?? this.productId,
@@ -55,6 +69,7 @@ class StockTakeItem {
       countedQty: countedQty ?? this.countedQty,
       variance: variance ?? this.variance,
       notes: notes ?? this.notes,
+      applied: applied ?? this.applied,
     );
   }
 }

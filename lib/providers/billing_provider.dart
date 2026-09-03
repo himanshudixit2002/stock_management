@@ -111,7 +111,16 @@ class BillingProvider extends ChangeNotifier {
       .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.sales)
       .fold(0.0, (s, i) => s + i.amountPaid);
 
-  double get totalAccountsReceivable => totalSalesInvoiced - totalSalesReceived;
+  /// Money customers still owe.
+  ///
+  /// Sums [InvoiceModel.outstanding] rather than `invoiced - received`: that
+  /// subtraction ignored `creditedAmount`, and `invoicesForCustomer` filters to
+  /// sales invoices so credit notes never entered either side of it. A 1,000
+  /// invoice with a 400 credit note therefore reported 1,000 receivable here
+  /// while the invoice screen showed 600 due.
+  double get totalAccountsReceivable => _invoices
+      .where((i) => i.invoiceType == InvoiceType.sales)
+      .fold(0.0, (s, i) => s + i.outstanding);
 
   double get totalPurchaseInvoiced => _invoices
       .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.purchase)
@@ -121,7 +130,9 @@ class BillingProvider extends ChangeNotifier {
       .where((i) => !i.isCancelled && i.invoiceType == InvoiceType.purchase)
       .fold(0.0, (s, i) => s + i.amountPaid);
 
-  double get totalAccountsPayable => totalPurchaseInvoiced - totalPurchasePaid;
+  double get totalAccountsPayable => _invoices
+      .where((i) => i.invoiceType == InvoiceType.purchase)
+      .fold(0.0, (s, i) => s + i.outstanding);
   
   // Keep legacy for compatibility if they are used elsewhere, but ideally remove them
   double get totalInvoiced => totalSalesInvoiced;
@@ -155,17 +166,34 @@ class BillingProvider extends ChangeNotifier {
         .fold(0.0, (s, i) => s + i.grandTotal);
   }
 
+  /// What one customer still owes, credit notes included.
+  ///
+  /// Reads every sales document for the party — not just the unpaid ones — so a
+  /// credit note raised against a settled invoice still reduces the balance.
   double customerOutstanding(String customerId) {
     return invoicesForCustomer(customerId)
-        .where((i) => !i.isCancelled && !i.isPaid)
-        .fold(0.0, (s, i) => s + i.amountDue);
+        .fold(0.0, (s, i) => s + i.outstanding);
   }
 
   double vendorOutstanding(String vendorId) {
     return invoicesForVendor(vendorId)
-        .where((i) => !i.isCancelled && !i.isPaid)
-        .fold(0.0, (s, i) => s + i.amountDue);
+        .fold(0.0, (s, i) => s + i.outstanding);
   }
+
+  /// Every sales document for a customer, credit notes included.
+  ///
+  /// [invoicesForCustomer] filters to `isSales`, which is right for summing a
+  /// balance — [InvoiceModel.outstanding] already nets a credit note off its
+  /// source invoice, so including it as well would double-count. A *statement*
+  /// is the other case: it lists documents, and a customer needs to see the
+  /// credit that explains why their balance dropped.
+  List<InvoiceModel> statementDocumentsForCustomer(String customerId) =>
+      _invoices
+          .where(
+            (i) =>
+                i.customerId == customerId && (i.isSales || i.isCreditNote),
+          )
+          .toList();
 
   void initialize({required String companyId}) {
     _databaseService.setCompanyId(companyId);
@@ -200,14 +228,24 @@ class BillingProvider extends ChangeNotifier {
             (inv) =>
                 (inv.status == InvoiceStatus.sent ||
                     inv.status == InvoiceStatus.partiallyPaid) &&
+                // A credit note is money owed back, not a debt going late. It
+                // is created `sent` with dueDate == now, so it was reliably
+                // stamped overdue the next day and then counted in
+                // overdueCount alongside real receivables.
+                !inv.isCreditNote &&
+                // Nothing is actually owed once credit covers the balance.
+                inv.amountDue > 0.01 &&
                 now.isAfter(inv.dueDate),
           )
           .toList();
 
       for (final inv in overdue) {
-        await _databaseService.updateInvoice(
-          inv.copyWith(status: InvoiceStatus.overdue, updatedAt: now),
-        );
+        // Field-scoped, not updateInvoice(). That writes the whole document
+        // from this provider's stream snapshot, and this runs on *every*
+        // snapshot — so a payment transaction committing in between was undone
+        // by the overdue write putting the pre-payment `payments` array and
+        // `amountPaid` back.
+        await _databaseService.markInvoiceOverdue(inv.id);
       }
     } finally {
       _checkingOverdue = false;
@@ -768,6 +806,11 @@ class BillingProvider extends ChangeNotifier {
       if (type == InvoiceType.purchase) {
         return await _databaseService.getNextPurchaseInvoiceNumber(prefix);
       }
+      // Credit notes have their own counter. Drawing from the sales sequence
+      // left a permanent gap in it, which most tax regimes do not allow.
+      if (type == InvoiceType.creditNote) {
+        return await _databaseService.getNextCreditNoteNumber(prefix);
+      }
       return await _databaseService.getNextInvoiceNumber(prefix);
     } catch (e) {
       _errorMessage = friendlyError(
@@ -919,6 +962,13 @@ class BillingProvider extends ChangeNotifier {
       linkedSalesOrderId: '',
       linkedPurchaseOrderId: '',
       linkedCreditNoteId: '',
+      // Credit belongs to the invoice it was raised against, not to a copy. It
+      // was the one balance field this reset missed, so a duplicate of a 1,000
+      // invoice that had been credited 400 was born owing 1,000 while carrying
+      // creditedAmount 400 — and the last 400 of it could then never be
+      // credited, because both the credit screen and issueCreditNote compute
+      // grandTotal − amountPaid − creditedAmount.
+      creditedAmount: 0,
       stockDeducted: false,
       createdAt: now,
       updatedAt: now,

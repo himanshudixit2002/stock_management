@@ -228,6 +228,24 @@ class InvoiceModel {
   /// The invoice this credit note was raised against, if any.
   String get creditedInvoiceId => linkedSalesOrderId;
 
+  /// What is still owed on this document — the single definition of that.
+  ///
+  /// Derived rather than reading the stored [amountDue], and it subtracts
+  /// [creditedAmount]. Four screens used to answer this question four ways for
+  /// the same invoice: a 1,000 invoice with a 400 credit note showed 600 on the
+  /// invoice, 1,000 on the customer statement and in totalAccountsReceivable
+  /// (both of which summed `grandTotal - amountPaid` and skipped credit notes
+  /// entirely), and 600 again in customerOutstanding.
+  ///
+  /// Cancelled and draft documents owe nothing: one is void, the other is not
+  /// yet a claim. The epsilon absorbs the float residue that unrounded totals
+  /// leave behind, so a fully settled invoice reads as exactly zero.
+  double get outstanding {
+    if (isCancelled || isDraft) return 0;
+    final due = grandTotal - amountPaid - creditedAmount;
+    return due <= 0.01 ? 0 : due;
+  }
+
   String get statusLabel => switch (status) {
     InvoiceStatus.draft => 'Draft',
     InvoiceStatus.sent => 'Sent',

@@ -90,7 +90,7 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
                 lastDate: DateTime.now().add(const Duration(days: 1)),
                 initialDateRange: _range,
               );
-              if (picked != null) setState(() => _range = picked);
+              if (picked != null && mounted) setState(() => _range = picked);
             },
           ),
           if (_range != null)

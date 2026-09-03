@@ -38,8 +38,12 @@ class _CustomerStatementScreenState extends State<CustomerStatementScreen> {
 
   List<InvoiceModel> _getFilteredInvoices(BillingProvider billing) {
     if (_selectedCustomerId == null) return [];
+    // Credit notes included: a statement is a list of documents, and the
+    // customer needs to see the credit that explains their balance. Leaving
+    // them out is why this screen told a customer they owed 1,000 on an invoice
+    // the workspace had already credited 400 of.
     return billing
-        .invoicesForCustomer(_selectedCustomerId!)
+        .statementDocumentsForCustomer(_selectedCustomerId!)
         .where(
           (i) =>
               !i.isCancelled &&
@@ -88,12 +92,20 @@ class _CustomerStatementScreenState extends State<CustomerStatementScreen> {
     final customers = context.watch<CustomerProvider>().activeCustomers;
     final invoices = _getFilteredInvoices(billing);
 
-    double totalInvoiced = 0, totalPaid = 0;
+    double totalInvoiced = 0, totalPaid = 0, totalCredited = 0;
     for (final inv in invoices) {
+      if (inv.isCreditNote) {
+        // A credit note is money going the other way. Adding its grandTotal to
+        // "invoiced" would inflate both sides of the statement.
+        totalCredited += inv.grandTotal;
+        continue;
+      }
       totalInvoiced += inv.grandTotal;
       totalPaid += inv.amountPaid;
     }
-    final outstanding = totalInvoiced - totalPaid;
+    // Derived from the same getter the invoice screen uses, so the statement
+    // and the invoice cannot disagree about one customer's balance.
+    final outstanding = invoices.fold<double>(0, (s, i) => s + i.outstanding);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Customer Statement')),
@@ -225,6 +237,17 @@ class _CustomerStatementScreenState extends State<CustomerStatementScreen> {
                       value: '$sym${_numFmt.format(totalPaid)}',
                       color: AppTheme.successColor,
                     ),
+                    // Shown whenever there is any, so Invoiced − Paid −
+                    // Credited visibly reconciles to Outstanding. Without it a
+                    // credited balance looked like an arithmetic error.
+                    if (totalCredited > 0) ...[
+                      const SizedBox(width: 8),
+                      _MiniStat(
+                        label: 'Credited',
+                        value: '$sym${_numFmt.format(totalCredited)}',
+                        color: AppTheme.warningColor,
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     _MiniStat(
                       label: 'Outstanding',

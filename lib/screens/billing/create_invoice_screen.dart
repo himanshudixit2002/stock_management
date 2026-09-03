@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/app_bar_title_row.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/routes.dart';
@@ -99,6 +100,41 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final List<_LineItem> _items = [_LineItem()];
   bool _isSaving = false;
   int _paymentTermDays = 0;
+
+  /// True once a save has been attempted, so inline errors only appear after
+  /// the user has actually tried to submit.
+  bool _submitted = false;
+
+  /// Why the party section is invalid, or null.
+  String? get _partyError {
+    if (!_submitted) return null;
+    if (_invoiceType == InvoiceType.sales && _selectedCustomerId == null) {
+      return 'Choose the customer this invoice is for';
+    }
+    if (_invoiceType == InvoiceType.purchase && _selectedVendorId == null) {
+      return 'Choose the vendor this bill is from';
+    }
+    return null;
+  }
+
+  /// Why the items section is invalid, or null.
+  String? get _itemsError {
+    if (!_submitted) return null;
+    if (_items.every((i) => i.productId == null)) {
+      return 'Add at least one item before saving';
+    }
+    return null;
+  }
+
+  /// Whether anything has been entered worth warning about on the way out.
+  ///
+  /// This screen holds up to 1,410 lines' worth of entry and had no guard at
+  /// all — one back gesture discarded the lot silently.
+  bool get _isDirty =>
+      _selectedCustomerId != null ||
+      _selectedVendorId != null ||
+      _notesCtrl.text.trim().isNotEmpty ||
+      _items.any((i) => i.productId != null);
 
   InvoiceTotals get _totals {
     final bs = context.read<BillingSettingsProvider>().settings;
@@ -239,21 +275,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   double get _grandTotal => _totals.grandTotal;
 
   Future<void> _save({required bool asDraft}) async {
+    // Errors are shown inline against the section that is wrong as well as
+    // scrolled to. A transient snackbar was the only feedback before, so the
+    // message was gone by the time the offending section was on screen.
+    setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
-    if (_invoiceType == InvoiceType.sales && _selectedCustomerId == null) {
+    if (_partyError != null) {
       _scrollSectionIntoView(_partySectionKey);
-      showInfoSnackBar(context, 'Please select a customer');
-      return;
-    }
-    if (_invoiceType == InvoiceType.purchase && _selectedVendorId == null) {
-      _scrollSectionIntoView(_partySectionKey);
-      showInfoSnackBar(context, 'Please select a vendor');
       return;
     }
     final validItems = _items.where((i) => i.productId != null).toList();
-    if (validItems.isEmpty) {
+    if (_itemsError != null) {
       _scrollSectionIntoView(_itemsSectionKey);
-      showInfoSnackBar(context, 'Add at least one item');
       return;
     }
     setState(() => _isSaving = true);
@@ -436,8 +469,26 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ? 'New Purchase Bill'
         : 'New Invoice';
 
-    return Scaffold(
-      appBar: AppBar(title: Text(appBarTitle)),
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !mounted) return;
+        // confirmDiscardChanges is already used by seven other forms; this one
+        // was the largest and the only unguarded one.
+        final discard = await confirmDiscardChanges(
+          context,
+          hasChanges: _isDirty,
+        );
+        if (discard && context.mounted) Navigator.pop(context);
+      },
+      child: Scaffold(
+      appBar: AppBar(
+        title: AppBarTitleRow(
+          icon: Icons.receipt_long_rounded,
+          color: AppTheme.primary(context),
+          title: appBarTitle,
+        ),
+      ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Form(
@@ -466,9 +517,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       ],
                       KeyedSubtree(
                         key: _partySectionKey,
-                        child: isSales
-                            ? _buildCustomerSection()
-                            : _buildVendorSection(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            isSales
+                                ? _buildCustomerSection()
+                                : _buildVendorSection(),
+                            _SectionError(message: _partyError),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _buildDateSection(),
@@ -479,6 +536,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         key: _itemsSectionKey,
                         child: _buildItemsSection(bs),
                       ),
+                      _SectionError(message: _itemsError),
                       if (bs.enableDiscounts) ...[
                         const SizedBox(height: 16),
                         _buildDiscountSection(),
@@ -496,6 +554,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ),
         ),
         ),
+      ),
       ),
     );
   }
@@ -891,7 +950,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       context: context,
                       delegate: _ProductSearchDelegate(products),
                     );
-                    if (result != null) {
+                    if (result != null && mounted) {
                       setState(() {
                         item.productId = result.id;
                         item.productName = result.name;
@@ -1405,6 +1464,45 @@ class _ProductSearchDelegate extends SearchDelegate {
           onTap: () => close(context, p),
         );
       },
+    );
+  }
+}
+
+/// An inline validation message for a whole section.
+///
+/// The invoice form validated imperatively at submit time and reported problems
+/// through a transient snackbar, which had usually disappeared by the time the
+/// offending section was scrolled into view.
+class _SectionError extends StatelessWidget {
+  const _SectionError({required this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 16,
+            color: AppTheme.danger(context),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.danger(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

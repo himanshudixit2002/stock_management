@@ -10,12 +10,26 @@ class POItem {
   final int receivedQuantity;
   final double unitPrice;
 
+  /// Where the received units were actually put.
+  ///
+  /// Recorded at receipt so a later cancellation can take the stock back out of
+  /// the place it went in. Without it, cancelling reversed against the
+  /// workspace's *first configured* location — which either threw ("Not enough
+  /// available stock at Main", leaving the order uncancellable with phantom
+  /// units on the books) or, if that location happened to hold enough, deleted
+  /// somebody else's stock from it.
+  ///
+  /// Empty on orders received before this was recorded; callers fall back to
+  /// the old behaviour and say so.
+  final String receivedLocation;
+
   POItem({
     required this.productId,
     this.productName = '',
     required this.quantity,
     this.receivedQuantity = 0,
     this.unitPrice = 0,
+    this.receivedLocation = '',
   });
 
   factory POItem.fromMap(Map<String, dynamic> map) {
@@ -25,6 +39,7 @@ class POItem {
       quantity: safeInt(map['quantity']),
       receivedQuantity: safeInt(map['receivedQuantity']),
       unitPrice: safeDouble(map['unitPrice']),
+      receivedLocation: safeString(map['receivedLocation']),
     );
   }
 
@@ -34,6 +49,7 @@ class POItem {
     'quantity': quantity,
     'receivedQuantity': receivedQuantity,
     'unitPrice': unitPrice,
+    'receivedLocation': receivedLocation,
   };
 
   POItem copyWith({
@@ -42,6 +58,7 @@ class POItem {
     int? quantity,
     int? receivedQuantity,
     double? unitPrice,
+    String? receivedLocation,
   }) {
     return POItem(
       productId: productId ?? this.productId,
@@ -49,6 +66,7 @@ class POItem {
       quantity: quantity ?? this.quantity,
       receivedQuantity: receivedQuantity ?? this.receivedQuantity,
       unitPrice: unitPrice ?? this.unitPrice,
+      receivedLocation: receivedLocation ?? this.receivedLocation,
     );
   }
 }

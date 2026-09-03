@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../widgets/deferred_screen_loader.dart';
-import 'rag_chat_screen.dart' deferred as rag_chat;
+import 'ai_chat_screen.dart' deferred as ai_chat;
 
 /// Opens the AI assistant.
 ///
-/// The chat screen carries `speech_to_text` and `flutter_markdown`, and it was
-/// reached through `RagChatScreen.open` — a static on the screen itself, so
-/// every caller (the Home FAB, the insights card, the forecast tab) imported
-/// the whole thing eagerly and dragged both packages into the initial bundle.
-/// Routing every entry point through this launcher keeps them deferred.
+/// The chat screen carries `flutter_markdown`, and it used to also be reachable
+/// through `RagChatScreen.open` — a static on the screen itself, so every caller
+/// (the Home FAB, the insights card, the forecast tab) imported the whole thing
+/// eagerly and dragged the package into the initial bundle. That static is gone;
+/// every entry point comes through here, which keeps the screen deferred.
 Future<void> openAskAi(BuildContext context) {
   HapticFeedback.lightImpact();
   return Navigator.push(
@@ -18,8 +18,8 @@ Future<void> openAskAi(BuildContext context) {
     PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) =>
           DeferredScreenLoader(
-            future: rag_chat.loadLibrary(),
-            builder: (_) => rag_chat.RagChatScreen(),
+            future: ai_chat.loadLibrary(),
+            builder: (_) => ai_chat.AiChatScreen(),
           ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         return FadeTransition(

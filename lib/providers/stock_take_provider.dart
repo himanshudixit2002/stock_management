@@ -94,9 +94,16 @@ class StockTakeProvider extends ChangeNotifier {
 
       final scopedLocation = stockTake.locationFilter.trim();
 
-      for (final item in stockTake.items) {
-        final variance = item.countedQty - item.expectedQty;
-        if (variance == 0) continue;
+      // Each line is marked applied as it commits, so a failure partway can be
+      // retried without re-applying the lines that already landed.
+      // _resolveUnscopedLocation throws by design when a product holds stock in
+      // more than one place, which makes a mid-loop failure an ordinary
+      // occurrence rather than an edge case.
+      var working = stockTake;
+      for (var i = 0; i < working.items.length; i++) {
+        final item = working.items[i];
+        if (item.applied) continue;
+        if (item.countedQty == item.expectedQty) continue;
 
         final location = scopedLocation.isNotEmpty
             ? scopedLocation
@@ -105,15 +112,24 @@ class StockTakeProvider extends ChangeNotifier {
         await _databaseService.recordAdjustment(
           productId: item.productId,
           productName: item.productName,
-          adjustmentDelta: variance,
+          // The counted figure, not a variance computed against expectedQty.
+          // expectedQty was captured when the count sheet was created, so any
+          // movement since made the variance wrong — and a stock take exists
+          // precisely to assert what is physically on the shelf.
+          countedQuantity: item.countedQty,
           location: location,
           userId: userId,
           userName: userName,
           reason: 'Stock Take: ${stockTake.name}',
         );
+
+        final lines = List.of(working.items);
+        lines[i] = item.copyWith(applied: true);
+        working = working.copyWith(items: lines);
+        await _databaseService.updateStockTake(working);
       }
 
-      final completed = stockTake.copyWith(
+      final completed = working.copyWith(
         status: StockTakeStatus.completed,
         completedAt: DateTime.now(),
       );

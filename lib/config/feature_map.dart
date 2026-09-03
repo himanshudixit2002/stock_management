@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/company_plan_model.dart';
 import 'home_actions.dart' show HomeActionFeatureGate;
 import 'permissions.dart';
 import 'routes.dart';
@@ -118,6 +119,16 @@ class FeatureMap {
   /// [placement]; queries below re-surface them where needed.
   static const List<FeatureEntry> all = [
     // ---------------- Daily operations (Quick Actions sheet) ----------------
+    FeatureEntry(
+      id: 'aiAssistant',
+      label: 'AI Assistant (Bot)',
+      subtitle: 'Conversational AI to query stock, sales, and analytics',
+      icon: Icons.auto_awesome_rounded,
+      route: AppRoutes.home,
+      category: FeatureCategory.dailyOps,
+      placement: FeaturePlacement.homeSecondary,
+      sortOrder: -1,
+    ),
     FeatureEntry(
       id: 'stockIn',
       label: 'Stock In',
@@ -605,9 +616,14 @@ class FeatureMap {
   // Query helpers (read-only; never mutate permissions).
   // --------------------------------------------------------------------------
 
-  /// True when [entry] passes its permission key and all company feature gates.
-  /// Permissions are read exactly as elsewhere in the app (the effective
-  /// permissions map from the current user).
+  /// True when [entry] passes its plan, its permission key, and all company
+  /// feature gates. Permissions are read exactly as elsewhere in the app (the
+  /// effective permissions map from the current user).
+  ///
+  /// [plan] is optional so callers without one behave as before, but every
+  /// navigation surface should pass it. Without it the plan was checked in
+  /// exactly one place — the Plan & Features screen — so a tier-locked feature
+  /// stayed listed and fully usable everywhere it actually mattered.
   static bool isVisible(
     FeatureEntry entry,
     Map<String, bool> permissions, {
@@ -615,7 +631,9 @@ class FeatureMap {
     bool barcodeEnabled = true,
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
+    CompanyPlan? plan,
   }) {
+    if (plan != null && !plan.allowsFeature(entry.id)) return false;
     if (entry.permissionKey != null &&
         permissions[entry.permissionKey] != true) {
       return false;
@@ -650,6 +668,7 @@ class FeatureMap {
     bool barcodeEnabled = true,
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
+    CompanyPlan? plan,
   }) {
     return entriesFor(placement)
         .where(
@@ -660,6 +679,7 @@ class FeatureMap {
             barcodeEnabled: barcodeEnabled,
             vendorsEnabled: vendorsEnabled,
             pricingEnabled: pricingEnabled,
+            plan: plan,
           ),
         )
         .toList();
@@ -675,6 +695,7 @@ class FeatureMap {
     bool barcodeEnabled = true,
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
+    CompanyPlan? plan,
   }) {
     final list = all
         .where(
@@ -688,6 +709,7 @@ class FeatureMap {
                 barcodeEnabled: barcodeEnabled,
                 vendorsEnabled: vendorsEnabled,
                 pricingEnabled: pricingEnabled,
+                plan: plan,
               ),
         )
         .toList();
@@ -703,6 +725,7 @@ class FeatureMap {
     bool barcodeEnabled = true,
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
+    CompanyPlan? plan,
   }) {
     const order = [
       FeatureCategory.orders,
@@ -720,6 +743,7 @@ class FeatureMap {
             barcodeEnabled: barcodeEnabled,
             vendorsEnabled: vendorsEnabled,
             pricingEnabled: pricingEnabled,
+            plan: plan,
           ).isNotEmpty,
         )
         .toList();

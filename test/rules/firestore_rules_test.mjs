@@ -78,12 +78,56 @@ await check('member doc cannot self-claim admin', () =>
   assertFails(setDoc(doc(as('x'),'companies/companyA/members/x'),{uid:'x',role:'admin',joinCode:'ABC123'})));
 await check('join code for A cannot mint a member doc in B', () =>
   assertFails(setDoc(doc(as('x'),'companies/companyB/members/x'),{uid:'x',role:'staff',joinCode:'ABC123'})));
+// roleId is the other half of the takeover the `role` guard closed: permissions
+// resolve through companies/{cid}/roles/{roleId}, and the seeded admin/owner
+// role docs carry every permission. Leaving role:'staff' used to satisfy the
+// rule while roleId did the escalating.
+await check('staff cannot point their own roleId at the admin role', () =>
+  assertFails(updateDoc(doc(as('staffA'),'users/staffA'),{roleId:'admin'})));
+await check('staff cannot point their own roleId at the owner role', () =>
+  assertFails(updateDoc(doc(as('staffA'),'users/staffA'),{roleId:'owner'})));
+await check('staff cannot claim a roleId their member doc does not grant', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyA/members/staffA'),{uid:'staffA',role:'staff',roleId:'staff'}));
+  return assertFails(updateDoc(doc(as('staffA'),'users/staffA'),{roleId:'manager'}));
+});
+await check('member doc cannot self-claim a privileged roleId', () =>
+  assertFails(setDoc(doc(as('x'),'companies/companyA/members/x'),{uid:'x',role:'staff',roleId:'admin',joinCode:'ABC123'})));
+// Self-delete is allowed, and create used to place no constraint on companyId —
+// so delete-then-recreate was a complete cross-tenant read of any workspace
+// whose id you could name.
+await check('deleting your own user doc does not let you re-create it in another workspace', async () => {
+  await deleteDoc(doc(as('staffA'),'users/staffA'));
+  return assertFails(setDoc(doc(as('staffA'),'users/staffA'),{uid:'staffA',email:'s@a.com',role:'manager',roleId:'manager',companyId:'companyB',permissions:{},companyMemberships:[]}));
+});
+await check('new signup cannot self-create into a workspace it cannot prove', () =>
+  assertFails(setDoc(doc(as('x'),'users/x'),{uid:'x',email:'x@a.com',role:'staff',roleId:'staff',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]})));
+await check('cannot publish a join code for a workspace you do not belong to', () =>
+  assertFails(setDoc(doc(as('staffA'),'joinCodeIndex/NEWCD2'),{companyId:'companyB',companyName:'B'})));
 
 console.log('\n--- LEGITIMATE FLOWS MUST WORK ---');
 await check('workspace creator self-creates their admin user doc', () =>
   assertSucceeds(setDoc(doc(as('founder'),'users/founder'),{uid:'founder',email:'f@c.com',role:'admin',roleId:'owner',companyId:'companyC',permissions:{},companyMemberships:[{companyId:'companyC'}]})));
-await check('normal signup self-creates as staff', () =>
-  assertSucceeds(setDoc(doc(as('newbie'),'users/newbie'),{uid:'newbie',email:'n@a.com',role:'staff',roleId:'staff',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]})));
+// A self-create must still prove the workspace. Registration proves it by
+// having created the company; a joiner proves it with the member doc the join
+// code minted. Pointing at a workspace you can prove neither way is the
+// cross-tenant hole covered above.
+await check('normal signup self-creates as staff once a member doc proves it', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyA/members/newbie'),{uid:'newbie',role:'staff',roleId:'staff'}));
+  return assertSucceeds(setDoc(doc(as('newbie'),'users/newbie'),{uid:'newbie',email:'n@a.com',role:'staff',roleId:'staff',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]}));
+});
+await check('a signup with no workspace yet self-creates', () =>
+  assertSucceeds(setDoc(doc(as('newbie'),'users/newbie'),{uid:'newbie',email:'n@a.com',role:'staff',roleId:'',companyId:'',permissions:{},companyMemberships:[]})));
+await check('staff can take a roleId their member doc actually grants', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyA/members/staffA'),{uid:'staffA',role:'staff',roleId:'manager'}));
+  return assertSucceeds(updateDoc(doc(as('staffA'),'users/staffA'),{roleId:'manager'}));
+});
+await check('leaving every workspace resets to an unprivileged role', () =>
+  assertSucceeds(updateDoc(doc(as('staffA'),'users/staffA'),{companyId:'',companyName:'',role:'staff',roleId:'staff',companyMemberships:[]})));
+await check('a company admin who did not create it can publish a join code', () =>
+  assertSucceeds(setDoc(doc(as('staffS'),'joinCodeIndex/NEWCD1'),{companyId:'companyS',companyName:'Suspended'})));
 await check('admin provisions a teammate with any role', () =>
   assertSucceeds(setDoc(doc(as('ownerA'),'users/newAdmin'),{uid:'newAdmin',email:'na@a.com',role:'admin',roleId:'admin',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]})));
 await check('admin promotes an existing staff member', () =>
@@ -133,8 +177,15 @@ await check('super admin lists every company', () =>
   assertSucceeds(getDocs(collection(as('root'),'companies'))));
 await check('super admin reads inside any company', () =>
   assertSucceeds(getDoc(doc(as('root'),'companies/companyB/products/p9'))));
-await check('super admin writes inside any company', () =>
-  assertSucceeds(setDoc(doc(as('root'),'companies/companyB/products/pNew'),{name:'X',quantity:1})));
+// The platform admin's write powers are lifecycle only (plan and status on the
+// company doc). The catch-all grants read and delete, never create/update —
+// that is what makes the read-only workspace inspector a server-enforced
+// control rather than a UI convention. This test used to assert the opposite
+// and had been failing ever since the inspector was tightened.
+await check('super admin cannot write inside a company', () =>
+  assertFails(setDoc(doc(as('root'),'companies/companyB/products/pNew'),{name:'X',quantity:1})));
+await check('super admin can delete inside any company (purge)', () =>
+  assertSucceeds(deleteDoc(doc(as('root'),'companies/companyB/products/p9'))));
 await check('super admin changes a companys plan', () =>
   assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{plan:{planId:'free',status:'active'}})));
 await check('super admin suspends a company', () =>

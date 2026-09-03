@@ -118,7 +118,7 @@ class HomeTab extends StatelessWidget {
     final avatar = Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: AppTheme.heroGradient,
+        gradient: AppTheme.heroGrad(context),
       ),
       child: CircleAvatar(
         radius: 20,
@@ -335,6 +335,7 @@ class HomeTab extends StatelessWidget {
       barcodeEnabled: settings.barcodeEnabled,
       vendorsEnabled: settings.vendorsEnabled,
       pricingEnabled: settings.pricingEnabled,
+      plan: settings.plan,
     );
 
     final widgets = <Widget>[];
@@ -347,6 +348,7 @@ class HomeTab extends StatelessWidget {
         barcodeEnabled: settings.barcodeEnabled,
         vendorsEnabled: settings.vendorsEnabled,
         pricingEnabled: settings.pricingEnabled,
+        plan: settings.plan,
       );
       if (entries.isEmpty) continue;
       final meta = FeatureMap.categoryMeta[category]!;

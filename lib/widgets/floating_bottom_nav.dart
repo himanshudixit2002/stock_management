@@ -1,5 +1,4 @@
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +8,10 @@ import '../config/theme.dart';
 import '../providers/product_provider.dart';
 import '../providers/stock_provider.dart';
 import 'floating_nav_padding.dart';
+
+/// Corner radius of the floating bar. Close to a stadium at this height, which
+/// is what Apple's floating bars read as.
+const double _kNavRadius = 26;
 
 /// Identifies a tab so the floating nav can attach the right live badge.
 enum FloatingNavTabKind { home, products, reports, ai, settings }
@@ -28,29 +31,55 @@ class FloatingNavTab {
   });
 }
 
-/// A floating, pill-style bottom navigation bar. It is rendered as a `Stack`
-/// overlay (NOT via `Scaffold.bottomNavigationBar`) so body content scrolls
-/// behind it. Frosted glass (BackdropFilter on web, frosted surface on native),
-/// a sliding active indicator, and a raised centre "Quick Actions" button.
+/// A floating bottom navigation bar, modelled on Apple's tab bars.
 ///
-/// Design choices (under-specified in the brief):
-/// - Unselected tabs are **icon-only** (cleaner); the label fades in only for
-///   the selected tab.
-/// - The centre Quick Actions button is **always visible** (when any quick
-///   action is permitted) so it is reachable consistently from every tab.
+/// Rendered as a `Stack` overlay (NOT via `Scaffold.bottomNavigationBar`) so
+/// body content scrolls behind it, with a raised centre "Quick Actions" button.
+///
+/// Three deliberate departures from the previous version, all of them things
+/// Apple's own tab bars do not do:
+///
+/// * **No sliding indicator pill.** Selection is carried by the icon switching
+///   from outlined to filled plus the accent colour — the same two signals
+///   Apple uses. A travelling capsule behind the icons is the single most
+///   "Material" thing a tab bar can do.
+/// * **Labels are always visible**, not just under the selected tab. Showing
+///   one label made the row reflow on every tap and left the other
+///   destinations unnamed.
+/// * **Neutral elevation.** The bar used to cast a coloured glow tinted with
+///   the brand primary; a tab bar should recede, not advertise itself.
+///
+/// It is opaque on every platform. Apple's bars are translucent, but that
+/// needs a live backdrop blur, and `BackdropFilter` was deliberately removed
+/// from this app — on CanvasKit it re-blurred the region behind a persistent
+/// overlay on every scroll frame. A clean opaque surface with a hairline
+/// border reads better than a semi-transparent one with nothing blurred behind
+/// it.
 class FloatingBottomNav extends StatelessWidget {
   final int currentIndex;
   final List<FloatingNavTab> tabs;
   final ValueChanged<int> onTap;
 
-
+  /// Badge counts, normally read from the providers.
+  ///
+  /// Injectable because this is a presentation widget that otherwise reaches
+  /// into ProductProvider and StockProvider itself — and those cannot be
+  /// constructed without a live Firebase app, which made the bar impossible to
+  /// render in a test. Left null in the app; supplied by tests.
+  final int? outOfStockCount;
+  final int? lowStockCount;
+  final int? todayTransactionCount;
 
   const FloatingBottomNav({
     super.key,
     required this.currentIndex,
     required this.tabs,
     required this.onTap,
+    this.outOfStockCount,
+    this.lowStockCount,
+    this.todayTransactionCount,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -72,94 +101,77 @@ class FloatingBottomNav extends StatelessWidget {
   Widget _buildPill(BuildContext context) {
     final count = tabs.length;
 
-    // Live badge data — read providers without mutating them.
-    final outOfStock = context.select<ProductProvider, int>(
-      (p) => p.outOfStockCount,
-    );
-    final lowStock = context.select<ProductProvider, int>(
-      (p) => p.lowStockCount,
-    );
-    final todayTxns = context.select<StockProvider, int>((s) {
-      final now = DateTime.now();
-      return s.allTransactions
-          .where(
-            (t) =>
-                t.date.year == now.year &&
-                t.date.month == now.month &&
-                t.date.day == now.day,
-          )
-          .length;
-    });
+    // Live badge data — read providers without mutating them, unless the
+    // caller supplied the counts outright.
+    final outOfStock = outOfStockCount ??
+        context.select<ProductProvider, int>((p) => p.outOfStockCount);
+    final lowStock = lowStockCount ??
+        context.select<ProductProvider, int>((p) => p.lowStockCount);
+    final todayTxns = todayTransactionCount ??
+        context.select<StockProvider, int>((s) {
+          final now = DateTime.now();
+          return s.allTransactions
+              .where(
+                (t) =>
+                    t.date.year == now.year &&
+                    t.date.month == now.month &&
+                    t.date.day == now.day,
+              )
+              .length;
+        });
 
-    final reduce = reduceMotion(context);
     final isDark = AppTheme.isDark(context);
 
     final decoration = BoxDecoration(
-      color: kIsWeb ? AppTheme.glassSurface(context) : AppTheme.surface(context),
-      borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: AppTheme.glassBorder(context), width: 1),
-      boxShadow: [
-        ...AppTheme.softShadow,
-        // Subtle primary glow tied to the active selection.
-        BoxShadow(
-          color: AppTheme.primaryColor.withValues(alpha: isDark ? 0.22 : 0.16),
-          blurRadius: 22,
-          spreadRadius: -2,
-          offset: const Offset(0, 6),
-        ),
-      ],
+      color: AppTheme.surface(context),
+      borderRadius: BorderRadius.circular(_kNavRadius),
+      // A hairline, not a 1px line: at 0.5 logical pixels the border reads as
+      // an edge rather than as a drawn stroke, which is what makes an Apple
+      // bar look like a material rather than a widget.
+      border: Border.all(
+        color: AppTheme.dividerC(context),
+        width: 0.5,
+      ),
+      // Neutral and soft. In dark mode a drop shadow is invisible against the
+      // ground, so the hairline carries the separation on its own.
+      boxShadow: isDark
+          ? const []
+          : const [
+              BoxShadow(
+                color: Color(0x1A000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Color(0x0F000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
     );
 
-    final inner = LayoutBuilder(
-      builder: (context, constraints) {
-        final cellW = constraints.maxWidth / count;
-        final indicatorW = (cellW - 18).clamp(44.0, 76.0);
-        const indicatorH = 44.0;
-        final indicatorLeft =
-            currentIndex * cellW + (cellW - indicatorW) / 2;
-
-        return Stack(
-          children: [
-            AnimatedPositioned(
-              duration:
-                  reduce ? Duration.zero : const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              left: indicatorLeft,
-              top: (kFloatingNavBarHeight - indicatorH) / 2,
-              width: indicatorW,
-              height: indicatorH,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
+    // No Stack and no travelling indicator: just the row. See the class doc.
+    final inner = Row(
+      children: List.generate(count, (i) {
+        final tab = tabs[i];
+        return Expanded(
+          child: _FloatingNavItem(
+            tab: tab,
+            selected: i == currentIndex,
+            badge: _badgeFor(
+              context,
+              tab.kind,
+              outOfStock: outOfStock,
+              lowStock: lowStock,
+              todayTxns: todayTxns,
             ),
-            Row(
-              children: List.generate(count, (i) {
-                final tab = tabs[i];
-                return Expanded(
-                  child: _FloatingNavItem(
-                    tab: tab,
-                    selected: i == currentIndex,
-                    badge: _badgeFor(
-                      context,
-                      tab.kind,
-                      outOfStock: outOfStock,
-                      lowStock: lowStock,
-                      todayTxns: todayTxns,
-                    ),
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      onTap(i);
-                    },
-                  ),
-                );
-              }),
-            ),
-          ],
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onTap(i);
+            },
+          ),
         );
-      },
+      }),
     );
 
     final container = DecoratedBox(decoration: decoration, child: inner);
@@ -170,7 +182,7 @@ class FloatingBottomNav extends StatelessWidget {
     // expensive thing on screen, permanently. Opaque on every platform now.
     return RepaintBoundary(
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(_kNavRadius),
         child: container,
       ),
     );
@@ -231,21 +243,32 @@ class _FloatingNavItemState extends State<_FloatingNavItem> {
   Widget build(BuildContext context) {
     final reduce = reduceMotion(context);
     final selected = widget.selected;
-    final color =
-        selected ? AppTheme.primaryColor : AppTheme.textTer(context);
+    // The two signals Apple uses, and only those: fill and colour.
+    final color = selected
+        ? AppTheme.primary(context)
+        : AppTheme.textTer(context);
 
     final iconWithBadge = Stack(
       clipBehavior: Clip.none,
       children: [
-        // Selected icon gets a gentle bounce (easeOutBack overshoot).
+        // A restrained lift, not a bounce. The old 1.15/easeOutBack overshoot
+        // made the whole row visibly jump on every tap.
         AnimatedScale(
-          scale: selected ? 1.15 : 1.0,
-          duration: reduce ? Duration.zero : const Duration(milliseconds: 260),
-          curve: Curves.easeOutBack,
-          child: Icon(
-            selected ? widget.tab.icon : widget.tab.inactiveIcon,
-            color: color,
-            size: 24,
+          scale: selected ? 1.06 : 1.0,
+          duration: reduce ? Duration.zero : const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          // Cross-fades outlined into filled rather than swapping abruptly.
+          child: AnimatedSwitcher(
+            duration:
+                reduce ? Duration.zero : const Duration(milliseconds: 180),
+            transitionBuilder: (child, animation) =>
+                FadeTransition(opacity: animation, child: child),
+            child: Icon(
+              selected ? widget.tab.icon : widget.tab.inactiveIcon,
+              key: ValueKey(selected),
+              color: color,
+              size: 25,
+            ),
           ),
         ),
         if (widget.badge != null)
@@ -262,40 +285,50 @@ class _FloatingNavItemState extends State<_FloatingNavItem> {
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: !reduce && _pressed ? 0.92 : 1.0,
+        scale: !reduce && _pressed ? 0.94 : 1.0,
         duration: kPressDuration,
         curve: kPressCurve,
         child: Semantics(
           button: true,
           selected: selected,
           label: widget.tab.label,
-          child: SizedBox(
-            height: kFloatingNavBarHeight,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                iconWithBadge,
-                AnimatedSize(
-                  duration: reduce
-                      ? Duration.zero
-                      : const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: selected
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            widget.tab.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+          // The label is drawn, so it must not also be announced separately.
+          child: ExcludeSemantics(
+            child: SizedBox(
+              height: kFloatingNavBarHeight,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  iconWithBadge,
+                  const SizedBox(height: 3),
+                  // Always visible. Showing the label only for the selected tab
+                  // reflowed the row on every tap and left the other
+                  // destinations anonymous.
+                  AnimatedDefaultTextStyle(
+                    duration: reduce
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      height: 1.1,
+                      letterSpacing: 0.1,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w500,
+                      color: color,
+                    ),
+                    child: Text(
+                      widget.tab.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      // Labels this small must not scale into the icon.
+                      textScaler: TextScaler.noScaling,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -343,17 +376,20 @@ class _CenterQuickActionsButtonState
             width: size,
             height: size,
             decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
+              gradient: AppTheme.primaryGrad(context),
               shape: BoxShape.circle,
               border: Border.all(
                 color: AppTheme.surface(context),
                 width: 3,
               ),
+              // Toned down from 0.4: the bar around it is now neutral, and a
+              // heavy coloured halo was the loudest thing on the screen.
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.4),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.28),
+                  blurRadius: 14,
+                  spreadRadius: -1,
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),

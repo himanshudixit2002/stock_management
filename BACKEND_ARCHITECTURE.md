@@ -1,7 +1,39 @@
 # SmartShelfKart — Inventory Agent Backend
 
-> [!WARNING]
-> **Security Gap**: The Cloud Run service `rag_backend` must verify a Firebase ID token and derive `companyId` from the token's claims, rather than relying on a client-supplied `x-company-id` header. Currently, any client can access any tenant's data by spoofing this header. The client has been updated to send the `Authorization: Bearer <idToken>` header, but the backend enforcement is out of scope for this repository and must be implemented on the Cloud Run side.
+## Authorization
+
+Two checks, both in `auth.py`, and both required because this service writes
+through the Firebase **Admin SDK** — which bypasses `firestore.rules` entirely.
+Whatever the rules withhold has to be withheld again here, or the assistant
+becomes a way around them.
+
+1. **Membership.** The `Authorization: Bearer <idToken>` header is verified and
+   the uid checked against `companies/{cid}/members/{uid}` — the same
+   server-side record the rules use via `hasMemberDoc()`. The `x-company-id`
+   header alone proves nothing. *(This closed the original gap where any client
+   could read any tenant by spoofing that header.)*
+
+2. **Permission.** Membership is not enough to write. `require_permission(...)`
+   resolves the caller's grants exactly as the rules' `hasPermission()` does —
+   admin/owner short-circuits, then `companies/{cid}/roles/{roleId}`, then
+   per-user overrides — and gates every mutating route. Inside the agent,
+   `nodes.may_run_tool` applies the same check at the single choke point every
+   chat-driven write passes through, mapping each write tool to the
+   `AppPermissions` key the Flutter client uses.
+
+   Without this, a viewer denied `canStockIn` in the app could ask the assistant
+   to add 500 units and have it succeed.
+
+Both fail closed: if grants cannot be read, writes are refused rather than
+allowed. Permission lookups are cached for 30s — far shorter than the 300s
+membership TTL, because a stale permission would keep granting a power that was
+just revoked.
+
+Run the tests with:
+
+```bash
+rag_backend/venv/bin/python -m pytest rag_backend/test_auth_permissions.py -q
+```
 
 The assistant answers questions about live inventory, and executes stock changes
 on request. It is built around one principle: **inventory is structured,

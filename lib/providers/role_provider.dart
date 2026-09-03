@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../config/permissions.dart';
 import '../models/role_model.dart';
+import '../utils/error_helpers.dart';
 
 class RoleProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -34,6 +35,18 @@ class RoleProvider extends ChangeNotifier {
       _roles = [];
     }
     _companyId = companyId;
+    // No workspace, no roles collection to watch. _rolesRef would be
+    // companies//roles, which throws on an empty document id — and that throw
+    // propagated out of app.dart's _initializeProviders into the permanent
+    // "Could Not Load Data" screen, whose Retry re-ran the same failing call.
+    // Reachable for real: leaveCompany writes companyId '' when you leave your
+    // last workspace.
+    if (companyId.isEmpty) {
+      _roles = [];
+      _errorMessage = null;
+      notifyListeners();
+      return;
+    }
     _backfillSystemRolePermissions();
     _subscription = _rolesRef
         .orderBy('createdAt')
@@ -143,21 +156,34 @@ class RoleProvider extends ChangeNotifier {
     await batch.commit();
   }
 
-  Future<void> addRole(RoleModel role) async {
+  /// Returns false when the write was refused; [errorMessage] says why.
+  ///
+  /// These used to return void and swallow the exception into [_errorMessage],
+  /// so the editor showed "Role created" regardless — and the roles stream then
+  /// quietly reverted the change a moment later. A user whose canManageRoles
+  /// had been withdrawn, or an admin on a suspended workspace, was told their
+  /// permission edit had saved when the server had rejected it.
+  Future<bool> addRole(RoleModel role) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+    var ok = false;
     try {
       await _rolesRef.add(role.toMap());
+      ok = true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = friendlyError(e, fallback: 'Could not create the role.');
     }
     _isLoading = false;
     notifyListeners();
+    return ok;
   }
 
-  Future<void> updateRole(RoleModel role) async {
+  Future<bool> updateRole(RoleModel role) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+    var ok = false;
     try {
       await _rolesRef.doc(role.id).update({
         'name': role.name,
@@ -165,11 +191,13 @@ class RoleProvider extends ChangeNotifier {
         'permissions': role.permissions,
         'updatedAt': Timestamp.now(),
       });
+      ok = true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = friendlyError(e, fallback: 'Could not update the role.');
     }
     _isLoading = false;
     notifyListeners();
+    return ok;
   }
 
   Future<bool> deleteRole(String roleId) async {

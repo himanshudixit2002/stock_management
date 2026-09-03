@@ -138,8 +138,11 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
     final ok = await context.read<BillingSettingsProvider>().updateSettings(
       updated,
     );
+    // The guard has to come first: this setState ran before the `mounted`
+    // check below, so leaving the screen while the save was in flight threw.
+    if (!mounted) return;
     setState(() => _isSaving = false);
-    if (ok && mounted) {
+    if (ok) {
       await showSuccessOverlay(context, message: 'Billing settings saved');
     }
   }

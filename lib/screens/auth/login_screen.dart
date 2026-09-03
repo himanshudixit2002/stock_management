@@ -6,6 +6,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/promo_banner.dart';
 import '../../widgets/glass_panel.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/validators.dart';
@@ -22,12 +23,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
   bool _showPassword = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -339,6 +342,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 32),
 
+                          // Compact here: on the login screen the offer is
+                          // context for the "Create Account" link at the
+                          // bottom, not the main event.
+                          const PromoBanner(compact: true),
+
                           // Error message
                           Consumer<AuthProvider>(
                             builder: (context, auth, _) {
@@ -399,6 +407,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   keyboardType: TextInputType.emailAddress,
                                   autofillHints: const [AutofillHints.email],
                                   validator: validateEmail,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      _passwordFocus.requestFocus(),
                                 ),
 
                                 CustomTextField(
@@ -408,6 +419,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   prefixIcon: Icons.lock_rounded,
                                   obscureText: !_showPassword,
                                   autofillHints: const [AutofillHints.password],
+                                  focusNode: _passwordFocus,
+                                  // Enter submits from the password field:
+                                  // previously the keyboard had to be dismissed
+                                  // before Sign In could be tapped.
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _login(),
                                   suffix: IconButton(
                                     icon: Icon(
                                       _showPassword
@@ -463,7 +480,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             delay: const Duration(milliseconds: 320),
                             child: Container(
                             decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
+                              gradient: AppTheme.primaryGrad(context),
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: AppTheme.coloredShadow(
                                 AppTheme.primaryColor,

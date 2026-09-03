@@ -8,7 +8,7 @@ SERVICE="rag-backend"
 cd "$(dirname "$0")/rag_backend"
 
 echo "=== Running backend tests before deploy ==="
-for suite in test_stock_math test_verify test_facts test_resolver test_cache test_pipeline test_create_product test_api_server test_swarm; do
+for suite in test_auth test_stock_math test_verify test_facts test_resolver test_cache test_pipeline test_create_product test_api_server test_swarm; do
   printf '  %-20s' "$suite"
   if ./venv/bin/python "$suite.py" >/dev/null 2>&1; then
     echo "PASS"

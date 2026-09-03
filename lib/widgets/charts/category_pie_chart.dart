@@ -26,26 +26,18 @@ class CategoryPieChart extends StatefulWidget {
 class _CategoryPieChartState extends State<CategoryPieChart> {
   int _touchedIndex = -1;
 
-  static const List<Color> _colors = [
-    AppTheme.primaryColor,
-    AppTheme.accentColor,
-    AppTheme.successColor,
-    AppTheme.warningColor,
-    AppTheme.dangerColor,
-    AppTheme.infoColor,
-    Color(0xFF7E57C2),
-    Color(0xFF06B6D4),
-    Color(0xFFEC407A),
-    Color(0xFF8D6E63),
-    Color(0xFF78909C),
-    Color(0xFFD4E157),
-  ];
+  /// The slice palette used to live here as six theme tokens plus six raw hex
+  /// values that belonged to no palette and had no dark variant — so half the
+  /// chart ignored the theme. It is now [AppTheme.chartRamp], which has a
+  /// light and a dark set.
+  List<Color> _colors(BuildContext context) => AppTheme.chartRamp(context);
 
   @override
   Widget build(BuildContext context) {
     if (widget.data.isEmpty || widget.data.values.every((v) => v == 0)) {
       return const ChartEmptyState();
     }
+    final ramp = _colors(context);
 
     final entries = widget.data.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -94,7 +86,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                     final isTouched = i == _touchedIndex;
                     final entry = entries[i];
                     final pct = (entry.value / total * 100).toStringAsFixed(1);
-                    final sliceColor = _colors[i % _colors.length];
+                    final sliceColor = ramp[i % ramp.length];
                     final labelColor =
                         ThemeData.estimateBrightnessForColor(sliceColor) ==
                             Brightness.dark
@@ -136,7 +128,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
-                          color: _colors[i % _colors.length],
+                          color: ramp[i % ramp.length],
                           shape: BoxShape.circle,
                         ),
                       ),

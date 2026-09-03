@@ -147,7 +147,15 @@ class InvoiceDetailScreen extends StatelessWidget {
             itemBuilder: (_) => [
               if (invoice.isDraft && canEdit)
                 const PopupMenuItem(value: 'send', child: Text('Mark as Sent')),
-              if (!invoice.isPaid && !invoice.isCancelled && canRecordPayments)
+              // isCreditNote matters here: a credit note is money owed *back*,
+              // and its grandTotal is positive, so without this check it looked
+              // like an unpaid document and offered to take a payment against
+              // it — landing a phantom receipt in the ledger, filed as "paid
+              // out" because a credit note is not a sales invoice.
+              if (!invoice.isPaid &&
+                  !invoice.isCancelled &&
+                  !invoice.isCreditNote &&
+                  canRecordPayments)
                 const PopupMenuItem(
                   value: 'payment',
                   child: Text('Record Payment'),
@@ -240,6 +248,7 @@ class InvoiceDetailScreen extends StatelessWidget {
       bottomNavigationBar:
           (!invoice.isPaid &&
               !invoice.isCancelled &&
+              !invoice.isCreditNote &&
               bs.enablePaymentTracking &&
               canRecordPayments)
           ? SafeArea(

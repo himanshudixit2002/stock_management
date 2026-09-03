@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/stock_transaction_model.dart';
 import '../models/stock_hold_model.dart';
 import '../services/database_service.dart';
+import '../services/stock_calculations.dart';
 import '../utils/error_helpers.dart';
 import 'package:intl/intl.dart';
 import '../utils/date_formats.dart';
@@ -386,7 +387,15 @@ class StockProvider extends ChangeNotifier {
     return _cachedAverageTransactionSize!;
   }
 
-  int get netStockChange => stockInTotal - stockOutTotal - damageTotal;
+  /// Net movement over the filtered period, adjustments included.
+  ///
+  /// Delegates to [StockCalculations.netStockChange], which sums each row's
+  /// signed effect. The old `in - out - damage` left adjustments out entirely,
+  /// so a period containing a −200 correction showed an unchanged net flow on
+  /// the dashboard while the ledger screen — which does use the shared helper —
+  /// showed −200 for the same window.
+  int get netStockChange =>
+      StockCalculations.netStockChange(recentTransactions);
 
   List<MapEntry<String, int>> get topProductsByQuantityMoved {
     if (_cachedTopProductsByQuantityMoved != null && !_filtersDirty) {
@@ -700,7 +709,11 @@ class StockProvider extends ChangeNotifier {
           },
         );
     _holdsSubscription = _databaseService
-        .getStockHolds(limit: 1000)
+        // Open holds only. Everything reading [_stockHolds] — activeHolds, the
+        // Hold List, Stock Release — cares about stock that is still reserved,
+        // and letting consumed/released holds occupy the window pushed genuine
+        // active ones out of it once a workspace passed ~1000 holds.
+        .getStockHolds(limit: 1000, openOnly: true)
         .listen(
           (holds) {
             _stockHolds = holds;
@@ -975,15 +988,27 @@ class StockProvider extends ChangeNotifier {
     }
   }
 
+  /// Corrects stock at [location].
+  ///
+  /// Prefer [countedQuantity] wherever the user typed a physical count: the
+  /// delta is then worked out inside the write transaction against live data,
+  /// so the product ends on the number that was counted even if stock moved
+  /// while the form was open. [adjustmentDelta] is for genuine relative changes.
   Future<bool> recordAdjustment({
     required String productId,
     required String productName,
-    required int adjustmentDelta,
+    int? adjustmentDelta,
+    int? countedQuantity,
     required String location,
     required String userId,
     required String userName,
     String reason = '',
   }) async {
+    if ((adjustmentDelta == null) == (countedQuantity == null)) {
+      _errorMessage = 'Adjustment is missing its quantity.';
+      notifyListeners();
+      return false;
+    }
     if (_operationInFlight) {
       _errorMessage =
           'Another stock operation is still running. Please wait.';
@@ -1010,6 +1035,7 @@ class StockProvider extends ChangeNotifier {
         productId: productId,
         productName: productName,
         adjustmentDelta: adjustmentDelta,
+        countedQuantity: countedQuantity,
         location: location,
         userId: userId,
         userName: userName,

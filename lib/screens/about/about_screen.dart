@@ -73,7 +73,7 @@ class _AboutScreenState extends State<AboutScreen> {
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              gradient: AppTheme.heroGradient,
+              gradient: AppTheme.heroGrad(context),
               borderRadius: BorderRadius.circular(22),
               boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
             ),
@@ -153,7 +153,7 @@ class _AboutScreenState extends State<AboutScreen> {
                   height: 56,
                   margin: const EdgeInsets.only(top: 8),
                   decoration: BoxDecoration(
-                    gradient: AppTheme.heroGradient,
+                    gradient: AppTheme.heroGrad(context),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Center(

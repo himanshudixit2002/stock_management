@@ -117,6 +117,12 @@ class ReportAnalyticsService {
       final price = productMap[tx.productId]?.sellingPrice ?? 0.0;
       final cost = productMap[tx.productId]?.costPrice ?? 0.0;
       final val = tx.quantity * (price > 0 ? price : cost);
+      // Damage is valued at cost, not at what it might have sold for: the loss
+      // is what was paid. This used to use the same selling-price figure as
+      // revenue, while generateCustomReport below used cost — so the Executive
+      // Summary and the Custom Report printed different damage values for the
+      // same date range.
+      final dmgVal = tx.quantity * cost;
 
       switch (tx.type) {
         case TransactionType.stockIn:
@@ -128,7 +134,7 @@ class ReportAnalyticsService {
           break;
         case TransactionType.damage:
           currentDmgQty += tx.quantity;
-          currentDmgVal += val;
+          currentDmgVal += dmgVal;
           break;
         default:
           break;
@@ -142,6 +148,12 @@ class ReportAnalyticsService {
       final price = productMap[tx.productId]?.sellingPrice ?? 0.0;
       final cost = productMap[tx.productId]?.costPrice ?? 0.0;
       final val = tx.quantity * (price > 0 ? price : cost);
+      // Damage is valued at cost, not at what it might have sold for: the loss
+      // is what was paid. This used to use the same selling-price figure as
+      // revenue, while generateCustomReport below used cost — so the Executive
+      // Summary and the Custom Report printed different damage values for the
+      // same date range.
+      final dmgVal = tx.quantity * cost;
 
       switch (tx.type) {
         case TransactionType.stockIn:
@@ -153,7 +165,7 @@ class ReportAnalyticsService {
           break;
         case TransactionType.damage:
           prevDmgQty += tx.quantity;
-          prevDmgVal += val;
+          prevDmgVal += dmgVal;
           break;
         default:
           break;
@@ -241,8 +253,9 @@ class ReportAnalyticsService {
       final movedOut = outMap[product.id] ?? 0;
       final dailyBurn = movedOut / max(periodDays, 1);
       if (dailyBurn > 0) {
-        final daysOfSupply = product.quantity / dailyBurn;
-        if (daysOfSupply < 5 && product.quantity > 0) {
+        // Available, not on-hand — same reason as computeInventoryHealthForecasts.
+        final daysOfSupply = product.availableQuantity / dailyBurn;
+        if (daysOfSupply < 5 && product.availableQuantity > 0) {
           criticalSupplyCount++;
         }
       }
@@ -327,7 +340,14 @@ class ReportAnalyticsService {
       final movedIn = inMap[product.id] ?? 0;
 
       final dailyBurn = movedOut / max(periodDays, 1);
-      final daysOfSupply = dailyBurn > 0 ? (product.quantity / dailyBurn) : (product.quantity > 0 ? 999.0 : 0.0);
+      // Against available stock, not on-hand: units already reserved for an
+      // order cannot be sold again, and measuring the runway against them
+      // overstated it exactly where it mattered. Matches
+      // StockCalculations.daysOfSupply and ProductModel.needsReorder, which is
+      // what decides whether a product appears in the reorder list at all.
+      final daysOfSupply = dailyBurn > 0
+          ? (product.availableQuantity / dailyBurn)
+          : (product.availableQuantity > 0 ? 999.0 : 0.0);
 
       HealthQuadrant quadrant;
       if (product.quantity <= 0 || daysOfSupply < 14) {

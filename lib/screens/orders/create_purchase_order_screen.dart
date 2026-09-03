@@ -90,7 +90,7 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (date != null) setState(() => _expectedDate = date);
+    if (date != null && mounted) setState(() => _expectedDate = date);
   }
 
   void _addItem() => setState(() => _items.add(_ItemRow()));

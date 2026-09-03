@@ -165,7 +165,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       width: 48,
                                       height: 48,
                                       decoration: BoxDecoration(
-                                        gradient: AppTheme.heroGradient,
+                                        gradient: AppTheme.heroGrad(context),
                                         borderRadius: BorderRadius.circular(14),
                                         boxShadow: [
                                           BoxShadow(

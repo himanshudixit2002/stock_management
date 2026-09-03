@@ -211,4 +211,68 @@ void main() {
       expect(_findings(checks, 'invoice_missing_product'), isEmpty);
     });
   });
+
+
+  group('holds the product does not reflect', () {
+    final now = DateTime(2026, 1, 1);
+
+    StockHoldModel hold({int quantity = 60}) => StockHoldModel(
+      id: 'h1',
+      productId: 'p1',
+      productName: 'Widget',
+      location: 'Main',
+      quantity: quantity,
+      status: StockHoldStatus.active,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    test('flags an active hold the product does not record', () {
+      // Exactly what editing a product used to leave behind: the hold document
+      // is still active, but heldQuantity was reset to 0 by a form that never
+      // populated it — so those units read as available and could be sold a
+      // second time.
+      final checks = scan(
+        products: [
+          _product(quantity: 100, heldQuantity: 0, locations: {'Main': 100}),
+        ],
+        holds: [hold()],
+      );
+
+      final findings = _findings(checks, 'hold_not_reserved');
+      expect(findings, hasLength(1));
+      expect(findings.single.severity, DataHealthSeverity.critical);
+      expect(findings.single.entityId, 'p1');
+    });
+
+    test('passes when the product reflects the reservation', () {
+      final checks = scan(
+        products: [
+          _product(
+            quantity: 100,
+            heldQuantity: 60,
+            locations: {'Main': 100},
+            held: {'Main': 60},
+          ),
+        ],
+        holds: [hold()],
+      );
+      expect(_findings(checks, 'hold_not_reserved'), isEmpty);
+    });
+
+    test('a partially reflected reservation is still flagged', () {
+      final checks = scan(
+        products: [
+          _product(
+            quantity: 100,
+            heldQuantity: 20,
+            locations: {'Main': 100},
+            held: {'Main': 20},
+          ),
+        ],
+        holds: [hold()],
+      );
+      expect(_findings(checks, 'hold_not_reserved'), hasLength(1));
+    });
+  });
 }

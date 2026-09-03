@@ -377,7 +377,7 @@ class _AddEditVendorScreenState extends State<AddEditVendorScreen> {
                         const SizedBox(height: 28),
                         Container(
                           decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
+                            gradient: AppTheme.primaryGrad(context),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: AppTheme.coloredShadow(
                               AppTheme.primaryColor,

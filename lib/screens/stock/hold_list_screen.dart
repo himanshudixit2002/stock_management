@@ -273,11 +273,16 @@ class _HoldListScreenState extends State<HoldListScreen> {
               const SizedBox(height: 8),
               Expanded(
                 child: challanKeys.isEmpty
-                    ? const EmptyStateWidget(
+                    ? EmptyStateWidget(
                         icon: Icons.lock_clock_outlined,
                         title: 'No Active Holds',
                         subtitle:
                             'Create a hold with a challan number to reserve stock.',
+                        buttonText: 'Create a hold',
+                        onButtonPressed: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.stockHold,
+                        ),
                       )
                     : RefreshIndicator(
                         color: AppTheme.primaryColor,

@@ -385,7 +385,7 @@ class SectionHeader extends StatelessWidget {
             height: subtitle != null ? 34 : 18,
             margin: const EdgeInsets.only(top: 2, right: 10),
             decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
+              gradient: AppTheme.primaryGrad(context),
               borderRadius: BorderRadius.circular(4),
             ),
           ),

@@ -9,11 +9,20 @@ class PurchaseOrderProvider extends ChangeNotifier {
 
   List<PurchaseOrderModel> _orders = [];
   bool _isLoading = false;
+
+  /// In-flight guard for mutations, kept separate from [_isLoading].
+  ///
+  /// These two used to be the same flag, and the orders snapshot listener sets
+  /// [_isLoading] false — so the moment a receipt's own write came back down
+  /// the stream, the guard cleared while the call was still awaiting. A second
+  /// tap on "Receive" then sailed through and added the stock again, advancing
+  /// receivedQuantity twice. SalesOrderProvider already had it right.
+  bool _isMutating = false;
   String? _errorMessage;
   StreamSubscription? _ordersSubscription;
 
   List<PurchaseOrderModel> get orders => _orders;
-  bool get isLoading => _isLoading;
+  bool get isLoading => _isLoading || _isMutating;
   String? get errorMessage => _errorMessage;
 
   List<PurchaseOrderModel> ordersByStatus(POStatus status) =>
@@ -52,18 +61,19 @@ class PurchaseOrderProvider extends ChangeNotifier {
     _ordersSubscription = null;
     _orders = [];
     _isLoading = false;
+    _isMutating = false;
     _errorMessage = null;
     notifyListeners();
   }
 
   Future<String?> addOrder(PurchaseOrderModel order) async {
-    if (_isLoading) return null;
-    _isLoading = true;
+    if (_isMutating) return null;
+    _isMutating = true;
     _errorMessage = null;
     notifyListeners();
     try {
       final id = await _databaseService.addPurchaseOrder(order);
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return id;
     } catch (e) {
@@ -71,20 +81,20 @@ class PurchaseOrderProvider extends ChangeNotifier {
         e,
         fallback: 'Failed to create purchase order.',
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return null;
     }
   }
 
   Future<bool> updateOrder(PurchaseOrderModel order) async {
-    if (_isLoading) return false;
-    _isLoading = true;
+    if (_isMutating) return false;
+    _isMutating = true;
     _errorMessage = null;
     notifyListeners();
     try {
       await _databaseService.updatePurchaseOrder(order);
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -92,14 +102,14 @@ class PurchaseOrderProvider extends ChangeNotifier {
         e,
         fallback: 'Failed to update purchase order.',
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return false;
     }
   }
 
   Future<bool> deleteOrder(String id) async {
-    if (_isLoading) return false;
+    if (_isMutating) return false;
     final order = getOrderById(id);
     if (order != null && order.invoiceId.isNotEmpty) {
       _errorMessage =
@@ -107,12 +117,12 @@ class PurchaseOrderProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    _isLoading = true;
+    _isMutating = true;
     _errorMessage = null;
     notifyListeners();
     try {
       await _databaseService.deletePurchaseOrder(id);
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -120,7 +130,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
         e,
         fallback: 'Failed to delete purchase order.',
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return false;
     }
@@ -136,8 +146,8 @@ class PurchaseOrderProvider extends ChangeNotifier {
     required String location,
     Map<int, int>? receivedByItemIndex,
   }) async {
-    if (_isLoading) return false;
-    _isLoading = true;
+    if (_isMutating) return false;
+    _isMutating = true;
     _errorMessage = null;
     notifyListeners();
     try {
@@ -148,7 +158,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
         location: location,
         receivedByItemIndex: receivedByItemIndex,
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -156,7 +166,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
         e,
         fallback: 'Failed to receive purchase order.',
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return false;
     }
@@ -168,26 +178,50 @@ class PurchaseOrderProvider extends ChangeNotifier {
     required String userName,
     String defaultLocation = 'Main',
   }) async {
-    if (_isLoading) return false;
-    _isLoading = true;
+    if (_isMutating) return false;
+    _isMutating = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      // Reverse stock if items were received
+      // Reverse stock if items were received.
+      //
+      // Each line is zeroed on the order as its stock comes back out, so a
+      // failure partway leaves the order consistent with what actually
+      // happened and a retry resumes rather than reversing the earlier lines a
+      // second time. Previously the whole loop ran first and the order was only
+      // updated afterwards, so an exception on line 3 of 5 left lines 1-2
+      // reversed, the order still 'received', and the retry took their stock
+      // out again.
+      var working = order;
       if (order.status == POStatus.received ||
           order.status == POStatus.partial) {
-        for (final item in order.items) {
+        for (var i = 0; i < working.items.length; i++) {
+          final item = working.items[i];
           final qty = item.receivedQuantity;
           if (qty <= 0 || item.productId.isEmpty) continue;
+
+          // Back to where it was actually put. Falling back to the first
+          // configured location — which is all this used to do — either threw
+          // ("Not enough available stock at Main") and left the order
+          // uncancellable, or silently deleted unrelated stock from it.
+          final target = item.receivedLocation.trim().isNotEmpty
+              ? item.receivedLocation
+              : defaultLocation;
+
           await _databaseService.removeStock(
             productId: item.productId,
             productName: item.productName,
             quantity: qty,
-            location: defaultLocation,
+            location: target,
             userId: userId,
             userName: userName,
             reason: 'Cancelled PO #${order.id.substring(0, 6)}',
           );
+
+          final lines = List.of(working.items);
+          lines[i] = item.copyWith(receivedQuantity: 0);
+          working = working.copyWith(items: lines);
+          await _databaseService.updatePurchaseOrder(working);
         }
       }
 
@@ -198,12 +232,12 @@ class PurchaseOrderProvider extends ChangeNotifier {
         } catch (_) {}
       }
 
-      final updated = order.copyWith(
+      final updated = working.copyWith(
         status: POStatus.cancelled,
         updatedAt: DateTime.now(),
       );
       await _databaseService.updatePurchaseOrder(updated);
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return true;
     } catch (e) {
@@ -211,7 +245,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
         e,
         fallback: 'Failed to cancel purchase order.',
       );
-      _isLoading = false;
+      _isMutating = false;
       notifyListeners();
       return false;
     }

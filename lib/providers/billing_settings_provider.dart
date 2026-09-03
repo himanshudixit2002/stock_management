@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/billing_settings_model.dart';
+import '../services/company_settings_writer.dart';
 import '../utils/error_helpers.dart';
 
 class BillingSettingsProvider extends ChangeNotifier {
@@ -28,6 +29,18 @@ class BillingSettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
   }
+
+  /// Merges [fields] into the company doc's nested `settings.billing` map.
+  ///
+  /// These writes used to be `set({'settings.billing': ...}, merge: true)`,
+  /// which Firestore takes as a literal top-level field name rather than a
+  /// path — so the currency symbol, invoice prefixes, GST numbers and terms all
+  /// appeared to save and were gone on the next load. See
+  /// [CompanySettingsWriter].
+  Future<void> _writeBilling(Map<String, dynamic> fields) =>
+      CompanySettingsWriter(
+        _firestore.collection('companies').doc(_companyId),
+      ).writeAll(fields, prefix: 'billing');
 
   /// Loads billing settings for [companyId].
   ///
@@ -88,9 +101,7 @@ class BillingSettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.billing.billingEnabled': enabled,
-      }, SetOptions(merge: true));
+      await _writeBilling({'billingEnabled': enabled});
       return true;
     } catch (e) {
       _settings = previous;
@@ -110,9 +121,7 @@ class BillingSettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _companyDoc.set({
-        'settings.billing': updated.toMap(),
-      }, SetOptions(merge: true));
+      await _writeBilling(updated.toMap());
       await _companyDoc.collection('billingSequences').doc('default').set({
         'nextInvoiceNumber': updated.nextInvoiceNumber,
         'nextPurchaseNumber': updated.nextPurchaseNumber,

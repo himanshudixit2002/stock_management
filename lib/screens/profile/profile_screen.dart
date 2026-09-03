@@ -88,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: AppTheme.heroGradient,
+            gradient: AppTheme.heroGrad(context),
             boxShadow: AppTheme.coloredShadow(AppTheme.primaryColor),
           ),
           child: CircleAvatar(
@@ -366,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             child: Container(
               decoration: BoxDecoration(
-                gradient: AppTheme.dangerGradient,
+                gradient: AppTheme.dangerGrad(context),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: AppTheme.coloredShadow(AppTheme.dangerColor),
               ),

@@ -936,6 +936,19 @@ class ExcelService {
     final updates = <MergedProduct>[];
     final newProducts = <ProductModel>[];
 
+    // Rows are grouped by what they resolve to *before* anything is merged.
+    //
+    // Each row used to be matched and merged independently, so two rows for one
+    // product both computed `match.quantity + row.quantity` from the same base.
+    // bulkUpdateProducts then wrote the same document twice in one batch, where
+    // Firestore applies writes in order and the last one wins: existing 100
+    // plus rows of 10 and 5 ended at 105, not 115, and the import reported
+    // success. The same grouping de-duplicates brand-new products that match
+    // each other but nothing existing, which would otherwise be created twice.
+    final updateGroups = <String, List<ProductModel>>{};
+    final matchById = <String, ProductModel>{};
+    final newGroups = <String, List<ProductModel>>{};
+
     for (final imported in importedProducts) {
       ProductModel? match;
 
@@ -955,41 +968,86 @@ class ExcelService {
       }
 
       if (match != null) {
-        updates.add(
-          MergedProduct(
-            existing: match,
-            imported: imported,
-            merged: match.copyWith(
-              quantity: match.quantity + imported.quantity,
-              locationQuantities: _mergeLocations(
-                match.locationQuantities,
-                imported.locationQuantities,
-              ),
-              costPrice: imported.costPrice > 0
-                  ? imported.costPrice
-                  : match.costPrice,
-              sellingPrice: imported.sellingPrice > 0
-                  ? imported.sellingPrice
-                  : match.sellingPrice,
-              barcode: imported.barcode.isNotEmpty
-                  ? imported.barcode
-                  : match.barcode,
-              description: imported.description.isNotEmpty
-                  ? imported.description
-                  : match.description,
-              lowStockThreshold: imported.lowStockThreshold > 0
-                  ? imported.lowStockThreshold
-                  : match.lowStockThreshold,
-              updatedAt: DateTime.now(),
-            ),
-          ),
-        );
+        matchById[match.id] = match;
+        updateGroups.putIfAbsent(match.id, () => []).add(imported);
       } else {
-        newProducts.add(imported);
+        final key = imported.barcode.isNotEmpty
+            ? 'b:${imported.barcode.trim().toLowerCase()}'
+            : 'c:${compositeKey(imported.name, imported.categoryName, imported.company, imported.size)}';
+        newGroups.putIfAbsent(key, () => []).add(imported);
       }
     }
 
+    updateGroups.forEach((productId, rows) {
+      final match = matchById[productId]!;
+      final combined = _combineRows(rows);
+      updates.add(
+        MergedProduct(
+          existing: match,
+          imported: combined,
+          merged: match.copyWith(
+            quantity: match.quantity + combined.quantity,
+            locationQuantities: _mergeLocations(
+              match.locationQuantities,
+              combined.locationQuantities,
+            ),
+            costPrice: combined.costPrice > 0
+                ? combined.costPrice
+                : match.costPrice,
+            sellingPrice: combined.sellingPrice > 0
+                ? combined.sellingPrice
+                : match.sellingPrice,
+            barcode: combined.barcode.isNotEmpty
+                ? combined.barcode
+                : match.barcode,
+            description: combined.description.isNotEmpty
+                ? combined.description
+                : match.description,
+            lowStockThreshold: combined.lowStockThreshold > 0
+                ? combined.lowStockThreshold
+                : match.lowStockThreshold,
+            updatedAt: DateTime.now(),
+          ),
+        ),
+      );
+    });
+
+    for (final rows in newGroups.values) {
+      newProducts.add(_combineRows(rows));
+    }
+
     return SmartMergeResult(updates: updates, newProducts: newProducts);
+  }
+
+  /// Folds sheet rows that resolve to the same product into one.
+  ///
+  /// Quantities and per-location figures add up — two rows for the same product
+  /// mean that much stock arrived in total. Everything else takes the last
+  /// non-empty value, so a later row can fill in a price or barcode an earlier
+  /// one left blank without a blank overwriting something already supplied.
+  ProductModel _combineRows(List<ProductModel> rows) {
+    var result = rows.first;
+    for (final row in rows.skip(1)) {
+      result = result.copyWith(
+        quantity: result.quantity + row.quantity,
+        locationQuantities: _mergeLocations(
+          result.locationQuantities,
+          row.locationQuantities,
+        ),
+        costPrice: row.costPrice > 0 ? row.costPrice : result.costPrice,
+        sellingPrice: row.sellingPrice > 0
+            ? row.sellingPrice
+            : result.sellingPrice,
+        barcode: row.barcode.isNotEmpty ? row.barcode : result.barcode,
+        description: row.description.isNotEmpty
+            ? row.description
+            : result.description,
+        lowStockThreshold: row.lowStockThreshold > 0
+            ? row.lowStockThreshold
+            : result.lowStockThreshold,
+      );
+    }
+    return result;
   }
 
   Map<String, int> _mergeLocations(

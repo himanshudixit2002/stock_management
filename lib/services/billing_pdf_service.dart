@@ -233,7 +233,13 @@ class BillingPdfService {
     final headers = ['#', 'Item', 'Qty', 'Price'];
     if (bs.enableDiscounts) headers.add('Disc%');
     if (bs.enableTax) headers.add('${bs.taxLabel}%');
-    headers.add('Total');
+    // "Amount", not "Total", and it carries the pre-tax line value. The column
+    // used to print lineTotal (taxable + tax), which ignores the invoice-level
+    // discount that the totals block below then applies — so adding the column
+    // up gave a customer a different figure from the amount they were charged,
+    // with nothing on the page to reconcile the two. Pre-tax line amounts sum
+    // to the Subtotal, and the block takes it from there.
+    headers.add('Amount');
 
     final data = <List<String>>[];
     for (var i = 0; i < invoice.items.length; i++) {
@@ -250,7 +256,7 @@ class BillingPdfService {
       if (bs.enableTax) {
         row.add(item.taxRate > 0 ? '${item.taxRate}%' : '-');
       }
-      row.add(_fmt(item.lineTotal, sym));
+      row.add(_fmt(item.lineTaxable, sym));
       data.add(row);
     }
 

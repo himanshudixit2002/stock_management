@@ -8,6 +8,7 @@ import '../../models/product_model.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/stock_provider.dart';
+import '../../services/stock_calculations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -41,22 +42,25 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
     List<StockTransactionModel> transactions,
   ) {
     final now = DateTime.now();
-    final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-
-    final stockOutByProduct = <String, int>{};
+    DateTime? firstAt;
     for (final t in transactions) {
-      if (t.type == TransactionType.stockOut && t.date.isAfter(thirtyDaysAgo)) {
-        stockOutByProduct[t.productId] =
-            (stockOutByProduct[t.productId] ?? 0) + t.quantity;
-      }
+      if (firstAt == null || t.date.isBefore(firstAt)) firstAt = t.date;
     }
 
     final atRisk = <_AtRiskProduct>[];
     for (final p in products) {
-      final totalOut = stockOutByProduct[p.id] ?? 0;
-      final avgDaily = totalOut / 30.0;
+      // Shared definition — see StockCalculations. This screen used to divide
+      // by a fixed 30 and measure the runway against on-hand, so it disagreed
+      // with the reorder list about the same product.
+      final avgDaily = StockCalculations.dailyBurnRate(
+        transactions,
+        p.id,
+        now: now,
+        firstTransactionAt: firstAt,
+      );
       if (avgDaily <= 0) continue;
-      final daysLeft = (p.quantity / avgDaily).floor();
+      final supply = StockCalculations.daysOfSupply(p, avgDaily);
+      final daysLeft = supply.isFinite ? supply.floor() : 999;
       if (daysLeft <= 14) {
         atRisk.add(
           _AtRiskProduct(

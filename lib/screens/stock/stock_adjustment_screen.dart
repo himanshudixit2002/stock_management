@@ -50,14 +50,22 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     return _selectedProduct!.locationQuantities[_selectedLocation] ?? 0;
   }
 
-  int get _difference {
-    final actual = toBaseQuantity(
-      packs: int.tryParse(_actualPackCtrl.text) ?? 0,
-      pieces: int.tryParse(_actualCountCtrl.text) ?? 0,
-      unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
-    );
-    return actual - _currentStock;
-  }
+  /// The physical count the user entered, in base units.
+  ///
+  /// This — not [_difference] — is what gets sent. A count is an absolute
+  /// statement, and [_currentStock] comes from a ProductProvider model cached
+  /// for up to two minutes, so a delta computed here could be measured against
+  /// a figure that was already out of date.
+  int get _actualQuantity => toBaseQuantity(
+    packs: int.tryParse(_actualPackCtrl.text) ?? 0,
+    pieces: int.tryParse(_actualCountCtrl.text) ?? 0,
+    unitsPerPack: _selectedProduct?.unitsPerPack ?? 1,
+  );
+
+  /// The change this screen *expects*, for display and to disable the button
+  /// when there is nothing to do. The figure actually applied is derived
+  /// server-side and may differ if stock moved while the form was open.
+  int get _difference => _actualQuantity - _currentStock;
 
   @override
   void initState() {
@@ -105,7 +113,11 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     final success = await stockProvider.recordAdjustment(
       productId: _selectedProduct!.id,
       productName: _selectedProduct!.name,
-      adjustmentDelta: _difference,
+      // The counted figure, not the delta this screen computed from a cached
+      // product. The delta is derived inside the write transaction, so the
+      // product lands on the number that was physically counted even if stock
+      // moved while this form was open.
+      countedQuantity: _actualQuantity,
       location: _selectedLocation!,
       userId: auth.currentUser!.uid,
       userName: auth.currentUser!.name,
@@ -121,7 +133,8 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
         showSuccessOverlay(
           context,
           message:
-              'Adjusted by ${_difference > 0 ? '+' : ''}$_difference ${_selectedProduct?.unit ?? 'units'}',
+              'Counted $_actualQuantity ${_selectedProduct?.unit ?? 'units'} '
+              'at $_selectedLocation',
         );
       }
     } else {

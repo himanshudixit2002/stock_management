@@ -70,6 +70,9 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
 
     final number = await billing.getNextInvoiceNumber(
       '${bs.invoicePrefix}-CN',
+      // Its own sequence, so issuing a credit note no longer punches a hole in
+      // the sales-invoice series.
+      type: InvoiceType.creditNote,
     );
     if (!mounted) return;
     if (number == null) {

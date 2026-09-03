@@ -13,6 +13,7 @@ import '../../providers/stock_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/purchase_order_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/stock_calculations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -64,36 +65,50 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
   List<_ReorderItem> _compute(
     List<ProductModel> products,
     List<StockTransactionModel> transactions,
+    List<VendorModel> vendors,
   ) {
     final now = DateTime.now();
-    final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-
-    final stockOutByProduct = <String, int>{};
+    // The oldest movement on record, so a workspace younger than the window
+    // gets its burn divided by the days it has actually existed rather than a
+    // flat 30 — which used to understate a new workspace's demand tenfold.
+    DateTime? firstAt;
     for (final t in transactions) {
-      if (t.type == TransactionType.stockOut && t.date.isAfter(thirtyDaysAgo)) {
-        stockOutByProduct[t.productId] =
-            (stockOutByProduct[t.productId] ?? 0) + t.quantity;
-      }
+      if (firstAt == null || t.date.isBefore(firstAt)) firstAt = t.date;
     }
+
+    final leadTimeByVendor = {
+      for (final v in vendors)
+        if (v.leadTimeDays > 0) v.id: v.leadTimeDays,
+    };
 
     final items = <_ReorderItem>[];
     for (final p in products) {
       if (!p.needsReorder) continue;
 
-      final totalOut = stockOutByProduct[p.id] ?? 0;
-      final avgDaily = totalOut / 30.0;
-      final daysLeft = avgDaily > 0 ? (p.quantity / avgDaily).floor() : 999;
-      final suggestedQty = (p.lowStockThreshold * 2 - p.quantity).clamp(
-        1,
-        99999,
+      // One shared definition, so this screen, the forecast, the reports and
+      // the AI dashboard finally agree about the same product.
+      final avgDaily = StockCalculations.dailyBurnRate(
+        transactions,
+        p.id,
+        now: now,
+        firstTransactionAt: firstAt,
       );
+      final supply = StockCalculations.daysOfSupply(p, avgDaily);
+      final daysLeft = supply.isFinite ? supply.floor() : 999;
 
       items.add(
         _ReorderItem(
           product: p,
           avgDailyUsage: avgDaily,
           daysUntilStockout: daysLeft,
-          suggestedQty: suggestedQty,
+          suggestedQty: StockCalculations.suggestedReorderQuantity(
+            p,
+            avgDaily,
+            // The supplier's own figure, which the user already entered on the
+            // vendor. Ignoring it was how a 21-day lead time got an order sized
+            // for three days of cover.
+            leadTimeDays: leadTimeByVendor[p.preferredVendorId] ?? 7,
+          ),
         ),
       );
     }
@@ -273,7 +288,11 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
     final products = productProvider.analyticsProducts;
     final isLoading = productProvider.isLoadingAnalytics;
     final transactions = context.watch<StockProvider>().allTransactions;
-    final items = _compute(products, transactions);
+    final items = _compute(
+      products,
+      transactions,
+      context.watch<VendorProvider>().vendors,
+    );
 
     final filtered = _categoryFilter == null
         ? items

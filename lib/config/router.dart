@@ -76,7 +76,7 @@ import '../screens/about/about_screen.dart' deferred as about;
 import '../screens/settings/home_customization_screen.dart' deferred as home_custom;
 import '../screens/settings/data_health_screen.dart';
 import '../screens/settings/plan_features_screen.dart';
-import '../screens/super_admin/super_admin_dashboard_screen.dart';
+import '../screens/super_admin/super_admin_shell.dart';
 import '../screens/super_admin/super_admin_company_screen.dart';
 import '../models/company_model.dart';
 import '../screens/reports/stock_ledger_screen.dart';
@@ -603,19 +603,31 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     // -- Super admin (cross-tenant; gated by SuperAdminProvider + rules) --
     AppRoutes.superAdmin => _slideRoute(
       settings,
-      const SuperAdminDashboardScreen(),
+      const SuperAdminShell(),
     ),
-    AppRoutes.superAdminCompany => _slideRoute(
-      settings,
-      SuperAdminCompanyScreen(
-        company: settings.arguments as CompanyModel,
-      ),
-    ),
+    // Nullable cast with a fallback, like every other argument-taking route
+    // here. These two cast to non-nullable, so a push with no arguments —
+    // including the unknown-route and deep-link recovery paths — threw a
+    // TypeError during route *generation* instead of degrading to a list.
+    AppRoutes.superAdminCompany => () {
+      final company = settings.arguments as CompanyModel?;
+      return company == null
+          ? _slideRoute(settings, const SuperAdminShell())
+          : _slideRoute(settings, SuperAdminCompanyScreen(company: company));
+    }(),
     AppRoutes.aging => _slideRoute(settings, const AgingScreen()),
-    AppRoutes.creditNote => _slideRoute(
-      settings,
-      CreditNoteScreen(invoice: settings.arguments as InvoiceModel),
-    ),
+    AppRoutes.creditNote => () {
+      final invoice = settings.arguments as InvoiceModel?;
+      return invoice == null
+          ? _slideRoute(
+              settings,
+              DeferredScreenLoader(
+                future: billing_list.loadLibrary(),
+                builder: (_) => billing_list.InvoiceListScreen(),
+              ),
+            )
+          : _slideRoute(settings, CreditNoteScreen(invoice: invoice));
+    }(),
     AppRoutes.paymentsLedger => _slideRoute(
       settings,
       const PaymentsLedgerScreen(),
