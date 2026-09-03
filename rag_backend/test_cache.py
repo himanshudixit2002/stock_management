@@ -72,6 +72,32 @@ check("fresh hit", short.get("ttl probe", CID, FP_A), PAYLOAD)
 time.sleep(0.3)
 check("expired miss", short.get("ttl probe", CID, FP_A), None)
 
+print("\n== Session-bound answers are never cached ==")
+# A preview parks a pending action against the session. Replaying it from cache
+# reproduces the card with nothing behind it, so Confirm does nothing — and a
+# replayed "Cancelled" leaves the real action live for a later confirm to apply.
+import main
+
+check(
+    "a single-product preview",
+    main._cacheable({"response_kind": "preview", "pending_action": {"tool": "update_stock"}}),
+    False,
+)
+check(
+    "a bulk preview",
+    main._cacheable({"response_kind": "bulk_preview", "pending_action": {"tool": "__bulk__"}}),
+    False,
+)
+check(
+    "an ambiguity question",
+    main._cacheable({"response_kind": "clarification"}),
+    False,
+)
+check("an ordinary report", main._cacheable({"response_kind": "report"}), True)
+check("a confirmation bypasses the cache", main._bypass_cache("confirm"), True)
+check("so does a cancellation", main._bypass_cache("Cancel"), True)
+check("an ordinary question does not", main._bypass_cache("what is low stock"), False)
+
 print("\n== Hit rate is tracked ==")
 stats = cache.stats()
 ok = stats["hits"] > 0 and stats["misses"] > 0

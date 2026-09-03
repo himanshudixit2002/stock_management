@@ -47,6 +47,23 @@ dupes = testkit.seed([
 out, issues = check_answer("**Cotton Roll Basic** has 40 units.", dupes)
 check("duplicate names are not rewritten", issues, [])
 
+print("\n== Placeholder product names are caught, real ones are not ==")
+# "SKU 1 / SKU 2" is what the model writes when it is asked to lay out a table
+# it has no rows for. It reads exactly like inventory to someone skimming.
+_, issues = check_answer(
+    "| Product | Stock |\n| SKU 1 | 20 |\n| SKU 2 | 5 |", facts
+)
+check("both placeholders flagged", [i.kind for i in issues], ["placeholder", "placeholder"])
+
+_, issues = check_answer("Restock <product name> this week.", facts)
+check("an angle-bracket stand-in", [i.kind for i in issues], ["placeholder"])
+
+named = testkit.seed([
+    {"id": "a", "barcode": "1", "name": "Item 5", "stock": 90, "min_threshold": 5},
+])
+_, issues = check_answer("**Item 5** is fine.", named)
+check("a real product called 'Item 5' is left alone", issues, [])
+
 print("\n== Prose without checkable claims passes through ==")
 text = "Order more soon; your fastest movers will run out within the week."
 out, issues = check_answer(text, facts)

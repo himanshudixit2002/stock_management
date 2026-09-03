@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ from cache import answer_cache
 from facts import fact_store
 from graph import rag_pipeline
 from inventory_db import db_instance
+from pending import is_cancellation, is_confirmation
 from resolver import ProductResolver
 
 app = FastAPI(
@@ -94,32 +95,29 @@ class QueryResponse(BaseModel):
     clarification_options: Optional[List[Dict[str, Any]]] = None
     pending_action: Optional[Dict[str, Any]] = None
     response_kind: Optional[str] = "prose"
+    # Rows behind a list answer, so the client can render cards with actions
+    # rather than parsing the markdown table back apart.
+    items: Optional[List[Dict[str, Any]]] = None
 
 
-def _cid(header: Optional[str], body: Optional[str]) -> str:
-    """Unverified company id. Only /health may use this — every other route
-    goes through auth.verified_company_id, which proves the caller is a member."""
-    cid = (header or body or "").strip()
-    if not cid or cid == "default":
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "company_id_required",
-                "message": "No workspace was identified for this request."
-            }
-        )
-    return cid
+def _sid(request: QueryRequest, principal: "auth.Principal") -> str:
+    """Which conversation a pending action belongs to.
 
-
-def _sid(request: QueryRequest, company_id: str) -> str:
-    return (request.session_id or company_id or "default").strip() or "default"
+    Falls back to the caller's uid, never to the workspace. A pending action is
+    keyed by (company, session): defaulting the session to the company id meant
+    two people in the same workspace who sent no session id shared one slot, so
+    one could confirm a change the other had previewed — and it would run under
+    the confirmer's permissions.
+    """
+    return (request.session_id or "").strip() or f"uid:{principal.uid}"
 
 
 def _inputs(
     request: QueryRequest,
-    company_id: str,
+    principal: "auth.Principal",
     permissions: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
+    company_id = principal.company_id
     return {
         "question": request.question,
         "retries": 0,
@@ -127,7 +125,7 @@ def _inputs(
         "history": [h.model_dump() for h in request.history] if request.history else [],
         "company_id": company_id,
         "business_type": request.business_type or "retail_store",
-        "session_id": _sid(request, company_id),
+        "session_id": _sid(request, principal),
         # Carried into the graph so the write choke point can refuse a change
         # the caller is not entitled to make. Reads are unaffected.
         "permissions": permissions,
@@ -154,6 +152,27 @@ def _catalog_if_mutated(state: Dict[str, Any], company_id: str) -> Optional[List
     ]
 
 
+# Answers that carry, or depend on, per-session state are not cacheable.
+#
+# A preview parks a pending action against the session; serving that preview
+# from cache reproduces the card without the action behind it, so confirming
+# does nothing. Worse, "cancel" is a perfectly ordinary-looking answer to
+# cache — and replaying it would leave the real pending action live, ready for
+# a later "confirm" to apply something the user thought they had dropped.
+_UNCACHEABLE_KINDS = {"preview", "bulk_preview", "clarification"}
+
+
+def _bypass_cache(question: str) -> bool:
+    q = (question or "").strip().lower()
+    return is_confirmation(q) or is_cancellation(q)
+
+
+def _cacheable(state: Dict[str, Any]) -> bool:
+    if state.get("pending_action"):
+        return False
+    return state.get("response_kind") not in _UNCACHEABLE_KINDS
+
+
 # ---------------------------------------------------------------------------
 # Chat
 # ---------------------------------------------------------------------------
@@ -167,8 +186,12 @@ async def chat_endpoint(
     business_type = request.business_type or "retail_store"
 
     facts = await asyncio.to_thread(fact_store.get, company_id)
-    cached = answer_cache.get(
-        request.question, company_id, facts.fingerprint, business_type
+    cached = (
+        None
+        if _bypass_cache(request.question)
+        else answer_cache.get(
+            request.question, company_id, facts.fingerprint, business_type
+        )
     )
     if cached:
         return QueryResponse(
@@ -179,9 +202,10 @@ async def chat_endpoint(
             answered_by="cache",
             clarification_options=cached.get("clarification_options"),
             response_kind=cached.get("response_kind", "prose"),
+            items=cached.get("items"),
         )
 
-    inputs = _inputs(request, company_id, principal.granted())
+    inputs = _inputs(request, principal, principal.granted())
     inputs["facts"] = facts
     state = await rag_pipeline.ainvoke(inputs)
 
@@ -191,7 +215,7 @@ async def chat_endpoint(
 
     if executed:
         answer_cache.clear(company_id)
-    else:
+    elif _cacheable(state):
         answer_cache.set(
             request.question,
             company_id,
@@ -202,6 +226,7 @@ async def chat_endpoint(
                 "analytics_data": state.get("analytics_data"),
                 "clarification_options": state.get("clarification_options"),
                 "response_kind": state.get("response_kind", "prose"),
+                "items": state.get("items"),
             },
             business_type,
         )
@@ -217,6 +242,7 @@ async def chat_endpoint(
         clarification_options=state.get("clarification_options"),
         pending_action=state.get("pending_action"),
         response_kind=state.get("response_kind", "prose"),
+        items=state.get("items"),
     )
 
 
@@ -245,8 +271,12 @@ async def stream_chat_endpoint(
     async def events():
         facts = await asyncio.to_thread(fact_store.get, company_id)
 
-        cached = answer_cache.get(
-            request.question, company_id, facts.fingerprint, business_type
+        cached = (
+            None
+            if _bypass_cache(request.question)
+            else answer_cache.get(
+                request.question, company_id, facts.fingerprint, business_type
+            )
         )
         if cached:
             yield _sse({"type": "status", "message": "Answering from cache"})
@@ -260,13 +290,14 @@ async def stream_chat_endpoint(
                     "executed_actions": [],
                     "clarification_options": cached.get("clarification_options"),
                     "response_kind": cached.get("response_kind", "prose"),
+                    "items": cached.get("items"),
                 }
             )
             return
 
         yield _sse({"type": "status", "message": "Reading live inventory..."})
 
-        inputs = _inputs(request, company_id, principal.granted())
+        inputs = _inputs(request, principal, principal.granted())
         inputs["facts"] = facts
 
         state: Dict[str, Any] = {}
@@ -333,7 +364,7 @@ async def stream_chat_endpoint(
 
         if executed:
             answer_cache.clear(company_id)
-        else:
+        elif _cacheable(state):
             answer_cache.set(
                 request.question,
                 company_id,
@@ -344,6 +375,7 @@ async def stream_chat_endpoint(
                     "analytics_data": state.get("analytics_data"),
                     "clarification_options": state.get("clarification_options"),
                     "response_kind": state.get("response_kind", "prose"),
+                    "items": state.get("items"),
                 },
                 business_type,
             )
@@ -360,6 +392,7 @@ async def stream_chat_endpoint(
                 "clarification_options": state.get("clarification_options"),
                 "pending_action": state.get("pending_action"),
                 "response_kind": state.get("response_kind", "prose"),
+                "items": state.get("items"),
             }
         )
 

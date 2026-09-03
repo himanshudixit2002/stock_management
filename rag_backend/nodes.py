@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import BaseModel, Field
 
+import bulk
 import deterministic
 import llm as llm_factory
 import verify
@@ -150,6 +151,42 @@ class set_reorder_threshold(BaseModel):
     new_threshold: int = Field(description="New minimum threshold.")
 
 
+class bulk_action(BaseModel):
+    """Apply one change to EVERY product in a named group.
+
+    Use this — never the single-product tools, and never create_product — when
+    the request is about a *set* of products rather than one: "all low stock
+    items", "everything out of stock", "every product in Dairy". The group is
+    resolved from live data, and the user confirms the full list before
+    anything is written.
+    """
+
+    operation: str = Field(
+        description=(
+            "add_stock (add `qty` to each), deduct_stock (remove `qty` from each), "
+            "top_up_to_min (raise each to its own threshold), "
+            "create_purchase_order (draft a PO per product), "
+            "set_threshold (set each product's reorder threshold to `qty`), "
+            "audit (record a counted stock of `qty` on each)."
+        )
+    )
+    selector: str = Field(
+        description=(
+            "Which products: low_stock, out_of_stock, needs_reorder, dead_stock, "
+            "overstocked, untracked, all, category:<name>, or location:<name>. "
+            "Use a category or location name the company actually has."
+        )
+    )
+    qty: int = Field(
+        default=0,
+        description=(
+            "Units per product. Leave 0 for top_up_to_min, and for "
+            "create_purchase_order when each product should be ordered at its "
+            "own suggested quantity."
+        ),
+    )
+
+
 READ_TOOLS = [
     search_products,
     get_product,
@@ -164,6 +201,7 @@ WRITE_TOOLS = [
     transfer_stock,
     audit_inventory,
     set_reorder_threshold,
+    bulk_action,
 ]
 EXECUTION_TOOLS = READ_TOOLS + WRITE_TOOLS
 ANALYTICS_TOOLS = READ_TOOLS
@@ -182,6 +220,21 @@ WRITE_TOOL_PERMISSIONS = {
     "transfer_stock": "canTransfer",
     "audit_inventory": "canAdjustStock",
     "set_reorder_threshold": "canEditProducts",
+}
+
+# What each bulk operation maps to, so one grant check covers both routes: a
+# bulk stock change is still a stock change, and must not become a way around
+# `canAdjustStock`.
+BULK_OPERATIONS = {
+    "add_stock": ("update_stock", "fixed"),
+    "deduct_stock": ("update_stock", "fixed"),
+    "top_up_to_min": ("update_stock", "to_min"),
+    "restock_to_min": ("update_stock", "to_min"),
+    "create_purchase_order": ("create_purchase_order", "suggested"),
+    "purchase_order": ("create_purchase_order", "suggested"),
+    "reorder": ("create_purchase_order", "suggested"),
+    "set_threshold": ("set_reorder_threshold", "fixed"),
+    "audit": ("audit_inventory", "fixed"),
 }
 
 
@@ -471,6 +524,15 @@ async def router_node(state: GraphState) -> GraphState:
             state["route_source"] = "pending"
             return state
 
+    # A bulk instruction ("restock everything that's low") carries no quantity
+    # and no product name, so the execution patterns miss it and the analytics
+    # patterns claim it — the user got a report back instead of the change they
+    # asked for.
+    if bulk.is_bulk_write(q):
+        state["intent"] = "EXECUTION"
+        state["route_source"] = "bulk"
+        return state
+
     if any(re.search(p, q) for p in _EXECUTION_PATTERNS):
         state["intent"] = "EXECUTION"
         state["route_source"] = "regex"
@@ -497,6 +559,68 @@ async def router_node(state: GraphState) -> GraphState:
 # 2. Retrieve — build the fact context for this turn
 # ---------------------------------------------------------------------------
 
+def _workspace_block(facts: InventoryFacts) -> str:
+    """How *this* company's data is set up.
+
+    The agent used to see stock numbers and nothing else, so it invented shelf
+    names, categories and units that no screen in the app would ever match, and
+    it could not answer "how is my inventory organised?" at all. This is the
+    vocabulary and the rules the rest of the app runs on.
+    """
+    s = facts.summary()
+    lines = [f"WORKSPACE SETUP ({s['total_products']} products):"]
+
+    locations = facts.known_locations
+    if locations:
+        lines.append(
+            f"- Locations ({len(locations)}): "
+            + ", ".join(locations[:20])
+            + (" …" if len(locations) > 20 else "")
+        )
+    else:
+        lines.append("- Locations: none configured yet.")
+
+    categories = sorted({(p.category or "").strip() for p in facts.products} - {""})
+    for c in facts.categories or []:
+        name = str(c.get("name", "")).strip()
+        if name and name not in categories:
+            categories.append(name)
+    if categories:
+        lines.append(
+            f"- Categories ({len(categories)}): "
+            + ", ".join(categories[:20])
+            + (" …" if len(categories) > 20 else "")
+        )
+
+    units = sorted({(p.unit or "").strip() for p in facts.products} - {""})
+    if units:
+        lines.append("- Units in use: " + ", ".join(units[:12]))
+
+    vendors = sorted({(p.vendor_name or "").strip() for p in facts.products} - {""})
+    if vendors:
+        lines.append(
+            f"- Suppliers ({len(vendors)}): "
+            + ", ".join(vendors[:12])
+            + (" …" if len(vendors) > 12 else "")
+        )
+
+    lines.append(
+        "- 'Low stock' means quantity at or below that product's own threshold; "
+        "'out of stock' means zero. Each product carries its own threshold."
+    )
+    lines.append(
+        f"- Demand, burn rate and days of cover come from recorded stock "
+        f"movements over the last {facts.window_days} days; "
+        f"{s['history_coverage_pct']}% of products have any."
+    )
+    if s["held_units"]:
+        lines.append(
+            f"- {s['held_units']} units are held/reserved against open orders and "
+            "are not freely available."
+        )
+    return "\n".join(lines)
+
+
 async def retrieve_node(state: GraphState) -> GraphState:
     company_id = state.get("company_id", "default")
     question = state.get("question", "")
@@ -506,7 +630,7 @@ async def retrieve_node(state: GraphState) -> GraphState:
     state["facts"] = facts
 
     focus: List[ProductFact] = []
-    blocks: List[str] = [facts.summary_line()]
+    blocks: List[str] = [facts.summary_line(), _workspace_block(facts)]
 
     provided = (state.get("provided_context") or "").strip()
     if provided and "[REAL_USER_CATALOG:" not in provided:
@@ -534,18 +658,12 @@ async def retrieve_node(state: GraphState) -> GraphState:
             + "\n".join(p.context_line() for p in focus[:MAX_CONTEXT_PRODUCTS])
         )
         # Creating or moving stock means choosing from the company's own
-        # vocabulary. Without it the model invents shelves and categories that
-        # no screen in the app will ever match.
-        if facts.known_locations:
-            blocks.append(
-                "VALID LOCATIONS (use one of these exactly): "
-                + ", ".join(facts.known_locations[:40])
-            )
-        if facts.categories:
-            blocks.append(
-                "VALID CATEGORIES (use one of these exactly): "
-                + ", ".join(c["name"] for c in facts.categories[:40])
-            )
+        # vocabulary — the setup block above lists it, and nothing outside it
+        # is valid.
+        blocks.append(
+            "Locations, categories and units must come from WORKSPACE SETUP "
+            "above, spelled exactly as listed. Never invent one."
+        )
 
     elif intent == "ANALYTICS":
         priority = facts.needs_reorder[:10] + facts.dead_stock[:5]
@@ -881,6 +999,88 @@ def _vet_new_product(args: Dict[str, Any], facts: InventoryFacts) -> Tuple[str, 
     return _build_new_product_preview(args, facts), True
 
 
+# ---------------------------------------------------------------------------
+# Bulk (multi-product) requests
+# ---------------------------------------------------------------------------
+
+def _bulk_from_tool_args(args: Dict[str, Any], facts: InventoryFacts):
+    """Turn a `bulk_action` tool call into a resolved plan, or None."""
+    operation = str(args.get("operation", "")).strip().lower()
+    mapped = BULK_OPERATIONS.get(operation)
+    if mapped is None:
+        return None
+    tool, mode = mapped
+
+    selector = bulk.selector_for_key(str(args.get("selector", "")), facts)
+    if selector is None:
+        return None
+
+    try:
+        qty = int(args.get("qty") or 0)
+    except (TypeError, ValueError):
+        qty = 0
+
+    if tool == "update_stock" and mode == "fixed":
+        if qty <= 0:
+            return None
+        delta = -qty if operation == "deduct_stock" else qty
+        call_args: Dict[str, Any] = {
+            "qty_change": delta,
+            "reason": "Bulk adjustment via Ask AI",
+        }
+    elif tool == "update_stock":
+        call_args = {"reason": "Bulk top-up to threshold via Ask AI"}
+    elif tool == "create_purchase_order":
+        if qty > 0:
+            mode = "fixed"
+            call_args = {"reorder_qty": qty, "supplier_name": ""}
+        else:
+            call_args = {"supplier_name": ""}
+    elif tool == "set_reorder_threshold":
+        if qty <= 0:
+            return None
+        call_args = {"new_threshold": qty}
+    else:  # audit_inventory
+        call_args = {"actual_stock": max(0, qty), "notes": "Bulk audit via Ask AI"}
+
+    return bulk.build(tool, selector, facts, call_args, mode)
+
+
+def _bulk_response(
+    plan,
+    facts: InventoryFacts,
+    state: GraphState,
+    company_id: str,
+    session_id: str,
+) -> GraphState:
+    """Preview a bulk plan, or explain that nothing qualifies.
+
+    An empty selection is a real answer. Letting it fall through to the model
+    is how "add 10 to everything low" ended up creating a product called
+    *pieces* when nothing was low.
+    """
+    if not plan.targets:
+        pending_actions.clear(company_id, session_id)
+        state["generation"] = bulk.empty_message(plan, facts)
+        state["pending_action"] = None
+        state["response_kind"] = "prose"
+        state["executed_actions"] = []
+        state["answered_by"] = "deterministic"
+        state["llm_calls"] = 0
+        return state
+
+    action = plan.to_action()
+    pending_actions.put(company_id, session_id, action)
+    state["pending_action"] = action
+    state["generation"] = bulk.preview(plan, facts)
+    state["response_kind"] = "bulk_preview"
+    state["items"] = action["targets"]
+    state["executed_actions"] = []
+    state["answered_by"] = "deterministic"
+    state["llm_calls"] = 0
+    return state
+
+
 def _guardrail_check(tool: str, product: ProductFact, args: Dict[str, Any]):
     guardrails = InventoryGuardrails()
     if tool == "update_stock":
@@ -899,6 +1099,35 @@ def _guardrail_check(tool: str, product: ProductFact, args: Dict[str, Any]):
     return None
 
 
+def _apply_single(
+    tool: str, product: ProductFact, args: Dict[str, Any], company_id: str
+) -> Dict[str, Any]:
+    """Perform one write. Shared by the single-product path and by bulk."""
+    if tool == "update_stock":
+        return writes.update_stock(
+            product,
+            int(args["qty_change"]),
+            args.get("reason", "AI adjustment"),
+            company_id,
+            location=args.get("location") or None,
+        )
+    if tool == "create_purchase_order":
+        return writes.create_purchase_order(
+            product, int(args["reorder_qty"]), args.get("supplier_name", ""), company_id
+        )
+    if tool == "transfer_stock":
+        return writes.transfer_stock(
+            product, args["from_location"], args["to_location"], int(args["qty"]), company_id
+        )
+    if tool == "audit_inventory":
+        return writes.audit_inventory(
+            product, int(args["actual_stock"]), args.get("notes", "Physical audit"), company_id
+        )
+    if tool == "set_reorder_threshold":
+        return writes.set_min_threshold(product, int(args["new_threshold"]), company_id)
+    return {"success": False, "error": f"unknown action {tool}"}
+
+
 def _execute_pending(
     action: Dict[str, Any],
     facts: InventoryFacts,
@@ -914,8 +1143,12 @@ def _execute_pending(
     tool = action["tool"]
     args = action["args"]
 
-    if not may_run_tool(tool, permissions):
-        needed = permission_for_tool(tool)
+    # A bulk action is many writes of one kind; it is checked, and reported,
+    # against that kind.
+    checked_tool = action.get("inner_tool", tool) if tool == "__bulk__" else tool
+
+    if not may_run_tool(checked_tool, permissions):
+        needed = permission_for_tool(checked_tool)
         return (
             "You don't have permission to make that change, so I've left "
             f"everything as it was. Ask an admin for the **{needed}** "
@@ -924,6 +1157,16 @@ def _execute_pending(
                 "tool": tool,
                 "result": {"success": False, "error": "permission_denied"},
             },
+        )
+
+    if tool == "__bulk__":
+        return bulk.execute(
+            action,
+            facts,
+            company_id,
+            lambda inner, product, call_args: _apply_single(
+                inner, product, call_args, company_id
+            ),
         )
 
     if tool == "create_product":
@@ -948,30 +1191,7 @@ def _execute_pending(
             {"tool": tool, "result": {"success": False, "error": "product not found"}},
         )
 
-    if tool == "update_stock":
-        result = writes.update_stock(
-            product,
-            int(args["qty_change"]),
-            args.get("reason", "AI adjustment"),
-            company_id,
-            location=args.get("location") or None,
-        )
-    elif tool == "create_purchase_order":
-        result = writes.create_purchase_order(
-            product, int(args["reorder_qty"]), args.get("supplier_name", ""), company_id
-        )
-    elif tool == "transfer_stock":
-        result = writes.transfer_stock(
-            product, args["from_location"], args["to_location"], int(args["qty"]), company_id
-        )
-    elif tool == "audit_inventory":
-        result = writes.audit_inventory(
-            product, int(args["actual_stock"]), args.get("notes", "Physical audit"), company_id
-        )
-    elif tool == "set_reorder_threshold":
-        result = writes.set_min_threshold(product, int(args["new_threshold"]), company_id)
-    else:
-        result = {"success": False, "error": f"unknown action {tool}"}
+    result = _apply_single(tool, product, args, company_id)
 
     if not result.get("success"):
         return (
@@ -1034,6 +1254,22 @@ async def execution_agent_node(state: GraphState) -> GraphState:
         state["response_kind"] = "prose"
         state["answered_by"] = "pending"
         return state
+
+    # --- 1b. A request about a *group* of products, before anything reads the
+    # sentence as one product's name ---
+    #
+    # "add 10 pieces to all low stock items" names no product at all. The
+    # resolver used to reduce it to the token "low", match nothing, and the
+    # model then reached for create_product — which asked for a location and
+    # created a product called "pieces". A selector is resolved from the
+    # snapshot here instead, and the user confirms the full list.
+    if not (pending and pending.get("tool") == "__clarify__"):
+        plan = bulk.parse(question, facts)
+        if plan is not None:
+            if draft_open:
+                # The user has moved on from the half-finished product.
+                pending_actions.clear(company_id, session_id)
+            return _bulk_response(plan, facts, state, company_id, session_id)
 
     if draft_open or _NEW_PRODUCT_RE.search(question):
         draft = dict((pending or {}).get("draft") or {})
@@ -1242,9 +1478,51 @@ async def execution_agent_node(state: GraphState) -> GraphState:
                 messages.append(ToolMessage(content=_json(result), tool_call_id=call_id))
                 continue
 
+            if name == "bulk_action":
+                plan = _bulk_from_tool_args(args, facts)
+                if plan is None:
+                    messages.append(
+                        ToolMessage(
+                            content=_json({
+                                "error": "unusable bulk request",
+                                "valid_operations": sorted(BULK_OPERATIONS),
+                                "valid_selectors": [s.key for s in bulk.SELECTORS]
+                                + ["category:<name>", "location:<name>"],
+                                "hint": "A quantity is required for add_stock, "
+                                        "deduct_stock, set_threshold and audit.",
+                            }),
+                            tool_call_id=call_id,
+                        )
+                    )
+                    continue
+                _bulk_response(plan, facts, state, company_id, session_id)
+                generation = state["generation"]
+                # The answer is computed, but a model call got us here — say so,
+                # or the telemetry hides a request the parser should have caught.
+                answered_by = "llm"
+                wrote_preview = True
+                break
+
             # Creating a product has no existing SKU to resolve; it is checked
             # for completeness and for accidentally duplicating one instead.
             if name == "create_product":
+                # A request naming a group of products is never a request to
+                # create one. Without this the model answers "add 10 to every
+                # low stock item" by inventing a product.
+                selector = bulk.find_selector(question, facts)
+                if selector is not None:
+                    matched = selector.pick(facts)
+                    generation = (
+                        f"That's about **{len(matched)} {selector.label}**, not a new "
+                        "product, so I haven't created anything. Tell me what to do to "
+                        "them — for example *add 10 units to each*, *top them up to "
+                        "their minimum*, or *order what each one needs*."
+                        if matched
+                        else bulk.selector_for_key(selector.key, facts).empty_message
+                    )
+                    state["response_kind"] = "clarification"
+                    wrote_preview = True
+                    break
                 draft = dict(state.get("new_product_draft") or {})
                 # Later turns supply one field at a time; keep everything
                 # already gathered rather than starting over.
@@ -1321,8 +1599,46 @@ async def execution_agent_node(state: GraphState) -> GraphState:
     return state
 
 
-def _fact_check(answer: str, facts: InventoryFacts, where: str) -> str:
-    """Correct claims the snapshot contradicts before the answer is sent."""
+def _real_data_answer(
+    question: str, facts: InventoryFacts, company_id: str, state: GraphState
+) -> str:
+    """The closest answer that is built from the catalog rather than written.
+
+    Used when a model answer has to be thrown away. Deterministic coverage is
+    tried first so the user still gets what they asked for; the health summary
+    is the floor, and it is always real.
+    """
+    try:
+        instant = deterministic.answer(
+            question, facts, company_id, state.get("business_type", "retail_store")
+        )
+        if instant:
+            return instant.text
+    except Exception as exc:
+        print(f"[fallback] deterministic answer failed: {exc}")
+    try:
+        return (
+            deterministic._summary(facts)
+            + "\n\n> I dropped my first draft of this answer: it named products "
+            "that aren't in your catalog. The figures above come straight from "
+            "your live inventory."
+        )
+    except Exception:
+        return ""
+
+
+def _fact_check(
+    answer: str,
+    facts: InventoryFacts,
+    where: str,
+    fallback: Optional[Any] = None,
+) -> str:
+    """Correct claims the snapshot contradicts before the answer is sent.
+
+    Quantities are repaired in place. Invented product names are not repairable
+    — an answer listing "SKU 1, SKU 2" has no relationship to the catalog at
+    all — so the whole answer is replaced with one built from real data.
+    """
     try:
         corrected, issues = verify.check_answer(answer, facts)
     except Exception as exc:
@@ -1330,6 +1646,16 @@ def _fact_check(answer: str, facts: InventoryFacts, where: str) -> str:
         return answer
     if issues:
         print(f"[{where}] corrected model output -> {verify.describe(issues)}")
+
+    invented = [i for i in issues if i.kind == "placeholder"]
+    if invented and fallback is not None:
+        replacement = fallback()
+        if replacement:
+            print(
+                f"[{where}] replaced an answer containing placeholder names: "
+                + ", ".join(i.detail for i in invented[:5])
+            )
+            return replacement
     return corrected
 
 
@@ -1368,6 +1694,7 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         state["analytics_data"] = facts.summary()
         state["clarification_options"] = instant.clarification_options
         state["response_kind"] = instant.kind
+        state["items"] = instant.items
         state["answered_by"] = "deterministic"
         state["llm_calls"] = 0
         return state
@@ -1401,7 +1728,11 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
                  "recommend recording stock movements.\n"
         ) +
         "3. Use a markdown table for any list of more than two items.\n"
-        "4. Lead with the number that answers the question. At most three short "
+        "4. Every product you name must come from the data above or from a tool "
+        "result. If you need more rows, call list_products or search_products. "
+        "Never write a placeholder like 'SKU 1', 'Product A' or "
+        "'<product name>' — an invented row is worse than a short answer.\n"
+        "5. Lead with the number that answers the question. At most three short "
         "paragraphs. No preamble, no disclaimers."
     )
 
@@ -1448,7 +1779,12 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         answered_by = "fallback"
 
     if answered_by == "llm":
-        generation = _fact_check(generation, facts, "analytics")
+        generation = _fact_check(
+            generation,
+            facts,
+            "analytics",
+            fallback=lambda: _real_data_answer(question, facts, company_id, state),
+        )
 
     state["generation"] = generation + deterministic.stats_payload(facts)
     state["analytics_data"] = facts.summary()
@@ -1472,11 +1808,17 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
         state["generation"] = instant.text
         state["clarification_options"] = instant.clarification_options
         state["response_kind"] = instant.kind
+        state["items"] = instant.items
         state["answered_by"] = "deterministic"
         state["llm_calls"] = 0
         return state
 
-    client = llm_factory.get_llm(llm_factory.AGENT, temperature=0.2)
+    # Read tools, not just a context block. Without them an advice question
+    # about a product outside the five the resolver happened to surface had
+    # nothing to work from, and the model filled the gap with "SKU 1, SKU 2".
+    client = llm_factory.get_llm(
+        llm_factory.AGENT, temperature=0.2, tools=READ_TOOLS
+    )
     if client is None:
         state["generation"] = deterministic._summary(facts)
         state["answered_by"] = "fallback"
@@ -1488,8 +1830,12 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
         "RULES:\n"
         "1. Answer the question directly. No preamble.\n"
         "2. Ground advice in the real numbers above — name actual products.\n"
-        "3. At most four bullets or one short table.\n"
-        "4. If the data doesn't support an answer, say what's missing instead of "
+        "3. Every product you name must be one you have seen in this "
+        "conversation's data. If you need products you haven't been shown, call "
+        "search_products or list_products. Never write a placeholder like "
+        "'SKU 1', 'Product A' or '<product name>' — say what is missing instead.\n"
+        "4. At most four bullets or one short table.\n"
+        "5. If the data doesn't support an answer, say what's missing instead of "
         "inventing it."
     )
 
@@ -1497,18 +1843,45 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
     messages.extend(sanitize_history(state.get("history")))
     messages.append(HumanMessage(content=question))
 
-    try:
-        response = await stream_message(client, messages, llm_factory.AGENT)
-        state["generation"] = _fact_check(
-            _text(response) or deterministic._summary(facts), facts, "knowledge"
-        )
-        state["llm_calls"] = 1
-        state["answered_by"] = "llm"
-    except Exception as exc:
-        print(f"[knowledge] LLM call failed: {exc}")
-        state["generation"] = deterministic._summary(facts)
-        state["answered_by"] = "fallback"
+    generation = ""
+    llm_calls = 0
+    answered_by = "llm"
+    for _ in range(MAX_TOOL_ITERATIONS):
+        try:
+            response = await stream_message(client, messages, llm_factory.AGENT)
+            llm_calls += 1
+        except Exception as exc:
+            print(f"[knowledge] LLM call failed: {exc}")
+            generation = deterministic._summary(facts)
+            answered_by = "fallback"
+            break
 
+        messages.append(response)
+        tool_calls = getattr(response, "tool_calls", None) or []
+        if not tool_calls:
+            generation = _text(response)
+            break
+        for call in tool_calls:
+            result = run_read_tool(call.get("name", ""), call.get("args", {}) or {}, facts)
+            messages.append(
+                ToolMessage(content=_json(result), tool_call_id=call.get("id", ""))
+            )
+
+    if not generation:
+        generation = deterministic._summary(facts)
+        answered_by = "fallback"
+
+    if answered_by == "llm":
+        generation = _fact_check(
+            generation,
+            facts,
+            "knowledge",
+            fallback=lambda: _real_data_answer(question, facts, company_id, state),
+        )
+
+    state["generation"] = generation
+    state["llm_calls"] = llm_calls
+    state["answered_by"] = answered_by
     return state
 
 

@@ -23,7 +23,7 @@ class ChatMessage {
     this.status = ChatStatus.complete,
     this.actionPayload,
     this.statsPayload,
-    this.lowStockItemsPayload,
+    this.itemsPayload,
     this.clarificationOptions,
     this.pendingAction,
     this.responseKind,
@@ -44,7 +44,10 @@ class ChatMessage {
   /// The inventory snapshot behind a stats answer.
   final Map<String, dynamic>? statsPayload;
 
-  final List<Map<String, dynamic>>? lowStockItemsPayload;
+  /// The rows behind a list answer: low-stock items, a reorder plan, or the
+  /// products a bulk action will touch. Rendered as cards so each row is
+  /// actionable, instead of being read out of a markdown table.
+  final List<Map<String, dynamic>>? itemsPayload;
 
   /// Products the assistant could not tell apart, offered as chips so the user
   /// picks the SKU rather than the assistant guessing.
@@ -73,7 +76,7 @@ class ChatMessage {
     ChatStatus? status,
     Map<String, dynamic>? actionPayload,
     Map<String, dynamic>? statsPayload,
-    List<Map<String, dynamic>>? lowStockItemsPayload,
+    List<Map<String, dynamic>>? itemsPayload,
     List<Map<String, dynamic>>? clarificationOptions,
     Map<String, dynamic>? pendingAction,
     String? responseKind,
@@ -88,7 +91,7 @@ class ChatMessage {
       status: status ?? this.status,
       actionPayload: actionPayload ?? this.actionPayload,
       statsPayload: statsPayload ?? this.statsPayload,
-      lowStockItemsPayload: lowStockItemsPayload ?? this.lowStockItemsPayload,
+      itemsPayload: itemsPayload ?? this.itemsPayload,
       clarificationOptions: clarificationOptions ?? this.clarificationOptions,
       pendingAction: pendingAction ?? this.pendingAction,
       responseKind: responseKind ?? this.responseKind,
@@ -109,7 +112,7 @@ class ChatMessage {
             .name,
         'actionPayload': actionPayload,
         'statsPayload': statsPayload,
-        'lowStockItemsPayload': lowStockItemsPayload,
+        'itemsPayload': itemsPayload,
         'clarificationOptions': clarificationOptions,
         'pendingAction': pendingAction,
         'responseKind': responseKind,
@@ -144,7 +147,10 @@ class ChatMessage {
       status: status,
       actionPayload: _map(json['actionPayload']),
       statsPayload: _map(json['statsPayload']),
-      lowStockItemsPayload: _list(json['lowStockItemsPayload']),
+      // `lowStockItemsPayload` is the name this was stored under before it
+      // carried reorder plans and bulk targets too.
+      itemsPayload:
+          _list(json['itemsPayload'] ?? json['lowStockItemsPayload']),
       clarificationOptions: _list(json['clarificationOptions']),
       pendingAction: _map(json['pendingAction']),
       responseKind: json['responseKind'] as String?,

@@ -17,8 +17,9 @@ or drive stock negative.
 """
 
 from __future__ import annotations
-import os
 
+import itertools
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -309,6 +310,9 @@ def update_stock(
     }
 
 
+_po_counter = itertools.count(1)
+
+
 def create_purchase_order(
     product: ProductFact,
     reorder_qty: int,
@@ -319,7 +323,10 @@ def create_purchase_order(
     if reorder_qty <= 0:
         return {"success": False, "error": "reorder quantity must be positive"}
 
-    po_id = f"PO-{int(datetime.now(timezone.utc).timestamp())}"
+    # A second-resolution timestamp alone collided: raising POs for every
+    # low-stock product in one bulk action produced a dozen orders sharing an
+    # id, which the ledger then read as one order rewritten twelve times.
+    po_id = f"PO-{int(datetime.now(timezone.utc).timestamp())}-{next(_po_counter):03d}"
     total_cost = round(reorder_qty * product.cost_price, 2)
     supplier = supplier_name or product.vendor_name or "Default Supplier"
 

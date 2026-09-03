@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stock_management/config/theme.dart';
 import 'package:stock_management/screens/ai/ai_chat_screen.dart';
-import 'package:stock_management/screens/ai/widgets/chat_composer.dart';
 import 'package:stock_management/screens/ai/widgets/chat_empty_state.dart';
 import 'package:stock_management/screens/ai/widgets/chat_status.dart';
 import 'package:stock_management/services/rag_api_service.dart';
@@ -326,6 +325,179 @@ void main() {
       // The button flips to a checkmark and resets itself after two seconds;
       // let that timer run or the binding reports it still pending.
       await tester.pump(const Duration(seconds: 3));
+    });
+  });
+
+  group('bulk changes', () {
+    Map<String, dynamic> bulkAction({int count = 2}) => {
+          'tool': '__bulk__',
+          'inner_tool': 'update_stock',
+          'selector': 'low_stock',
+          'selector_label': 'low-stock products',
+          'mode': 'fixed',
+          'args': {'qty_change': 10},
+          'count': count,
+          'targets': [
+            for (var i = 0; i < count; i++)
+              {
+                'id': 'p$i',
+                'barcode': 'BC$i',
+                'name': 'Low product $i',
+                'stock': 5,
+                'change': 10,
+              },
+          ],
+        };
+
+    testWidgets('a bulk preview names every product and what happens to it', (
+      tester,
+    ) async {
+      // The bug this guards: "add 10 to all low stock items" created a single
+      // product. A bulk change has to show the whole list before it is applied.
+      await tester.pumpWidget(_host(
+        askStream: _streamOf([
+          {
+            'type': 'done',
+            'response': RagResponse(
+              'Confirm bulk change',
+              null,
+              responseKind: 'bulk_preview',
+              pendingAction: bulkAction(),
+            ),
+          },
+        ]),
+      ));
+      await _settle(tester);
+      await _ask(tester, 'add 10 pieces for all low stock');
+      await _settle(tester);
+
+      expect(find.textContaining('Add 10 units to each of 2'), findsOneWidget);
+      expect(find.text('Low product 0'), findsOneWidget);
+      expect(find.text('Low product 1'), findsOneWidget);
+      expect(find.text('5 → 15'), findsNWidgets(2));
+      expect(find.text('Confirm all 2'), findsOneWidget);
+    });
+
+    testWidgets('a long bulk list collapses and expands', (tester) async {
+      await tester.pumpWidget(_host(
+        askStream: _streamOf([
+          {
+            'type': 'done',
+            'response': RagResponse(
+              'Confirm bulk change',
+              null,
+              responseKind: 'bulk_preview',
+              pendingAction: bulkAction(count: 9),
+            ),
+          },
+        ]),
+      ));
+      await _settle(tester);
+      await _ask(tester, 'add 10 to everything low');
+      await _settle(tester);
+
+      expect(find.text('Low product 0'), findsOneWidget);
+      expect(find.text('Low product 8'), findsNothing);
+
+      await tester.tap(find.text('Show 5 more'));
+      await tester.pump();
+
+      expect(find.text('Low product 8'), findsOneWidget);
+    });
+
+    testWidgets('confirming sends the confirmation, once', (tester) async {
+      final asked = <String>[];
+      Stream<Map<String, dynamic>> capture(
+        String question, {
+        String context = '',
+        List<Map<String, String>> history = const [],
+      }) async* {
+        asked.add(question);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        yield {
+          'type': 'done',
+          'response': RagResponse(
+            'ok',
+            null,
+            responseKind: asked.length == 1 ? 'bulk_preview' : 'executed',
+            pendingAction: asked.length == 1 ? bulkAction() : null,
+          ),
+        };
+      }
+
+      await tester.pumpWidget(_host(askStream: capture));
+      await _settle(tester);
+      await _ask(tester, 'add 10 to all low stock items');
+      await _settle(tester);
+
+      await tester.tap(find.text('Confirm all 2'));
+      await _settle(tester);
+
+      expect(asked, ['add 10 to all low stock items', 'confirm']);
+      expect(find.text('Confirm all 2'), findsNothing);
+    });
+  });
+
+  group('consecutive questions', () {
+    testWidgets('a second question still reaches the backend', (tester) async {
+      // `askQuestionStream` is an `async*` generator, and awaiting
+      // `cancel()` on one that has already finished never returns — so the
+      // second message of every conversation was dropped silently. Every
+      // confirmation is a second message.
+      final asked = <String>[];
+      Stream<Map<String, dynamic>> ask(
+        String question, {
+        String context = '',
+        List<Map<String, String>> history = const [],
+      }) async* {
+        asked.add(question);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        yield {'type': 'done', 'response': RagResponse('ok', null)};
+      }
+
+      await tester.pumpWidget(_host(askStream: ask));
+      await _settle(tester);
+
+      await _ask(tester, 'first');
+      await _settle(tester);
+      await _ask(tester, 'second');
+      await _settle(tester);
+
+      expect(asked, ['first', 'second']);
+    });
+  });
+
+  group('item rows', () {
+    testWidgets('a list answer renders cards, not just a markdown table', (
+      tester,
+    ) async {
+      // These rows existed in the client model but nothing ever populated
+      // them, so the card was dead code and lists arrived as raw markdown.
+      await tester.pumpWidget(_host(
+        askStream: _streamOf([
+          {
+            'type': 'done',
+            'response': RagResponse(
+              '2 low',
+              null,
+              responseKind: 'report',
+              items: const [
+                {'name': 'Cannula 18G', 'stock': 4, 'threshold': 20},
+                {'name': 'Gauze Pads', 'stock': 0, 'threshold': 15},
+              ],
+            ),
+          },
+        ]),
+      ));
+      await _settle(tester);
+      await _ask(tester, 'what is low stock');
+      await _settle(tester);
+
+      expect(find.text('Cannula 18G'), findsOneWidget);
+      expect(find.textContaining('4 left'), findsOneWidget);
+      expect(find.text('Gauze Pads'), findsOneWidget);
+      expect(find.textContaining('Out of stock'), findsOneWidget);
+      expect(find.text('Restock'), findsNWidgets(2));
     });
   });
 

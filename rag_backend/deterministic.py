@@ -39,12 +39,37 @@ class DeterministicAnswer:
     text: str
     clarification_options: Optional[List[Dict[str, Any]]] = None
     kind: str = "prose"
+    # The rows behind a list answer, so the client can render tappable cards
+    # instead of re-parsing the markdown table it was handed.
+    items: Optional[List[Dict[str, Any]]] = None
 
     def __post_init__(self) -> None:
         if self.clarification_options:
             self.kind = "clarification"
         elif self.kind == "prose" and "\n| " in self.text:
             self.kind = "report"
+
+
+def item_rows(products: List[ProductFact], limit: int = MAX_TABLE_ROWS) -> List[Dict[str, Any]]:
+    """The structured form of a list answer, for the client's cards."""
+    return [
+        {
+            "id": p.id,
+            "barcode": p.barcode,
+            "name": p.name,
+            "stock": p.quantity,
+            "available": p.available_qty,
+            "threshold": p.min_threshold,
+            "category": p.category,
+            "unit": p.unit,
+            "suggested_reorder_qty": p.suggested_reorder_qty,
+            "days_of_cover": (
+                None if p.days_of_supply >= 999 else round(p.days_of_supply, 1)
+            ),
+            "health": p.health,
+        }
+        for p in products[:limit]
+    ]
 
 
 def _money(value: float) -> str:
@@ -506,16 +531,86 @@ def _growth_plan(facts: InventoryFacts) -> str:
     )
 
 
+def _setup_overview(facts: InventoryFacts) -> str:
+    """What this workspace actually contains and how it is organised.
+
+    "How is my inventory set up?" used to reach the model, which had no view of
+    locations, categories or units and answered in generalities.
+    """
+    s = facts.summary()
+    locations = facts.known_locations
+    categories = sorted({(p.category or "").strip() for p in facts.products} - {""})
+    for c in facts.categories or []:
+        name = str(c.get("name", "")).strip()
+        if name and name not in categories:
+            categories.append(name)
+    units = sorted({(p.unit or "").strip() for p in facts.products} - {""})
+    vendors = sorted({(p.vendor_name or "").strip() for p in facts.products} - {""})
+    multi = [p for p in facts.products if len(p.location_quantities or {}) > 1]
+
+    def listed(values: List[str], limit: int = 12) -> str:
+        if not values:
+            return "_none configured_"
+        shown = ", ".join(f"**{v}**" for v in values[:limit])
+        return shown + (f" _+{len(values) - limit} more_" if len(values) > limit else "")
+
+    rows = [
+        f"| **Products** | {s['total_products']} |",
+        f"| **Locations** | {listed(locations)} |",
+        f"| **Categories** | {listed(categories)} |",
+        f"| **Units** | {listed(units, 8)} |",
+        f"| **Suppliers** | {listed(vendors, 8)} |",
+        f"| **Stock held / reserved** | {s['held_units']} units |",
+        f"| **Products in more than one location** | {len(multi)} |",
+        f"| **Movement history** | {s['history_coverage_pct']}% of products, "
+        f"last {facts.window_days} days |",
+    ]
+
+    detail = (
+        "\n\n**How the numbers are decided**\n\n"
+        "- **Low stock** is a product at or below *its own* threshold — each "
+        "product carries one, so there is no single company-wide number.\n"
+        "- **Out of stock** is zero on hand.\n"
+        f"- **Burn rate, days of cover and dead stock** are derived from stock "
+        f"movements recorded in the last {facts.window_days} days.\n"
+        "- **Available** stock excludes units held against open orders.\n"
+        "- **Value** uses selling price; **cost basis** uses cost price."
+    )
+    gaps = []
+    if not locations:
+        gaps.append("no locations are configured, so stock has nowhere to sit")
+    if not categories:
+        gaps.append("no categories are in use, so filters and reports can't group anything")
+    if not vendors:
+        gaps.append("no suppliers are set, so purchase orders fall back to a default")
+    if s["history_coverage_pct"] == 0:
+        gaps.append("no stock movements are recorded, so demand can't be calculated")
+    gap_note = (
+        "\n\n> **Worth fixing:** " + "; ".join(gaps) + "."
+        if gaps else ""
+    )
+
+    return (
+        "Here's how your workspace is set up.\n\n"
+        + _table(["Setting", "Value"], rows)
+        + detail
+        + gap_note
+    )
+
+
 def _capabilities(business_type: str) -> str:
     biz = business_type.replace("_", " ").title()
     rows = [
         "| **Update stock** | *Add 50 units of Cannula 18G* |",
+        "| **Change many at once** | *Add 10 units to every low stock item* |",
+        "| **Top everything back up** | *Restock all low stock items to their minimum* |",
         "| **Raise a PO** | *Order 100 bandages* |",
         "| **Health audit** | *Run an inventory audit* |",
         "| **Reorder plan** | *What should I order next?* |",
         "| **Stockout risk** | *What runs out first?* |",
         "| **Dead stock** | *What isn't selling?* |",
         "| **Lookup** | *How many gauze pads do I have?* |",
+        "| **Your setup** | *How is my inventory configured?* |",
     ]
     return (
         f"I'm **Ask AI**, your {biz} inventory assistant. I work from your live "
@@ -568,7 +663,9 @@ def answer(
         "reorder suggestion", "reorder list", "autopilot", "should i order",
         "purchase plan", "replenish",
     ]):
-        return DeterministicAnswer(_reorder_list(facts))
+        return DeterministicAnswer(
+            _reorder_list(facts), items=item_rows(facts.needs_reorder)
+        )
 
     if _any(q, [
         "order log", "log table", "ledger", "transaction history", "po log",
@@ -589,6 +686,7 @@ def answer(
         return DeterministicAnswer(
             _dead_stock(facts),
             kind="no_history" if not facts.history_is_reliable else "report",
+            items=item_rows(facts.dead_stock) if facts.history_is_reliable else None,
         )
 
     if _any(q, ["overstock", "over stock", "too much stock", "excess stock", "excess inventory"]):
@@ -610,7 +708,10 @@ def answer(
         "low stock", "out of stock", "stock alert", "stockout list",
         "running low", "below threshold",
     ]):
-        return DeterministicAnswer(_low_stock(facts))
+        return DeterministicAnswer(
+            _low_stock(facts),
+            items=item_rows(facts.out_of_stock + facts.low_stock),
+        )
 
     if _any(q, [
         "total value", "inventory value", "inventory worth", "how much worth",
@@ -625,6 +726,19 @@ def answer(
         "increase revenue", "grow revenue", "help me grow", "growth plan",
     ]):
         return DeterministicAnswer(_growth_plan(facts), kind='report')
+
+    if _any(q, [
+        "how is my inventory configured", "how is my inventory set up",
+        "how is it configured", "how is this configured", "my setup",
+        "workspace setup", "inventory setup", "how is my stock organised",
+        "how is my stock organized", "what locations", "which locations",
+        "my locations", "what categories", "which categories", "my categories",
+        "what units", "which suppliers", "what suppliers", "my suppliers",
+        "what data do you have", "what do you know about my inventory",
+        "how do you decide", "how do you calculate", "what counts as low stock",
+        "configuration",
+    ]):
+        return DeterministicAnswer(_setup_overview(facts), kind='report')
 
     if _any(q, ["summary", "snapshot", "stats", "metrics", "overview", "dashboard"]):
         return DeterministicAnswer(_summary(facts))

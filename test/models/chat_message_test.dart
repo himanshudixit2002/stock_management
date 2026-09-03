@@ -12,7 +12,7 @@ void main() {
         role: ChatRole.assistant,
         actionPayload: const {'type': 'stock_in', 'qty': 20},
         statsPayload: const {'total_products': 240},
-        lowStockItemsPayload: const [
+        itemsPayload: const [
           {'name': 'Cannula', 'stock': 4},
         ],
         clarificationOptions: const [
@@ -32,7 +32,7 @@ void main() {
       expect(restored.createdAt, original.createdAt);
       expect(restored.actionPayload, original.actionPayload);
       expect(restored.statsPayload, original.statsPayload);
-      expect(restored.lowStockItemsPayload, original.lowStockItemsPayload);
+      expect(restored.itemsPayload, original.itemsPayload);
       expect(restored.clarificationOptions, original.clarificationOptions);
       expect(restored.pendingAction, original.pendingAction);
       expect(restored.responseKind, 'preview');
@@ -90,11 +90,25 @@ void main() {
         'role': 'assistant',
         'statsPayload': 'not a map',
         'clarificationOptions': 'not a list',
-        'lowStockItemsPayload': [1, 2, 'three'],
+        'itemsPayload': [1, 2, 'three'],
       });
       expect(odd.statsPayload, isNull);
       expect(odd.clarificationOptions, isNull);
-      expect(odd.lowStockItemsPayload, isEmpty);
+      expect(odd.itemsPayload, isEmpty);
+    });
+
+    test('reads item rows stored under the old key', () {
+      // Transcripts written before the field carried reorder plans and bulk
+      // targets used `lowStockItemsPayload`; they must still open.
+      final legacy = ChatMessage.fromJson(const {
+        'text': 'x',
+        'role': 'assistant',
+        'lowStockItemsPayload': [
+          {'name': 'Cannula', 'stock': 4},
+        ],
+      });
+      expect(legacy.itemsPayload, hasLength(1));
+      expect(legacy.itemsPayload!.first['name'], 'Cannula');
     });
 
     test('an unknown role or status falls back rather than throwing', () {

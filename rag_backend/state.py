@@ -34,9 +34,13 @@ class GraphState(TypedDict, total=False):
     analytics_data: Optional[Dict[str, Any]]
     structured_payload: Optional[Dict[str, Any]]
 
+    # The rows behind a list answer (low stock, reorder plan, bulk targets), so
+    # the client renders cards with actions instead of re-parsing markdown.
+    items: Optional[List[Dict[str, Any]]]
+
     # --- how the client should render this answer ---
-    # preview | clarification | product_detail | report | no_history |
-    # executed | prose
+    # preview | bulk_preview | clarification | product_detail | report |
+    # no_history | executed | prose
     response_kind: str
 
     # --- confirmation flow ---

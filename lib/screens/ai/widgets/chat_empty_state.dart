@@ -35,6 +35,18 @@ const chatSuggestions = <ChatSuggestion>[
     'Which items sell fastest?',
     'Which products are my best sellers?',
   ),
+  // The assistant can change many products at once, and nobody discovers that
+  // by guessing — every change it previews first, so trying it is safe.
+  ChatSuggestion(
+    Icons.layers_rounded,
+    'Top up everything low',
+    'Restock all low stock items back to their minimum',
+  ),
+  ChatSuggestion(
+    Icons.tune_rounded,
+    'How is my inventory set up?',
+    'How is my inventory configured?',
+  ),
 ];
 
 /// The greeting shown on an empty conversation.

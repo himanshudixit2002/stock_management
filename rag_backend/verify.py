@@ -21,6 +21,20 @@ _STOCK_CLAIM = re.compile(
     r"\*\*(?P<name>[^*\n]{3,60})\*\*[^.\n|]{0,40}?\b(?P<qty>\d[\d,]*)\s*(?:units?|pcs|in stock)",
     re.IGNORECASE,
 )
+# Names that are obviously stand-ins rather than catalog entries. The model
+# reaches for these when it is asked to lay out a table it has no rows for —
+# and a table of "SKU 1 / SKU 2" reads, to someone skimming, exactly like real
+# inventory. A named placeholder is worse than an admission of missing data.
+_PLACEHOLDER = re.compile(
+    r"\b(?:sku|product|item|article|material|part)\s*[-_#]?\s*(?:\d{1,3}|[a-z])\b"
+    r"|\b(?:product|item|sku)\s+(?:name|a|b|c|x|y|z)\b"
+    r"|\bexample\s+(?:product|item|sku)\b"
+    r"|<\s*(?:product|item|sku|name)[^>]{0,20}>"
+    r"|\[(?:product|item|sku)[^\]]{0,20}\]"
+    r"|\bxyz\b|\bacme\b|\bwidget\s+[ab]\b|\blorem\b",
+    re.IGNORECASE,
+)
+
 _NOT_FOUND = re.compile(
     r"(?:product|item|barcode)\s+(?:with\s+barcode\s+)?[\"'`]?(?P<ref>[\w .()\-/]{3,40})[\"'`]?\s+"
     r"(?:was\s+)?not\s+found",
@@ -30,7 +44,7 @@ _NOT_FOUND = re.compile(
 
 @dataclass
 class Issue:
-    kind: str          # "wrong_quantity" | "false_not_found"
+    kind: str          # "wrong_quantity" | "false_not_found" | "placeholder"
     detail: str
     claimed: Optional[str] = None
     actual: Optional[str] = None
@@ -84,7 +98,16 @@ def check_answer(answer: str, facts: Any) -> Tuple[str, List[Issue]]:
                 1,
             )
 
-    # 2. "not found" about something that is in the catalog.
+    # 2. Placeholder product names, which are never an answer.
+    for match in _PLACEHOLDER.finditer(answer):
+        text = match.group(0)
+        # A real product may legitimately be called "Item 5" — only flag a name
+        # the catalog does not actually contain.
+        if text.strip().lower() in by_name:
+            continue
+        issues.append(Issue("placeholder", text.strip()))
+
+    # 3. "not found" about something that is in the catalog.
     for match in _NOT_FOUND.finditer(answer):
         ref = match.group("ref").strip()
         known = getattr(facts, "lookup", lambda _: None)(ref) or (

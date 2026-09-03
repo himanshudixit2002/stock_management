@@ -256,7 +256,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
     RagResponse? finalResponse;
     var sawDone = false;
 
-    await _subscription?.cancel();
+    // Not awaited. `askQuestionStream` is an `async*` generator, and cancelling
+    // a subscription whose generator has already finished returns a future that
+    // never completes — so awaiting it here meant the *second* message of every
+    // conversation was never sent. Confirming a previewed change is always a
+    // second message, so that path could never fire at all.
+    unawaited(_subscription?.cancel() ?? Future<void>.value());
+    _subscription = null;
+
     final completer = Completer<void>();
 
     final ask = widget.askStream ?? RagApiService.askQuestionStream;
@@ -316,6 +323,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           status: ChatStatus.complete,
           actionPayload: response.actionPayload,
           statsPayload: response.statsPayload,
+          itemsPayload: response.items,
           clarificationOptions: response.clarificationOptions,
           pendingAction: response.pendingAction,
           responseKind: response.responseKind,
@@ -406,16 +414,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // ---------------------------------------------------------------------------
 
   Widget? _trailingFor(ChatMessage m) {
+    // A bulk change lists every affected product inside its own confirm card,
+    // so the generic item list would repeat it.
+    final isBulk = m.pendingAction?['tool'] == '__bulk__';
+
     final cards = <Widget>[
       if (m.statsPayload != null) ChatStatsCard(stats: m.statsPayload!),
-      if (m.lowStockItemsPayload != null && m.lowStockItemsPayload!.isNotEmpty)
-        ChatLowStockCard(items: m.lowStockItemsPayload!),
+      if (!isBulk && m.itemsPayload != null && m.itemsPayload!.isNotEmpty)
+        ChatItemListCard(items: m.itemsPayload!, kind: m.responseKind),
       if (m.responseKind == 'no_history') const ChatNoHistoryCard(),
       if (m.pendingAction != null && !m.isActionExecuted)
-        ChatConfirmCard(
-          action: m.pendingAction!,
-          onDecision: (confirmed) => _send(confirmed ? 'confirm' : 'cancel'),
-        ),
+        if (isBulk)
+          ChatBulkConfirmCard(
+            action: m.pendingAction!,
+            onDecision: (confirmed) => _send(confirmed ? 'confirm' : 'cancel'),
+          )
+        else
+          ChatConfirmCard(
+            action: m.pendingAction!,
+            onDecision: (confirmed) => _send(confirmed ? 'confirm' : 'cancel'),
+          ),
       if (m.clarificationOptions != null && m.clarificationOptions!.isNotEmpty)
         ChatClarificationChips(
           options: m.clarificationOptions!,

@@ -28,6 +28,11 @@ class RagResponse {
   final Map<String, dynamic>? pendingAction;
   final String? responseKind;
 
+  /// The rows behind a list answer — low stock, a reorder plan, or the products
+  /// a bulk action will touch. Rendered as cards, so the user can act on an
+  /// item instead of reading it out of a markdown table.
+  final List<Map<String, dynamic>>? items;
+
   const RagResponse(
     this.text,
     this.actionPayload, {
@@ -38,6 +43,7 @@ class RagResponse {
     this.answeredBy,
     this.pendingAction,
     this.responseKind,
+    this.items,
   });
 }
 
@@ -164,6 +170,7 @@ class RagApiService {
     }
 
     final rawOptions = data['clarification_options'] as List<dynamic>?;
+    final rawItems = data['items'] as List<dynamic>?;
 
     return RagResponse(
       answer,
@@ -178,6 +185,10 @@ class RagApiService {
       answeredBy: data['answered_by'] as String?,
       pendingAction: data['pending_action'] as Map<String, dynamic>?,
       responseKind: data['response_kind'] as String?,
+      items: rawItems
+          ?.whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
     );
   }
 
