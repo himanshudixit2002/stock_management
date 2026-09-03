@@ -104,7 +104,15 @@ db_instance.replace_user_inventory(
 )
 
 
-def run(question, history=None):
+# Writes now require the caller's permission grants, mirroring
+# firestore.rules — the agent must not do on someone's behalf what the app
+# itself would refuse them. "*" is the admin/owner wildcard. Omitting this
+# fails closed and no action executes, which is the intended behaviour and
+# what these tests would otherwise be silently asserting.
+ADMIN = {"*"}
+
+
+def run(question, history=None, permissions=ADMIN):
     return asyncio.run(
         rag_pipeline.ainvoke(
             {
@@ -115,6 +123,7 @@ def run(question, history=None):
                 "business_type": "clinic",
                 "session_id": SID,
                 "facts": FACTS,
+                "permissions": permissions,
             }
         )
     )
@@ -222,7 +231,7 @@ _fs.bump("dupe_co")
 def run_dupe(q, sid="dupe_sess"):
     return asyncio.run(rag_pipeline.ainvoke({
         "question": q, "retries": 0, "history": [], "company_id": "dupe_co",
-        "business_type": "clinic", "session_id": sid,
+        "business_type": "clinic", "session_id": sid, "permissions": ADMIN,
     }))
 
 res = run_dupe("add 12 units of Cotton Roll Basic")
@@ -305,6 +314,40 @@ check("table rows removed", "| A | 1 |" in joined, False)
 check("stats block removed", "[STATS:" in joined, False)
 check("prose kept", "That's everything." in joined, True)
 check("turn cap honoured", len(sanitize_history([{"role": "user", "content": f"m{i}"} for i in range(50)])), 12)
+
+# --- Permission gating on the write path ------------------------------------
+#
+# Everything this service writes goes through the Admin SDK, which bypasses
+# firestore.rules — so the agent has to withhold what the rules would. A viewer
+# who is denied canAdjustStock in the app must not be able to ask the assistant
+# to move stock instead.
+print("\n== A caller without the grant cannot execute a write ==")
+
+_fs.bump(CID)
+res = run("add 5 units of Surgical Gloves Large", permissions={"canViewProducts"})
+if res.get("response_kind") == "preview":
+    res = run("yes", permissions={"canViewProducts"})
+executed = res.get("executed_actions") or []
+check(
+    "refused without the permission",
+    all(a.get("result", {}).get("error") == "permission_denied" for a in executed)
+    if executed
+    else True,
+    True,
+)
+check("nothing was applied", any(
+    a.get("result", {}).get("success") is True for a in executed
+), False)
+
+print("\n== Unknown grants fail closed, they do not fall open ==")
+_fs.bump(CID)
+res = run("add 5 units of Surgical Gloves Large", permissions=None)
+if res.get("response_kind") == "preview":
+    res = run("yes", permissions=None)
+executed = res.get("executed_actions") or []
+check("no write succeeded", any(
+    a.get("result", {}).get("success") is True for a in executed
+), False)
 
 print("\n" + "=" * 60)
 if _failures:

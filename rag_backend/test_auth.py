@@ -34,14 +34,56 @@ def check(name, cond, detail=""):
 
 
 print("\nevery route except /health requires a verified company")
+# The dependency a route may legitimately use. Kept as an explicit set rather
+# than a substring of one name: a route is authenticated if it depends on *any*
+# of these, and a new dependency has to be added here deliberately, which is the
+# point — an unrecognised one shows up as an open route rather than passing by
+# accident.
+#
+#   verified_company_id                  read-only routes
+#   verified_company_id_rate_limited     read-only, model-calling
+#   verified_company_id_with_permission  writes, via require_permission(...)
+#   verified_principal(_rate_limited)    needs the caller's identity too, so the
+#                                        agent knows what they may change
+AUTH_DEPENDENCIES = (
+    "verified_company_id",
+    "verified_company_id_rate_limited",
+    "verified_company_id_with_permission",
+    "verified_principal",
+    "verified_principal_rate_limited",
+)
 open_routes = []
 for r in main.app.routes:
     if isinstance(r, APIRoute):
         sig = inspect.signature(r.endpoint)
-        authed = any("verified_company_id" in str(p.default) for p in sig.parameters.values())
+        authed = any(
+            any(dep in str(p.default) for dep in AUTH_DEPENDENCIES)
+            for p in sig.parameters.values()
+        )
         if not authed:
             open_routes.append(r.path)
 check("only /health is unauthenticated", open_routes == ["/health"], open_routes)
+
+# Membership is not enough to write. Every mutating route must additionally
+# prove a permission, which is what stops the assistant doing on someone's
+# behalf what the app itself refuses them.
+print("\nmutating routes require a permission, not just membership")
+WRITE_PATHS = {
+    "/api/ingest",
+    "/api/inventory/sync",
+    "/api/agent/visual_audit",
+    "/api/agent/voice_command",
+    "/api/swarm/approve_po",
+}
+for r in main.app.routes:
+    if not isinstance(r, APIRoute) or r.path not in WRITE_PATHS:
+        continue
+    sig = inspect.signature(r.endpoint)
+    gated = any(
+        "verified_company_id_with_permission" in str(p.default)
+        for p in sig.parameters.values()
+    )
+    check(f"{r.path} is permission-gated", gated)
 
 print("\nhealth stays reachable, and says nothing about any tenant")
 r = client.get("/health")

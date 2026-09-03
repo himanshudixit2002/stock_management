@@ -702,10 +702,21 @@ class AuthProvider extends ChangeNotifier {
   Future<void> ensureRbacReady() async {
     if (_currentUser == null || isInspecting) return;
     final companyId = _currentUser!.companyId;
-    await _authService.ensureRolesSeeded(companyId);
+    if (companyId.isEmpty) return;
+    // Best-effort throughout. app.dart calls this during provider start-up
+    // inside a try/catch that renders a permanent "Could Not Load Data" screen,
+    // so anything that throws here takes the whole session down. Both steps are
+    // conveniences — seeding roles that an established workspace already has,
+    // and backfilling a legacy roleId — and a member without the rights to
+    // perform either still has a perfectly usable session.
+    try {
+      await _authService.ensureRolesSeeded(companyId);
+    } catch (_) {}
     if (_currentUser!.roleId.isEmpty) {
-      await _authService.migrateUserToRbac(_currentUser!.uid, companyId);
-      await refreshCurrentUser();
+      try {
+        await _authService.migrateUserToRbac(_currentUser!.uid, companyId);
+        await refreshCurrentUser();
+      } catch (_) {}
     }
   }
 }

@@ -128,6 +128,32 @@ await check('leaving every workspace resets to an unprivileged role', () =>
   assertSucceeds(updateDoc(doc(as('staffA'),'users/staffA'),{companyId:'',companyName:'',role:'staff',roleId:'staff',companyMemberships:[]})));
 await check('a company admin who did not create it can publish a join code', () =>
   assertSucceeds(setDoc(doc(as('staffS'),'joinCodeIndex/NEWCD1'),{companyId:'companyS',companyName:'Suspended'})));
+// The legacy RBAC backfill self-writes roleId, which the escalation guard now
+// constrains. It is denied for a user whose member doc says otherwise — and
+// that is correct, since roleId is what resolves permissions — so the client
+// treats the migration as best-effort and must not take sign-in down with it.
+// Pinned here so the denial stays a deliberate outcome rather than a surprise.
+await check('the legacy roleId backfill is denied when the member doc disagrees', async () => {
+  // A non-admin legacy account: role 'manager' backfills roleId 'manager',
+  // but the workspace only ever granted them 'staff'. (An account whose role
+  // is already 'admin' is covered by the admin branch of `allow update`
+  // instead — it holds every permission through `role` regardless, so letting
+  // it write its own roleId grants nothing it did not already have.)
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db,'users/legacy'),{uid:'legacy',email:'l@a.com',role:'manager',roleId:'',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'companies/companyA/members/legacy'),{uid:'legacy',role:'staff',roleId:'staff'});
+  });
+  return assertFails(updateDoc(doc(as('legacy'),'users/legacy'),{roleId:'manager'}));
+});
+await check('the legacy roleId backfill succeeds when the member doc agrees', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db,'users/legacy2'),{uid:'legacy2',email:'l2@a.com',role:'staff',roleId:'',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'companies/companyA/members/legacy2'),{uid:'legacy2',role:'staff',roleId:'staff'});
+  });
+  return assertSucceeds(updateDoc(doc(as('legacy2'),'users/legacy2'),{roleId:'staff'}));
+});
 await check('admin provisions a teammate with any role', () =>
   assertSucceeds(setDoc(doc(as('ownerA'),'users/newAdmin'),{uid:'newAdmin',email:'na@a.com',role:'admin',roleId:'admin',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]})));
 await check('admin promotes an existing staff member', () =>

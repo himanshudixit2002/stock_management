@@ -260,7 +260,11 @@ def require_permission(permission: str):
     grant being checked is literally the one an admin toggled in the app.
     """
 
-    async def _dependency(
+    # Named for what it returns and what it additionally proves. The name is
+    # load-bearing: test_auth walks the routes and identifies an authenticated
+    # one by the dependency's name, so an opaque `_dependency` would read as an
+    # open route.
+    async def verified_company_id_with_permission(
         authorization: Optional[str] = Header(None),
         x_company_id: Optional[str] = Header(None, alias="x-company-id"),
     ) -> str:
@@ -279,7 +283,7 @@ def require_permission(permission: str):
             )
         return principal.company_id
 
-    return _dependency
+    return verified_company_id_with_permission
 
 
 # ---------------------------------------------------------------------------

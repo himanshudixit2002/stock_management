@@ -1063,7 +1063,23 @@ class AuthService {
         newRoleId = RoleModel.staffRoleId;
     }
 
-    await _firestore.collection('users').doc(uid).update({'roleId': newRoleId});
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'roleId': newRoleId,
+      });
+    } on FirebaseException catch (e) {
+      // Best-effort. This is a *self*-update of roleId, and the security rules
+      // only accept one that matches the workspace's member document (or comes
+      // from the workspace's creator) — because roleId is what resolves a
+      // user's permissions, so a self-asserted one is a privilege escalation.
+      //
+      // A legacy account promoted to admin by someone else therefore gets
+      // denied here, and it must not take sign-in down with it: without a
+      // roleId the user still works off their `role` and any per-user
+      // permission overrides, which is exactly how they worked before RBAC. An
+      // admin can set the role properly from User Management.
+      if (e.code != 'permission-denied') rethrow;
+    }
   }
 
   static String? safeStringOrNull(dynamic v) {
