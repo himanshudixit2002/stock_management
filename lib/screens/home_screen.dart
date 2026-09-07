@@ -323,17 +323,22 @@ class HomeScreenState extends State<HomeScreen>
                   ),
                 ),
               ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: FloatingBottomNav(
-                  currentIndex: safeIndex,
-                  tabs: tabs.map((t) => t.toNavTab()).toList(),
-                  onTap: switchToTab,
+              // Both overlays sit at a fixed offset from the bottom of the
+              // Scaffold body, and the body shrinks away from the keyboard —
+              // so with a field focused they were carried up and left floating
+              // on top of the keyboard.
+              if (!floatingNavHidden(context))
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: FloatingBottomNav(
+                    currentIndex: safeIndex,
+                    tabs: tabs.map((t) => t.toNavTab()).toList(),
+                    onTap: switchToTab,
+                  ),
                 ),
-              ),
-              if (aiAvailable)
+              if (aiAvailable && !floatingNavHidden(context))
                 Positioned(
                   right: 16,
                   // Sits just above the pill using the same shared geometry the
@@ -413,7 +418,7 @@ class HomeScreenState extends State<HomeScreen>
       // so the loader is only ever seen once, on that first tap.
       (_) => DeferredScreenLoader(
         future: settings_screen.loadLibrary(),
-        builder: (_) => settings_screen.SettingsScreen(),
+        builder: (_) => settings_screen.SettingsScreen(isTab: true),
       ),
     ),
   ];

@@ -8,6 +8,7 @@ Future<void> pumpPhone(
   WidgetTester tester,
   Widget child, {
   double bottomInset = 0,
+  double keyboardInset = 0,
   Size size = const Size(375, 812),
 }) {
   return tester.pumpWidget(
@@ -16,6 +17,7 @@ Future<void> pumpPhone(
         size: size,
         viewPadding: EdgeInsets.only(bottom: bottomInset),
         padding: EdgeInsets.only(bottom: bottomInset),
+        viewInsets: EdgeInsets.only(bottom: keyboardInset),
       ),
       child: Directionality(textDirection: TextDirection.ltr, child: child),
     ),
@@ -111,6 +113,59 @@ void main() {
       );
       final box = tester.getSize(find.byType(FloatingNavPadding));
       expect(box.height, greaterThan(34 + 16 + 64));
+    });
+  });
+
+  group('with the keyboard up', () {
+    // The shell's Scaffold resizes its body away from the keyboard, so the
+    // pill — positioned at bottom: 0 of that body — was carried up and left
+    // hovering on top of the keyboard whenever a field took focus. The tab
+    // content also reserved ~112px for a pill that was no longer where it
+    // said it was, and viewPadding.bottom collapses to 0 while the keyboard
+    // is up, so the reserved amount changed mid-interaction and the list
+    // visibly jumped.
+    testWidgets('the pill is hidden and reserves no content inset', (
+      tester,
+    ) async {
+      late bool hidden;
+      late double contentInset;
+      late double topOffset;
+      await pumpPhone(
+        tester,
+        Builder(
+          builder: (context) {
+            hidden = floatingNavHidden(context);
+            contentInset = floatingNavContentInset(context);
+            topOffset = floatingNavTopOffset(context);
+            return const SizedBox();
+          },
+        ),
+        bottomInset: 34,
+        keyboardInset: 336,
+      );
+
+      expect(hidden, isTrue);
+      expect(contentInset, 0);
+      expect(topOffset, 0);
+    });
+
+    testWidgets('the pill comes back when the keyboard closes', (tester) async {
+      late bool hidden;
+      late double contentInset;
+      await pumpPhone(
+        tester,
+        Builder(
+          builder: (context) {
+            hidden = floatingNavHidden(context);
+            contentInset = floatingNavContentInset(context);
+            return const SizedBox();
+          },
+        ),
+        bottomInset: 34,
+      );
+
+      expect(hidden, isFalse);
+      expect(contentInset, greaterThan(0));
     });
   });
 }

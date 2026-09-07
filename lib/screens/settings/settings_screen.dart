@@ -46,8 +46,16 @@ import 'settings_summaries.dart';
 /// [SettingsCatalog], so a setting appears here exactly when it is findable
 /// there.
 class SettingsScreen extends StatefulWidget {
+  /// True when this is the Settings tab inside the home shell.
+  ///
+  /// Explicit rather than inferred from [initialSection]: the tab renders with
+  /// no AppBar and reserves room for the floating nav, and a *pushed*
+  /// `/settings` that guessed "tab" from a null argument would come up with no
+  /// app bar and no way back.
+  final bool isTab;
+
   final String? initialSection;
-  const SettingsScreen({super.key, this.initialSection});
+  const SettingsScreen({super.key, this.isTab = false, this.initialSection});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -158,10 +166,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
 
       case SettingsCategoryId.team:
-        final roles = context.watch<RoleProvider>().roles;
+        // isLoading, not roles.isNotEmpty: a workspace that genuinely has no
+        // custom roles is loaded, and showing it the "still loading" fallback
+        // forever was wrong.
+        final roleProvider = context.watch<RoleProvider>();
         return teamSummary(
-          roleCount: roles.length,
-          rolesLoaded: roles.isNotEmpty,
+          roleCount: roleProvider.roles.length,
+          rolesLoaded: !roleProvider.isLoading,
           canManageUsers: user.hasPermission(AppPermissions.manageUsers),
           vendorsOn: settings.vendorsEnabled,
         );
@@ -188,6 +199,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// The hub's category rows. Which categories qualify is
+  /// [SettingsCatalog.hubRowCategories]; this only renders them.
+  List<Widget> _categoryRows(
+    BuildContext context,
+    SettingsVisibilityContext ctx,
+    UserModel user,
+  ) {
+    final categories = SettingsCatalog.hubRowCategories(ctx);
+    return [
+      for (final (index, category) in categories.indexed)
+        AppListRow(
+          key: ValueKey(category.id),
+          index: index,
+          icon: category.icon,
+          accent: category.accent,
+          title: category.title,
+          subtitle: _summaryFor(category.id, user),
+          onTap: () => Navigator.pushNamed(context, category.route),
+        ),
+    ];
+  }
+
   // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
@@ -203,24 +236,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Only reserve space for the floating nav when this screen is the Settings
     // tab in the shell (no pushed AppBar). When opened as a sub-route there is
-    // no floating nav.
-    final isTabShell = widget.initialSection == null;
+    // no floating nav, and there is none while the keyboard is up either.
+    final isTabShell = widget.isTab;
     final navInset = isTabShell ? floatingNavContentInset(context) : 0.0;
     final horizontal = Responsive.horizontalPadding(context);
-
-    final rows = <Widget>[
-      for (final (index, category)
-          in SettingsCatalog.visibleCategories(ctx).indexed)
-        AppListRow(
-          key: ValueKey(category.id),
-          index: index,
-          icon: category.icon,
-          accent: category.accent,
-          title: category.title,
-          subtitle: _summaryFor(category.id, user),
-          onTap: () => Navigator.pushNamed(context, category.route),
-        ),
-    ];
 
     final body = SafeArea(
       bottom: false,
@@ -231,6 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             maxWidth: Responsive.contentMaxWidth(context),
           ),
           child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.fromLTRB(
               horizontal,
               AppTheme.spacingMD,
@@ -267,7 +287,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onOpen: (leaf) => openSetting(context, leaf),
                 )
               else ...[
-                _CategoryRows(rows: rows),
+                // Built here rather than above the ListView so a keystroke
+                // does not also rebuild nine rows, each of which watches
+                // several providers to compose its summary.
+                _CategoryRows(rows: _categoryRows(context, ctx, user)),
                 const SizedBox(height: AppTheme.spacingLG),
                 _LogoutButton(onPressed: () => _confirmLogout(context)),
               ],

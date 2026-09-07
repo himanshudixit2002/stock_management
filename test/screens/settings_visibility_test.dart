@@ -216,4 +216,41 @@ void main() {
       expect(orders, orderedEquals(orders.toList()..sort()));
     });
   });
+
+  group('the hub row list', () {
+    // The profile card at the top of the hub *is* the Account category. Listing
+    // the category again put two controls one above the other, both opening
+    // ProfileScreen.
+    test('Account is a visible category, because search needs it', () {
+      final ctx = _ctx(permissions: AppPermissions.allTrue());
+      expect(
+        SettingsCatalog.visibleCategories(ctx).map((c) => c.id),
+        contains(SettingsCategoryId.account),
+      );
+      expect(
+        SettingsCatalog.visibleLeavesIn(SettingsCategoryId.account, ctx)
+            .map((l) => l.id),
+        containsAll(<String>['account.password', 'account.delete']),
+      );
+    });
+
+    test('the hub does not repeat Account as a row', () {
+      final ctx = _ctx(permissions: AppPermissions.allTrue());
+      final rows = SettingsCatalog.hubRowCategories(ctx).map((c) => c.id);
+      expect(rows, isNot(contains(SettingsCategoryId.account)));
+      // Every other visible category still gets one.
+      expect(rows.length, SettingsCatalog.visibleCategories(ctx).length - 1);
+    });
+
+    test('no hub row leads to the same route as another', () {
+      // The duplicate row was only visible because Account and the profile card
+      // shared AppRoutes.profile. Any other pair sharing a route would read the
+      // same way.
+      final ctx = _ctx(permissions: AppPermissions.allTrue());
+      final routes = SettingsCatalog.hubRowCategories(
+        ctx,
+      ).map((c) => c.route).toList();
+      expect(routes.toSet().length, routes.length);
+    });
+  });
 }

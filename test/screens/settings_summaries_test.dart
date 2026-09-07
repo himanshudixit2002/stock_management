@@ -374,4 +374,20 @@ void main() {
       expect(accountSummary(email: 'a@b.com', roleLabel: ''), 'a@b.com');
     });
   });
+
+  group('teamSummary role counts', () {
+    test('a workspace with no custom roles says so, once loaded', () {
+      // rolesLoaded used to be derived from roles.isNotEmpty, so a workspace
+      // that genuinely had none showed the "still loading" fallback forever.
+      expect(
+        teamSummary(
+          roleCount: 0,
+          rolesLoaded: true,
+          canManageUsers: true,
+          vendorsOn: false,
+        ),
+        'No custom roles · users & overrides',
+      );
+    });
+  });
 }

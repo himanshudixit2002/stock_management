@@ -131,7 +131,11 @@ String teamSummary({
   required bool vendorsOn,
 }) {
   if (!rolesLoaded) return 'Users, roles, vendors and customers';
-  final roles = roleCount == 1 ? '1 role' : '$roleCount roles';
+  final roles = switch (roleCount) {
+    0 => 'No custom roles',
+    1 => '1 role',
+    _ => '$roleCount roles',
+  };
   return _join([
     roles,
     if (canManageUsers) 'users & overrides',

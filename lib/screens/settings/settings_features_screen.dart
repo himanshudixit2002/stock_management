@@ -33,12 +33,14 @@ class _SettingsFeaturesScreenState extends State<SettingsFeaturesScreen>
 
   /// Destinations that disappear when [gate] is switched off, so the row can
   /// say so before it is flipped rather than after.
-  String _affects(HomeActionFeatureGate gate) {
+  String? _affects(HomeActionFeatureGate gate) {
     final labels = FeatureMap.all
         .where((e) => e.featureGates.contains(gate))
         .map((e) => e.label)
         .toList();
-    if (labels.isEmpty) return '';
+    // Null, not '': an empty string still renders a blank second line and
+    // leaves the row taller than its neighbours for no reason.
+    if (labels.isEmpty) return null;
     if (labels.length <= 3) return 'Controls ${labels.join(', ')}.';
     return 'Controls ${labels.take(3).join(', ')} '
         'and ${labels.length - 3} more.';

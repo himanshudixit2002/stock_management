@@ -1094,6 +1094,19 @@ class SettingsCatalog {
     return list;
   }
 
+  /// The categories that get their own row on the hub.
+  ///
+  /// [SettingsCategoryId.account] is excluded: the profile card at the top of
+  /// the hub already *is* that row, and listing the category underneath it put
+  /// two controls opening the same screen directly above one another. It stays
+  /// in [visibleCategories] and in the leaf list so search still finds
+  /// "password" and "delete account".
+  static List<SettingsCategory> hubRowCategories(
+    SettingsVisibilityContext ctx,
+  ) => visibleCategories(
+    ctx,
+  ).where((c) => c.id != SettingsCategoryId.account).toList();
+
   static SettingsLeaf? leafById(String id) {
     for (final leaf in leaves) {
       if (leaf.id == id) return leaf;
