@@ -40,10 +40,15 @@
        Preloading it here overlaps that download with the main bundle instead of
        queueing behind it. The version is pinned by the firebase_core package —
        bump it here when upgrading firebase_core. A stale URL costs only an
-       unused-preload console warning, never a broken load. -->
-  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js">
-  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js">
-  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js">
+       unused-preload console warning, never a broken load.
+
+       `crossorigin` is required, not decoration: firebase_core fetches these
+       with a cross-origin `import()`, and without it the preload's credentials
+       mode does not match, so the preload is discarded and every file is
+       downloaded twice. -->
+  <link rel="preload" as="script" crossorigin href="https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js">
+  <link rel="preload" as="script" crossorigin href="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js">
+  <link rel="preload" as="script" crossorigin href="https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -177,7 +182,13 @@
           var appRunner = await engineInitializer.initializeEngine();
           await appRunner.runApp();
           if ('serviceWorker' in navigator) {
-            var v = _flutter.buildConfig.serviceWorkerVersion;
+            // buildConfig only carries serviceWorkerVersion when the loader is
+            // given serviceWorkerSettings, which we deliberately do not do (see
+            // above). Reading it blindly registered the worker as
+            // `?v=undefined`, a URL that never changes between deploys. Fall
+            // back to the engine revision, which does.
+            var v = _flutter.buildConfig.serviceWorkerVersion ||
+              _flutter.buildConfig.engineRevision;
             navigator.serviceWorker
               .register('flutter_service_worker.js?v=' + v)
               .catch(function (e) {

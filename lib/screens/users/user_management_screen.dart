@@ -176,6 +176,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
+                                    tooltip: 'Clear search',
                                     icon: const Icon(Icons.clear, size: 20),
                                     onPressed: () {
                                       _searchController.clear();

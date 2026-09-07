@@ -68,6 +68,15 @@ import '../screens/onboarding/onboarding_screen.dart' deferred as onboarding;
 import '../screens/company/company_switcher_screen.dart' deferred as company_switch;
 import '../screens/favorites/favorites_screen.dart';
 import '../screens/settings/settings_screen.dart' deferred as settings_scr;
+import '../screens/settings/settings_appearance_screen.dart'
+    deferred as settings_appearance;
+import '../screens/settings/settings_features_screen.dart'
+    deferred as settings_features;
+import '../screens/settings/settings_catalog_screen.dart'
+    deferred as settings_catalog_scr;
+import '../screens/settings/settings_leaf_page.dart' deferred as settings_leaf;
+import '../screens/notifications/notification_settings_screen.dart'
+    deferred as notification_settings;
 import '../screens/warehouse/warehouse_zones_screen.dart' deferred as warehouse;
 import '../screens/activity/activity_timeline_screen.dart' deferred as activity;
 import '../screens/help/help_screen.dart' deferred as help_scr;
@@ -573,7 +582,9 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       settings,
       DeferredScreenLoader(
         future: profile.loadLibrary(),
-        builder: (_) => profile.ProfileScreen(),
+        builder: (_) => profile.ProfileScreen(
+          focusId: settings.arguments as String?,
+        ),
       ),
     ),
     AppRoutes.about => _slideRoute(
@@ -594,10 +605,80 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       settings,
       DeferredScreenLoader(
         future: home_custom.loadLibrary(),
-        builder: (_) => home_custom.HomeCustomizationScreen(),
+        builder: (_) => home_custom.HomeCustomizationScreen(
+          focusId: settings.arguments as String?,
+        ),
       ),
     ),
     AppRoutes.dataHealth => _slideRoute(settings, const DataHealthScreen()),
+
+    // -- Settings sub-pages --
+    // Each takes the route argument as its focus anchor, so a settings search
+    // hit opens the page already scrolled to the group it named. Deferred for
+    // the same reason the Settings hub is: none of them is on a hot path.
+    AppRoutes.settingsAppearance => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_appearance.loadLibrary(),
+        builder: (_) => settings_appearance.SettingsAppearanceScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.settingsFeatures => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_features.loadLibrary(),
+        builder: (_) => settings_features.SettingsFeaturesScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.settingsCatalog => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_catalog_scr.loadLibrary(),
+        builder: (_) => settings_catalog_scr.SettingsCatalogScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.settingsTeam => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_leaf.loadLibrary(),
+        builder: (_) => settings_leaf.SettingsTeamScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.settingsData => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_leaf.loadLibrary(),
+        builder: (_) => settings_leaf.SettingsDataScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.settingsHelp => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: settings_leaf.loadLibrary(),
+        builder: (_) => settings_leaf.SettingsHelpScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.notificationSettings => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: notification_settings.loadLibrary(),
+        builder: (_) => notification_settings.NotificationSettingsScreen(
+          focusId: settings.arguments as String?,
+        ),
+      ),
+    ),
     AppRoutes.planFeatures => _slideRoute(settings, const PlanFeaturesScreen()),
 
     // -- Super admin (cross-tenant; gated by SuperAdminProvider + rules) --
@@ -704,7 +785,9 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.billingSettings => _slideRoute(settings, 
       DeferredScreenLoader(
         future: billing_settings.loadLibrary(),
-        builder: (_) => billing_settings.BillingSettingsScreen(),
+        builder: (_) => billing_settings.BillingSettingsScreen(
+          focusId: settings.arguments as String?,
+        ),
       ),
     ),
     AppRoutes.billingReports => _slideRoute(settings, 

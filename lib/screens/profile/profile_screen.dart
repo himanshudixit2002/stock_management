@@ -11,16 +11,22 @@ import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/success_overlay.dart';
 import '../../config/app_navigation.dart';
+import '../settings/settings_focus.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.focusId});
+
+  /// Section to scroll to and flash, when arrived at from settings search.
+  final String? focusId;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SettingsFocusMixin {
   bool _isEditingName = false;
+  bool _resolvedFocus = false;
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
 
@@ -57,7 +63,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = auth.currentUser;
     if (user == null) return const SizedBox.shrink();
 
+    if (!_resolvedFocus) {
+      _resolvedFocus = true;
+      focusAfterLayout(widget.focusId ?? settingsAnchorOf(context));
+    }
+
     final hPad = Responsive.horizontalPadding(context);
+    // Both of these act on the signed-in account, not the workspace being
+    // looked at, so an inspecting super-admin must not be offered them here.
+    final inspecting = auth.isInspecting;
 
     return AppScreenScaffold(
       icon: Icons.person_rounded,
@@ -65,16 +79,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 40),
         children: [
-          FadeSlideIn(index: 0, child: _buildAvatarHeader(context, user)),
-          const SizedBox(height: 24),
-          FadeSlideIn(
-            index: 1,
-            child: _buildAccountInfoSection(context, user),
+          KeyedSubtree(
+            key: keyFor('account.profile'),
+            child: FadeSlideIn(
+              index: 0,
+              child: _buildAvatarHeader(context, user),
+            ),
           ),
-          const SizedBox(height: 16),
-          FadeSlideIn(index: 2, child: _buildSecuritySection(context)),
-          const SizedBox(height: 16),
-          FadeSlideIn(index: 3, child: _buildDangerZone(context)),
+          const SizedBox(height: 24),
+          KeyedSubtree(
+            key: keyFor('account.info'),
+            child: FadeSlideIn(
+              index: 1,
+              child: _buildAccountInfoSection(context, user),
+            ),
+          ),
+          if (!inspecting) ...[
+            const SizedBox(height: 16),
+            KeyedSubtree(
+              key: keyFor('account.security'),
+              child: FadeSlideIn(index: 2, child: _buildSecuritySection(context)),
+            ),
+            const SizedBox(height: 16),
+            KeyedSubtree(
+              key: keyFor('account.danger'),
+              child: FadeSlideIn(index: 3, child: _buildDangerZone(context)),
+            ),
+          ],
         ],
       ),
     );

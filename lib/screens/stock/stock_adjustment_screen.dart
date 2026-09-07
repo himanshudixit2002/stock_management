@@ -224,11 +224,11 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
               icon: Icons.location_off_rounded,
               title: 'No Locations Configured',
               subtitle: 'Add locations in Settings before adjusting stock.',
-              buttonText: 'Go to Settings',
+              buttonText: 'Add locations',
               onButtonPressed: () {
                 Navigator.pushNamed(
                   context,
-                  AppRoutes.settings,
+                  AppRoutes.settingsCatalog,
                   arguments: 'locations',
                 );
               },

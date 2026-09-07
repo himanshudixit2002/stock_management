@@ -352,17 +352,10 @@ class HomeScreenState extends State<HomeScreen>
     final isDark = AppTheme.isDark(context);
     return KeyboardShortcutsScope(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-        // Transparent so the floating pill shows over content; the body
-        // gradient fills the gesture-nav area beneath it.
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark,
-      ),
+      // Bar colours are deliberately not set here; see [AppTheme.systemBars].
+      // Under edge-to-edge the bars are transparent already, so the floating
+      // pill shows over content and the body gradient fills the gesture area.
+      value: AppTheme.systemBars(isDark),
       child: Column(
         children: [
           const OfflineBanner(),

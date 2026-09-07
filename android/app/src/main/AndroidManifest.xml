@@ -3,10 +3,19 @@
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Android 13+ gates the notification tray behind a runtime grant. The app
+         asks for it the first time a stock alert would be posted, not at
+         launch, so the prompt arrives with context. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <!-- Speech input is a convenience on the AI screen, not a reason to reject
+         a device that has no microphone. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <application
         android:label="SmartShelfKart"
         android:name="${applicationName}"
+        android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

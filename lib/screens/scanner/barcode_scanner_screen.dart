@@ -245,6 +245,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         appBar: AppBar(
           title: Text(title),
           leading: IconButton(
+            tooltip: 'Close scanner',
             icon: const Icon(Icons.close_rounded),
             onPressed: () => Navigator.maybePop(context),
           ),
@@ -392,6 +393,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                     automaticallyImplyLeading: !widget.captureOnly,
                     leading: widget.captureOnly
                         ? IconButton(
+                            tooltip: 'Close scanner',
                             icon: const Icon(
                               Icons.close_rounded,
                               color: Colors.white70,
@@ -550,6 +552,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _controller.text.isNotEmpty
                           ? IconButton(
+                              tooltip: 'Clear search',
                               icon: const Icon(Icons.clear_rounded, size: 18),
                               onPressed: () {
                                 _controller.clear();

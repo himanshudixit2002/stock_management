@@ -42,6 +42,9 @@ import 'providers/connectivity_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'firebase_options.dart';
+import 'services/firestore_config.dart';
+import 'services/local_notification_service.dart';
+import 'utils/notification_routing.dart';
 import 'utils/html_splash.dart';
 import 'widgets/branded_splash.dart';
 
@@ -76,6 +79,11 @@ class SoftScrollBehavior extends MaterialScrollBehavior {
 class StockManagementApp extends StatelessWidget {
   const StockManagementApp({super.key});
 
+  /// Lets code outside the widget tree navigate — specifically a tap on an
+  /// Android tray notification, which arrives with no BuildContext of its own.
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -109,6 +117,7 @@ class StockManagementApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) => MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'SmartShelfKart',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
@@ -159,7 +168,7 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _initialized = false;
   bool _providersInitializing = false;
   bool _onboardingChecked = false;
@@ -170,6 +179,9 @@ class _AuthWrapperState extends State<AuthWrapper>
   /// Last company id that completed [_initializeProviders] successfully; drives rebind vs auth.
   String? _providersBoundCompanyId;
   bool _companyRebindPending = false;
+
+  /// Delays the post-login alert scan until the data streams have landed.
+  Timer? _firstScanTimer;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
@@ -193,7 +205,85 @@ class _AuthWrapperState extends State<AuthWrapper>
       // first frame exposed a duplicate Flutter loading screen underneath.
       _bootstrapWebFirebase();
     } else {
+      WidgetsBinding.instance.addObserver(this);
+      _setUpAlerts();
       _initializeApp();
+    }
+  }
+
+  /// Connects the alert pipeline: scans raise tray notifications, and tapping
+  /// one deep-links to whatever it is about.
+  void _setUpAlerts() {
+    final notifications = context.read<NotificationProvider>();
+    notifications.onNewAlerts = LocalNotificationService.instance.showAlerts;
+    LocalNotificationService.instance.initialize(onSelect: _openFromTray);
+  }
+
+  void _openFromTray(String payload) {
+    final (entityType, entityId) = NotificationRouting.decodePayload(payload);
+    // The tap can arrive before the first frame, so wait for a navigator.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navContext = StockManagementApp.navigatorKey.currentContext;
+      if (navContext == null) return;
+      NotificationRouting.open(
+        navContext,
+        entityType: entityType,
+        entityId: entityId,
+      );
+    });
+  }
+
+  /// Re-checks for alerts when the app comes back to the foreground.
+  ///
+  /// [NotificationProvider.runScan] throttles itself, so a user flicking
+  /// between apps does not trigger repeated work.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) return;
+    if (_providersBoundCompanyId == null) return;
+    _runAlertScan();
+  }
+
+  /// Derives alerts from data the providers already hold. Cheap when nothing
+  /// has changed, and silent on failure — an alert scan must never be the
+  /// reason the app looks broken.
+  void _runAlertScan() {
+    if (!mounted) return;
+    final notifications = context.read<NotificationProvider>();
+    unawaited(
+      notifications.runScan(
+        products: context.read<ProductProvider>().analyticsProducts,
+        batches: context.read<BatchProvider>().batches,
+        invoices: context.read<BillingProvider>().invoices,
+        purchaseOrders: context.read<PurchaseOrderProvider>().orders,
+      ),
+    );
+  }
+
+  /// Whether Firebase has already been initialised, safe to ask before the web
+  /// SDK exists.
+  ///
+  /// This is the Safari bug. `firebase_core_web` only injects the Firebase JS
+  /// SDK from inside `initializeApp`, so reading `Firebase.apps` beforehand
+  /// calls `firebase_core.getApps()` on a global that is still `undefined`. The
+  /// plugin intends to absorb that — it catches the failure and returns an
+  /// empty list — but it decides whether to absorb it by string-matching the
+  /// browser's error text for `'of undefined'`. That is V8's phrasing.
+  /// JavaScriptCore instead says "undefined is not an object (evaluating
+  /// 'firebase_core.getApps')" and SpiderMonkey says "firebase_core is
+  /// undefined", so on Safari and Firefox the guard misses and the error is
+  /// rethrown, straight into the "Connection Error" screen. Every V8 browser —
+  /// Chrome, Edge, Brave, Opera — matched the string and booted fine, which is
+  /// exactly why this looked like a network problem on one browser only.
+  ///
+  /// Treating a throw as "not initialised yet" is correct rather than merely
+  /// convenient: the only way an app can exist is for the SDK to have loaded.
+  static bool _firebaseAlreadyInitialized() {
+    try {
+      return Firebase.apps.isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -201,12 +291,30 @@ class _AuthWrapperState extends State<AuthWrapper>
   /// before Firebase completes. [AuthProvider] must not be read until this finishes.
   Future<void> _bootstrapWebFirebase() async {
     try {
-      if (Firebase.apps.isEmpty) {
+      if (!_firebaseAlreadyInitialized()) {
+        // The timeout is not belt-and-braces, it is the only way out of a real
+        // failure mode. firebase_core_web loads the Firebase JS SDK by injecting
+        // a script that `import()`s it from gstatic, and awaits a Completer that
+        // only the success callback ever completes. If that import is refused —
+        // a content blocker, a network filter, an offline first load — nothing
+        // rejects and nothing throws: the future simply never finishes, and the
+        // app sits on the splash for good. Timing out converts that into the
+        // error screen below, which at least says what happened and offers a
+        // retry.
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw Exception(
+            'Timed out loading the Firebase SDK from www.gstatic.com. '
+            'A content blocker, extension or network filter may be blocking it.',
+          ),
         );
       }
+      // Before [_initializeApp] reaches Firestore through PlanCatalogProvider.
+      FirestoreConfig.apply();
     } catch (e) {
+      debugPrint('Firebase web bootstrap failed: $e');
       if (mounted) {
         setState(() {
           _initError = e.toString();
@@ -230,6 +338,8 @@ class _AuthWrapperState extends State<AuthWrapper>
 
   @override
   void dispose() {
+    _firstScanTimer?.cancel();
+    if (!kIsWeb) WidgetsBinding.instance.removeObserver(this);
     _animController.dispose();
     super.dispose();
   }
@@ -321,6 +431,7 @@ class _AuthWrapperState extends State<AuthWrapper>
     context.read<StockTakeProvider>().reset();
     context.read<AuditLogProvider>().reset();
     context.read<NotificationProvider>().reset();
+    unawaited(LocalNotificationService.instance.cancelAll());
     context.read<PriceHistoryProvider>().reset();
     context.read<WarehouseZoneProvider>().reset();
     context.read<BillingProvider>().reset();
@@ -461,6 +572,21 @@ class _AuthWrapperState extends State<AuthWrapper>
       // Full-catalog analytics fills in the dashboard/report numbers; the Home
       // shell already shows cached/first-page stats until this lands.
       context.read<ProductProvider>().loadAnalytics();
+
+      // The scan reads whatever the providers above have streamed in, so it
+      // waits for them rather than racing them. Scanning early would look at
+      // empty lists and conclude, wrongly, that nothing is wrong.
+      if (!kIsWeb) _scheduleFirstScan();
+    });
+  }
+
+  /// Runs the first alert scan once the data streams have had a chance to
+  /// deliver. Cancelled if the widget goes away first.
+  void _scheduleFirstScan() {
+    _firstScanTimer?.cancel();
+    _firstScanTimer = Timer(const Duration(seconds: 12), () {
+      if (!mounted) return;
+      _runAlertScan();
     });
   }
 
@@ -541,12 +667,18 @@ class _AuthWrapperState extends State<AuthWrapper>
         message:
             'Could not connect to the server.\n'
             'Please check your internet connection and try again.',
+        // The reason was captured and then thrown away, which made every
+        // report of this screen unactionable — "connection error" reads the
+        // same whether the SDK was blocked, the browser refused storage or the
+        // network is genuinely down. Shown collapsed so it costs nothing to
+        // anyone who just wants Retry.
+        details: _initError,
         onRetry: () {
           setState(() {
             _initialized = false;
             _initError = null;
           });
-          if (kIsWeb && Firebase.apps.isEmpty) {
+          if (kIsWeb && !_firebaseAlreadyInitialized()) {
             _bootstrapWebFirebase();
           } else {
             _initializeApp();
@@ -801,10 +933,16 @@ class _ProviderInitErrorScreen extends StatelessWidget {
   final VoidCallback onRetry;
   final String title;
 
+  /// The raw failure, if there is one worth showing. Collapsed by default and
+  /// selectable when opened, so a user hitting this can copy the actual cause
+  /// into a support message instead of describing the generic headline.
+  final String? details;
+
   const _ProviderInitErrorScreen({
     required this.message,
     required this.onRetry,
     this.title = 'Could Not Load Data',
+    this.details,
   });
 
   @override
@@ -848,6 +986,39 @@ class _ProviderInitErrorScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              if (details != null && details!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Theme(
+                    // The default divider lines make a single collapsed row
+                    // look like an unfinished list.
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: Text(
+                        'Technical details',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textTer(context),
+                        ),
+                      ),
+                      children: [
+                        SelectableText(
+                          details!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: AppTheme.textSec(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

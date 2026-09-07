@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Accent applied to the tray icon and title. Matches AppTheme.primaryColor. -->
+    <color name="notification_accent">#FF0D9488</color>
 </resources>

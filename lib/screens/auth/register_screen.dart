@@ -122,6 +122,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               padding: EdgeInsets.zero,
                               useContentVariant: true,
                               child: IconButton(
+                                tooltip: 'Back',
                                 onPressed: () => Navigator.pop(context),
                                 icon: const Icon(
                                   Icons.arrow_back_rounded,
@@ -427,6 +428,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ],
                                   onChanged: (_) => setState(() {}),
                                   suffix: IconButton(
+                                    tooltip: _showPassword
+                                        ? 'Hide password'
+                                        : 'Show password',
                                     icon: Icon(
                                       _showPassword
                                           ? Icons.visibility_off_rounded
@@ -468,6 +472,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   obscureText: !_showConfirmPassword,
                                   onChanged: (_) => setState(() {}),
                                   suffix: IconButton(
+                                    tooltip: _showConfirmPassword
+                                        ? 'Hide password'
+                                        : 'Show password',
                                     icon: Icon(
                                       _showConfirmPassword
                                           ? Icons.visibility_off_rounded

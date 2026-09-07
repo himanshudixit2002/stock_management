@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'services/firestore_config.dart';
 import 'app.dart';
 
 void main() async {
@@ -38,6 +39,9 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      // Before anything can reach FirebaseFirestore.instance — settings are
+      // read once, when the client is first started, and ignored after.
+      FirestoreConfig.apply();
     } catch (e, stack) {
       debugPrint('Firebase init failed: $e\n$stack');
       // Still launch the app — AuthWrapper will show an error/retry screen.

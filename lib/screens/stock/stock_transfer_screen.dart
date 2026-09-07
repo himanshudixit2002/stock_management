@@ -234,11 +234,11 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
           title: 'Not Enough Locations',
           subtitle:
               'You need at least two locations to transfer stock. Add locations in Settings.',
-          buttonText: 'Go to Settings',
+          buttonText: 'Add locations',
           onButtonPressed: () {
             Navigator.pushNamed(
               context,
-              AppRoutes.settings,
+              AppRoutes.settingsCatalog,
               arguments: 'locations',
             );
           },

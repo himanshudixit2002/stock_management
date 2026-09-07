@@ -21,6 +21,9 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // flutter_local_notifications uses java.time on minSdk levels that
+        // predate it, so the desugared JDK library is required, not optional.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -68,5 +71,10 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    // Held at 1.9.3 deliberately. 1.13.0 was tried to shed the deprecated
+    // Window.setStatusBarColor / setNavigationBarColor calls that Play flags,
+    // and measurably made it worse: it ships more per-API-level EdgeToEdge
+    // shims, taking those call sites from 6 to 8 in the release dex.
     implementation("androidx.activity:activity-ktx:1.9.3")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

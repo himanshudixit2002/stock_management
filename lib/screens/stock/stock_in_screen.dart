@@ -282,11 +282,11 @@ class _StockInScreenState extends State<StockInScreen> {
           icon: Icons.location_off_rounded,
           title: 'No Locations Configured',
           subtitle: 'Add locations in Settings before receiving stock.',
-          buttonText: 'Go to Settings',
+          buttonText: 'Add locations',
           onButtonPressed: () {
             Navigator.pushNamed(
               context,
-              AppRoutes.settings,
+              AppRoutes.settingsCatalog,
               arguments: 'locations',
             );
           },

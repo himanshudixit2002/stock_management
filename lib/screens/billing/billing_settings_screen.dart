@@ -4,20 +4,30 @@ import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
+import '../settings/settings_focus.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/currency.dart';
 
 class BillingSettingsScreen extends StatefulWidget {
-  const BillingSettingsScreen({super.key});
+  const BillingSettingsScreen({super.key, this.focusId});
+
+  /// Section to scroll to and flash, when arrived at from settings search.
+  /// Currency, tax and invoice numbering are all found here, so this is the
+  /// page settings search deep-links into most.
+  final String? focusId;
 
   @override
   State<BillingSettingsScreen> createState() => _BillingSettingsScreenState();
 }
 
-class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
+class _BillingSettingsScreenState extends State<BillingSettingsScreen>
+    with SettingsFocusMixin {
+  bool _resolvedFocus = false;
+
   late TextEditingController _businessNameCtrl;
   late TextEditingController _businessAddressCtrl;
   late TextEditingController _businessPhoneCtrl;
@@ -168,9 +178,19 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_resolvedFocus) {
+      _resolvedFocus = true;
+      focusAfterLayout(widget.focusId ?? settingsAnchorOf(context));
+    }
     if (!_loaded) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Billing Settings')),
+        appBar: AppBar(
+          title: AppBarTitleRow(
+            icon: Icons.receipt_long_rounded,
+            color: AppTheme.successColor,
+            title: 'Billing Settings',
+          ),
+        ),
         body: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -191,7 +211,17 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Billing Settings')),
+      appBar: AppBar(
+        // Was a bare text title, the one settings destination that did not
+        // carry the app's icon+colour app bar. It is the page search deep-links
+        // into most (currency, tax and invoice numbering all live here), so it
+        // arriving looking unlike its siblings was the most visible seam.
+        title: AppBarTitleRow(
+          icon: Icons.receipt_long_rounded,
+          color: AppTheme.successColor,
+          title: 'Billing Settings',
+        ),
+      ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
         child: Center(
@@ -244,7 +274,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                         ],
                       ),
                       _field(_taxIdCtrl, 'Tax ID / GSTIN', Icons.badge_rounded),
-                    ]),
+                    ], anchor: 'billing.business'),
                     const SizedBox(height: 16),
                     _section('Tax Configuration', AppTheme.warningColor, [
                       Row(
@@ -283,7 +313,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                    ]),
+                    ], anchor: 'billing.tax'),
                     const SizedBox(height: 16),
                     _section('Invoice Numbering', AppTheme.indigoColor, [
                       Row(
@@ -347,7 +377,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                           ),
                         ],
                       ),
-                    ]),
+                    ], anchor: 'billing.numbering'),
                     const SizedBox(height: 16),
                     _section('Purchase Bill Numbering', AppTheme.warningColor, [
                       Row(
@@ -379,7 +409,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
                         Icons.sticky_note_2_rounded,
                         maxLines: 3,
                       ),
-                    ]),
+                    ], anchor: 'billing.terms'),
                     const SizedBox(height: 16),
                     _section('Invoice Footer', AppTheme.accentColor, [
                       _field(
@@ -477,8 +507,13 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
     );
   }
 
-  Widget _section(String title, Color color, List<Widget> children) {
-    return Column(
+  Widget _section(
+    String title,
+    Color color,
+    List<Widget> children, {
+    String? anchor,
+  }) {
+    final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
@@ -513,6 +548,22 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen> {
           child: Column(children: children),
         ),
       ],
+    );
+    if (anchor == null) return body;
+    return KeyedSubtree(
+      key: keyFor(anchor),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isFlashing(anchor)
+              ? AppTheme.tint(context, color)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+        ),
+        child: body,
+      ),
     );
   }
 

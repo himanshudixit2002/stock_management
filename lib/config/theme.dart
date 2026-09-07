@@ -1,6 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppTheme {
+  /// System bar styling for the app's edge-to-edge layout.
+  ///
+  /// Sets icon brightness only, never bar colours, for two reasons. Android 15
+  /// deprecated `Window.setStatusBarColor` and `setNavigationBarColor` and
+  /// ignores both under edge-to-edge, so passing them earns a Play Console
+  /// warning for no effect. And Flutter's own [SystemUiOverlayStyle.light] and
+  /// [SystemUiOverlayStyle.dark] presets carry an opaque black
+  /// `systemNavigationBarColor`, which painted a black gesture bar on any
+  /// screen that used them while the rest of the app stayed transparent.
+  ///
+  /// Leaving the colours null means Flutter's platform channel skips those
+  /// calls entirely rather than passing a transparent value through them.
+  static SystemUiOverlayStyle systemBars(bool isDark) => SystemUiOverlayStyle(
+    statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+    systemNavigationBarIconBrightness: isDark
+        ? Brightness.light
+        : Brightness.dark,
+  );
+
   /// Fallback currency symbol only. The company's configured symbol lives in
   /// [BillingSettingsProvider]; read it through `Money` (lib/utils/currency.dart)
   /// so a company that switched currency sees it on every screen, not just
@@ -211,6 +232,14 @@ class AppTheme {
 
   static Color primaryTint(BuildContext context) =>
       isDark(context) ? _primaryDarkMode.withValues(alpha: 0.18) : primaryTintLight;
+
+  /// Background for a hovered row on web.
+  ///
+  /// A token rather than a literal because the hand-rolled settings tiles each
+  /// picked their own alpha (0.055 in one place) off the const [primaryColor],
+  /// which ignores dark mode entirely and left the hover state invisible there.
+  static Color hoverTint(BuildContext context) =>
+      primary(context).withValues(alpha: isDark(context) ? 0.10 : 0.05);
 
   /// Elevation as a shadow in light mode and as nothing in dark.
   ///

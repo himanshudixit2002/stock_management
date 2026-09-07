@@ -18,13 +18,16 @@ import '../models/price_history_model.dart';
 import '../models/warehouse_zone_model.dart';
 import '../models/invoice_model.dart';
 import '../models/stock_hold_model.dart';
+import 'notification_engine.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
-  DatabaseService._internal() {
-    _firestore.settings = const Settings(persistenceEnabled: true);
-  }
+  // Firestore settings are applied by [FirestoreConfig.apply] at startup, not
+  // here. This constructor runs whenever some provider first needs the service,
+  // which is well after the Firestore client has already been started, and the
+  // web plugin ignores settings assigned that late.
+  DatabaseService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final RegExp _nonDigitRegex = RegExp(r'\D');
@@ -3048,6 +3051,77 @@ class DatabaseService {
 
   Future<void> addNotification(AppNotificationModel n) async {
     await _notifications.add(n.toMap());
+  }
+
+  /// Writes [candidates] using their own ids as document ids, skipping any that
+  /// already exist.
+  ///
+  /// The id is the dedupe key, so a re-scan of an unchanged workspace writes
+  /// nothing. The existence check matters beyond saving writes: overwriting a
+  /// row the user has already read would silently mark it unread again.
+  ///
+  /// Returns the candidates that were actually created.
+  Future<List<NotificationCandidate>> createAlertsIfAbsent(
+    List<NotificationCandidate> candidates,
+  ) async {
+    if (candidates.isEmpty) return const [];
+
+    final existing = await Future.wait(
+      candidates.map((c) => _notifications.doc(c.id).get()),
+    );
+
+    final fresh = <NotificationCandidate>[];
+    var batch = _firestore.batch();
+    var opCount = 0;
+    for (var i = 0; i < candidates.length; i++) {
+      if (existing[i].exists) continue;
+      final c = candidates[i];
+      batch.set(_notifications.doc(c.id), {
+        'type': c.type,
+        'title': c.title,
+        'message': c.message,
+        'isRead': false,
+        'entityType': c.entityType,
+        'entityId': c.entityId,
+        'severity': c.severity.name,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      fresh.add(c);
+      opCount++;
+      if (opCount >= kFirestoreBatchLimit) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
+    }
+    if (opCount > 0) await batch.commit();
+    return fresh;
+  }
+
+  /// Deletes read notifications older than [olderThan].
+  ///
+  /// Best effort: rules restrict deletes to admins, so this is a no-op for
+  /// everyone else and the caller should not treat a failure as fatal.
+  Future<int> pruneNotifications({
+    Duration olderThan = const Duration(days: 30),
+  }) async {
+    final cutoff = Timestamp.fromDate(DateTime.now().subtract(olderThan));
+    final snap = await _notifications
+        .where('timestamp', isLessThan: cutoff)
+        .limit(kFirestoreBatchLimit)
+        .get();
+    // Keep anything still unread — an old alert nobody has looked at is
+    // exactly the one worth keeping.
+    final stale = snap.docs
+        .where((d) => d.data()['isRead'] == true)
+        .toList();
+    if (stale.isEmpty) return 0;
+    final batch = _firestore.batch();
+    for (final d in stale) {
+      batch.delete(d.reference);
+    }
+    await batch.commit();
+    return stale.length;
   }
 
   Future<void> markNotificationRead(String id) async {

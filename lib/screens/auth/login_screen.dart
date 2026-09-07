@@ -294,6 +294,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               padding: EdgeInsets.zero,
                               useContentVariant: true,
                               child: IconButton(
+                                tooltip: 'Back',
                                 onPressed: () => Navigator.pop(context),
                                 icon: const Icon(
                                   Icons.arrow_back_rounded,
@@ -426,6 +427,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   textInputAction: TextInputAction.done,
                                   onSubmitted: (_) => _login(),
                                   suffix: IconButton(
+                                    // Without a label a screen reader reads
+                                    // this only as "button"; the state has to
+                                    // be in the label for it to be useful.
+                                    tooltip: _showPassword
+                                        ? 'Hide password'
+                                        : 'Show password',
                                     icon: Icon(
                                       _showPassword
                                           ? Icons.visibility_off_rounded

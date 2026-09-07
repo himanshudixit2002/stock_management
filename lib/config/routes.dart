@@ -97,6 +97,18 @@ class AppRoutes {
   static const String homeCustomization = '/settings/home-customization';
   static const String dataHealth = '/settings/data-health';
   static const String planFeatures = '/settings/plan';
+
+  // Settings sub-pages. The Settings tab is a hub of category rows; each of
+  // these is one focused page behind it. Every one accepts an optional String
+  // anchor as its route argument so a settings search hit can scroll to and
+  // flash the group it named.
+  static const String notificationSettings = '/settings/notifications';
+  static const String settingsAppearance = '/settings/appearance';
+  static const String settingsFeatures = '/settings/features';
+  static const String settingsCatalog = '/settings/catalog';
+  static const String settingsTeam = '/settings/team';
+  static const String settingsData = '/settings/data';
+  static const String settingsHelp = '/settings/help';
   static const String superAdmin = '/super-admin';
   static const String superAdminCompany = '/super-admin/company';
   static const String roles = '/roles';

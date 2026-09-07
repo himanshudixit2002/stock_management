@@ -17,7 +17,11 @@ import '../../widgets/shimmer_loading.dart';
 import '../../widgets/success_overlay.dart';
 
 class HomeCustomizationScreen extends StatefulWidget {
-  const HomeCustomizationScreen({super.key});
+  const HomeCustomizationScreen({super.key, this.focusId});
+
+  /// Accepted so a settings search hit can route here like any other page.
+  /// The screen is a single list, so there is nothing finer to scroll to.
+  final String? focusId;
 
   @override
   State<HomeCustomizationScreen> createState() =>
