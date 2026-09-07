@@ -32,6 +32,16 @@ class ExcelUpdateScreen extends StatefulWidget {
 class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
   final ExcelService _excelService = ExcelService();
 
+  @override
+  void initState() {
+    super.initState();
+    // So the "N products" count on step 1 is the catalog and not a page, and
+    // so the download below has the whole set ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProductProvider>().loadAnalytics();
+    });
+  }
+
   bool _isExporting = false;
   bool _isParsing = false;
   bool _isApplying = false;
@@ -62,7 +72,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       _error = null;
     });
     try {
-      final products = context.read<ProductProvider>().allProducts;
+      // The whole catalog, not the loaded page: this spreadsheet is what the
+      // user edits and uploads back, so a partial download silently scoped the
+      // whole update to the first 200 products.
+      final products = await context.read<ProductProvider>().fullCatalog();
+      if (!mounted) return;
       if (products.isEmpty) {
         setState(() {
           _error = 'No products to export. Add products first.';
@@ -143,9 +157,14 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
         final categoryMap = categoryProvider.getCategoryNameMap();
         final vendorMap = vendorProvider.getVendorNameMap();
 
+        // A row whose product was not in the loaded page read as "new", so
+        // re-uploading an unchanged export proposed adding everything past
+        // product 200 all over again.
+        final catalog = await productProvider.fullCatalog();
+        if (!mounted) return;
         final diffs = _excelService.diffProducts(
           parseResult.data,
-          productProvider.allProducts,
+          catalog,
           categoryMap,
           vendorMap,
         );
@@ -258,7 +277,8 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
       // Bulk update modified products
       if (modified.isNotEmpty) {
-        final existingProducts = productProvider.allProducts;
+        final existingProducts = await productProvider.fullCatalog();
+        if (!mounted) return;
         final existingMap = <String, ProductModel>{};
         for (final p in existingProducts) {
           existingMap[p.id] = p;
@@ -364,7 +384,11 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
       }
 
       // Sync settings
-      await settingsProvider.syncFromProductList(productProvider.allProducts);
+      // Syncing the company/size/location lists from one page would drop every
+      // value used only by products further down the catalog.
+      await settingsProvider.syncFromProductList(
+        await productProvider.fullCatalog(),
+      );
 
       await productProvider.refreshProducts();
 
@@ -595,7 +619,8 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
   }
 
   Widget _buildStep1() {
-    final productCount = context.watch<ProductProvider>().allProducts.length;
+    final productCount =
+        context.watch<ProductProvider>().analyticsProducts.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

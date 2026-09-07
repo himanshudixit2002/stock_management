@@ -74,7 +74,30 @@ class ProductProvider extends ChangeNotifier {
   DateTime? get analyticsFetchedAt => _analyticsFetchedAt;
 
   /// Full product set for Dashboard/Reports. Use this for analytics displays.
+  ///
+  /// Falls back to the paginated [_products] when the analytics pass has not
+  /// run, so this is "the best we have", not "the whole catalog". Anything that
+  /// must not miss a product — duplicate detection on import, matching on
+  /// update, a bulk edit's selection list — has to await [fullCatalog] instead.
   List<ProductModel> get analyticsProducts => _analyticsSource;
+
+  /// The whole catalog, loading it first if only a page is in memory.
+  ///
+  /// [allProducts] is one page of [DatabaseService.productsPageSize] (200), and
+  /// `initialize()` drops back to a page every time it runs. Several screens
+  /// read it as though it were everything: Excel import matched incoming rows
+  /// against it to decide insert-vs-update, so a workspace past its first page
+  /// created duplicates instead of updating; "Download for update" handed back
+  /// a spreadsheet of the first 200 only; and the bulk editors could not select
+  /// a product beyond that page.
+  Future<List<ProductModel>> fullCatalog() async {
+    await loadAnalytics();
+    return _analyticsSource;
+  }
+
+  /// Whether [analyticsProducts] is currently the whole catalog rather than a
+  /// page. Screens that read it during `build` gate on this.
+  bool get isFullCatalogLoaded => _analyticsProducts != null;
 
   // --- Analytics cache ---
   Map<String, List<ProductModel>>? _cachedProductsByCategory;

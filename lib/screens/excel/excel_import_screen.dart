@@ -228,10 +228,17 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       }
       if (sizes.isNotEmpty) await settingsProvider.addSizesFromImport(sizes);
 
-      // Smart merge: match by barcode then composite key
+      // Smart merge: match by barcode then composite key.
+      //
+      // Against allProducts this compared incoming rows to a single 200-item
+      // page, so in a workspace past its first page an existing product simply
+      // was not found and the row was inserted as new — an import that should
+      // have updated silently duplicated the catalog.
+      final existingProducts = await productProvider.fullCatalog();
+      if (!mounted) return;
       final mergeResult = _excelService.matchExistingProducts(
         importedProducts: products,
-        existingProducts: productProvider.allProducts,
+        existingProducts: existingProducts,
       );
 
       // Abort rather than proceed when unmounted. The condition used to be

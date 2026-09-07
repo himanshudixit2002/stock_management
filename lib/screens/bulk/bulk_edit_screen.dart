@@ -42,13 +42,24 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   bool _isApplying = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Without this the selection list is one 200-item page, so products past
+    // that could not be picked for a bulk edit at all.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProductProvider>().loadAnalytics();
+    });
+  }
+
+  @override
   void dispose() {
     _thresholdController.dispose();
     super.dispose();
   }
 
+  /// Every product, so a selection is not silently limited to page one.
   List<ProductModel> get _allProducts =>
-      context.read<ProductProvider>().allProducts;
+      context.read<ProductProvider>().analyticsProducts;
 
   List<ProductModel> get _selectedProducts =>
       _allProducts.where((p) => _selectedProductIds.contains(p.id)).toList();
@@ -82,6 +93,13 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
     final categories = context.read<CategoryProvider>().categories;
     final now = DateTime.now();
 
+    // Every branch below is conditional, so a run where the category lookup
+    // missed or the threshold would not parse produced products differing from
+    // the originals only by updatedAt — and still reported "N products
+    // updated". Track whether any field actually resolved, and say so when
+    // none did rather than claiming a change that did not happen.
+    var appliedAnything = false;
+
     final updatedProducts = _selectedProducts.map((p) {
       var updated = p.copyWith(updatedAt: now);
       if (_selectedFields.contains('category') && _newCategory != null) {
@@ -91,22 +109,35 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
             categoryId: cat.id,
             categoryName: cat.name,
           );
+          appliedAnything = true;
         }
       }
       if (_selectedFields.contains('company') && _newCompany != null) {
         updated = updated.copyWith(company: _newCompany);
+        appliedAnything = true;
       }
       if (_selectedFields.contains('size') && _newSize != null) {
         updated = updated.copyWith(size: _newSize);
+        appliedAnything = true;
       }
       if (_selectedFields.contains('threshold')) {
         final threshold = int.tryParse(_thresholdController.text);
         if (threshold != null && threshold >= 0) {
           updated = updated.copyWith(lowStockThreshold: threshold);
+          appliedAnything = true;
         }
       }
       return updated;
     }).toList();
+
+    if (!appliedAnything) {
+      setState(() => _isApplying = false);
+      showErrorSnackBar(
+        context,
+        'Nothing to apply — check the values for the fields you selected.',
+      );
+      return;
+    }
 
     try {
       final productProvider = context.read<ProductProvider>();
@@ -118,7 +149,9 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
       if (!mounted) return;
       showSuccessOverlay(
         context,
-        message: '${updatedProducts.length} products updated',
+        message: updatedProducts.length == 1
+            ? '1 product updated'
+            : '${updatedProducts.length} products updated',
       );
     } catch (e) {
       if (!mounted) return;
@@ -138,7 +171,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final products = context.watch<ProductProvider>().allProducts;
+    final products = context.watch<ProductProvider>().analyticsProducts;
 
     final bool isEmpty = products.isEmpty;
 

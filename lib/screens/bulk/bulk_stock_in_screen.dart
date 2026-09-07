@@ -48,6 +48,11 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   void initState() {
     super.initState();
     _addRow();
+    // The product picker below has to be able to reach every product, and
+    // allProducts is one 200-item page until this completes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProductProvider>().loadAnalytics();
+    });
   }
 
   @override
@@ -142,7 +147,8 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   void _showProductPicker(int rowIndex) async {
-    final products = context.read<ProductProvider>().allProducts;
+    final products = await context.read<ProductProvider>().fullCatalog();
+    if (!mounted) return;
     final p = await showProductPicker(
       context: context,
       products: products,
@@ -162,7 +168,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final products = context.watch<ProductProvider>().allProducts;
+    final products = context.watch<ProductProvider>().analyticsProducts;
     final locations = context.watch<SettingsProvider>().locations;
 
     final bool isEmpty = products.isEmpty;

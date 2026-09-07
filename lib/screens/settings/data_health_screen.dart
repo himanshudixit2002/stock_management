@@ -1,24 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
 
+import '../../models/product_model.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/sales_order_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../services/data_health_service.dart';
-import '../../widgets/app_bar_title_row.dart';
+import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/permission_gate.dart';
+import '../../widgets/shimmer_loading.dart';
 
-/// Admin diagnostic: scans loaded workspace data for the inconsistencies that
-/// stock and billing bugs can leave behind, and says what to do about each.
-class DataHealthScreen extends StatelessWidget {
+/// Admin diagnostic: scans workspace data for the inconsistencies that stock
+/// and billing bugs can leave behind, and says what to do about each.
+///
+/// The scan must run over the whole catalog. It used to read
+/// `analyticsProducts`, which falls back to a single 200-item page — so on a
+/// larger workspace it checked a fraction of the products and then reported
+/// "No problems found. Stock totals, reservations and invoice links all
+/// reconcile." A diagnostic that clears data it never looked at is worse than
+/// no diagnostic, so this waits for the full catalog before saying anything.
+class DataHealthScreen extends StatefulWidget {
   const DataHealthScreen({super.key});
 
   @override
+  State<DataHealthScreen> createState() => _DataHealthScreenState();
+}
+
+class _DataHealthScreenState extends State<DataHealthScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load({bool force = false}) async {
+    if (!mounted) return;
+    await context.read<ProductProvider>().loadAnalytics(force: force);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final products = context.watch<ProductProvider>().analyticsProducts;
+    final productProvider = context.watch<ProductProvider>();
+    final ready = productProvider.isFullCatalogLoaded;
+
+    return PermissionGate(
+      permission: AppPermissions.manageCompanySettings,
+      featureName: 'Data Health',
+      child: AppScreenScaffold(
+        icon: Icons.health_and_safety_rounded,
+        title: 'Data Health',
+        subtitle: 'Records that do not reconcile',
+        iconColor: AppTheme.infoColor,
+        isLoading: !ready,
+        shimmerLayout: ShimmerLayout.detail,
+        actions: [
+          IconButton(
+            tooltip: 'Re-run checks',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: ready ? () => _load(force: true) : null,
+          ),
+        ],
+        body: ready ? _Results(products: productProvider.analyticsProducts)
+                    : const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+class _Results extends StatelessWidget {
+  const _Results({required this.products});
+
+  final List<ProductModel> products;
+
+  @override
+  Widget build(BuildContext context) {
     final holds = context.watch<StockProvider>().stockHolds;
     final invoices = context.watch<BillingProvider>().invoices;
     final orders = context.watch<SalesOrderProvider>().orders;
@@ -38,40 +98,29 @@ class DataHealthScreen extends StatelessWidget {
         .where((f) => f.severity == DataHealthSeverity.critical)
         .length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const AppBarTitleRow(
-          icon: Icons.health_and_safety_rounded,
-          color: AppTheme.infoColor,
-          title: 'Data Health',
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _Summary(
+          total: findings.length,
+          critical: critical,
+          scanned: products.length,
         ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _Summary(
-              total: findings.length,
-              critical: critical,
-              scanned: products.length,
-            ),
-            const SizedBox(height: 16),
-            if (findings.isNotEmpty) ...[
-              ...findings.map((f) => _FindingCard(finding: f)),
-              const SizedBox(height: 24),
-            ],
-            Text(
-              'Checks run',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...checks.map((c) => _CheckRow(check: c)),
-            const SizedBox(height: 32),
-          ],
+        const SizedBox(height: 16),
+        if (findings.isNotEmpty) ...[
+          ...findings.map((f) => _FindingCard(finding: f)),
+          const SizedBox(height: 24),
+        ],
+        Text(
+          'Checks run',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        ...checks.map((c) => _CheckRow(check: c)),
+        const SizedBox(height: 32),
+      ],
     );
   }
 }
@@ -86,6 +135,20 @@ class _Summary extends StatelessWidget {
   final int total;
   final int critical;
   final int scanned;
+
+  static String _detail({
+    required bool clean,
+    required int critical,
+    required int scanned,
+  }) {
+    final counted = '$scanned ${scanned == 1 ? 'product' : 'products'}';
+    if (clean) {
+      return 'Scanned $counted. Stock totals, reservations and invoice '
+          'links all reconcile.';
+    }
+    if (critical == 0) return 'Nothing critical. Scanned $counted.';
+    return '$critical critical. Scanned $counted.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,10 +183,7 @@ class _Summary extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    clean
-                        ? 'Scanned $scanned product(s). Stock totals, '
-                              'reservations and invoice links all reconcile.'
-                        : '$critical critical. Scanned $scanned product(s).',
+                    _detail(clean: clean, critical: critical, scanned: scanned),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -240,7 +300,8 @@ class _CheckRow extends StatelessWidget {
                 Text(
                   check.passed
                       ? check.description
-                      : '${check.findings.length} issue(s)',
+                      : '${check.findings.length} '
+                            '${check.findings.length == 1 ? 'issue' : 'issues'}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
