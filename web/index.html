@@ -72,6 +72,13 @@
       position: fixed;
       inset: 0;
       z-index: 2147483647;
+      /* Decorative only: it never needs input, and it sits above everything at
+         the maximum z-index. Without this it swallowed every tap on the whole
+         viewport for as long as it was up -- which on a phone is the slowest
+         case there is (mobile CPU, ~2MB of CanvasKit wasm, a cold auth check),
+         and the fallback that removed it was a 20 second timer. The app was
+         painted and unresponsive underneath. */
+      pointer-events: none;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -135,9 +142,14 @@
       }
       window.hideStockmgmtHtmlSplash = hideStockmgmtHtmlSplash;
       window.addEventListener('stockmgmt-hide-html-splash', hideStockmgmtHtmlSplash);
-      // Safety net: if the Flutter app never dispatches the hand-off event
-      // (e.g. a fatal bootstrap error), don't leave the splash stuck forever.
-      setTimeout(hideStockmgmtHtmlSplash, 20000);
+      // The engine's own signal, which does not depend on Dart reaching a
+      // post-frame callback. The Dart hand-off runs from
+      // addPostFrameCallback, so a load that never produces a frame -- a tab
+      // opened in the background, say -- left the splash up until the timer.
+      window.addEventListener('flutter-first-frame', hideStockmgmtHtmlSplash);
+      // Safety net: if neither of the above arrives (e.g. a fatal bootstrap
+      // error), don't leave the splash stuck forever.
+      setTimeout(hideStockmgmtHtmlSplash, 8000);
     })();
   </script>
   <script>{{flutter_js}}</script>
