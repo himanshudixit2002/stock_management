@@ -168,4 +168,43 @@ void main() {
       expect(contentInset, greaterThan(0));
     });
   });
+
+  group('a stray bottom inset is not a keyboard', () {
+    // The phone layout has no other navigation, so treating any inset > 0 as
+    // "keyboard open" risked hiding the pill for good on a mobile browser that
+    // reports a small inset for its own chrome.
+    testWidgets('a small inset leaves the pill in place', (tester) async {
+      late bool hidden;
+      late double contentInset;
+      await pumpPhone(
+        tester,
+        Builder(
+          builder: (context) {
+            hidden = floatingNavHidden(context);
+            contentInset = floatingNavContentInset(context);
+            return const SizedBox();
+          },
+        ),
+        bottomInset: 34,
+        keyboardInset: kKeyboardInsetThreshold - 1,
+      );
+      expect(hidden, isFalse);
+      expect(contentInset, greaterThan(0));
+    });
+
+    testWidgets('a keyboard-sized inset still hides it', (tester) async {
+      late bool hidden;
+      await pumpPhone(
+        tester,
+        Builder(
+          builder: (context) {
+            hidden = floatingNavHidden(context);
+            return const SizedBox();
+          },
+        ),
+        keyboardInset: kKeyboardInsetThreshold + 1,
+      );
+      expect(hidden, isTrue);
+    });
+  });
 }

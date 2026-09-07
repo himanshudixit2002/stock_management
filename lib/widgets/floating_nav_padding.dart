@@ -38,6 +38,16 @@ double floatingNavContentInset(BuildContext context) {
       kFloatingNavExtraGap;
 }
 
+/// The smallest bottom inset treated as "a keyboard is open".
+///
+/// Not `> 0`. On mobile web a bottom view inset can appear for reasons that
+/// have nothing to do with a keyboard — browser chrome collapsing, or a
+/// visual-viewport offset during a pinch — and on the phone layout the pill is
+/// the *only* navigation there is, so hiding it on a stray inset would leave
+/// someone unable to change tabs at all. Every software keyboard is far taller
+/// than this.
+const double kKeyboardInsetThreshold = 80;
+
 /// True when the floating pill should not be drawn at all.
 ///
 /// The shell's `Scaffold` resizes its body away from the keyboard, so a pill
@@ -45,7 +55,7 @@ double floatingNavContentInset(BuildContext context) {
 /// keyboard while the user types. Hiding it is what every other app does, and
 /// it is also why the content inset above collapses to zero.
 bool floatingNavHidden(BuildContext context) =>
-    MediaQuery.viewInsetsOf(context).bottom > 0;
+    MediaQuery.viewInsetsOf(context).bottom > kKeyboardInsetThreshold;
 
 /// Distance from the bottom edge to the top of the floating pill — the lowest a
 /// floating overlay (e.g. the Ask-AI button) may sit without covering it.
