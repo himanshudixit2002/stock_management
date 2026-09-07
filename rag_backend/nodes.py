@@ -26,6 +26,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from pydantic import BaseModel, Field
 
 import bulk
+import conversation
 import deterministic
 import llm as llm_factory
 import verify
@@ -545,6 +546,15 @@ async def router_node(state: GraphState) -> GraphState:
 
     # Short pleasantries never need a model call.
     if len(q) < 4 or q in {"hi", "hey", "hello", "thanks", "thank you", "ok"}:
+        state["intent"] = "KNOWLEDGE"
+        state["route_source"] = "regex"
+        return state
+
+    # "Are you dumb" and "what's trending in the market" are both answered
+    # without a model. Classifying them first only spends a call to arrive at
+    # the same place — and a classifier failure sent them to a stock summary,
+    # which is how the same rejected table got printed three times.
+    if deterministic.is_frustrated(q) or deterministic.external_topic(q):
         state["intent"] = "KNOWLEDGE"
         state["route_source"] = "regex"
         return state
@@ -1610,19 +1620,21 @@ def _real_data_answer(
     """
     try:
         instant = deterministic.answer(
-            question, facts, company_id, state.get("business_type", "retail_store")
+            question,
+            facts,
+            company_id,
+            state.get("business_type", "retail_store"),
+            history=state.get("history"),
         )
         if instant:
             return instant.text
     except Exception as exc:
         print(f"[fallback] deterministic answer failed: {exc}")
     try:
-        return (
-            deterministic._summary(facts)
-            + "\n\n> I dropped my first draft of this answer: it named products "
-            "that aren't in your catalog. The figures above come straight from "
-            "your live inventory."
-        )
+        # No apology, and no mention of the discarded draft. Explaining the
+        # machinery to the user reads as the assistant admitting it is broken,
+        # in the middle of an answer that is actually correct.
+        return conversation.fallback(question, facts, state.get("history"))
     except Exception:
         return ""
 
@@ -1687,7 +1699,11 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
     facts: InventoryFacts = state["facts"]
 
     instant = deterministic.answer(
-        question, facts, company_id, state.get("business_type", "retail_store")
+        question,
+        facts,
+        company_id,
+        state.get("business_type", "retail_store"),
+        history=state.get("history"),
     )
     if instant:
         state["generation"] = instant.text + deterministic.stats_payload(facts)
@@ -1703,7 +1719,10 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         llm_factory.AGENT, temperature=0.1, tools=ANALYTICS_TOOLS
     )
     if client is None:
-        state["generation"] = deterministic._summary(facts) + deterministic.stats_payload(facts)
+        state["generation"] = (
+            conversation.fallback(question, facts, state.get("history"))
+            + deterministic.stats_payload(facts)
+        )
         state["analytics_data"] = facts.summary()
         state["answered_by"] = "fallback"
         return state
@@ -1732,8 +1751,15 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
         "result. If you need more rows, call list_products or search_products. "
         "Never write a placeholder like 'SKU 1', 'Product A' or "
         "'<product name>' — an invented row is worse than a short answer.\n"
-        "5. Lead with the number that answers the question. At most three short "
-        "paragraphs. No preamble, no disclaimers."
+        "5. Lead with the number that answers the question, then say what you'd "
+        "do about it. At most three short paragraphs.\n"
+        "6. Write like a sharp colleague who knows this shop, not a report "
+        "generator: plain words, a little warmth, no corporate padding and no "
+        "apologising. A table is for data, not for conversation.\n"
+        "7. You can only see this workspace. If the question needs market "
+        "trends, competitor prices or anything outside it, say so in one "
+        "sentence and offer what their own data can tell them instead — never "
+        "quietly answer a different question."
     )
 
     draft = state.get("new_product_draft")
@@ -1759,7 +1785,7 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
             llm_calls += 1
         except Exception as exc:
             print(f"[analytics] LLM call failed: {exc}")
-            generation = deterministic._summary(facts)
+            generation = conversation.fallback(question, facts, state.get("history"))
             answered_by = "fallback"
             break
 
@@ -1775,7 +1801,7 @@ async def analytics_agent_node(state: GraphState) -> GraphState:
             )
 
     if not generation:
-        generation = deterministic._summary(facts)
+        generation = conversation.fallback(question, facts, state.get("history"))
         answered_by = "fallback"
 
     if answered_by == "llm":
@@ -1803,7 +1829,9 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
     business_type = state.get("business_type", "retail_store")
     facts: InventoryFacts = state["facts"]
 
-    instant = deterministic.answer(question, facts, company_id, business_type)
+    instant = deterministic.answer(
+        question, facts, company_id, business_type, history=state.get("history")
+    )
     if instant:
         state["generation"] = instant.text
         state["clarification_options"] = instant.clarification_options
@@ -1820,7 +1848,7 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
         llm_factory.AGENT, temperature=0.2, tools=READ_TOOLS
     )
     if client is None:
-        state["generation"] = deterministic._summary(facts)
+        state["generation"] = conversation.fallback(question, facts, state.get("history"))
         state["answered_by"] = "fallback"
         return state
 
@@ -1834,9 +1862,15 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
         "conversation's data. If you need products you haven't been shown, call "
         "search_products or list_products. Never write a placeholder like "
         "'SKU 1', 'Product A' or '<product name>' — say what is missing instead.\n"
-        "4. At most four bullets or one short table.\n"
-        "5. If the data doesn't support an answer, say what's missing instead of "
-        "inventing it."
+        "4. At most four bullets or one short table. For a conversational "
+        "question, just talk — no table at all.\n"
+        "5. Write like a sharp colleague who knows this shop: plain words, a "
+        "little warmth, no corporate padding.\n"
+        "6. If the data doesn't support an answer, say what's missing instead of "
+        "inventing it.\n"
+        "7. You can only see this workspace — no market trends, competitor "
+        "prices or web. If that's what was asked, say so plainly in one sentence "
+        "and offer what their own numbers can tell them instead."
     )
 
     messages: List[Any] = [SystemMessage(content=system)]
@@ -1852,7 +1886,7 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
             llm_calls += 1
         except Exception as exc:
             print(f"[knowledge] LLM call failed: {exc}")
-            generation = deterministic._summary(facts)
+            generation = conversation.fallback(question, facts, state.get("history"))
             answered_by = "fallback"
             break
 
@@ -1868,7 +1902,7 @@ async def knowledge_agent_node(state: GraphState) -> GraphState:
             )
 
     if not generation:
-        generation = deterministic._summary(facts)
+        generation = conversation.fallback(question, facts, state.get("history"))
         answered_by = "fallback"
 
     if answered_by == "llm":

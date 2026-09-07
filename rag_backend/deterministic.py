@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import conversation
+# Re-exported: nodes.py routes on these before spending a model call.
+from conversation import external_topic, is_frustrated  # noqa: F401
 from facts import InventoryFacts, ProductFact
 from resolver import ProductResolver
 
@@ -500,7 +503,7 @@ def _order_log(facts: InventoryFacts, company_id: str) -> Optional[str]:
     )
 
 
-def _growth_plan(facts: InventoryFacts) -> str:
+def _growth_plan(facts: InventoryFacts, repeat: bool = False) -> str:
     s = facts.summary()
     risk = facts.needs_reorder
     dead = sorted(facts.dead_stock, key=lambda p: -p.cost_value)
@@ -523,9 +526,30 @@ def _growth_plan(facts: InventoryFacts) -> str:
         f"| **4. Tighten reorder points** | Set thresholds from real burn rate + lead time rather than flat numbers | Fewer emergency orders |",
         f"| **5. Bundle slow with fast** | Pair non-movers with your top sellers | Higher basket value |",
     ]
+    if repeat:
+        # Asked twice means the list didn't land. Stop listing, start doing.
+        offer = (
+            f"Want me to just do the first one? Say *order what each low stock "
+            f"item needs* and I'll draft all **{len(risk)}** purchase orders for "
+            f"you to check before anything is sent."
+            if risk
+            else "Say *restock all low stock items to their minimum* and I'll put "
+                 "the change in front of you to approve."
+        )
+        return (
+            "Same five levers as a moment ago — so rather than list them again, "
+            f"here's the one that's actually costing you money today: "
+            f"**{len(risk)}** products are below their reorder point"
+            + (f", starting with **{top_risk}**" if risk else "")
+            + f".\n\n{offer}\n\n"
+            + _table(["Priority", "What to do", "Why"], rows)
+            + _no_history_note(facts)
+        )
+
     return (
-        f"Growth plan for your **{s['total_products']} SKUs** "
-        f"(**{_money(s['total_inventory_value'])}** retail value), built from your actual numbers:\n\n"
+        f"Here's where your growth actually is — **{s['total_products']} products**, "
+        f"**{_money(s['total_inventory_value'])}** of retail value, and five levers "
+        f"worth pulling, in the order I'd pull them:\n\n"
         + _table(["Priority", "What to do", "Why"], rows)
         + _no_history_note(facts)
     )
@@ -598,27 +622,6 @@ def _setup_overview(facts: InventoryFacts) -> str:
     )
 
 
-def _capabilities(business_type: str) -> str:
-    biz = business_type.replace("_", " ").title()
-    rows = [
-        "| **Update stock** | *Add 50 units of Cannula 18G* |",
-        "| **Change many at once** | *Add 10 units to every low stock item* |",
-        "| **Top everything back up** | *Restock all low stock items to their minimum* |",
-        "| **Raise a PO** | *Order 100 bandages* |",
-        "| **Health audit** | *Run an inventory audit* |",
-        "| **Reorder plan** | *What should I order next?* |",
-        "| **Stockout risk** | *What runs out first?* |",
-        "| **Dead stock** | *What isn't selling?* |",
-        "| **Lookup** | *How many gauze pads do I have?* |",
-        "| **Your setup** | *How is my inventory configured?* |",
-    ]
-    return (
-        f"I'm **Ask AI**, your {biz} inventory assistant. I work from your live "
-        f"stock and your actual transaction history.\n\n"
-        + _table(["What I do", "Try saying"], rows)
-    )
-
-
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -639,16 +642,47 @@ def answer(
     facts: InventoryFacts,
     company_id: str = "default",
     business_type: str = "retail_store",
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> Optional[DeterministicAnswer]:
-    """Return a complete answer, or None to let the LLM handle it."""
+    """Return a complete answer, or None to let the LLM handle it.
+
+    [history] is read only to avoid repeating an answer word for word. Being
+    asked the same thing twice means the first answer missed, so the second
+    reply changes shape rather than reprinting itself.
+    """
+    if not (question or "").strip():
+        return None
+
+    # Greetings, "how can you help me", thanks, complaints, "are you a bot" —
+    # everything that is talking rather than querying. These used to fall
+    # through to the model and land on the inventory metrics table.
+    chat = conversation.reply(question, facts, business_type, history)
+    if chat is not None:
+        return DeterministicAnswer(chat.text, kind=chat.kind)
+
+    found = _dispatch(question, facts, company_id, business_type, history)
+    if found is None:
+        return None
+
+    # "How do I grow, and what's trending?" is two questions. Answering the
+    # half I can and ignoring the other half is what made the user ask three
+    # more times.
+    topic = external_topic(question)
+    if topic and topic.lower() not in found.text.lower() and "can't see" not in found.text:
+        found.text += conversation.scope_note(topic)
+    return found
+
+
+def _dispatch(
+    question: str,
+    facts: InventoryFacts,
+    company_id: str,
+    business_type: str,
+    history: Optional[List[Dict[str, str]]],
+) -> Optional[DeterministicAnswer]:
     q = (question or "").lower().strip()
     if not q:
         return None
-
-    if _any(q, ["who are you", "what can you do", "tell me about yourself", "what are you"]) or q in {
-        "hi", "hello", "hey", "yo", "hi!", "hello!",
-    }:
-        return DeterministicAnswer(_capabilities(business_type), kind='prose')
 
     if _any(q, [
         "exact one product", "one product", "exact product", "single product",
@@ -724,8 +758,15 @@ def answer(
     if _any(q, [
         "grow my business", "grow business", "growth strategy", "boost sales",
         "increase revenue", "grow revenue", "help me grow", "growth plan",
+        "what should i do", "what do you suggest", "any advice", "give me advice",
+        "advise me", "what would you do", "your suggestion", "suggest something",
+        "where should i start", "what next", "help me improve", "anything wrong",
+        "improve my business", "make more money", "more profit",
     ]):
-        return DeterministicAnswer(_growth_plan(facts), kind='report')
+        return DeterministicAnswer(
+            _growth_plan(facts, repeat=conversation.said_before(history, "growth")),
+            kind='report',
+        )
 
     if _any(q, [
         "how is my inventory configured", "how is my inventory set up",

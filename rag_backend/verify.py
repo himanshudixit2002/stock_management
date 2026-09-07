@@ -24,16 +24,39 @@ _STOCK_CLAIM = re.compile(
 # Names that are obviously stand-ins rather than catalog entries. The model
 # reaches for these when it is asked to lay out a table it has no rows for —
 # and a table of "SKU 1 / SKU 2" reads, to someone skimming, exactly like real
-# inventory. A named placeholder is worse than an admission of missing data.
+# inventory.
+#
+# Deliberately narrow. An earlier, looser version matched the plain word
+# "SKUs", and "the item I would reorder first" — so it threw away good answers
+# and replaced them with a stock summary. A missed placeholder is a bad
+# sentence; a false positive destroys a correct answer, which is worse.
 _PLACEHOLDER = re.compile(
-    r"\b(?:sku|product|item|article|material|part)\s*[-_#]?\s*(?:\d{1,3}|[a-z])\b"
-    r"|\b(?:product|item|sku)\s+(?:name|a|b|c|x|y|z)\b"
-    r"|\bexample\s+(?:product|item|sku)\b"
+    # "SKU 1", "Product #2", "Item-3" — a bare noun plus a number, and the
+    # noun must not be plural ("200 SKUs" is a real count, not a name).
+    r"(?i:\b(?:sku|product|item|article)\s*[-_#]?\s*\d{1,3}\b(?!\s*(?:%|units?|pcs)))"
+    # "Product A" / "Item B" — capitalised single letter only, so "the item a
+    # customer wants" does not match. This one alternative is case-sensitive.
+    r"|\b(?:Product|Item|SKU|Article)\s+[A-Z]\b"
+    # Explicit fill-in-the-blank markers.
+    r"|(?i:<\s*(?:product|item|sku|name)[^>]{0,20}>)"
+    r"|(?i:\[(?:product|item|sku)[\s_]?(?:name|here)?[^\]]{0,10}\])"
+    r"|(?i:\bexample\s+(?:product|item|sku)\b)"
+    r"|(?i:\byour\s+(?:product|item)\s+here\b)"
+    r"|(?i:\blorem\b)",
+)
+
+# Forms that are unambiguous on their own. Anything else has to appear at
+# least twice before it is treated as a fabricated listing rather than a turn
+# of phrase.
+_DEFINITE_PLACEHOLDER = re.compile(
+    r"\bexample\s+(?:product|item|sku)\b"
     r"|<\s*(?:product|item|sku|name)[^>]{0,20}>"
-    r"|\[(?:product|item|sku)[^\]]{0,20}\]"
-    r"|\bxyz\b|\bacme\b|\bwidget\s+[ab]\b|\blorem\b",
+    r"|\[(?:product|item|sku)[\s_]?(?:name|here)?[^\]]{0,10}\]"
+    r"|\byour\s+(?:product|item)\s+here\b"
+    r"|\blorem\b",
     re.IGNORECASE,
 )
+
 
 _NOT_FOUND = re.compile(
     r"(?:product|item|barcode)\s+(?:with\s+barcode\s+)?[\"'`]?(?P<ref>[\w .()\-/]{3,40})[\"'`]?\s+"
@@ -99,13 +122,18 @@ def check_answer(answer: str, facts: Any) -> Tuple[str, List[Issue]]:
             )
 
     # 2. Placeholder product names, which are never an answer.
+    found = []
     for match in _PLACEHOLDER.finditer(answer):
-        text = match.group(0)
+        text = match.group(0).strip()
         # A real product may legitimately be called "Item 5" — only flag a name
         # the catalog does not actually contain.
-        if text.strip().lower() in by_name:
+        if text.lower() in by_name:
             continue
-        issues.append(Issue("placeholder", text.strip()))
+        found.append(text)
+    # One "Product A" in a sentence is a turn of phrase; a table of them is a
+    # fabricated listing. Explicit fill-in markers count on their own.
+    if len(found) > 1 or (found and _DEFINITE_PLACEHOLDER.search(answer)):
+        issues.extend(Issue("placeholder", t) for t in found)
 
     # 3. "not found" about something that is in the catalog.
     for match in _NOT_FOUND.finditer(answer):
