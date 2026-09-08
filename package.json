@@ -4,6 +4,7 @@
   },
   "scripts": {
     "seo": "node seo/build.mjs",
-    "seo:submit": "node seo/submit.mjs"
+    "seo:submit": "node seo/submit.mjs",
+    "seo:og": "node seo/og.mjs"
   }
 }

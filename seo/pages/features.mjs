@@ -1,6 +1,6 @@
 import { site, featureGroups } from '../site.mjs';
 import { faqLd, esc } from '../layout.mjs';
-import { section, wrap, cards, faqBlock, cta, related, table, featureList } from '../blocks.mjs';
+import { section, wrap, cards, faqBlock, cta, related, table, featureList, sawtoothFigure, ledgerFigure, icon } from '../blocks.mjs';
 
 const T = (label) => [
   { href: '/', label: 'Home' },
@@ -69,12 +69,12 @@ const indexPage = {
 ${section({
   tight: true,
   body: cards([
-    { title: 'Barcode inventory management', body: 'Camera scanning on mobile, keyboard-wedge scanners on the web, SKU and barcode on every product.', href: '/features/barcode-inventory-management', more: 'How it works' },
-    { title: 'Low-stock alerts &amp; reorder points', body: 'A threshold per product, a live low-stock list, and reorder quantities derived from real movement.', href: '/features/low-stock-alerts-and-reorder-points', more: 'How it works' },
-    { title: 'Purchase &amp; sales orders', body: 'Both sides of the order book, with part-receipts, allocation, despatch and returns.', href: '/features/purchase-orders-and-sales-orders', more: 'How it works' },
-    { title: 'Billing &amp; GST invoicing', body: 'Invoices from the same catalogue as your stock, with per-line tax, payments and credit notes.', href: '/features/gst-billing-and-invoicing', more: 'How it works' },
-    { title: 'Reports &amp; analytics', body: 'P&amp;L, ABC analysis, valuation, ageing and the stock ledger — all derived from transactions.', href: '/features/inventory-reports-and-analytics', more: 'How it works' },
-    { title: 'Nova AI assistant', body: 'Ask your inventory a question in English or Hinglish and get an answer that matches the reports.', href: '/features/ai-inventory-assistant', more: 'How it works' },
+    { icon: 'barcode', title: 'Barcode inventory management', body: 'Camera scanning on mobile, keyboard-wedge scanners on the web, SKU and barcode on every product.', href: '/features/barcode-inventory-management', more: 'How it works' },
+    { icon: 'alert', title: 'Low-stock alerts &amp; reorder points', body: 'A threshold per product, a live low-stock list, and reorder quantities derived from real movement.', href: '/features/low-stock-alerts-and-reorder-points', more: 'How it works' },
+    { icon: 'orders', title: 'Purchase &amp; sales orders', body: 'Both sides of the order book, with part-receipts, allocation, despatch and returns.', href: '/features/purchase-orders-and-sales-orders', more: 'How it works' },
+    { icon: 'invoice', title: 'Billing &amp; GST invoicing', body: 'Invoices from the same catalogue as your stock, with per-line tax, payments and credit notes.', href: '/features/gst-billing-and-invoicing', more: 'How it works' },
+    { icon: 'chart', title: 'Reports &amp; analytics', body: 'P&amp;L, ABC analysis, valuation, ageing and the stock ledger — all derived from transactions.', href: '/features/inventory-reports-and-analytics', more: 'How it works' },
+    { icon: 'spark', title: 'Nova AI assistant', body: 'Ask your inventory a question in English or Hinglish and get an answer that matches the reports.', href: '/features/ai-inventory-assistant', more: 'How it works' },
   ]),
 })}
 
@@ -174,6 +174,8 @@ const lowStock = featurePage({
 <p>Each product carries its own low-stock threshold. That single design decision is what makes the alert list usable, because the right trigger level is a property of the product's demand and lead time, not of your business as a whole.</p>
 <p>A fast line with a two-day lead time might need a threshold of 60. A slow spare with a six-week lead time might need a threshold of 2. Both are correct, and no global number can express both.</p>
 <div class="callout"><p><b>Not sure what to set it to?</b> The threshold you want is the reorder point. Work it out with the <a href="/tools/reorder-point-calculator">free reorder point calculator</a>, or read <a href="/blog/reorder-point-formula">how the formula is derived</a>.</p></div>
+
+${sawtoothFigure('What a correctly set threshold does: the order goes out the moment stock crosses the reorder point, and the delivery arrives before the safety-stock floor is breached.')}
 
 <h2 id="the-list">A live list, not an email you will ignore</h2>
 <p>The Low Stock screen is a live view of everything currently under its own threshold, ordered so the most urgent sits at the top. It is a working screen, not a notification: you open it as part of the ordering routine, filter it by category or vendor, and act on it.</p>
@@ -346,6 +348,7 @@ const reports = featurePage({
   lead: 'A report is only worth reading if you can open the number and see what produced it. Every figure in SmartShelfKart is computed from the transaction record, so any total can be walked backwards to the individual movements behind it.',
   sections: `
 <h2 id="derived">Derived, not entered</h2>
+${ledgerFigure('The difference a ledger makes. A spreadsheet stores the answer; a ledger stores the workings and derives the answer, so any figure in any report can be walked back to the movements that produced it.')}
 <p>There is no screen anywhere in SmartShelfKart where you type a closing stock figure, a valuation, or a margin. Those are all computed. That constraint is what makes the reports trustworthy — the failure mode of spreadsheet-based reporting is a number that was correct when someone pasted it in and has been quietly wrong ever since.</p>
 
 <h2 id="which">What each report is for</h2>

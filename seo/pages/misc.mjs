@@ -1,6 +1,6 @@
 import { site, plans } from '../site.mjs';
 import { faqLd, esc } from '../layout.mjs';
-import { section, wrap, cards, faqBlock, cta, related, table, toc, humanDate, articleLd } from '../blocks.mjs';
+import { section, wrap, cards, faqBlock, cta, related, table, toc, humanDate, articleLd, ledgerFigure } from '../blocks.mjs';
 import blog1 from './blog.mjs';
 import blog2 from './blog2.mjs';
 
@@ -244,6 +244,7 @@ const vsExcel = {
   <p>For a sole trader with 80 products and one person touching stock, a spreadsheet is very likely the correct tool. Adopting software there would be adding process for no return.</p>
 
   <h2 id="structural">The one structural limitation</h2>
+  ${ledgerFigure('The same product, the same closing quantity, two entirely different amounts of information.')}
   <p>Everything else on this page follows from a single fact: <b>a spreadsheet stores the current quantity, and inventory is fundamentally a history of movements.</b></p>
   <p>When you change a cell from 40 to 37, the 40 is gone. There is no record that three units left, no reason, no timestamp, no person. The number is now 37 and the only evidence is the number itself.</p>
   <div class="formula">Spreadsheet:  quantity = whatever is in the cell

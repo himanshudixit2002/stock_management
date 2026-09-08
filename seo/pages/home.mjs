@@ -163,10 +163,10 @@ ${section({
   title: 'Work out the numbers before you commit to software',
   lead: 'Four calculators, free, no sign-up, no email wall. They run entirely in your browser — nothing you type is sent anywhere.',
   body: cards([
-    { title: 'Reorder point calculator', body: 'The stock level at which you should place the next order, from your lead time, demand and service level.', href: '/tools/reorder-point-calculator', more: 'Calculate' },
-    { title: 'Safety stock calculator', body: 'How much buffer you need to hit a chosen service level given how variable your demand and lead time actually are.', href: '/tools/safety-stock-calculator', more: 'Calculate' },
-    { title: 'EOQ calculator', body: 'The order quantity that balances what ordering costs against what holding costs, using the Wilson formula.', href: '/tools/economic-order-quantity-calculator', more: 'Calculate' },
-    { title: 'Inventory turnover calculator', body: 'How many times a year your stock sells through, and how many days of supply that leaves on the shelf.', href: '/tools/inventory-turnover-calculator', more: 'Calculate' },
+    { icon: 'alert', title: 'Reorder point calculator', body: 'The stock level at which you should place the next order, from your lead time, demand and service level.', href: '/tools/reorder-point-calculator', more: 'Calculate' },
+    { icon: 'shield', title: 'Safety stock calculator', body: 'How much buffer you need to hit a chosen service level given how variable your demand and lead time actually are.', href: '/tools/safety-stock-calculator', more: 'Calculate' },
+    { icon: 'layers', title: 'EOQ calculator', body: 'The order quantity that balances what ordering costs against what holding costs, using the Wilson formula.', href: '/tools/economic-order-quantity-calculator', more: 'Calculate' },
+    { icon: 'chart', title: 'Inventory turnover calculator', body: 'How many times a year your stock sells through, and how many days of supply that leaves on the shelf.', href: '/tools/inventory-turnover-calculator', more: 'Calculate' },
   ]),
 })}
 

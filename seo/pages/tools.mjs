@@ -1,6 +1,6 @@
 import { site } from '../site.mjs';
 import { faqLd, esc } from '../layout.mjs';
-import { section, wrap, cards, faqBlock, cta, related, table } from '../blocks.mjs';
+import { section, wrap, cards, faqBlock, cta, related, table, sawtoothFigure } from '../blocks.mjs';
 
 /**
  * Renders a calculator page. The maths runs entirely in the visitor's browser:
@@ -159,6 +159,8 @@ const reorder = toolPage({
     };
   }`,
   prose: `
+${sawtoothFigure('The number this calculator returns is the dashed ROP line. Everything above it is stock you are still selling through; everything below it is the buffer that has to survive the lead time.')}
+
 <h2 id="formula">The formula</h2>
 <p>A reorder point is not a guess or a round number. It is the answer to one question: <em>how much stock do I need on hand to survive until the next delivery arrives?</em> That is demand during the lead time, plus a buffer for the times demand or the supplier misbehaves.</p>
 <div class="formula">Reorder point = (average daily demand &times; lead time in days) + safety stock

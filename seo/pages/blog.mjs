@@ -1,6 +1,6 @@
 import { site } from '../site.mjs';
 import { faqLd, esc } from '../layout.mjs';
-import { section, wrap, cards, faqBlock, cta, related, table, toc, humanDate, articleLd } from '../blocks.mjs';
+import { section, wrap, cards, faqBlock, cta, related, table, toc, humanDate, articleLd, sawtoothFigure } from '../blocks.mjs';
 
 export function guide({ slug, title, h1, description, published, modified, lead, contents, sections, faqs, links }) {
   const path = '/blog/' + slug;
@@ -214,6 +214,7 @@ const rop = guide({
 <p>Z converts your chosen <a href="/tools/safety-stock-calculator">service level</a> into a multiplier: 1.65 for 95%, 2.33 for 99%.</p>
 
 <h2 id="worked">A worked example</h2>
+${sawtoothFigure('Stock falls as units sell. Crossing the <b>reorder point</b> (ROP) is what triggers the order; the delivery lands one <b>lead time</b> later, just as the <b>safety stock</b> floor is reached. Set the ROP too low and the sawtooth cuts through the floor before the delivery arrives.')}
 <p>A distributor sells a fast-moving line:</p>
 <ul>
 <li>d = 40 units/day, &sigma;<sub>d</sub> = 12 units/day</li>

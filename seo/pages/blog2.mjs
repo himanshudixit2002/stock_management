@@ -1,5 +1,5 @@
 import { guide } from './blog.mjs';
-import { table } from '../blocks.mjs';
+import { table, abcFigure } from '../blocks.mjs';
 
 export const abc = guide({
   slug: 'abc-analysis-inventory',
@@ -31,6 +31,8 @@ ${table(
   ]
 )}
 <p>The exact percentages do not matter and are not a law of nature. What matters is that the distribution is steep, and almost every catalogue's is.</p>
+
+${abcFigure('The shape almost every catalogue has. Treating all three classes identically over-manages the right-hand bar and under-manages the left.')}
 
 <h2 id="method">The method, step by step</h2>
 <ol>

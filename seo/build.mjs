@@ -17,19 +17,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { site } from './site.mjs';
-import { renderPage } from './layout.mjs';
+import { renderPage, ENTITIES } from './layout.mjs';
 import home from './pages/home.mjs';
 import features from './pages/features.mjs';
 import tools from './pages/tools.mjs';
 import blog1 from './pages/blog.mjs';
 import blog2 from './pages/blog2.mjs';
 import misc from './pages/misc.mjs';
+import glossary from './pages/glossary.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'build', 'web');
 const SEO = path.join(ROOT, 'seo');
 
-const pages = [...home, ...features, ...tools, ...blog1, ...blog2, ...misc];
+const pages = [...home, ...features, ...tools, ...blog1, ...blog2, ...misc, ...glossary];
 
 /* Hand-written static pages that Flutter copies from web/. They are not
    generated here, but they are real URLs: the sitemap and the link checker
@@ -165,31 +166,95 @@ if (fs.existsSync(swPath)) {
    legitimate share card without pulling in an image pipeline. */
 
 const iconSrc = path.join(ROOT, 'web', 'icons', 'Icon-512.png');
+const assetsDir = path.join(SEO, 'assets');
 const staticDir = path.join(OUT, 'static');
-fs.mkdirSync(staticDir, { recursive: true });
+fs.mkdirSync(path.join(staticDir, 'og'), { recursive: true });
 
-if (fs.existsSync(iconSrc)) {
-  fs.copyFileSync(iconSrc, path.join(staticDir, 'logo-512.png'));
-  const og = path.join(staticDir, 'og-default.png');
+/* The real app icon at every size the pages ask for. Pre-scaled rather than
+   letting the browser downscale a 512px PNG in a 32px header slot. */
+let copied = 0;
+for (const f of fs.readdirSync(assetsDir)) {
+  if (!f.endsWith('.png')) continue;
+  fs.copyFileSync(path.join(assetsDir, f), path.join(staticDir, f));
+  copied++;
+}
+say(`logos    ${copied} logo sizes copied to /static/`);
+
+/* Social cards are rendered by seo/og.mjs into seo/assets/og (it needs a
+   browser canvas to draw text, which a build step cannot). They are copied in
+   here so an ordinary deploy never depends on that. */
+const ogSrc = path.join(assetsDir, 'og');
+const ogOut = path.join(staticDir, 'og');
+let cards = 0;
+if (fs.existsSync(ogSrc)) {
+  for (const f of fs.readdirSync(ogSrc)) {
+    if (!f.endsWith('.jpg')) continue;
+    fs.copyFileSync(path.join(ogSrc, f), path.join(ogOut, f));
+    cards++;
+  }
+}
+if (cards) {
+  say(`og       ${cards} social cards copied to /static/og/`);
+} else {
+  const ogDefault = path.join(ogOut, 'default.jpg');
   try {
     execFileSync('sips', [
-      '-s', 'format', 'png',
+      '-s', 'format', 'jpeg', '-s', 'formatOptions', '80',
       '--padToHeightWidth', '630', '1200',
-      '--padColor', '0F766E',
-      iconSrc, '--out', og,
+      '--padColor', '0B7B70',
+      iconSrc, '--out', ogDefault,
     ], { stdio: 'ignore' });
-    say(`images   static/logo-512.png, static/og-default.png (${(fs.statSync(og).size / 1024).toFixed(0)} KB)`);
+    uhoh('no rendered social cards — wrote a plain fallback. Run `npm run seo:og`.');
   } catch {
-    fs.copyFileSync(iconSrc, og);
-    uhoh('sips unavailable — og-default.png is the square icon, not a 1200x630 card.');
+    fs.copyFileSync(iconSrc, ogDefault);
+    uhoh('sips unavailable and no rendered cards — og/default.jpg is the square icon.');
   }
-} else {
-  uhoh('web/icons/Icon-512.png missing — no og-default.png generated.');
 }
 
 /* ------------------------------------------------------------------ */
 /* 5. render every page                                                 */
 /* ------------------------------------------------------------------ */
+
+/* The social card and the real-world concepts a page is about. Both are
+   assigned here rather than repeated on every page object: the card filename
+   is derived from the URL so seo/og.mjs can regenerate the whole set without
+   a second list, and the entities are a small enough table to read at once. */
+
+export const ogSlug = (urlPath) =>
+  urlPath === '/' ? 'default' : urlPath.replace(/^\/|\/$/g, '').replace(/\//g, '-');
+
+const E = ENTITIES;
+const ABOUT = {
+  '/': [E.inventoryManagement],
+  '/features': [E.inventoryManagement],
+  '/features/barcode-inventory-management': [E.barcode, E.sku],
+  '/features/low-stock-alerts-and-reorder-points': [E.reorderPoint, E.safetyStock],
+  '/features/purchase-orders-and-sales-orders': [E.purchaseOrder, E.inventoryManagement],
+  '/features/gst-billing-and-invoicing': [E.invoice],
+  '/features/inventory-reports-and-analytics': [E.abc, E.turnover],
+  '/pricing': [E.inventoryManagement],
+  '/tools': [E.inventoryManagement],
+  '/tools/reorder-point-calculator': [E.reorderPoint, E.safetyStock],
+  '/tools/safety-stock-calculator': [E.safetyStock, E.reorderPoint],
+  '/tools/economic-order-quantity-calculator': [E.eoq],
+  '/tools/inventory-turnover-calculator': [E.turnover],
+  '/blog': [E.inventoryManagement],
+  '/blog/what-is-inventory-management': [E.inventoryManagement, E.sku],
+  '/blog/reorder-point-formula': [E.reorderPoint, E.safetyStock],
+  '/blog/safety-stock-formula': [E.safetyStock, E.reorderPoint],
+  '/blog/abc-analysis-inventory': [E.abc],
+  '/blog/inventory-turnover-ratio': [E.turnover],
+  '/blog/inventory-management-for-small-business': [E.inventoryManagement],
+  '/blog/barcode-inventory-system-guide': [E.barcode, E.sku],
+  '/blog/stock-audit-cycle-counting': [E.stocktaking],
+  '/compare/inventory-management-software-vs-excel': [E.inventoryManagement, E.spreadsheet],
+  '/compare/free-inventory-management-software-india': [E.inventoryManagement],
+};
+
+for (const p of pages) {
+  if (!p.image) p.image = `/static/og/${ogSlug(p.path)}.jpg`;
+  if (!p.about && ABOUT[p.path]) p.about = ABOUT[p.path];
+}
 
 const rendered = [];
 for (const p of pages) {
@@ -243,7 +308,10 @@ for (const [file, meta] of Object.entries(LEGAL_META)) {
   <meta property="og:title" content="${meta.title}">
   <meta property="og:description" content="${meta.desc}">
   <meta property="og:url" content="${site.origin}${meta.path}">
-  <meta property="og:image" content="${site.origin}/static/og-default.png">
+  <meta property="og:image" content="${site.origin}/static/og/default.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:image" content="${site.origin}/static/og/default.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">`;
@@ -325,6 +393,92 @@ Sitemap: ${site.origin}/sitemap.xml
 say('robots   robots.txt written');
 
 /* ------------------------------------------------------------------ */
+/* 8c. RSS feed for the guides                                         */
+/* ------------------------------------------------------------------ */
+/* A feed is a crawlable, dated list of everything published, which is a
+   discovery path independent of the sitemap — and it is how readers and
+   aggregators subscribe without an email address. */
+
+const feedItems = rendered
+  .filter((p) => p.published)
+  .sort((a, b) => (a.published < b.published ? 1 : -1));
+
+const cdata = (t) => `<![CDATA[${String(t).replace(/\]\]>/g, ']]]]><![CDATA[>')}]]>`;
+const rfc822 = (iso) => new Date(iso + 'T09:00:00Z').toUTCString();
+
+write(
+  'feed.xml',
+  `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${site.name} — inventory management guides</title>
+    <link>${site.origin}/blog</link>
+    <description>Practical guides to inventory management: reorder points, safety stock, ABC analysis, turnover, barcode systems and cycle counting.</description>
+    <language>en</language>
+    <lastBuildDate>${rfc822(today)}</lastBuildDate>
+    <atom:link href="${site.origin}/feed.xml" rel="self" type="application/rss+xml"/>
+${feedItems
+  .map(
+    (p) => `    <item>
+      <title>${cdata(p.ogTitle || p.title)}</title>
+      <link>${site.origin}${p.path}</link>
+      <guid isPermaLink="true">${site.origin}${p.path}</guid>
+      <pubDate>${rfc822(p.published)}</pubDate>
+      <description>${cdata(p.description)}</description>
+    </item>`
+  )
+  .join('\n')}
+  </channel>
+</rss>
+`
+);
+say(`feed     feed.xml, ${feedItems.length} guides`);
+
+/* ------------------------------------------------------------------ */
+/* 8d. llms.txt                                                        */
+/* ------------------------------------------------------------------ */
+/* An emerging convention: a plain-text map of the site for language models,
+   which increasingly answer the questions these pages exist to answer. It
+   costs one file and it points them at the pages rather than the canvas app. */
+
+const group = (label, prefix) =>
+  `## ${label}\n` +
+  rendered
+    .filter((p) => p.path.startsWith(prefix) && p.path !== prefix && !p.noindex)
+    .map((p) => `- [${p.ogTitle || p.title}](${site.origin}${p.path}): ${p.description}`)
+    .join('\n');
+
+write(
+  'llms.txt',
+  `# ${site.name}
+
+> ${site.tagline}. Stock control, purchase and sales orders, billing and reports for small and growing businesses, on web, Android and iOS. Every plan tier is free during the current launch period.
+
+The application itself is a Flutter CanvasKit app at ${site.origin}/app and renders to a canvas, so it contains no readable text. Everything below is the readable documentation.
+
+## Key pages
+- [Home](${site.origin}/): what the product is and who it is for.
+- [Features](${site.origin}/features): the complete feature list, mirrored from the app's own catalogue.
+- [Pricing](${site.origin}/pricing): four tiers, their real limits, all currently free.
+- [Glossary](${site.origin}/glossary): defined terms used across inventory management.
+- [About](${site.origin}/about): what the product deliberately does not do.
+
+${group('Free calculators', '/tools')}
+
+${group('Guides', '/blog')}
+
+${group('Comparisons', '/compare')}
+
+## Notes for accurate answers
+- Pricing: list prices are Rs 999 / 2,999 / 5,999 / 9,999 per month for Starter, Growth, Pro and MAX. All four are currently Rs 0 during the launch period.
+- The Nova AI assistant is part of the MAX tier only.
+- SmartShelfKart is NOT a GST return-filing tool: it records per-line tax rates and a GSTIN, but produces no GSTR filings, no CGST/SGST split and no HSN master.
+- It is not a general ledger, not a warehouse management system, and does not place supplier orders automatically.
+`
+);
+say('llms     llms.txt written');
+
+/* ------------------------------------------------------------------ */
 /* 8b. IndexNow key file                                               */
 /* ------------------------------------------------------------------ */
 /* Hosting the key at /<key>.txt is the whole verification step for
@@ -345,21 +499,40 @@ const knownPaths = new Set([
   '/app',
   '/sitemap.xml',
   '/robots.txt',
+  '/llms.txt',
+  '/feed.xml',
   '/manifest.json',
   '/favicon.png',
   cssHref,
-  '/static/og-default.png',
-  '/static/logo-512.png',
 ]);
+
+/* Generated files that pages legitimately reference but that are not pages:
+   the logo set, the social cards, and the app's own icons. */
+const knownAsset = (h) =>
+  /^\/static\/(logo-\d+\.png|og\/[a-z0-9-]+\.jpg|site\.[a-z0-9]+\.css)$/.test(h) ||
+  h.startsWith('/icons/');
 
 const linkErrors = [];
 for (const p of rendered) {
-  const hrefs = [...p.html.matchAll(/href="(\/[^"#?]*)(?:[#?][^"]*)?"/g)].map((m) => m[1]);
+  const hrefs = [
+    ...[...p.html.matchAll(/href="(\/[^"#?]*)(?:[#?][^"]*)?"/g)].map((m) => m[1]),
+    ...[...p.html.matchAll(/(?:\bsrc|content)="(\/static\/[^"]*)"/g)].map((m) => m[1]),
+  ];
   for (const h of new Set(hrefs)) {
-    if (h.startsWith('/icons/')) continue;
+    if (knownAsset(h)) continue;
     if (!knownPaths.has(h)) linkErrors.push(`${p.path} -> ${h}`);
   }
 }
+const missingCards = rendered
+  .filter((p) => !p.noindex)
+  .map((p) => p.image)
+  .filter((img, i, a) => a.indexOf(img) === i)
+  .filter((img) => !fs.existsSync(path.join(OUT, img.slice(1))));
+if (missingCards.length) {
+  uhoh(`${missingCards.length} social card(s) not rendered — run \`npm run seo:og\` before deploying:`);
+  for (const m of missingCards.slice(0, 4)) console.warn('      ' + m);
+}
+
 if (linkErrors.length) {
   uhoh(`${linkErrors.length} internal link(s) point at nothing:`);
   for (const e of [...new Set(linkErrors)]) console.warn('      ' + e);
