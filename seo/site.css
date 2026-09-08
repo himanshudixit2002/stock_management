@@ -714,3 +714,29 @@ td { color: var(--fg-mut); }
 .gloss p { margin: 0; color: var(--fg-mut); font-size: .97rem; }
 .gloss__more { margin-top: 9px !important; font-size: .89rem !important; }
 .gloss__more a { font-weight: 600; }
+
+/* ================================================================== */
+/* founding-member offer                                               */
+/* ================================================================== */
+/* Copy comes from publicConfig/promo, which the platform console owns. The
+   claimed count in that document is explicitly advisory, so nothing here
+   renders it as a countdown or implies the offer stops at the cap. */
+
+.promo {
+  display: inline-flex; flex-direction: column; gap: 4px;
+  margin-top: 26px; padding: 15px 20px;
+  background: var(--brand-wash); border: 1px solid var(--brand);
+  border-radius: var(--r); max-width: 46rem;
+}
+.promo__head {
+  margin: 0; font-family: var(--display); font-weight: 700; font-size: 1rem;
+  letter-spacing: -.015em; color: var(--brand-ink);
+}
+.promo__sub { margin: 0; font-size: .93rem; color: var(--fg-mut); }
+:root[data-theme="dark"] .promo__head { color: var(--brand); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .promo__head { color: var(--brand); }
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .promo__head { color: var(--brand-ink); }
+}

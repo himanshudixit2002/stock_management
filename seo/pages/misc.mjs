@@ -1,4 +1,8 @@
-import { site, plans } from '../site.mjs';
+import { site, plans, promo, planSource } from '../site.mjs';
+import {
+  rupees, priceNow, isFree, isDiscounted, priceLabel, listLabel, allFree,
+  listPriceRange, shortLabel, aiTiers, nonAiTiers, featuredId, LIMIT_LABELS,
+} from '../plans.mjs';
 import { faqLd, esc } from '../layout.mjs';
 import { section, wrap, cards, faqBlock, cta, related, table, toc, humanDate, articleLd, ledgerFigure } from '../blocks.mjs';
 import blog1 from './blog.mjs';
@@ -76,15 +80,33 @@ ${cta()}`,
 /* /pricing                                                            */
 /* ------------------------------------------------------------------ */
 
+const FEATURED = featuredId(plans, promo);
+const FREE = allFree(plans);
+const RANGE = listPriceRange(plans);
+const AI = aiTiers(plans);
+const NO_AI = nonAiTiers(plans);
+
 const pricingFaqs = [
-  { q: 'Is SmartShelfKart really free?', a: 'Yes, on every tier, right now. All four tiers carry a monthly list price and all four are currently set to ₹0 for the launch period. No card is required to create a workspace.' },
-  { q: 'What happens when the launch period ends?', a: 'The list prices shown here are what the tiers are designed to cost. We will give existing workspaces notice before anything changes, and your data is exportable to Excel at any time regardless.' },
+  {
+    q: 'Is SmartShelfKart really free?',
+    a: FREE
+      ? `Yes, on every tier, right now. The four tiers carry list prices of ${RANGE}, and all four are currently set to ${rupees(0)} for the launch period. No card is required to create a workspace.`
+      : `The tiers run from ${RANGE}. Any tier currently on a promotional price shows it on this page.`,
+  },
+  {
+    q: 'What happens when the launch period ends?',
+    a: `The list prices shown here — ${plans.map((p) => `${shortLabel(p)} at ${listLabel(p)}`).join(', ')} — are what the tiers are designed to cost. We will give existing workspaces notice before anything changes, and your data is exportable to Excel at any time regardless.`,
+  },
   { q: 'What counts against the product limit?', a: 'Distinct products in your catalogue. Variants you have created as separate products each count as one. Archived products do not count toward the active limit.' },
-  { q: 'Which tier includes the AI assistant?', a: 'Nova is part of the MAX tier. Starter and Growth do not include it. Since every tier is currently ₹0, MAX is reachable today.' },
+  {
+    q: 'Which tiers include the AI assistant?',
+    a: `Nova is included on ${AI}. ${NO_AI} do not include it.${FREE ? ' Because every tier is currently free, those tiers are reachable today.' : ''}`,
+  },
   { q: 'Can I change tier later?', a: 'Yes. Changing tier does not migrate or delete data — it changes the limits and which features are unlocked.' },
   { q: 'Do I need a credit card to start?', a: 'No. Create a workspace with an email address and start using it.' },
   { q: 'Can I export my data if I leave?', a: 'Yes. Export to Excel covers your catalogue and report data. We think software that traps your data is software you will come to resent, so this is not gated behind a tier.' },
 ];
+
 
 const pricing = {
   path: '/pricing',
@@ -108,38 +130,45 @@ const pricing = {
       offers: plans.map((p) => ({
         '@type': 'Offer',
         name: p.label,
-        price: '0',
+        price: String(priceNow(p)),
         priceCurrency: 'INR',
         description: p.description,
         availability: 'https://schema.org/InStock',
         url: site.origin + '/pricing',
+        ...(isDiscounted(p)
+          ? { priceSpecification: { '@type': 'UnitPriceSpecification', price: String(p.listPrice), priceCurrency: 'INR', valueAddedTaxIncluded: false } }
+          : {}),
       })),
     },
   ],
   body: `
 <section class="hero" style="padding-bottom:34px">${wrap(`
   <p class="eyebrow">Pricing</p>
-  <h1 style="max-width:18ch">Four tiers. All of them free right now.</h1>
-  <p class="hero__lead">Each tier carries a monthly list price, and every one of them is currently set to ₹0 for the launch period — including MAX, the tier with the Nova AI assistant. No card, no trial clock, no feature that stops working on day fifteen.</p>
+  <h1 style="max-width:18ch">${FREE ? `${['', 'One tier', 'Two tiers', 'Three tiers', 'Four tiers', 'Five tiers'][plans.length] || `${plans.length} tiers`}. All of them free right now.` : 'Plans and pricing'}</h1>
+  <p class="hero__lead">${FREE
+    ? `The tiers carry list prices of ${RANGE}, and every one of them is currently set to ${rupees(0)} for the launch period — including ${plans.filter((p) => p.hasAi).map(shortLabel).slice(-1)[0]}, which includes the Nova AI assistant. No card, no trial clock, no feature that stops working on day fifteen.`
+    : `Tiers run from ${RANGE}. Limits below are the live figures from our platform console, not a brochure.`}</p>
+  ${promo ? `<div class="promo"><p class="promo__head">${esc(promo.headline)}</p><p class="promo__sub">${esc(promo.subtext)}</p></div>` : ''}
 `)}</section>
 
 <section class="sec sec--tight">${wrap(`<div class="plans">${plans
     .map(
-      (p) => `<div class="plan${p.featured ? ' plan--hot' : ''}">
-      ${p.featured ? '<p class="plan__tag">Most complete</p>' : '<p class="plan__tag">&nbsp;</p>'}
+      (p) => `<div class="plan${p.id === FEATURED ? ' plan--hot' : ''}">
+      <p class="plan__tag">${p.id === FEATURED ? 'Most complete' : '&nbsp;'}</p>
       <h3>${esc(p.label)}</h3>
       <p class="plan__desc">${esc(p.description)}</p>
-      <p class="plan__price">Free</p>
-      <p class="plan__was">&#8377;${p.listPrice.toLocaleString('en-IN')}/mo list price</p>
-      <ul class="plan__limits">${Object.entries(p.limits)
-        .map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`)
-        .join('')}
-        <li><span>Nova AI assistant</span><b>${p.locked.includes('AI assistant') ? '&mdash;' : 'Included'}</b></li>
+      <p class="plan__price">${priceLabel(p)}</p>
+      <p class="plan__was">${isDiscounted(p) ? `${listLabel(p)} list price` : '&nbsp;'}</p>
+      <ul class="plan__limits">${LIMIT_LABELS.map(([, label]) =>
+        `<li><span>${label}</span><b>${esc(p.limits[label])}</b></li>`
+      ).join('')}
+        <li><span>Nova AI assistant</span><b>${p.hasAi ? 'Included' : '&mdash;'}</b></li>
       </ul>
       <p style="margin:18px 0 0"><a class="btn btn--sm" href="${site.appUrl}" data-app-link>Start free</a></p>
     </div>`
     )
-    .join('')}</div>`)}</section>
+    .join('')}</div>
+    <p class="meta" style="margin:18px 0 0">Limits and prices on this page are read from our platform console when the site is built${planSource === 'firestore' ? '' : ' (this build used a cached copy)'} — they are the same figures the app enforces.</p>`)}</section>
 
 ${section({
     alt: true,
@@ -151,7 +180,7 @@ ${section({
       <div class="card"><h3>Roles and permissions</h3><p>Invite staff and control exactly which screens they open and which actions they can take, on every tier.</p></div>
       <div class="card"><h3>Excel import and export</h3><p>Bulk import, bulk update matched on SKU or barcode, and export whenever you want your data back. Never gated.</p></div>
       <div class="card"><h3>Every report</h3><p>Profit and loss, ABC analysis, valuation, ageing, stock ledger, price history and the full transaction record.</p></div>
-      <div class="card"><h3>Nova AI assistant</h3><p>Part of the MAX tier. Starter and Growth do not include it — and since MAX is currently ₹0, that is a tier choice rather than a payment.</p></div>
+      <div class="card"><h3>Nova AI assistant</h3><p>Included on ${AI}. ${NO_AI} do not include it${FREE ? ` — and since every tier is currently ${rupees(0)}, that is a tier choice rather than a payment` : ''}.</p></div>
     </div>`,
   })}
 
@@ -160,13 +189,10 @@ ${section({
     body: table(
       ['', ...plans.map((p) => esc(p.label))],
       [
-        ['List price', ...plans.map((p) => '&#8377;' + p.listPrice.toLocaleString('en-IN') + '/mo')],
-        ['Price today', ...plans.map(() => '<b>Free</b>')],
-        ...['Team members', 'Products', 'Invoices', 'Sales orders', 'Purchase orders'].map((k) => [
-          k,
-          ...plans.map((p) => esc(p.limits[k] || '—')),
-        ]),
-        ['Nova AI assistant', ...plans.map((p) => (p.locked.includes('AI assistant') ? '&mdash;' : '&#10003;'))],
+        ['List price', ...plans.map((p) => listLabel(p) || '&mdash;')],
+        ['Price today', ...plans.map((p) => `<b>${priceLabel(p)}</b>`)],
+        ...LIMIT_LABELS.map(([, label]) => [label, ...plans.map((p) => esc(p.limits[label]))]),
+        ['Nova AI assistant', ...plans.map((p) => (p.hasAi ? '&#10003;' : '&mdash;'))],
         ['All other features', ...plans.map(() => '&#10003;')],
         ['Excel import &amp; export', ...plans.map(() => '&#10003;')],
         ['Roles &amp; permissions', ...plans.map(() => '&#10003;')],
@@ -175,7 +201,7 @@ ${section({
   })}
 
 ${section({ alt: true, title: 'Pricing questions', body: faqBlock(pricingFaqs) })}
-${cta({ title: 'Create a workspace', body: 'An email address is all it takes. Nothing to install, no card, and every tier is free during launch.' })}`,
+${cta({ title: 'Create a workspace', body: `An email address is all it takes. Nothing to install, no card${FREE ? ', and every tier is free during launch' : ''}.` })}`,
 };
 
 /* ------------------------------------------------------------------ */
@@ -325,7 +351,7 @@ ${cta()}`,
 const freeFaqs = [
   { q: 'Is there genuinely free inventory management software?', a: 'Yes, in three different senses: open-source software that is free to license but costs you hosting and maintenance; free tiers of commercial products, usually limited by users or records; and launch or promotional pricing. Each has different long-term implications, and it is worth knowing which one you are signing up to.' },
   { q: 'What is the catch with free tiers?', a: 'Usually a limit that binds exactly when the software has become essential — user seats, record counts, or gating exports so your data is hard to take with you. The export question is the one to check first.' },
-  { q: 'Is SmartShelfKart free?', a: 'Every tier is currently priced at ₹0 during the launch period, including the top tier. The tiers carry list prices which is what they are designed to cost later, and existing workspaces will be given notice before anything changes.' },
+  { q: 'Is SmartShelfKart free?', a: `Every tier is currently priced at ${rupees(0)} during the launch period, including the top tier. The list prices — ${RANGE} — are what they are designed to cost later, and existing workspaces will be given notice before anything changes.` },
   { q: 'Can I export my data out of a free plan?', a: 'In SmartShelfKart, yes — Excel export is available on every tier and is not gated. Check this before adopting any free product; if export is a paid feature, the free plan is a trap rather than a plan.' },
   { q: 'Is open-source inventory software cheaper?', a: 'The licence is free; the total cost usually is not. You are taking on hosting, upgrades, backups, security patching and the internal expertise to run all of it. That is a good trade if you have the capability in-house and a poor one if you do not.' },
 ];
@@ -413,10 +439,10 @@ const freeIndia = {
   <h2 id="ours">Where SmartShelfKart sits</h2>
   <p>Being explicit, since this is our site:</p>
   <ul>
-  <li>SmartShelfKart is in the <b>third category</b> — launch pricing. Four tiers exist with list prices of ₹999 to ₹9,999 a month, and all four are currently set to ₹0.</li>
+  <li>SmartShelfKart is in the <b>third category</b> — launch pricing. ${plans.length} tiers exist with list prices of ${RANGE}, and ${FREE ? `all ${plans.length} are currently set to ${rupees(0)}` : 'current prices are on the pricing page'}.</li>
   <li>The tiers have <a href="/pricing">real limits</a> on users, products and monthly orders. They are published rather than discovered.</li>
   <li><b>Excel export is available on every tier and is not gated.</b> By question 1 above, that is the commitment that matters.</li>
-  <li>The <a href="/features/ai-inventory-assistant">Nova AI assistant</a> is restricted to the MAX tier. Everything else is on every tier.</li>
+  <li>The <a href="/features/ai-inventory-assistant">Nova AI assistant</a> is on ${AI} only. Everything else is on every tier.</li>
   <li>Existing workspaces will be given notice before pricing changes.</li>
   </ul>
   <p>If you are evaluating several options, run the seven questions against each of them including this one. A vendor that answers them straightforwardly is telling you something useful regardless of the answers.</p>

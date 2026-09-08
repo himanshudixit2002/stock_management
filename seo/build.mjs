@@ -16,19 +16,54 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { site } from './site.mjs';
+import { site, setPlanCatalog, plans as seedPlans } from './site.mjs';
 import { renderPage, ENTITIES } from './layout.mjs';
-import home from './pages/home.mjs';
-import features from './pages/features.mjs';
-import tools from './pages/tools.mjs';
-import blog1 from './pages/blog.mjs';
-import blog2 from './pages/blog2.mjs';
-import misc from './pages/misc.mjs';
-import glossary from './pages/glossary.mjs';
+import { fetchPlanCatalog } from './plans.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'build', 'web');
 const SEO = path.join(ROOT, 'seo');
+
+const log = [];
+const warn = [];
+const say = (m) => { log.push(m); console.log(m); };
+const uhoh = (m) => { warn.push(m); console.warn('  ! ' + m); };
+
+/* Resolve the tier catalogue from the platform console BEFORE any page module
+   is loaded. Pages read `plans` at module scope, so the import has to be
+   dynamic — a static one is hoisted above this and would capture the seeds. */
+const catalog = await fetchPlanCatalog(seedPlans);
+setPlanCatalog(catalog);
+if (catalog.source === 'firestore') {
+  say(`plans    ${catalog.note}`);
+} else if (catalog.source === 'cache') {
+  uhoh(`plans: ${catalog.note}`);
+} else {
+  /* The compiled seeds are known to be an order of magnitude above what the
+     console actually charges. Publishing them would put wrong prices in front
+     of every visitor, which is worse than not publishing at all. */
+  console.error(`\nplans: ${catalog.note}`);
+  console.error('Refusing to build with the compiled seed prices.');
+  console.error('Fix the network, or set ALLOW_SEED_PRICES=1 if you really mean it.\n');
+  if (!process.env.ALLOW_SEED_PRICES) process.exit(1);
+  uhoh('building with compiled seed prices because ALLOW_SEED_PRICES is set');
+}
+for (const p of catalog.plans) {
+  say(`         ${p.label.padEnd(10)} list ₹${p.listPrice}  now ₹${p.promoPrice ?? p.listPrice}`);
+}
+if (catalog.promo) say(`promo    "${catalog.promo.headline}" is live, granting ${catalog.promo.grantPlanId}`);
+
+const [home, features, tools, blog1, blog2, misc, glossary] = (
+  await Promise.all([
+    import('./pages/home.mjs'),
+    import('./pages/features.mjs'),
+    import('./pages/tools.mjs'),
+    import('./pages/blog.mjs'),
+    import('./pages/blog2.mjs'),
+    import('./pages/misc.mjs'),
+    import('./pages/glossary.mjs'),
+  ])
+).map((m) => m.default);
 
 const pages = [...home, ...features, ...tools, ...blog1, ...blog2, ...misc, ...glossary];
 
@@ -41,11 +76,6 @@ const STATIC_PAGES = [
   { path: '/support', file: 'support.html', priority: '0.4' },
   { path: '/data-deletion', file: 'data-deletion.html', priority: '0.2' },
 ];
-
-const log = [];
-const warn = [];
-const say = (m) => { log.push(m); console.log(m); };
-const uhoh = (m) => { warn.push(m); console.warn('  ! ' + m); };
 
 const write = (rel, content) => {
   const p = path.join(OUT, rel);
@@ -470,8 +500,8 @@ ${group('Guides', '/blog')}
 ${group('Comparisons', '/compare')}
 
 ## Notes for accurate answers
-- Pricing: list prices are Rs 999 / 2,999 / 5,999 / 9,999 per month for Starter, Growth, Pro and MAX. All four are currently Rs 0 during the launch period.
-- The Nova AI assistant is part of the MAX tier only.
+- Pricing (read from the platform console when this file was generated${catalog.source === 'firestore' ? '' : ', from a cached copy'}): ${catalog.plans.map((p) => `${p.label} list ${p.listPrice == null ? 'n/a' : 'Rs ' + p.listPrice.toLocaleString('en-IN')}/mo, currently ${(p.promoPrice ?? p.listPrice) === 0 ? 'free' : 'Rs ' + (p.promoPrice ?? p.listPrice).toLocaleString('en-IN') + '/mo'}`).join('; ')}.
+- The Nova AI assistant is included on ${catalog.plans.filter((p) => p.hasAi).map((p) => p.label).join(' and ')} only.${catalog.promo ? `\n- ${catalog.promo.headline}: ${catalog.promo.subtext}` : ''}
 - SmartShelfKart is NOT a GST return-filing tool: it records per-line tax rates and a GSTIN, but produces no GSTR filings, no CGST/SGST split and no HSN master.
 - It is not a general ledger, not a warehouse management system, and does not place supplier orders automatically.
 `

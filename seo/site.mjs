@@ -39,75 +39,65 @@ export const nav = [
 ];
 
 /**
- * Plan tiers, mirrored from lib/models/company_plan_model.dart (PlanCatalog).
- * `promo: 0` is what the app itself shows as "Free during launch" — do not
- * quote a price on the site that the product does not charge.
+ * Plan tiers.
+ *
+ * The live catalogue comes from the root `plans` collection the platform
+ * console edits — see seo/plans.mjs. These constants are only what
+ * PlanCatalog.seedDefaults holds in lib/models/company_plan_model.dart, kept
+ * as a last-resort fallback for a build with no network and no cache.
+ *
+ * They are known to be stale: the console has every tier at a tenth of these
+ * figures. Never quote them on the site without saying where they came from.
  */
-export const plans = [
-  {
-    id: 'starter',
-    label: 'Starter',
-    listPrice: 999,
-    promo: 0,
+const SEED_PLANS = [
+  { id: 'starter', label: 'Starter', nominalPrice: 999, promotionalPrice: 0, sortOrder: 0,
     description: 'For a single location finding its feet. Core stock control.',
-    limits: {
-      'Team members': '3',
-      Products: '250',
-      Invoices: '100 / mo',
-      'Sales orders': '100 / mo',
-      'Purchase orders': '100 / mo',
-    },
-    locked: ['AI assistant'],
-  },
-  {
-    id: 'growth',
-    label: 'Growth',
-    listPrice: 2999,
-    promo: 0,
-    description:
-      'A growing team with real order volume and multiple locations.',
-    limits: {
-      'Team members': '10',
-      Products: '2,000',
-      Invoices: '1,000 / mo',
-      'Sales orders': '1,000 / mo',
-      'Purchase orders': '1,000 / mo',
-    },
-    locked: ['AI assistant'],
-  },
-  {
-    id: 'pro',
-    label: 'Pro',
-    listPrice: 5999,
-    promo: 0,
-    featured: true,
+    lockedFeatures: ['aiAssistant'],
+    limits: { users: 3, products: 250, invoices: 100, salesOrders: 100, purchaseOrders: 100 } },
+  { id: 'growth', label: 'Growth', nominalPrice: 2999, promotionalPrice: 0, sortOrder: 1,
+    description: 'A growing team with real order volume and multiple locations.',
+    lockedFeatures: ['aiAssistant'],
+    limits: { users: 10, products: 2000, invoices: 1000, salesOrders: 1000, purchaseOrders: 1000 } },
+  { id: 'pro', label: 'Pro', nominalPrice: 5999, promotionalPrice: 0, sortOrder: 2,
     description: 'Full operations suite with generous headroom.',
-    limits: {
-      'Team members': '50',
-      Products: '20,000',
-      Invoices: 'Unlimited',
-      'Sales orders': 'Unlimited',
-      'Purchase orders': 'Unlimited',
-    },
-    locked: [],
-  },
-  {
-    id: 'max',
-    label: 'MAX',
-    listPrice: 9999,
-    promo: 0,
-    description:
-      'Every feature, including the Nova AI assistant, with no seat or catalogue ceiling.',
-    limits: {
-      'Team members': 'Unlimited',
-      Products: 'Unlimited',
-      Invoices: 'Unlimited',
-      'Sales orders': 'Unlimited',
-      'Purchase orders': 'Unlimited',
-    },
-    locked: [],
-  },
+    lockedFeatures: [], limits: { users: 50, products: 20000 } },
+  { id: 'max', label: 'MAX Tier', nominalPrice: 9999, promotionalPrice: 0, sortOrder: 3,
+    description: 'Ultimate business suite. Full access to every feature including AI Assistant.',
+    lockedFeatures: [], limits: {} },
 ];
+
+/**
+ * Live bindings. seo/build.mjs resolves the catalogue and calls
+ * [setPlanCatalog] before it imports any page module, so a page that reads
+ * `plans` at module scope gets the console's figures, not the seeds.
+ */
+export let plans = SEED_PLANS.map(seedToPlan);
+export let promo = null;
+export let planSource = 'seed';
+
+export function setPlanCatalog(catalog) {
+  if (catalog?.plans?.length) plans = catalog.plans;
+  promo = catalog?.promo ?? null;
+  planSource = catalog?.source ?? 'seed';
+}
+
+/** The seeds in the shape seo/plans.mjs produces, so both paths render alike. */
+function seedToPlan(d) {
+  const limits = d.limits || {};
+  const labels = [
+    ['users', 'Team members'], ['products', 'Products'], ['invoices', 'Invoices'],
+    ['salesOrders', 'Sales orders'], ['purchaseOrders', 'Purchase orders'],
+  ];
+  return {
+    id: d.id, label: d.label, description: d.description,
+    listPrice: d.nominalPrice, promoPrice: d.promotionalPrice,
+    sortOrder: d.sortOrder, archived: false, locked: d.lockedFeatures, rawLimits: limits,
+    limits: Object.fromEntries(labels.map(([k, l]) => [
+      l, typeof limits[k] === 'number' ? limits[k].toLocaleString('en-IN') : 'Unlimited',
+    ])),
+    get hasAi() { return !this.locked.includes('aiAssistant'); },
+  };
+}
 
 /**
  * The real feature catalogue, taken from lib/config/feature_map.dart. Grouped

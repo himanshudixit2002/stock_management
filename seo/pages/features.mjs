@@ -1,4 +1,9 @@
-import { site, featureGroups } from '../site.mjs';
+import { site, featureGroups, plans } from '../site.mjs';
+import { rupees, allFree, aiTiers, nonAiTiers } from '../plans.mjs';
+
+const AI = aiTiers(plans);
+const NO_AI = nonAiTiers(plans);
+const FREE = allFree(plans);
 import { faqLd, esc } from '../layout.mjs';
 import { section, wrap, cards, faqBlock, cta, related, table, featureList, sawtoothFigure, ledgerFigure, icon } from '../blocks.mjs';
 
@@ -424,12 +429,12 @@ const ai = featurePage({
 <p>This is deliberately more friction than a fully autonomous agent. Inventory is the one place where a confidently wrong write costs real money and takes an hour to unpick.</p>
 
 <h2 id="availability">Where it is available</h2>
-<p>Nova is part of the <b>MAX</b> tier and is not available on Starter or Growth. Every tier is currently priced at ₹0 during the launch period, which means Nova is reachable today — see <a href="/pricing">pricing</a> for exactly what each tier includes.</p>
+<p>Nova is included on <b>${AI}</b> and is not available on ${NO_AI}.${FREE ? ` Every tier is currently priced at ${rupees(0)} during the launch period, which means Nova is reachable today` : ''} — see <a href="/pricing">pricing</a> for exactly what each tier includes.</p>
 
 <h2 id="privacy">What it can and cannot see</h2>
 <p>Nova operates inside your workspace. It reads your workspace's data and nothing else, and the same server-side access rules that govern the app govern it — a request is verified against your membership of the workspace before any data is returned. It is not a shared model trained on your inventory; your stock levels are not somebody else's answers.</p>`,
   faqs: [
-    { q: 'Which plan includes the AI assistant?', a: 'Nova is part of the MAX tier. Starter and Growth do not include it. Because every tier is currently priced at ₹0 during the launch period, it is reachable today.' },
+    { q: 'Which plans include the AI assistant?', a: `Nova is included on ${AI}. ${NO_AI} do not include it.${FREE ? ` Because every tier is currently priced at ${rupees(0)} during the launch period, it is reachable today.` : ''}` },
     { q: 'Can it change my stock without asking?', a: 'No. Requests that would write something produce an action card you must confirm. Read-only questions are answered directly; writes always require a human confirmation.' },
     { q: 'Will its numbers match the reports?', a: 'They are built to. Nova derives facts from the same transaction record the reports read, so a disagreement between Nova and the Reports screen is treated as a defect.' },
     { q: 'Does it work in Hindi or Hinglish?', a: 'Yes — it handles English and Hinglish, which is deliberate: the people who know what is on the shelf should not have to switch languages to ask about it.' },

@@ -1,0 +1,108 @@
+{
+  "plans": [
+    {
+      "id": "starter",
+      "label": "Starter",
+      "description": "For a single location finding its feet. Core stock control.",
+      "listPrice": 99,
+      "promoPrice": 0,
+      "sortOrder": 0,
+      "archived": false,
+      "locked": [
+        "aiAssistant"
+      ],
+      "rawLimits": {
+        "users": 3,
+        "products": 250,
+        "invoices": 100,
+        "salesOrders": 100,
+        "purchaseOrders": 100
+      },
+      "limits": {
+        "Team members": "3",
+        "Products": "250",
+        "Invoices": "100",
+        "Sales orders": "100",
+        "Purchase orders": "100"
+      },
+      "hasAi": false
+    },
+    {
+      "id": "growth",
+      "label": "Growth",
+      "description": "A growing team with real order volume and multiple locations.",
+      "listPrice": 299,
+      "promoPrice": 0,
+      "sortOrder": 1,
+      "archived": false,
+      "locked": [
+        "aiAssistant"
+      ],
+      "rawLimits": {
+        "users": 10,
+        "products": 2000,
+        "invoices": 1000,
+        "salesOrders": 1000,
+        "purchaseOrders": 1000
+      },
+      "limits": {
+        "Team members": "10",
+        "Products": "2,000",
+        "Invoices": "1,000",
+        "Sales orders": "1,000",
+        "Purchase orders": "1,000"
+      },
+      "hasAi": false
+    },
+    {
+      "id": "pro",
+      "label": "Pro",
+      "description": "Full operations suite with generous headroom.",
+      "listPrice": 599,
+      "promoPrice": 0,
+      "sortOrder": 2,
+      "archived": false,
+      "locked": [],
+      "rawLimits": {
+        "users": 50,
+        "products": 20000
+      },
+      "limits": {
+        "Team members": "50",
+        "Products": "20,000",
+        "Invoices": "Unlimited",
+        "Sales orders": "Unlimited",
+        "Purchase orders": "Unlimited"
+      },
+      "hasAi": true
+    },
+    {
+      "id": "max",
+      "label": "MAX Tier",
+      "description": "Ultimate business suite. Full access to every feature including AI Assistant.",
+      "listPrice": 999,
+      "promoPrice": 0,
+      "sortOrder": 3,
+      "archived": false,
+      "locked": [],
+      "rawLimits": {},
+      "limits": {
+        "Team members": "Unlimited",
+        "Products": "Unlimited",
+        "Invoices": "Unlimited",
+        "Sales orders": "Unlimited",
+        "Purchase orders": "Unlimited"
+      },
+      "hasAi": true
+    }
+  ],
+  "promo": {
+    "headline": "Founding member offer",
+    "subtext": "The first 1000 workspaces get the full MAX plan — every feature, no limits — free.",
+    "capCount": 1000,
+    "claimedCount": 186,
+    "isFull": false,
+    "grantPlanId": "max"
+  },
+  "fetchedAt": "2026-09-08T09:18:21.209Z"
+}

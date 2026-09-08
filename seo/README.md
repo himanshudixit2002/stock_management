@@ -51,7 +51,8 @@ would still be the Flutter shell.
 
 | File | Purpose |
 | --- | --- |
-| `site.mjs` | Brand, nav, plan tiers, feature catalogue. **Mirrors real app data** — plans come from `lib/models/company_plan_model.dart`, features from `lib/config/feature_map.dart`. |
+| `site.mjs` | Brand, nav, feature catalogue, and the live bindings the plan catalogue is written into. Features mirror `lib/config/feature_map.dart`. |
+| `plans.mjs` | Reads the tier catalogue and the founding-member offer from Firestore, plus every helper that turns them into copy. |
 | `layout.mjs` | HTML shell, header, footer, JSON-LD graph, breadcrumbs. |
 | `blocks.mjs` | Reusable sections: cards, tables, FAQ, CTA, schema helpers. |
 | `site.css` | The whole stylesheet. System fonts only — no webfont request. |
@@ -77,14 +78,48 @@ Add a page object to one of `pages/*.mjs`:
 Then link to it from somewhere — the build fails its link check if a page links
 to nothing, but it will not tell you about a page nothing links to.
 
+## Pricing comes from the platform console, not from the code
+
+`plans/{id}` and `publicConfig/promo` are world-readable in `firestore.rules`
+("a price list is public information, and the signed-out register screen needs
+it"), so `seo/plans.mjs` reads them over plain REST with the web API key — no
+service account.
+
+This is not optional tidiness. The constants in
+`PlanCatalog.seedDefaults` are only a seed; the console had since moved every
+tier to a tenth of them, and the site spent its first day quoting ₹999–₹9,999
+against a real ₹99–₹999. The same drift had the AI assistant listed as MAX-only
+when the console had already unlocked it on Pro.
+
+So: **no page writes a price, a tier name, or which tiers include a feature by
+hand.** Everything routes through the helpers in `plans.mjs` —
+`priceLabel`, `listLabel`, `listPriceRange`, `aiTiers`, `nonAiTiers`,
+`featuredId`. Change a tier in the console, rebuild, and every sentence follows.
+
+Resolution order is Firestore → `seo/assets/plans.json` (the last successful
+fetch, committed) → the compiled seeds. **The seed path fails the build**, because
+publishing prices that are ten times wrong is worse than not publishing;
+override with `ALLOW_SEED_PRICES=1` only if you mean it.
+
+`build.mjs` therefore imports the page modules *dynamically*, after the
+catalogue resolves — pages read `plans` at module scope, and a static import
+would be hoisted above the fetch and capture the seeds.
+
+The founding-member offer's `claimedCount` is **advisory** (`PromoConfig` says
+so outright: nothing counts signups atomically). The site renders the headline
+and subtext the console owns and never presents the count as a live countdown
+or promises the offer ends at the cap.
+
 ## Rules for content here
 
 - **Never claim a feature the app does not have.** `site.mjs` mirrors
-  `feature_map.dart` and `company_plan_model.dart` for exactly this reason. The
+  `feature_map.dart`, and the tiers come live from the console, for exactly
+  this reason. The
   GST pages say plainly what is *not* supported (no GSTR filing, no CGST/SGST
   split, no HSN master) because discovering that in the last week of a quarter
   is worse than reading it here.
 - **Never quote a price the product does not charge.** Every tier is at ₹0
   during launch; the list price is shown struck through.
-- Prices, limits and the feature count are the app's real values. If you change
-  them in Dart, change them here.
+- Prices, limits and which tiers unlock the AI assistant are read from the
+  console at build time — never edit them here. The feature count and the
+  feature groups are mirrored from Dart; if you change those, change them here.

@@ -1,4 +1,9 @@
 import { site, plans } from '../site.mjs';
+import { rupees, priceLabel, listLabel, allFree, listPriceRange, aiTiers, nonAiTiers, isDiscounted } from '../plans.mjs';
+
+const FREE = allFree(plans);
+const RANGE = listPriceRange(plans);
+const AI = aiTiers(plans);
 import { faqLd, esc } from '../layout.mjs';
 import {
   section, wrap, cards, featureList, faqBlock, cta, softwareLd, table,
@@ -7,7 +12,7 @@ import {
 const faqs = [
   {
     q: 'Is SmartShelfKart free?',
-    a: 'Yes. Every plan tier is priced at ₹0 during the current launch period, including the tiers that normally carry a monthly list price. You do not need a card to create a workspace, and nothing expires into a paywall without notice.',
+    a: `Yes. Every plan tier is priced at ${rupees(0)} during the current launch period, including the tiers that normally carry a list price of up to ${listPriceRange(plans).split(' to ').slice(-1)[0].replace(' a month', '')} a month. You do not need a card to create a workspace, and nothing expires into a paywall without notice.`,
   },
   {
     q: 'Does it work without installing anything?',
@@ -52,7 +57,7 @@ const body = `
   <div class="stats">
     <div><b>43</b><span>features across six areas of the business</span></div>
     <div><b>3</b><span>platforms — web, Android and iOS, one workspace</span></div>
-    <div><b>&#8377;0</b><span>on every plan tier during launch</span></div>
+    <div><b>${FREE ? rupees(0) : RANGE.split(' to ')[0]}</b><span>${FREE ? 'on every plan tier during launch' : 'the entry tier, per month'}</span></div>
   </div>
 `)}</section>
 
@@ -143,14 +148,16 @@ ${section({
 ${section({
   eyebrow: 'Pricing',
   title: 'Free on every tier, right now',
-  lead: 'Four tiers exist, and each carries a monthly list price. All four are currently set to ₹0 while the product is in its launch period — including the top tier with the AI assistant.',
+  lead: `${plans.length} tiers exist, with list prices of ${RANGE}. ${FREE ? `All ${plans.length} are currently set to ${rupees(0)} while the product is in its launch period — including the tiers with the AI assistant.` : 'Current prices are shown below.'}`,
   body:
     table(
       ['Plan', 'List price', 'Now', 'Team members', 'Products'],
       plans.map((p) => [
         esc(p.label),
-        '<span style="text-decoration:line-through;opacity:.6">&#8377;' + p.listPrice.toLocaleString('en-IN') + '/mo</span>',
-        '<b>Free</b>',
+        isDiscounted(p)
+          ? `<span style="text-decoration:line-through;opacity:.6">${listLabel(p)}</span>`
+          : listLabel(p),
+        `<b>${priceLabel(p)}</b>`,
         esc(p.limits['Team members']),
         esc(p.limits.Products),
       ])
