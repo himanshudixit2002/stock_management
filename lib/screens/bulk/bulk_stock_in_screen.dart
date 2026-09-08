@@ -76,7 +76,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   bool _validate() {
-    if (!_formKey.currentState!.validate()) return false;
+    if (_formKey.currentState?.validate() != true) return false;
     for (final row in _rows) {
       if (row.product == null) {
         showErrorSnackBar(context, 'Please select a product for each row');
@@ -168,15 +168,22 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final products = context.watch<ProductProvider>().analyticsProducts;
+    final productProvider = context.watch<ProductProvider>();
+    final products = productProvider.analyticsProducts;
     final locations = context.watch<SettingsProvider>().locations;
 
-    final bool isEmpty = products.isEmpty;
+    // "No Products Yet" and "the catalog has not arrived" are different
+    // statements, and only one of them is ever true on a fresh open.
+    final bool loading = !productProvider.isFullCatalogLoaded &&
+        products.isEmpty &&
+        (productProvider.isLoadingAnalytics || productProvider.isLoading);
+    final bool isEmpty = !loading && products.isEmpty;
 
     return AppScreenScaffold(
       icon: Icons.playlist_add_rounded,
       title: 'Bulk Stock In',
       iconColor: AppTheme.successColor,
+      isLoading: loading,
       isEmpty: isEmpty,
       emptyState: EmptyStateWidget(
         icon: Icons.inventory_2_rounded,
@@ -185,7 +192,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
         buttonText: 'Add Product',
         onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
       ),
-      bottomNavigationBar: isEmpty ? null : _buildActionBar(),
+      bottomNavigationBar: (isEmpty || loading) ? null : _buildActionBar(),
       body: Form(
         key: _formKey,
         child: ListView.builder(

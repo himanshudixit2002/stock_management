@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
@@ -19,6 +20,7 @@ import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../config/app_navigation.dart';
+import 'bulk_edit_validation.dart';
 
 class BulkEditScreen extends StatefulWidget {
   const BulkEditScreen({super.key});
@@ -64,6 +66,15 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   List<ProductModel> get _selectedProducts =>
       _allProducts.where((p) => _selectedProductIds.contains(p.id)).toList();
 
+  /// Labels of fields chosen but never given a usable value.
+  List<String> _fieldsMissingValues() => bulkEditMissingValues(
+    selectedFields: _selectedFields,
+    category: _newCategory,
+    company: _newCompany,
+    size: _newSize,
+    thresholdText: _thresholdController.text,
+  );
+
   void _nextStep() {
     if (_currentStep == 0 && _selectedProductIds.isEmpty) {
       showErrorSnackBar(context, 'Select at least one product');
@@ -72,6 +83,13 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
     if (_currentStep == 1 && _selectedFields.isEmpty) {
       showErrorSnackBar(context, 'Select at least one field to edit');
       return;
+    }
+    if (_currentStep == 2) {
+      final missing = _fieldsMissingValues();
+      if (missing.isNotEmpty) {
+        showErrorSnackBar(context, bulkEditMissingValuesMessage(missing));
+        return;
+      }
     }
     setState(() => _currentStep++);
   }
@@ -87,6 +105,13 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
     final user = context.read<AuthProvider>().currentUser;
     if (user == null) {
       setState(() => _isApplying = false);
+      return;
+    }
+
+    final missing = _fieldsMissingValues();
+    if (missing.isNotEmpty) {
+      setState(() => _isApplying = false);
+      showErrorSnackBar(context, bulkEditMissingValuesMessage(missing));
       return;
     }
 
@@ -141,7 +166,9 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
 
     try {
       final productProvider = context.read<ProductProvider>();
-      await productProvider.bulkUpdateProducts(
+      // The committed count, not the requested one: bulkUpdateProducts skips
+      // any product without an id, so the two can differ.
+      final written = await productProvider.bulkUpdateProducts(
         updatedProducts,
         userId: user.uid,
         userName: user.name,
@@ -149,9 +176,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
       if (!mounted) return;
       showSuccessOverlay(
         context,
-        message: updatedProducts.length == 1
-            ? '1 product updated'
-            : '${updatedProducts.length} products updated',
+        message: written == 1 ? '1 product updated' : '$written products updated',
       );
     } catch (e) {
       if (!mounted) return;
@@ -171,14 +196,22 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final products = context.watch<ProductProvider>().analyticsProducts;
+    final productProvider = context.watch<ProductProvider>();
+    final products = productProvider.analyticsProducts;
 
-    final bool isEmpty = products.isEmpty;
+    // Opening this screen before the catalog arrives used to render "No
+    // Products — add products first", which is a different and alarming claim
+    // from "still loading".
+    final bool loading = !productProvider.isFullCatalogLoaded &&
+        products.isEmpty &&
+        (productProvider.isLoadingAnalytics || productProvider.isLoading);
+    final bool isEmpty = !loading && products.isEmpty;
 
     return AppScreenScaffold(
       icon: Icons.edit_note_rounded,
       title: 'Bulk Edit',
       iconColor: AppTheme.indigoColor,
+      isLoading: loading,
       isEmpty: isEmpty,
       emptyState: EmptyStateWidget(
         icon: Icons.edit_note_rounded,
@@ -187,8 +220,9 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
         buttonText: 'Add Product',
         onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
       ),
-      header: isEmpty ? null : _buildStepIndicator(),
-      bottomNavigationBar: isEmpty ? null : _buildBottomBar(),
+      // Nothing to step through or act on until the catalog is here.
+      header: (isEmpty || loading) ? null : _buildStepIndicator(),
+      bottomNavigationBar: (isEmpty || loading) ? null : _buildBottomBar(),
       body: _buildStepContent(products),
     );
   }
@@ -563,6 +597,11 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
               prefixIcon: Icon(Icons.warning_amber_rounded),
             ),
             keyboardType: TextInputType.number,
+            // A number keyboard is a hint, not a constraint — on web and with a
+            // hardware keyboard anything could be typed, and int.tryParse then
+            // dropped the field without a word.
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 16),
         ],
@@ -572,8 +611,44 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
 
   Widget _buildStep4() {
     final selected = _selectedProducts;
-    return ListView(
+    // ListView.builder, not a Column of everything. This screen could only ever
+    // reach 200 products before the catalog fix, so eagerly building a tile per
+    // selection was survivable; "select all" on a real catalogue now means
+    // thousands, and building them all in one frame janks or hangs the screen.
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
+      itemCount: selected.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) return _buildStep4Header(selected.length);
+        final product = selected[index - 1];
+        final tile = Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: ListTile(
+            dense: true,
+            leading: const Icon(Icons.inventory_2_rounded, size: 18),
+            title: Text(product.name, style: const TextStyle(fontSize: 13)),
+            subtitle: Text(
+              '${product.categoryName} • ${product.quantity} ${product.unit}',
+              style: const TextStyle(fontSize: 12),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            tileColor: AppTheme.inputFill(context),
+          ),
+        );
+        // Stagger only the first screenful; past that the delay is longer than
+        // the row spends on screen anyway.
+        return index <= 15
+            ? AnimatedListItem(index: index - 1, child: tile)
+            : tile;
+      },
+    );
+  }
+
+  Widget _buildStep4Header(int count) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GlassPanel(
           useContentVariant: true,
@@ -587,7 +662,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
               ),
               const SizedBox(height: 12),
-              _summaryRow('Products', '${selected.length}'),
+              _summaryRow('Products', '$count'),
               if (_selectedFields.contains('category') && _newCategory != null)
                 _summaryRow('Category', _newCategory!),
               if (_selectedFields.contains('company') && _newCompany != null)
@@ -606,29 +681,13 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        ...selected.indexed.map((entry) {
-          final tile = Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.inventory_2_rounded, size: 18),
-              title: Text(entry.$2.name, style: const TextStyle(fontSize: 13)),
-              subtitle: Text(
-                '${entry.$2.categoryName} • ${entry.$2.quantity} ${entry.$2.unit}',
-                style: const TextStyle(fontSize: 12),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              tileColor: AppTheme.inputFill(context),
-            ),
-          );
-          return entry.$1 < 15
-              ? AnimatedListItem(index: entry.$1, child: tile)
-              : tile;
-        }),
       ],
     );
+  }
+
+  String _applyLabel() {
+    final n = _selectedProducts.length;
+    return n == 1 ? 'Apply to 1 Product' : 'Apply to $n Products';
   }
 
   Widget _summaryRow(String label, String value) {
@@ -695,7 +754,10 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
                                   )
                                 : const Icon(Icons.check_rounded),
                             label: Text(
-                              'Apply to ${_selectedProductIds.length} Products',
+                              // The products actually resolvable from the
+                              // catalog, which is what will be written — an id
+                              // whose product is gone counts for neither.
+                              _applyLabel(),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primaryColor,
