@@ -61,7 +61,7 @@ function header(current) {
     <nav class="site-nav" aria-label="Primary"><ul>${links}</ul></nav>
     <div class="site-head__act">
       ${themeToggle}
-      <a class="btn btn--sm" href="${site.appUrl}" data-app-link>Open the app</a>
+      <a class="btn btn--sm" href="${site.appUrl}" data-app-link><span class="lbl-full">Open the app</span><span class="lbl-tight">Open app</span></a>
       <label for="navtog" class="navbtn" aria-hidden="true"><span></span><span></span><span></span></label>
     </div>
   </div>
