@@ -1006,7 +1006,7 @@ class SettingsCatalog {
       icon: Icons.privacy_tip_rounded,
       accent: AppTheme.infoColor,
       destination: LinkTarget(
-        url: 'https://smartshelfkart.com/privacy-policy.html',
+        url: 'https://smartshelfkart.com/privacy-policy',
         nativeRoute: AppRoutes.privacyPolicy,
       ),
       sortOrder: 3,
@@ -1021,7 +1021,7 @@ class SettingsCatalog {
       icon: Icons.gavel_rounded,
       accent: AppTheme.textSecondary,
       destination: LinkTarget(
-        url: 'https://smartshelfkart.com/terms.html',
+        url: 'https://smartshelfkart.com/terms',
         nativeRoute: AppRoutes.terms,
       ),
       sortOrder: 4,
@@ -1036,7 +1036,7 @@ class SettingsCatalog {
       icon: Icons.support_agent_rounded,
       accent: AppTheme.successColor,
       destination: LinkTarget(
-        url: 'https://smartshelfkart.com/support.html',
+        url: 'https://smartshelfkart.com/support',
         nativeRoute: AppRoutes.support,
       ),
       sortOrder: 5,
@@ -1051,7 +1051,7 @@ class SettingsCatalog {
       icon: Icons.delete_sweep_rounded,
       accent: AppTheme.dangerColor,
       destination: LinkTarget(
-        url: 'https://smartshelfkart.com/data-deletion.html',
+        url: 'https://smartshelfkart.com/data-deletion',
         nativeRoute: AppRoutes.dataDeletion,
       ),
       sortOrder: 6,

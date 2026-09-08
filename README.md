@@ -10,7 +10,7 @@
   
   ---
 
-  ### 🌐 [Try the Web App Live](https://smartshelfkart.com/)
+  ### 🌐 [Try the Web App Live](https://smartshelfkart.com/app)
   ### 📱 [Get it on Google Play](https://play.google.com/store/apps/details?id=com.stockmanager.stock_management&pcampaignid=web_share)
   
   ---

@@ -458,7 +458,7 @@ class LandingScreen extends StatelessWidget {
                   if (kIsWeb) {
                     _openUrl(
                       context,
-                      'https://smartshelfkart.com/privacy-policy.html',
+                      'https://smartshelfkart.com/privacy-policy',
                     );
                   } else {
                     context.pushAppRoute(AppRoutes.privacyPolicy);
@@ -469,7 +469,7 @@ class LandingScreen extends StatelessWidget {
                 label: 'Terms',
                 onTap: () {
                   if (kIsWeb) {
-                    _openUrl(context, 'https://smartshelfkart.com/terms.html');
+                    _openUrl(context, 'https://smartshelfkart.com/terms');
                   } else {
                     context.pushAppRoute(AppRoutes.terms);
                   }
@@ -481,7 +481,7 @@ class LandingScreen extends StatelessWidget {
                   if (kIsWeb) {
                     _openUrl(
                       context,
-                      'https://smartshelfkart.com/support.html',
+                      'https://smartshelfkart.com/support',
                     );
                   } else {
                     context.pushAppRoute(AppRoutes.support);
@@ -494,7 +494,7 @@ class LandingScreen extends StatelessWidget {
                   if (kIsWeb) {
                     _openUrl(
                       context,
-                      'https://smartshelfkart.com/data-deletion.html',
+                      'https://smartshelfkart.com/data-deletion',
                     );
                   } else {
                     context.pushAppRoute(AppRoutes.dataDeletion);

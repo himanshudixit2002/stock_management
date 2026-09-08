@@ -25,9 +25,119 @@
       "**/*.symbols",
       "**/*.js.map"
     ],
+    "cleanUrls": true,
+    "redirects": [
+      {
+        "//": "In-app legal routes have real, crawlable pages of their own. Send them there rather than into the canvas app, where the same text exists but Google cannot read it.",
+        "source": "/legal/privacy",
+        "destination": "/privacy-policy",
+        "type": 301
+      },
+      {
+        "source": "/legal/terms",
+        "destination": "/terms",
+        "type": 301
+      },
+      {
+        "source": "/legal/support",
+        "destination": "/support",
+        "type": 301
+      },
+      {
+        "source": "/legal/data-deletion",
+        "destination": "/data-deletion",
+        "type": 301
+      },
+      {
+        "//": "Every path the SPA used to be served at. It never actually restored these routes -- onGenerateInitialRoutes in lib/app.dart discards the incoming URL and always boots AuthWrapper -- so a 301 to /app preserves the only behaviour these URLs ever had, while letting everything else 404 honestly instead of returning a soft-404 copy of the homepage.",
+        "regex": "^/(activity-timeline|audit-log|batches|billing|bulk|categories|company-switcher|customers|dashboard|excel|favorites|forecast|help|home|landing|legal|login|notifications|onboarding|orders|pos|price-history|products|profile|register|reorder-suggestions|reports|returns|roles|scanner|search|settings|stock|stock-take|super-admin|transactions|users|vendors|warehouse-zones)(/.*)?$",
+        "destination": "/app",
+        "type": 301
+      }
+    ],
+    "rewrites": [
+      {
+        "//": "The app shell is app.html, served at /app by cleanUrls. This rewrite only covers path-style deep links beneath it; the app routes on the URL fragment, so the server normally never sees them.",
+        "source": "/app/**",
+        "destination": "/app.html"
+      }
+    ],
     "headers": [
       {
-        "source": "/index.html",
+        "//": "Firebase applies every matching rule and the LAST one wins, so this is the default and everything below is an override. Matching is on the request path, not the file on disk, which is why the app rule below says /app and not /app.html.",
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          }
+        ]
+      },
+      {
+        "source": "/static/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      },
+      {
+        "//": "Content-hashed by seo/build.mjs, so a year is safe. Must come after /static/** to win.",
+        "source": "/static/site.*.css",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      },
+      {
+        "source": "/app",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/app.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/app/**",
         "headers": [
           {
             "key": "Cache-Control",
@@ -45,15 +155,6 @@
         ]
       },
       {
-        "source": "/main.dart.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
         "source": "/flutter_bootstrap.js",
         "headers": [
           {
@@ -63,29 +164,11 @@
         ]
       },
       {
-        "source": "/flutter.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=0, must-revalidate"
-          }
-        ]
-      },
-      {
         "source": "**/*.js.map",
         "headers": [
           {
             "key": "Cache-Control",
             "value": "no-store"
-          }
-        ]
-      },
-      {
-        "source": "**/main.dart.js_*.part.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=0, must-revalidate"
           }
         ]
       },
@@ -133,30 +216,6 @@
             "value": "public, max-age=31536000, immutable"
           }
         ]
-      }
-    ],
-    "cleanUrls": true,
-    "rewrites": [
-      {
-        "source": "/privacy-policy.html",
-        "destination": "/privacy-policy.html"
-      },
-      {
-        "source": "/terms.html",
-        "destination": "/terms.html"
-      },
-      {
-        "source": "/data-deletion.html",
-        "destination": "/data-deletion.html"
-      },
-      {
-        "source": "/support.html",
-        "destination": "/support.html"
-      },
-      {
-        "//": "Deliberately NOT a bare '**'. The catch-all exists so deep links like /orders/sales/detail reach the SPA, but it was also swallowing genuinely missing files: a request for a pruned deferred chunk (deploy_all.sh runs `flutter clean`, which drops last build's main.dart.js_NN.part.js) came back as index.html with status 200 and Content-Type text/html. A stale client then tried to evaluate HTML as JavaScript. Excluding asset extensions lets those 404 properly, which is what the deferred loader and the browser cache both need to see.",
-        "source": "**/!(*.js|*.mjs|*.json|*.map|*.wasm|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.svg|*.ico|*.ttf|*.otf|*.woff|*.woff2|*.txt|*.xml|*.csv|*.bin|*.symbols)",
-        "destination": "/index.html"
       }
     ]
   },
