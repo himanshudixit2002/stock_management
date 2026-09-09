@@ -41,6 +41,20 @@ companies/{companyId}
 ├── recurringInvoices → customerId, items[], cadence, nextRunAt, generatedCount
 ├── priceLists   → name, defaultDiscountPercent, entries[], customerIds[]
 ├── landedCosts  → purchaseOrderId, charges[], lines[], status
+├── quotations   → customerId, status, lines[], validUntil, convertedSalesOrderId
+├── shipments    → salesOrderId, status, lines[] (ordered/picked/packed), carrier, tracking
+├── expenses     → category, amount, taxAmount, status, expenseDate, vendorId
+├── registerSessions → registerName, openingFloat, movements[], expectedCash, countedCash
+│                      (also holds one `lock_<register>` doc per till — the
+│                       one-open-shift invariant, since a transaction cannot query)
+├── commissionPlans  → basis (revenue|margin), defaultPercent, categoryRates[], userIds[]
+├── budgets      → period, periodStart, lines[] (revenue|purchases|expense heads)
+├── serviceJobs  → customerId, serialId, status, parts[] (issued flag), charges[]
+├── jobWorkOrders → vendorId, outputProductId, components[] (issued/consumed), status
+│
+│  Every one of these is listed in `SuperAdminService.companyCollections`, which
+│  the platform console counts and browses and a workspace purge iterates. A
+│  contract test pins the list against the collections the code writes.
 └── (company doc) → settings: { pricingEnabled, vendorsEnabled, companies[], sizes[], locations[] }
 
 users/{uid}      → role, companyId, approved, permissions

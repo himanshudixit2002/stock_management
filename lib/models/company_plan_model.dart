@@ -166,6 +166,8 @@ class PlanCatalog {
     },
     // A single-location workspace has no use for transfers or requisitions,
     // and the manufacturing/costing modules are what the higher tiers are for.
+    // Quotations and expenses stay open on every tier: a one-shop business
+    // quotes work and pays rent exactly like a bigger one.
     lockedFeatures: {
       'aiAssistant',
       'boms',
@@ -175,6 +177,14 @@ class PlanCatalog {
       'recurringInvoices',
       'priceLists',
       'landedCosts',
+      'shipments',
+      'registerSessions',
+      'creditControl',
+      'vendorScorecard',
+      'commissions',
+      'budgets',
+      'serviceJobs',
+      'jobWork',
     },
   );
 
@@ -192,8 +202,16 @@ class PlanCatalog {
       PlanLimitKeys.purchaseOrders: 1000,
     },
     // Growth gets the multi-location and billing modules; assembly, serialised
-    // units and landed costing stay with Pro.
-    lockedFeatures: {'aiAssistant', 'boms', 'serials', 'landedCosts'},
+    // units, landed costing and the finance planning modules stay with Pro.
+    lockedFeatures: {
+      'aiAssistant',
+      'boms',
+      'serials',
+      'landedCosts',
+      'commissions',
+      'budgets',
+      'jobWork',
+    },
   );
 
   static const PlanDefinition pro = PlanDefinition(

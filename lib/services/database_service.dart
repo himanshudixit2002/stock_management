@@ -26,6 +26,14 @@ import '../models/requisition_model.dart';
 import '../models/recurring_invoice_model.dart';
 import '../models/price_list_model.dart';
 import '../models/landed_cost_model.dart';
+import '../models/quotation_model.dart';
+import '../models/shipment_model.dart';
+import '../models/expense_model.dart';
+import '../models/register_session_model.dart';
+import '../models/commission_plan_model.dart';
+import '../models/budget_model.dart';
+import '../models/service_job_model.dart';
+import '../models/job_work_model.dart';
 import 'landed_cost_allocator.dart';
 import 'notification_engine.dart';
 
@@ -4682,6 +4690,1387 @@ class DatabaseService {
             'charges': current.totalCharges,
             'lines': current.lines.length,
             'upliftPercent': current.upliftPercent,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  // ==================== QUOTATIONS ====================
+
+  CollectionReference<Map<String, dynamic>> get _quotations {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('quotations');
+  }
+
+  Stream<List<QuotationModel>> getQuotations() {
+    return _quotations
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => QuotationModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addQuotation(QuotationModel quotation) async {
+    final ref = await _quotations.add(quotation.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateQuotation(QuotationModel quotation) async {
+    await _quotations.doc(quotation.id).update(quotation.toMap());
+  }
+
+  Future<void> deleteQuotation(String id) async {
+    await _quotations.doc(id).delete();
+  }
+
+  Future<QuotationModel?> getQuotationById(String id) async {
+    if (id.isEmpty) return null;
+    final doc = await _quotations.doc(id).get();
+    if (!doc.exists) return null;
+    return QuotationModel.fromMap(doc.data()!, doc.id);
+  }
+
+  /// Marks a quotation sent, so the validity clock starts from a real date.
+  Future<void> markQuotationSent(String quotationId) async {
+    final now = DateTime.now();
+    await _quotations.doc(quotationId).update({
+      'status': QuotationModel.statusToString(QuotationStatus.sent),
+      'sentAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(now),
+    });
+  }
+
+  /// Records the customer's answer.
+  ///
+  /// The status is re-checked against the stored document inside the
+  /// transaction rather than against the copy on screen: two people working the
+  /// same pipeline would otherwise both "decide" one quote, and the second
+  /// decision would silently overwrite the first.
+  Future<void> decideQuotation({
+    required QuotationModel quotation,
+    required bool accepted,
+    required String note,
+    required String userId,
+    required String userName,
+  }) async {
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final ref = _quotations.doc(quotation.id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This quotation no longer exists.');
+      final current = QuotationModel.fromMap(snap.data()!, snap.id);
+      if (!current.canDecide) {
+        throw Exception(
+          'This quotation is already ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+
+      txn.update(ref, {
+        'status': QuotationModel.statusToString(
+          accepted ? QuotationStatus.accepted : QuotationStatus.declined,
+        ),
+        'decidedAt': Timestamp.fromDate(now),
+        'decisionNote': note,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: accepted ? 'quotation_accepted' : 'quotation_declined',
+          entityType: 'Quotation',
+          entityId: current.id,
+          entityName: current.quoteNumber.isEmpty
+              ? current.customerName
+              : current.quoteNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'value': current.grandTotal,
+            'lines': current.lines.length,
+            if (note.isNotEmpty) 'note': note,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  /// Turns an accepted quotation into a sales order.
+  ///
+  /// Both writes happen in one transaction and the quote is re-read inside it,
+  /// so two taps on "Convert" produce one order rather than two orders for one
+  /// piece of work. Returns the new sales order's id.
+  Future<String> convertQuotationToSalesOrder({
+    required QuotationModel quotation,
+    required String userId,
+    required String userName,
+  }) async {
+    if (quotation.lines.isEmpty) {
+      throw Exception('This quotation has no lines to convert.');
+    }
+    final now = DateTime.now();
+    final orderRef = _salesOrders.doc();
+
+    await _firestore.runTransaction((txn) async {
+      final quoteRef = _quotations.doc(quotation.id);
+      final snap = await txn.get(quoteRef);
+      if (!snap.exists) throw Exception('This quotation no longer exists.');
+      final current = QuotationModel.fromMap(snap.data()!, snap.id);
+      if (!current.canConvert) {
+        throw Exception(
+          current.convertedSalesOrderId.isNotEmpty
+              ? 'This quotation has already been converted.'
+              : 'Only an accepted quotation can be converted.',
+        );
+      }
+      if (current.customerId.isEmpty) {
+        throw Exception('Choose a customer before converting this quotation.');
+      }
+
+      final order = SalesOrderModel(
+        id: orderRef.id,
+        customerId: current.customerId,
+        customerName: current.customerName,
+        status: SOStatus.draft,
+        items: [
+          for (final line in current.lines)
+            if (line.quantity > 0)
+              SOItem(
+                productId: line.productId,
+                productName: line.productName,
+                quantity: line.quantity,
+                // The quoted price, discount included: converting must not
+                // quietly re-price what the customer already agreed to.
+                unitPrice: line.quantity <= 0
+                    ? line.unitPrice
+                    : line.taxable / line.quantity,
+              ),
+        ],
+        totalAmount: current.grandTotal,
+        notes: current.quoteNumber.isEmpty
+            ? current.notes
+            : 'From quotation ${current.quoteNumber}. ${current.notes}'.trim(),
+        createdBy: userId,
+        createdByName: userName,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      txn.set(orderRef, order.toMap());
+      txn.update(quoteRef, {
+        'status': QuotationModel.statusToString(QuotationStatus.converted),
+        'convertedSalesOrderId': orderRef.id,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'quotation_converted',
+          entityType: 'Quotation',
+          entityId: current.id,
+          entityName: current.quoteNumber.isEmpty
+              ? current.customerName
+              : current.quoteNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'salesOrderId': orderRef.id,
+            'value': current.grandTotal,
+            'lines': current.lines.length,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+
+    return orderRef.id;
+  }
+
+  // ==================== SHIPMENTS ====================
+
+  CollectionReference<Map<String, dynamic>> get _shipments {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('shipments');
+  }
+
+  Stream<List<ShipmentModel>> getShipments() {
+    return _shipments
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => ShipmentModel.fromMap(d.data(), d.id)).toList(),
+        );
+  }
+
+  Future<String> addShipment(ShipmentModel shipment) async {
+    final ref = await _shipments.add(shipment.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateShipment(ShipmentModel shipment) async {
+    await _shipments.doc(shipment.id).update(shipment.toMap());
+  }
+
+  Future<void> deleteShipment(String id) async {
+    await _shipments.doc(id).delete();
+  }
+
+  Future<ShipmentModel?> getShipmentById(String id) async {
+    if (id.isEmpty) return null;
+    final doc = await _shipments.doc(id).get();
+    if (!doc.exists) return null;
+    return ShipmentModel.fromMap(doc.data()!, doc.id);
+  }
+
+  /// Stamps a shipment dispatched, once its stock has actually moved.
+  ///
+  /// This deliberately moves no stock. Dispatch goes through the sales order
+  /// path, which consumes the order's reserved holds from the exact locations
+  /// they were held at; a second implementation here would either double-deduct
+  /// or leave holds stranded. The caller moves the stock first and then calls
+  /// this: a repeat attempt dispatches nothing (the order has no remaining
+  /// units) and simply re-stamps, which is why that order is the safe one.
+  Future<void> markShipmentDispatched({
+    required ShipmentModel shipment,
+    required String userId,
+    required String userName,
+  }) async {
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final ref = _shipments.doc(shipment.id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This shipment no longer exists.');
+      final current = ShipmentModel.fromMap(snap.data()!, snap.id);
+      if (current.status == ShipmentStatus.dispatched ||
+          current.status == ShipmentStatus.delivered) {
+        // Already stamped by the first attempt; nothing more to do.
+        return;
+      }
+
+      txn.update(ref, {
+        'status': ShipmentModel.statusToString(ShipmentStatus.dispatched),
+        'dispatchedAt': Timestamp.fromDate(now),
+        'dispatchedBy': userId,
+        'dispatchedByName': userName,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'shipment_dispatched',
+          entityType: 'Shipment',
+          entityId: current.id,
+          entityName: current.shipmentNumber.isEmpty
+              ? current.customerName
+              : current.shipmentNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'units': current.totalPacked,
+            'salesOrderId': current.salesOrderId,
+            'carrier': current.carrier,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  // ==================== OPERATING EXPENSES ====================
+
+  CollectionReference<Map<String, dynamic>> get _expenses {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('expenses');
+  }
+
+  /// Expenses newest first, by the date they were incurred rather than entered:
+  /// last month's rent keyed in today belongs to last month.
+  Stream<List<ExpenseModel>> getExpenses() {
+    return _expenses
+        .orderBy('expenseDate', descending: true)
+        .limit(500)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => ExpenseModel.fromMap(d.data(), d.id)).toList(),
+        );
+  }
+
+  Future<String> addExpense(ExpenseModel expense) async {
+    final ref = await _expenses.add(expense.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateExpense(ExpenseModel expense) async {
+    await _expenses.doc(expense.id).update(expense.toMap());
+  }
+
+  Future<void> deleteExpense(String id) async {
+    await _expenses.doc(id).delete();
+  }
+
+  // ==================== REGISTER SESSIONS ====================
+
+  CollectionReference<Map<String, dynamic>> get _registerSessions {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('registerSessions');
+  }
+
+  /// The document that guarantees one open shift per register.
+  ///
+  /// A Firestore transaction cannot run a query, only read documents by id, so
+  /// "is this register already open?" has to be a document rather than a
+  /// `where` clause. It lives in the same collection to keep one set of rules
+  /// over the whole feature; it carries no `openedAt`, which is what keeps it
+  /// out of [getRegisterSessions] — Firestore's `orderBy` silently excludes
+  /// documents missing the field it orders on.
+  DocumentReference<Map<String, dynamic>> _registerLock(String registerKey) {
+    final safe = registerKey.replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    return _registerSessions.doc('lock_${safe.isEmpty ? 'main' : safe}');
+  }
+
+  Stream<List<RegisterSessionModel>> getRegisterSessions() {
+    return _registerSessions
+        .orderBy('openedAt', descending: true)
+        .limit(200)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => RegisterSessionModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  /// Opens a shift, refusing a second one on the same register.
+  ///
+  /// Returns the session as stored, id included, so the till can start stamping
+  /// sales with it immediately.
+  Future<RegisterSessionModel> openRegisterSession({
+    required String registerName,
+    required double openingFloat,
+    required String userId,
+    required String userName,
+    String notes = '',
+  }) async {
+    final now = DateTime.now();
+    final key = RegisterSessionModel.keyFor(registerName);
+    final sessionRef = _registerSessions.doc();
+    final session = RegisterSessionModel(
+      id: sessionRef.id,
+      registerName: registerName.trim().isEmpty ? 'Main' : registerName.trim(),
+      openingFloat: openingFloat,
+      openedBy: userId,
+      openedByName: userName,
+      openedAt: now,
+      notes: notes,
+    );
+
+    await _firestore.runTransaction((txn) async {
+      final lockRef = _registerLock(key);
+      final lockSnap = await txn.get(lockRef);
+      final openId = lockSnap.exists
+          ? safeString(lockSnap.data()!['openSessionId'])
+          : '';
+
+      if (openId.isNotEmpty) {
+        final openSnap = await txn.get(_registerSessions.doc(openId));
+        if (openSnap.exists) {
+          final existing = RegisterSessionModel.fromMap(
+            openSnap.data()!,
+            openSnap.id,
+          );
+          if (existing.isOpen) {
+            throw Exception(
+              '${existing.registerName} already has a shift open, started by '
+              '${existing.openedByName.isEmpty ? 'someone else' : existing.openedByName}.',
+            );
+          }
+        }
+        // The lock outlived its session (a close that half-failed). Falling
+        // through re-points it rather than leaving the register unusable.
+      }
+
+      txn.set(sessionRef, session.toMap());
+      txn.set(lockRef, {
+        'docType': 'lock',
+        'registerKey': key,
+        'openSessionId': sessionRef.id,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+    });
+
+    return session;
+  }
+
+  /// Records a drop or a payout against an open shift.
+  Future<void> addCashMovement({
+    required String sessionId,
+    required CashMovement movement,
+  }) async {
+    await _firestore.runTransaction((txn) async {
+      final ref = _registerSessions.doc(sessionId);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This shift no longer exists.');
+      final current = RegisterSessionModel.fromMap(snap.data()!, snap.id);
+      if (!current.isOpen) {
+        throw Exception('This shift is closed. Open a new one to record cash.');
+      }
+      txn.update(ref, {
+        'movements': [
+          ...current.movements.map((m) => m.toMap()),
+          movement.toMap(),
+        ],
+      });
+    });
+  }
+
+  /// Closes a shift with the counted figure and the tally it is measured
+  /// against.
+  ///
+  /// The expected figure is stamped here rather than recomputed on every later
+  /// read: a refund or a cancellation next week must not rewrite the history of
+  /// a drawer that was counted and signed off today.
+  Future<void> closeRegisterSession({
+    required RegisterSessionModel session,
+    required double countedCash,
+    required double expectedCash,
+    required Map<String, double> takingsByMethod,
+    required int invoiceCount,
+    required double salesTotal,
+    required String userId,
+    required String userName,
+    String notes = '',
+  }) async {
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final ref = _registerSessions.doc(session.id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This shift no longer exists.');
+      final current = RegisterSessionModel.fromMap(snap.data()!, snap.id);
+      if (!current.isOpen) throw Exception('This shift is already closed.');
+
+      final lockRef = _registerLock(current.registerKey);
+      final lockSnap = await txn.get(lockRef);
+      final lockPointsHere = lockSnap.exists &&
+          safeString(lockSnap.data()!['openSessionId']) == current.id;
+
+      txn.update(ref, {
+        'status': RegisterSessionModel.statusToString(
+          RegisterSessionStatus.closed,
+        ),
+        'countedCash': countedCash,
+        'expectedCash': expectedCash,
+        'takingsByMethod': takingsByMethod,
+        'invoiceCount': invoiceCount,
+        'salesTotal': salesTotal,
+        'closedBy': userId,
+        'closedByName': userName,
+        'closedAt': Timestamp.fromDate(now),
+        if (notes.isNotEmpty) 'notes': notes,
+      });
+
+      if (lockPointsHere) {
+        txn.update(lockRef, {
+          'openSessionId': '',
+          'updatedAt': Timestamp.fromDate(now),
+        });
+      }
+
+      final variance = countedCash - expectedCash;
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'register_session_closed',
+          entityType: 'RegisterSession',
+          entityId: current.id,
+          entityName: current.registerName,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'expected': expectedCash,
+            'counted': countedCash,
+            'variance': variance,
+            'invoices': invoiceCount,
+            'sales': salesTotal,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  // ==================== COMMISSION PLANS ====================
+
+  CollectionReference<Map<String, dynamic>> get _commissionPlans {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('commissionPlans');
+  }
+
+  Stream<List<CommissionPlanModel>> getCommissionPlans() {
+    return _commissionPlans
+        .orderBy('name')
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => CommissionPlanModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addCommissionPlan(CommissionPlanModel plan) async {
+    final ref = await _commissionPlans.add(plan.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateCommissionPlan(CommissionPlanModel plan) async {
+    await _commissionPlans.doc(plan.id).update(plan.toMap());
+  }
+
+  Future<void> deleteCommissionPlan(String id) async {
+    await _commissionPlans.doc(id).delete();
+  }
+
+  // ==================== BUDGETS ====================
+
+  CollectionReference<Map<String, dynamic>> get _budgets {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('budgets');
+  }
+
+  Stream<List<BudgetModel>> getBudgets() {
+    return _budgets
+        .orderBy('periodStart', descending: true)
+        .limit(200)
+        .snapshots()
+        .map(
+          (s) =>
+              s.docs.map((d) => BudgetModel.fromMap(d.data(), d.id)).toList(),
+        );
+  }
+
+  Future<String> addBudget(BudgetModel budget) async {
+    final ref = await _budgets.add(budget.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateBudget(BudgetModel budget) async {
+    await _budgets.doc(budget.id).update(budget.toMap());
+  }
+
+  Future<void> deleteBudget(String id) async {
+    await _budgets.doc(id).delete();
+  }
+
+  // ==================== SERVICE JOBS ====================
+
+  CollectionReference<Map<String, dynamic>> get _serviceJobs {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('serviceJobs');
+  }
+
+  Stream<List<ServiceJobModel>> getServiceJobs() {
+    return _serviceJobs
+        .orderBy('receivedAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => ServiceJobModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addServiceJob(ServiceJobModel job) async {
+    final ref = await _serviceJobs.add(job.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateServiceJob(ServiceJobModel job) async {
+    await _serviceJobs.doc(job.id).update(job.toMap());
+  }
+
+  Future<void> deleteServiceJob(String id) async {
+    await _serviceJobs.doc(id).delete();
+  }
+
+  Future<ServiceJobModel?> getServiceJobById(String id) async {
+    if (id.isEmpty) return null;
+    final doc = await _serviceJobs.doc(id).get();
+    if (!doc.exists) return null;
+    return ServiceJobModel.fromMap(doc.data()!, doc.id);
+  }
+
+  /// Takes the job's unissued parts out of stock, in one transaction.
+  ///
+  /// Parts fitted during a repair are real stock leaving the building, and a
+  /// service department that consumes them off the books is the classic way an
+  /// inventory drifts from reality. The `issued` flag on each part is what makes
+  /// this safe to press twice: a part already issued is skipped, so a retry
+  /// after a timeout cannot take the same spares out again.
+  ///
+  /// Returns the number of part units issued.
+  Future<int> issueServiceParts({
+    required ServiceJobModel job,
+    required String location,
+    required String userId,
+    required String userName,
+  }) async {
+    final bucket = _normalizeLocation(location);
+    final now = DateTime.now();
+    var issuedUnits = 0;
+
+    await _firestore.runTransaction((txn) async {
+      final jobRef = _serviceJobs.doc(job.id);
+      final jobSnap = await txn.get(jobRef);
+      if (!jobSnap.exists) throw Exception('This job no longer exists.');
+      final current = ServiceJobModel.fromMap(jobSnap.data()!, jobSnap.id);
+      if (!current.isOpen) {
+        throw Exception('This job is closed; parts cannot be issued.');
+      }
+
+      // Net the demand per product first: the same spare can legitimately
+      // appear on two lines of one job, and two updates to one document inside
+      // a transaction would silently drop the first.
+      final demand = <String, int>{};
+      final names = <String, String>{};
+      for (final part in current.parts) {
+        if (part.issued || part.quantity <= 0 || part.productId.isEmpty) {
+          continue;
+        }
+        demand[part.productId] = (demand[part.productId] ?? 0) + part.quantity;
+        names[part.productId] = part.productName;
+      }
+      if (demand.isEmpty) {
+        throw Exception('Every part on this job has already been issued.');
+      }
+
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in demand.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (!snap.exists) {
+          throw Exception(
+            'Part "${names[productId] ?? productId}" no longer exists.',
+          );
+        }
+        snapshots[productId] = snap;
+      }
+
+      for (final entry in demand.entries) {
+        final data = snapshots[entry.key]!.data()!;
+        _assertAvailableAtLocation(data, bucket, entry.value);
+
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final remaining = (locMap[bucket] ?? 0) - entry.value;
+        if (remaining <= 0) {
+          locMap.remove(bucket);
+        } else {
+          locMap[bucket] = remaining;
+        }
+
+        txn.update(_products.doc(entry.key), {
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: entry.key,
+            productName: safeString(data['name'], names[entry.key] ?? ''),
+            type: TransactionType.stockOut,
+            quantity: entry.value,
+            location: bucket,
+            reason: current.jobNumber.isEmpty
+                ? 'Service job'
+                : 'Service job ${current.jobNumber}',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+        issuedUnits += entry.value;
+      }
+
+      txn.update(jobRef, {
+        'parts': [
+          for (final part in current.parts)
+            (part.issued || part.quantity <= 0 || part.productId.isEmpty
+                    ? part
+                    : part.copyWith(issued: true))
+                .toMap(),
+        ],
+        'partsIssuedAt': Timestamp.fromDate(now),
+        'status': ServiceJobModel.statusToString(
+          current.status == ServiceJobStatus.received ||
+                  current.status == ServiceJobStatus.awaitingParts
+              ? ServiceJobStatus.inProgress
+              : current.status,
+        ),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'service_parts_issued',
+          entityType: 'ServiceJob',
+          entityId: current.id,
+          entityName: current.jobNumber.isEmpty
+              ? current.customerName
+              : current.jobNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'parts': demand.length,
+            'units': demand.values.fold(0, (acc, v) => acc + v),
+            'location': bucket,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+
+    return issuedUnits;
+  }
+
+  /// Moves a job to [status], re-checking the stored document first.
+  ///
+  /// Resolving and closing are decisions other people act on — a closed job is
+  /// handed back to the customer — so the transition is validated against the
+  /// server's copy rather than the screen's.
+  Future<void> setServiceJobStatus({
+    required ServiceJobModel job,
+    required ServiceJobStatus status,
+    required String userId,
+    required String userName,
+    String resolution = '',
+  }) async {
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final ref = _serviceJobs.doc(job.id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This job no longer exists.');
+      final current = ServiceJobModel.fromMap(snap.data()!, snap.id);
+
+      if (status == ServiceJobStatus.resolved && !current.canResolve) {
+        throw Exception(
+          current.hasUnissuedParts
+              ? 'Issue the parts on this job before resolving it.'
+              : 'This job cannot be resolved from ${current.statusLabel}.',
+        );
+      }
+      if (status == ServiceJobStatus.closed && !current.canClose) {
+        throw Exception('Only a resolved job can be closed.');
+      }
+      if (status == ServiceJobStatus.cancelled && !current.canCancel) {
+        throw Exception(
+          'Parts have already been issued on this job, so it cannot be '
+          'cancelled. Resolve and close it instead.',
+        );
+      }
+
+      txn.update(ref, {
+        'status': ServiceJobModel.statusToString(status),
+        if (resolution.isNotEmpty) 'resolution': resolution,
+        if (status == ServiceJobStatus.resolved)
+          'resolvedAt': Timestamp.fromDate(now),
+        if (status == ServiceJobStatus.closed)
+          'closedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'service_job_${ServiceJobModel.statusToString(status)}',
+          entityType: 'ServiceJob',
+          entityId: current.id,
+          entityName: current.jobNumber.isEmpty
+              ? current.customerName
+              : current.jobNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'from': ServiceJobModel.statusToString(current.status),
+            'to': ServiceJobModel.statusToString(status),
+            'billable': current.billableTotal,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  // ==================== JOB WORK (SUBCONTRACTING) ====================
+
+  /// Where components live while a subcontractor has them.
+  ///
+  /// The same idea as [inTransitLocation]: being at a vendor is a location, not
+  /// a state. Issued components stay in `locationQuantities` under this bucket,
+  /// so a product's total on-hand is unchanged by sending work out and
+  /// valuation keeps reconciling while it is away.
+  static const String atVendorLocation = 'At vendor';
+
+  CollectionReference<Map<String, dynamic>> get _jobWorkOrders {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('jobWorkOrders');
+  }
+
+  Stream<List<JobWorkOrderModel>> getJobWorkOrders() {
+    return _jobWorkOrders
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => JobWorkOrderModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addJobWorkOrder(JobWorkOrderModel order) async {
+    final ref = await _jobWorkOrders.add(order.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateJobWorkOrder(JobWorkOrderModel order) async {
+    await _jobWorkOrders.doc(order.id).update(order.toMap());
+  }
+
+  Future<void> deleteJobWorkOrder(String id) async {
+    await _jobWorkOrders.doc(id).delete();
+  }
+
+  Future<JobWorkOrderModel?> getJobWorkOrderById(String id) async {
+    if (id.isEmpty) return null;
+    final doc = await _jobWorkOrders.doc(id).get();
+    if (!doc.exists) return null;
+    return JobWorkOrderModel.fromMap(doc.data()!, doc.id);
+  }
+
+  /// Sends the components out: source location → [atVendorLocation].
+  Future<void> issueJobWork({
+    required JobWorkOrderModel order,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!order.canIssue) {
+      throw Exception('This job work order cannot be issued.');
+    }
+    final from = _normalizeLocation(order.issueLocation);
+    if (from == atVendorLocation) {
+      throw Exception('Components cannot be issued from the vendor bucket.');
+    }
+    final now = DateTime.now();
+
+    await _firestore.runTransaction((txn) async {
+      final orderRef = _jobWorkOrders.doc(order.id);
+      final orderSnap = await txn.get(orderRef);
+      if (!orderSnap.exists) throw Exception('This job no longer exists.');
+      final current = JobWorkOrderModel.fromMap(
+        orderSnap.data()!,
+        orderSnap.id,
+      );
+      if (!current.canIssue) {
+        throw Exception(
+          'This job is already ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+
+      final moves = current.issueQuantities
+        ..removeWhere((_, value) => value <= 0);
+      if (moves.isEmpty) throw Exception('There is nothing to issue.');
+
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in moves.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (!snap.exists) {
+          throw Exception('A component on this job no longer exists.');
+        }
+        snapshots[productId] = snap;
+      }
+
+      for (final entry in moves.entries) {
+        final data = snapshots[entry.key]!.data()!;
+        _assertAvailableAtLocation(data, from, entry.value);
+
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final remaining = (locMap[from] ?? 0) - entry.value;
+        if (remaining <= 0) {
+          locMap.remove(from);
+        } else {
+          locMap[from] = remaining;
+        }
+        locMap[atVendorLocation] =
+            (locMap[atVendorLocation] ?? 0) + entry.value;
+
+        txn.update(_products.doc(entry.key), {
+          // Total on-hand is unchanged: the units moved bucket, not existence.
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: entry.key,
+            productName: safeString(data['name']),
+            type: TransactionType.transfer,
+            quantity: entry.value,
+            location: '$from → $atVendorLocation',
+            reason: current.referenceNumber.isEmpty
+                ? 'Job work issue — ${current.vendorName}'
+                : 'Job work ${current.referenceNumber}',
+            userId: userId,
+            userName: userName,
+            vendorId: current.vendorId,
+            vendorName: current.vendorName,
+            date: now,
+          ).toMap(),
+        );
+      }
+
+      txn.update(orderRef, {
+        // Per line, not per product: two lines of the same component are netted
+        // for the stock move but must each record their own issued quantity.
+        'components': [
+          for (final component in current.components)
+            component
+                .copyWith(
+                  issuedQuantity:
+                      component.issuedQuantity +
+                      current.lineQuantityFor(component, current.outputQuantity),
+                )
+                .toMap(),
+        ],
+        'status': JobWorkOrderModel.statusToString(JobWorkStatus.issued),
+        'issuedAt': Timestamp.fromDate(now),
+        'issuedBy': userId,
+        'issuedByName': userName,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'job_work_issued',
+          entityType: 'JobWorkOrder',
+          entityId: current.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.outputProductName
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'vendor': current.vendorName,
+            'components': moves.length,
+            'units': moves.values.fold(0, (acc, v) => acc + v),
+            'from': from,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  /// Receives [units] of finished goods back, consuming the components the
+  /// vendor used.
+  ///
+  /// One transaction, all reads first: a receipt that created finished goods
+  /// but failed before consuming the components would invent stock out of
+  /// nothing, which is worse than the feature not existing.
+  ///
+  /// Returns the cost per finished unit that was computed — components plus the
+  /// conversion charge — whether or not it was written to the product.
+  Future<double> receiveJobWork({
+    required JobWorkOrderModel order,
+    required int units,
+    required String userId,
+    required String userName,
+    bool closeShort = false,
+  }) async {
+    if (units <= 0) throw ArgumentError('units must be > 0');
+    if (!order.canReceive) {
+      throw Exception('This job work order cannot receive stock.');
+    }
+    final to = _normalizeLocation(order.receiveLocation);
+    final now = DateTime.now();
+    var computedUnitCost = 0.0;
+
+    await _firestore.runTransaction((txn) async {
+      final orderRef = _jobWorkOrders.doc(order.id);
+      final orderSnap = await txn.get(orderRef);
+      if (!orderSnap.exists) throw Exception('This job no longer exists.');
+      final current = JobWorkOrderModel.fromMap(
+        orderSnap.data()!,
+        orderSnap.id,
+      );
+      if (!current.canReceive) {
+        throw Exception(
+          'This job is already ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+      final receiving = units > current.remainingOutput
+          ? current.remainingOutput
+          : units;
+      if (receiving <= 0) throw Exception('There is nothing left to receive.');
+
+      final consumption = current.consumptionFor(receiving)
+        ..removeWhere((_, value) => value <= 0);
+
+      // Reads: every component, then the output product.
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in consumption.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (!snap.exists) {
+          throw Exception('A component on this job no longer exists.');
+        }
+        snapshots[productId] = snap;
+      }
+      final outputSnap = await txn.get(_products.doc(current.outputProductId));
+      if (!outputSnap.exists) {
+        throw Exception('The finished product no longer exists.');
+      }
+      final outputData = outputSnap.data()!;
+
+      // Consume the components out of the vendor's bucket.
+      var componentCostPerUnit = 0.0;
+      for (final entry in consumption.entries) {
+        final data = snapshots[entry.key]!.data()!;
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final atVendor = locMap[atVendorLocation] ?? 0;
+        if (atVendor < entry.value) {
+          throw Exception(
+            'The vendor is not holding enough '
+            '"${safeString(data['name'])}" for $receiving unit(s). '
+            'They have $atVendor, this needs ${entry.value}.',
+          );
+        }
+        final remaining = atVendor - entry.value;
+        if (remaining <= 0) {
+          locMap.remove(atVendorLocation);
+        } else {
+          locMap[atVendorLocation] = remaining;
+        }
+
+        txn.update(_products.doc(entry.key), {
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: entry.key,
+            productName: safeString(data['name']),
+            type: TransactionType.stockOut,
+            quantity: entry.value,
+            location: atVendorLocation,
+            reason: current.referenceNumber.isEmpty
+                ? 'Job work consumed — ${current.outputProductName}'
+                : 'Job work ${current.referenceNumber} consumed',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+
+        // Cost of this component per finished unit, from what it is worth on
+        // the books today.
+        final perOutput = receiving <= 0 ? 0 : entry.value / receiving;
+        componentCostPerUnit += safeDouble(data['costPrice']) * perOutput;
+      }
+
+      // Create the finished goods.
+      final outLoc = _toIntMap(
+        outputData['locationQuantities'] as Map<dynamic, dynamic>?,
+      );
+      outLoc[to] = (outLoc[to] ?? 0) + receiving;
+
+      final unitCost = componentCostPerUnit + current.chargePerOutputUnit;
+      computedUnitCost = unitCost;
+      final previousCost = safeDouble(outputData['costPrice']);
+
+      txn.update(_products.doc(current.outputProductId), {
+        'quantity': _sumMapValues(outLoc),
+        'locationQuantities': outLoc,
+        if (current.updateOutputCost) 'costPrice': unitCost,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      txn.set(
+        _transactions.doc(),
+        StockTransactionModel(
+          id: '',
+          productId: current.outputProductId,
+          productName: current.outputProductName,
+          type: TransactionType.stockIn,
+          quantity: receiving,
+          location: to,
+          reason: current.referenceNumber.isEmpty
+              ? 'Job work received — ${current.vendorName}'
+              : 'Job work ${current.referenceNumber} received',
+          userId: userId,
+          userName: userName,
+          vendorId: current.vendorId,
+          vendorName: current.vendorName,
+          date: now,
+        ).toMap(),
+      );
+
+      // Cost changes go through the same collection as every manual edit, so
+      // the Price History screen explains the jump instead of leaving it
+      // unaccounted for.
+      if (current.updateOutputCost && (unitCost - previousCost).abs() > 0.001) {
+        txn.set(
+          _priceHistory.doc(),
+          PriceHistoryModel(
+            id: '',
+            productId: current.outputProductId,
+            productName: current.outputProductName,
+            field: 'costPrice',
+            oldValue: previousCost,
+            newValue: unitCost,
+            changedBy: userId,
+            changedByName: userName,
+            timestamp: now,
+          ).toMap(),
+        );
+      }
+
+      final receivedTotal = current.receivedQuantity + receiving;
+      final complete = receivedTotal >= current.outputQuantity;
+
+      txn.update(orderRef, {
+        'components': [
+          for (final component in current.components)
+            component
+                .copyWith(
+                  consumedQuantity:
+                      component.consumedQuantity +
+                      current.lineQuantityFor(component, receiving),
+                )
+                .toMap(),
+        ],
+        'receivedQuantity': receivedTotal,
+        'status': JobWorkOrderModel.statusToString(
+          complete
+              ? JobWorkStatus.completed
+              : (closeShort
+                    ? JobWorkStatus.closed
+                    : JobWorkStatus.partiallyReceived),
+        ),
+        'lastReceiptAt': Timestamp.fromDate(now),
+        if (complete || closeShort) 'closedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'job_work_received',
+          entityType: 'JobWorkOrder',
+          entityId: current.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.outputProductName
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'units': receiving,
+            'unitCost': unitCost,
+            'costWritten': current.updateOutputCost,
+            'location': to,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+
+    return computedUnitCost;
+  }
+
+  /// Sends whatever the vendor still holds back to the shelf and closes the
+  /// job.
+  ///
+  /// A job that will never finish otherwise leaves its components stranded in
+  /// the vendor bucket, counted as on-hand but findable nowhere.
+  Future<void> closeJobWorkOrder({
+    required JobWorkOrderModel order,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!order.canClose) throw Exception('This job cannot be closed.');
+    final back = _normalizeLocation(order.issueLocation);
+    final now = DateTime.now();
+
+    await _firestore.runTransaction((txn) async {
+      final orderRef = _jobWorkOrders.doc(order.id);
+      final orderSnap = await txn.get(orderRef);
+      if (!orderSnap.exists) throw Exception('This job no longer exists.');
+      final current = JobWorkOrderModel.fromMap(
+        orderSnap.data()!,
+        orderSnap.id,
+      );
+      if (!current.canClose) {
+        throw Exception(
+          'This job is already ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+
+      // Netted per product for the same reason issuing is: two lines of one
+      // component would otherwise return only the last line's units, stranding
+      // the rest in the vendor bucket for good.
+      final returns = <String, int>{};
+      for (final component in current.components) {
+        if (component.atVendorQuantity <= 0) continue;
+        returns[component.productId] =
+            (returns[component.productId] ?? 0) + component.atVendorQuantity;
+      }
+
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in returns.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (snap.exists) snapshots[productId] = snap;
+      }
+
+      for (final entry in returns.entries) {
+        final snap = snapshots[entry.key];
+        // A component deleted while the job was out is skipped rather than
+        // blocking the close: the job still has to be closable.
+        if (snap == null) continue;
+        final data = snap.data()!;
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final atVendor = locMap[atVendorLocation] ?? 0;
+        final moving = atVendor < entry.value ? atVendor : entry.value;
+        if (moving <= 0) continue;
+        final remaining = atVendor - moving;
+        if (remaining <= 0) {
+          locMap.remove(atVendorLocation);
+        } else {
+          locMap[atVendorLocation] = remaining;
+        }
+        locMap[back] = (locMap[back] ?? 0) + moving;
+
+        txn.update(_products.doc(entry.key), {
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: entry.key,
+            productName: safeString(data['name']),
+            type: TransactionType.transfer,
+            quantity: moving,
+            location: '$atVendorLocation → $back',
+            reason: current.referenceNumber.isEmpty
+                ? 'Job work returned — ${current.vendorName}'
+                : 'Job work ${current.referenceNumber} returned',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+      }
+
+      txn.update(orderRef, {
+        'components': [
+          for (final component in current.components)
+            component
+                .copyWith(consumedQuantity: component.issuedQuantity)
+                .toMap(),
+        ],
+        'status': JobWorkOrderModel.statusToString(JobWorkStatus.closed),
+        'closedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'job_work_closed',
+          entityType: 'JobWorkOrder',
+          entityId: current.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.outputProductName
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'returnedComponents': returns.length,
+            'returnedUnits': returns.values.fold(0, (acc, v) => acc + v),
+            'receivedUnits': current.receivedQuantity,
           },
           timestamp: now,
         ).toMap(),

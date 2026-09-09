@@ -9,10 +9,12 @@ import '../../config/theme.dart';
 import '../../models/company_model.dart';
 import '../../models/company_plan_model.dart';
 import '../../providers/super_admin_provider.dart';
+import '../../services/super_admin_service.dart';
 import '../../utils/date_formats.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/admin_search_bar.dart';
+import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/document_sheet.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -49,6 +51,7 @@ class _SuperAdminCompanyScreenState extends State<SuperAdminCompanyScreen>
     _TabSpec('Sales orders', SuperAdminSection.salesOrders),
     _TabSpec('Purchase orders', SuperAdminSection.purchaseOrders),
     _TabSpec('Activity', SuperAdminSection.auditLogs),
+    _TabSpec('Modules', null),
     _TabSpec('Settings', null),
   ];
 
@@ -166,6 +169,7 @@ class _SuperAdminCompanyScreenState extends State<SuperAdminCompanyScreen>
           const _SalesOrdersTab(),
           const _PurchaseOrdersTab(),
           const _AuditTab(),
+          const _ModulesTab(),
           _SettingsTab(company: company),
         ],
       ),
@@ -257,6 +261,17 @@ class _OverviewTab extends StatelessWidget {
                     _Count('Vendors', stats.vendors),
                     _Count('Batches', stats.batches),
                     _Count('Returns', stats.returns),
+                    // The module collections are counted on their own tab, but
+                    // a workspace's total belongs next to the core figures —
+                    // otherwise the Contents card reads as the whole tenant
+                    // when it is only part of it.
+                    _Count(
+                      'Module records',
+                      provider.moduleCountsLoading &&
+                              provider.moduleCounts.isEmpty
+                          ? null
+                          : provider.moduleDocumentTotal,
+                    ),
                   ],
                 ),
         ),
@@ -834,6 +849,308 @@ class _AuditTab extends StatelessWidget {
 // -----------------------------------------------------------------------------
 // Settings
 // -----------------------------------------------------------------------------
+
+/// Every feature module this workspace has data in, and a read-only browser
+/// over any of them.
+///
+/// Driven by [SuperAdminService.moduleCollections], so a module added later
+/// appears here the moment it is listed — the console cannot fall behind the
+/// schema the way the purge list once did.
+class _ModulesTab extends StatelessWidget {
+  const _ModulesTab();
+
+  static const Map<String, IconData> _icons = {
+    'boms': Icons.account_tree_rounded,
+    'serials': Icons.qr_code_2_rounded,
+    'transferOrders': Icons.local_shipping_rounded,
+    'requisitions': Icons.assignment_rounded,
+    'recurringInvoices': Icons.event_repeat_rounded,
+    'priceLists': Icons.sell_rounded,
+    'landedCosts': Icons.anchor_rounded,
+    'quotations': Icons.request_quote_rounded,
+    'shipments': Icons.inventory_rounded,
+    'expenses': Icons.account_balance_wallet_rounded,
+    'registerSessions': Icons.savings_rounded,
+    'commissionPlans': Icons.workspace_premium_rounded,
+    'budgets': Icons.donut_small_rounded,
+    'serviceJobs': Icons.build_circle_rounded,
+    'jobWorkOrders': Icons.handyman_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<SuperAdminProvider>();
+    final open = provider.browsingCollection;
+    if (open != null) {
+      return _CollectionBrowser(
+        name: open,
+        icon: _icons[open] ?? Icons.dataset_rounded,
+      );
+    }
+
+    final counts = provider.moduleCounts;
+    final modules = SuperAdminService.moduleCollections;
+    final used = provider.modulesInUse.length;
+
+    return ConsoleListState(
+      isLoading: provider.moduleCountsLoading && counts.isEmpty,
+      error: counts.isEmpty ? provider.moduleCountsError : null,
+      isEmpty: false,
+      emptyIcon: Icons.extension_rounded,
+      emptyTitle: 'No modules',
+      onRetry: provider.refreshModuleCounts,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          Responsive.horizontalPadding(context),
+          12,
+          Responsive.horizontalPadding(context),
+          32,
+        ),
+        children: [
+          GlassPanel(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$used of ${modules.length} modules in use',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${provider.moduleDocumentTotal} documents across them. '
+                        'Which modules a plan may use at all is set per tier '
+                        'under Plans.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSec(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Recount',
+                  onPressed: provider.moduleCountsLoading
+                      ? null
+                      : provider.refreshModuleCounts,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+          ),
+          const ConsoleSectionTitle(
+            title: 'Modules',
+            icon: Icons.extension_rounded,
+            color: AppTheme.violetColor,
+          ),
+          for (var i = 0; i < modules.length; i++)
+            _ModuleRow(
+              collection: modules[i],
+              count: counts[modules[i].name] ?? 0,
+              icon: _icons[modules[i].name] ?? Icons.dataset_rounded,
+              index: i,
+              onOpen: (counts[modules[i].name] ?? 0) == 0
+                  ? null
+                  : () => provider.openModuleCollection(modules[i].name),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModuleRow extends StatelessWidget {
+  const _ModuleRow({
+    required this.collection,
+    required this.count,
+    required this.icon,
+    required this.index,
+    required this.onOpen,
+  });
+
+  final CompanyCollection collection;
+  final int count;
+  final IconData icon;
+  final int index;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final unused = count == 0;
+    return FadeSlideIn(
+      index: index,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: GlassPanel(
+          padding: EdgeInsets.zero,
+          child: ListTile(
+            onTap: onOpen,
+            leading: Icon(
+              icon,
+              color: unused ? AppTheme.textSec(context) : AppTheme.violetColor,
+            ),
+            title: Text(
+              collection.label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: unused ? AppTheme.textSec(context) : null,
+              ),
+            ),
+            subtitle: Text(
+              unused
+                  ? 'Never used in this workspace'
+                  : '$count document${count == 1 ? '' : 's'}  ·  '
+                        'companies/…/${collection.name}',
+              style: const TextStyle(fontSize: 11.5),
+            ),
+            trailing: unused
+                ? null
+                : const Icon(Icons.chevron_right_rounded, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A read-only page over one company subcollection.
+class _CollectionBrowser extends StatefulWidget {
+  const _CollectionBrowser({required this.name, required this.icon});
+
+  final String name;
+  final IconData icon;
+
+  @override
+  State<_CollectionBrowser> createState() => _CollectionBrowserState();
+}
+
+class _CollectionBrowserState extends State<_CollectionBrowser> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<SuperAdminProvider>();
+    final spec = SuperAdminService.collectionNamed(widget.name);
+    final rows = provider.moduleRows;
+    final q = _query.toLowerCase();
+    // Searched across whatever the document happens to carry: the browser is
+    // generic and has no schema to name fields from.
+    final visible = q.isEmpty
+        ? rows
+        : rows
+              .where(
+                (row) => row.values.any(
+                  (v) => (v?.toString().toLowerCase() ?? '').contains(q),
+                ),
+              )
+              .toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            Responsive.horizontalPadding(context),
+            12,
+            Responsive.horizontalPadding(context),
+            4,
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Back to modules',
+                onPressed: provider.closeModuleCollection,
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              Expanded(
+                child: AdminSearchBar(
+                  hintText: 'Search ${spec?.label ?? widget.name}',
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ConsoleListState(
+            isLoading: false,
+            error: provider.moduleRowsError,
+            isEmpty: visible.isEmpty,
+            emptyIcon: widget.icon,
+            emptyTitle: rows.isEmpty ? 'Nothing here' : 'Nothing matches',
+            emptySubtitle: rows.isEmpty
+                ? 'The newest 200 documents would show here.'
+                : 'Try a different search.',
+            onRetry: () => provider.openModuleCollection(widget.name),
+            child: ListView.builder(
+              padding: EdgeInsets.fromLTRB(
+                Responsive.horizontalPadding(context),
+                4,
+                Responsive.horizontalPadding(context),
+                32,
+              ),
+              itemCount: visible.length,
+              itemBuilder: (context, i) => ConsoleDocTile(
+                index: i,
+                data: visible[i],
+                icon: widget.icon,
+                iconColor: AppTheme.violetColor,
+                sheetTitle: spec?.label ?? widget.name,
+                title: _browserTitle(visible[i]),
+                subtitle: _browserSubtitle(visible[i], spec),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The most name-like field the document has, falling back to its id.
+  ///
+  /// Generic by necessity: fifteen collections with fifteen shapes, and a
+  /// browser that hard-coded one of them would be wrong for the other fourteen.
+  String _browserTitle(Map<String, dynamic> row) {
+    for (final key in const [
+      'name',
+      'quoteNumber',
+      'shipmentNumber',
+      'jobNumber',
+      'referenceNumber',
+      'registerName',
+      'serialNumber',
+      'productName',
+      'outputProductName',
+      'customerName',
+      'vendorName',
+      'reference',
+    ]) {
+      final value = row[key]?.toString() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return row['id']?.toString() ?? 'Document';
+  }
+
+  String _browserSubtitle(Map<String, dynamic> row, CompanyCollection? spec) {
+    final parts = <String>[];
+    for (final key in const ['status', 'grandTotal', 'total', 'amount']) {
+      final value = row[key]?.toString() ?? '';
+      if (value.isNotEmpty) parts.add('$key $value');
+    }
+    final stamp = spec == null || spec.orderBy.isEmpty
+        ? null
+        : row[spec.orderBy];
+    if (stamp is Timestamp) {
+      parts.add(AppDates.day.format(stamp.toDate()));
+    }
+    parts.add(row['id']?.toString() ?? '');
+    return parts.where((p) => p.trim().isNotEmpty).join('  ·  ');
+  }
+}
 
 class _SettingsTab extends StatelessWidget {
   const _SettingsTab({required this.company});

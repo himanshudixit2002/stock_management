@@ -168,6 +168,13 @@ class InvoiceModel {
   final String linkedPurchaseOrderId;
   final String linkedCreditNoteId;
 
+  /// The till shift this sale belongs to, when it was rung up at a register.
+  ///
+  /// Stamped by Fast POS rather than inferred from a time window: two registers
+  /// open at once would otherwise both claim the same sales, and a cash-up that
+  /// counts somebody else's takings is worse than no cash-up.
+  final String registerSessionId;
+
   /// Total credited back against this invoice by credit notes.
   final double creditedAmount;
 
@@ -208,6 +215,7 @@ class InvoiceModel {
     this.linkedSalesOrderId = '',
     this.linkedPurchaseOrderId = '',
     this.linkedCreditNoteId = '',
+    this.registerSessionId = '',
     this.creditedAmount = 0,
     this.stockDeducted = false,
     this.createdBy = '',
@@ -345,6 +353,7 @@ class InvoiceModel {
       linkedSalesOrderId: safeString(map['linkedSalesOrderId']),
       linkedPurchaseOrderId: safeString(map['linkedPurchaseOrderId']),
       linkedCreditNoteId: safeString(map['linkedCreditNoteId']),
+      registerSessionId: safeString(map['registerSessionId']),
       creditedAmount: safeDouble(map['creditedAmount']),
       stockDeducted: map['stockDeducted'] == true,
       createdBy: safeString(map['createdBy']),
@@ -383,6 +392,7 @@ class InvoiceModel {
     'linkedSalesOrderId': linkedSalesOrderId,
     'linkedPurchaseOrderId': linkedPurchaseOrderId,
     'linkedCreditNoteId': linkedCreditNoteId,
+    'registerSessionId': registerSessionId,
     'creditedAmount': creditedAmount,
     'stockDeducted': stockDeducted,
     'createdBy': createdBy,
@@ -421,6 +431,7 @@ class InvoiceModel {
     String? linkedSalesOrderId,
     String? linkedPurchaseOrderId,
     String? linkedCreditNoteId,
+    String? registerSessionId,
     double? creditedAmount,
     bool? stockDeducted,
     String? createdBy,
@@ -459,6 +470,7 @@ class InvoiceModel {
       linkedPurchaseOrderId:
           linkedPurchaseOrderId ?? this.linkedPurchaseOrderId,
       linkedCreditNoteId: linkedCreditNoteId ?? this.linkedCreditNoteId,
+      registerSessionId: registerSessionId ?? this.registerSessionId,
       creditedAmount: creditedAmount ?? this.creditedAmount,
       stockDeducted: stockDeducted ?? this.stockDeducted,
       createdBy: createdBy ?? this.createdBy,

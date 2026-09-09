@@ -31,6 +31,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   late final TextEditingController _addressController;
   late final TextEditingController _companyController;
   late final TextEditingController _notesController;
+  late final TextEditingController _creditLimitController;
+  late final TextEditingController _paymentTermsController;
+  bool _creditHold = false;
   bool _isLoading = false;
   bool _isActive = true;
 
@@ -56,6 +59,19 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       text: widget.customer?.notes ?? '',
     );
     _isActive = widget.customer?.isActive ?? true;
+    // Blank rather than "0" when unset: a limit of zero means no limit here,
+    // and showing a zero invites somebody to read it as "no credit".
+    _creditLimitController = TextEditingController(
+      text: (widget.customer?.creditLimit ?? 0) == 0
+          ? ''
+          : widget.customer!.creditLimit.toStringAsFixed(0),
+    );
+    _paymentTermsController = TextEditingController(
+      text: (widget.customer?.paymentTermDays ?? 0) == 0
+          ? ''
+          : '${widget.customer!.paymentTermDays}',
+    );
+    _creditHold = widget.customer?.creditHold ?? false;
   }
 
   @override
@@ -66,6 +82,8 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     _addressController.dispose();
     _companyController.dispose();
     _notesController.dispose();
+    _creditLimitController.dispose();
+    _paymentTermsController.dispose();
     super.dispose();
   }
 
@@ -79,6 +97,11 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       return;
     }
 
+    // Credit terms are a separate grant from editing a customer's contact
+    // details, so a user without it saves the terms unchanged rather than
+    // silently clearing them.
+    final canSetCredit = user.hasPermission(AppPermissions.manageCreditLimits);
+
     final now = DateTime.now();
     final customer = CustomerModel(
       id: widget.customer?.id ?? '',
@@ -90,6 +113,13 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       notes: _notesController.text.trim(),
       totalOrders: widget.customer?.totalOrders ?? 0,
       totalSpent: widget.customer?.totalSpent ?? 0,
+      creditLimit: canSetCredit
+          ? (double.tryParse(_creditLimitController.text.trim()) ?? 0)
+          : (widget.customer?.creditLimit ?? 0),
+      paymentTermDays: canSetCredit
+          ? (int.tryParse(_paymentTermsController.text.trim()) ?? 0)
+          : (widget.customer?.paymentTermDays ?? 0),
+      creditHold: canSetCredit ? _creditHold : (widget.customer?.creditHold ?? false),
       isActive: _isActive,
       createdAt: widget.customer?.createdAt ?? now,
       updatedAt: now,
@@ -240,6 +270,62 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                         ),
                         maxLines: 2,
                       ),
+                      if (context
+                          .watch<AuthProvider>()
+                          .currentUser
+                          ?.hasPermission(
+                            AppPermissions.manageCreditLimits,
+                          ) ==
+                          true) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Credit terms',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textSec(context),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ResponsiveFormRow(
+                          children: [
+                            TextFormField(
+                              controller: _creditLimitController,
+                              decoration: const InputDecoration(
+                                labelText: 'Credit limit',
+                                helperText: 'Blank means no limit',
+                                prefixIcon: Icon(Icons.credit_score_rounded),
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                            TextFormField(
+                              controller: _paymentTermsController,
+                              decoration: const InputDecoration(
+                                labelText: 'Payment terms (days)',
+                                helperText: 'Blank uses the workspace default',
+                                prefixIcon: Icon(Icons.event_rounded),
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ],
+                        ),
+                        SwitchListTile(
+                          title: const Text(
+                            'Credit hold',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: const Text(
+                            'Refuses further credit sales whatever the limit',
+                          ),
+                          value: _creditHold,
+                          onChanged: (v) => setState(() => _creditHold = v),
+                          activeThumbColor: AppTheme.dangerColor,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ],
                       if (_isEditing) ...[
                         const SizedBox(height: 16),
                         SwitchListTile(

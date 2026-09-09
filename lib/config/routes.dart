@@ -160,4 +160,48 @@ class AppRoutes {
   // Landed costs
   static const String landedCosts = '/landed-costs';
   static const String landedCostEditor = '/landed-costs/edit';
+
+  // Quotations (the offer before the order)
+  static const String quotations = '/quotations';
+  static const String quotationEditor = '/quotations/edit';
+  static const String quotationDetail = '/quotations/detail';
+
+  // Pick, pack and ship
+  static const String shipments = '/shipments';
+  static const String createShipment = '/shipments/create';
+  static const String shipmentDetail = '/shipments/detail';
+
+  // Operating expenses
+  static const String expenses = '/expenses';
+  static const String expenseEditor = '/expenses/edit';
+
+  // Till shifts
+  static const String registerSessions = '/pos/registers';
+  static const String registerSessionDetail = '/pos/registers/detail';
+
+  // Customer credit
+  static const String creditControl = '/credit-control';
+
+  // Supplier performance
+  static const String vendorScorecard = '/reports/vendor-scorecard';
+
+  // Sales commissions
+  static const String commissionPlans = '/commissions/plans';
+  static const String commissionPlanEditor = '/commissions/plans/edit';
+  static const String commissionStatement = '/commissions/statement';
+
+  // Budgets and variance
+  static const String budgets = '/budgets';
+  static const String budgetEditor = '/budgets/edit';
+  static const String budgetDetail = '/budgets/detail';
+
+  // Warranty and repairs
+  static const String serviceJobs = '/service-jobs';
+  static const String createServiceJob = '/service-jobs/create';
+  static const String serviceJobDetail = '/service-jobs/detail';
+
+  // Subcontracting
+  static const String jobWork = '/job-work';
+  static const String createJobWork = '/job-work/create';
+  static const String jobWorkDetail = '/job-work/detail';
 }

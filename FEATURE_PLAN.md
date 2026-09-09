@@ -1,5 +1,8 @@
 # Feature Plan — ten new modules
 
+> A second wave of ten followed this one: see
+> [FEATURE_PLAN_2.md](FEATURE_PLAN_2.md).
+
 Ten features that the app does not have today, each specified as a complete
 vertical slice. They were chosen to sit on top of what already exists rather
 than beside it: every one reuses the products, transactions, orders or invoices

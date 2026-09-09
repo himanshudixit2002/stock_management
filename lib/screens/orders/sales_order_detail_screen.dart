@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../config/app_navigation.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
@@ -507,13 +508,39 @@ class SalesOrderDetailScreen extends StatelessWidget {
         order.status != SOStatus.delivered &&
         order.status != SOStatus.cancelled;
 
-    if (primaryAction == null && !showCancel) return const SizedBox.shrink();
+    // Picking and packing is a separate document from dispatching, and this is
+    // where somebody stands when they decide to raise one. The shipment does
+    // not move stock itself — dispatching it calls the same path the Dispatch
+    // button above does.
+    final showShipment =
+        (user?.hasPermission(AppPermissions.manageShipments) ?? false) &&
+        (order.status == SOStatus.confirmed ||
+            order.status == SOStatus.dispatched) &&
+        order.remainingUnits > 0;
+
+    if (primaryAction == null && !showCancel && !showShipment) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ?primaryAction,
-        if (primaryAction != null && showCancel) const SizedBox(height: 12),
+        if (showShipment) ...[
+          if (primaryAction != null) const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.pushAppRoute(
+              AppRoutes.createShipment,
+              extra: order.id,
+            ),
+            icon: const Icon(Icons.inventory_rounded),
+            label: Text(
+              'Pick & pack (${order.remainingUnits} units left)',
+            ),
+          ),
+        ],
+        if ((primaryAction != null || showShipment) && showCancel)
+          const SizedBox(height: 12),
         if (showCancel)
           OutlinedButton.icon(
             onPressed: () => _confirmCancel(context, order),

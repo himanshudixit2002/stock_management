@@ -46,6 +46,14 @@ import 'providers/requisition_provider.dart';
 import 'providers/recurring_invoice_provider.dart';
 import 'providers/price_list_provider.dart';
 import 'providers/landed_cost_provider.dart';
+import 'providers/quotation_provider.dart';
+import 'providers/shipment_provider.dart';
+import 'providers/expense_provider.dart';
+import 'providers/register_session_provider.dart';
+import 'providers/commission_provider.dart';
+import 'providers/budget_provider.dart';
+import 'providers/service_job_provider.dart';
+import 'providers/job_work_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'firebase_options.dart';
@@ -128,6 +136,14 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RecurringInvoiceProvider()),
         ChangeNotifierProvider(create: (_) => PriceListProvider()),
         ChangeNotifierProvider(create: (_) => LandedCostProvider()),
+        ChangeNotifierProvider(create: (_) => QuotationProvider()),
+        ChangeNotifierProvider(create: (_) => ShipmentProvider()),
+        ChangeNotifierProvider(create: (_) => ExpenseProvider()),
+        ChangeNotifierProvider(create: (_) => RegisterSessionProvider()),
+        ChangeNotifierProvider(create: (_) => CommissionProvider()),
+        ChangeNotifierProvider(create: (_) => BudgetProvider()),
+        ChangeNotifierProvider(create: (_) => ServiceJobProvider()),
+        ChangeNotifierProvider(create: (_) => JobWorkProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) => MaterialApp(
@@ -461,6 +477,14 @@ class _AuthWrapperState extends State<AuthWrapper>
     context.read<RecurringInvoiceProvider>().reset();
     context.read<PriceListProvider>().reset();
     context.read<LandedCostProvider>().reset();
+    context.read<QuotationProvider>().reset();
+    context.read<ShipmentProvider>().reset();
+    context.read<ExpenseProvider>().reset();
+    context.read<RegisterSessionProvider>().reset();
+    context.read<CommissionProvider>().reset();
+    context.read<BudgetProvider>().reset();
+    context.read<ServiceJobProvider>().reset();
+    context.read<JobWorkProvider>().reset();
     _providersInitializing = false;
   }
 

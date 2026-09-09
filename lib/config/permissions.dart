@@ -87,6 +87,16 @@ class AppPermissions {
       icon: Icons.receipt_rounded,
     ),
     PermissionGroup(
+      id: 'finance',
+      label: 'Finance & Budgets',
+      icon: Icons.account_balance_wallet_rounded,
+    ),
+    PermissionGroup(
+      id: 'service',
+      label: 'Service & Repairs',
+      icon: Icons.build_circle_rounded,
+    ),
+    PermissionGroup(
       id: 'importExport',
       label: 'Import / Export',
       icon: Icons.import_export_rounded,
@@ -114,6 +124,7 @@ class AppPermissions {
   static const String viewActivityTimeline = 'canViewActivityTimeline';
   static const String viewTaxReports = 'canViewTaxReports';
   static const String viewDeadStock = 'canViewDeadStock';
+  static const String viewVendorScorecard = 'canViewVendorScorecard';
 
   // Products & Categories
   static const String viewProducts = 'canViewProducts';
@@ -154,6 +165,12 @@ class AppPermissions {
   static const String manageLandedCosts = 'canManageLandedCosts';
 
   // Sales Orders
+  static const String viewQuotations = 'canViewQuotations';
+  static const String manageQuotations = 'canManageQuotations';
+  static const String convertQuotations = 'canConvertQuotations';
+  static const String viewShipments = 'canViewShipments';
+  static const String manageShipments = 'canManageShipments';
+  static const String dispatchShipments = 'canDispatchShipments';
   static const String viewSalesOrders = 'canViewSalesOrders';
   static const String createSalesOrders = 'canCreateSalesOrders';
   static const String editSalesOrders = 'canEditSalesOrders';
@@ -175,6 +192,8 @@ class AppPermissions {
   static const String addCustomers = 'canAddCustomers';
   static const String editCustomers = 'canEditCustomers';
   static const String deleteCustomers = 'canDeleteCustomers';
+  static const String viewCreditControl = 'canViewCreditControl';
+  static const String manageCreditLimits = 'canManageCreditLimits';
 
   // Vendors
   static const String viewVendors = 'canViewVendors';
@@ -195,6 +214,10 @@ class AppPermissions {
   static const String viewBoms = 'canViewBoms';
   static const String manageBoms = 'canManageBoms';
   static const String buildAssemblies = 'canBuildAssemblies';
+  static const String viewJobWork = 'canViewJobWork';
+  static const String manageJobWork = 'canManageJobWork';
+  static const String issueJobWork = 'canIssueJobWork';
+  static const String receiveJobWork = 'canReceiveJobWork';
 
   // Billing & Invoices
   static const String viewInvoices = 'canViewInvoices';
@@ -207,6 +230,21 @@ class AppPermissions {
   static const String manageRecurringInvoices = 'canManageRecurringInvoices';
   static const String viewPriceLists = 'canViewPriceLists';
   static const String managePriceLists = 'canManagePriceLists';
+  static const String viewRegisterSessions = 'canViewRegisterSessions';
+  static const String manageRegisterSessions = 'canManageRegisterSessions';
+
+  // Finance & Budgets
+  static const String viewExpenses = 'canViewExpenses';
+  static const String manageExpenses = 'canManageExpenses';
+  static const String viewBudgets = 'canViewBudgets';
+  static const String manageBudgets = 'canManageBudgets';
+  static const String viewCommissions = 'canViewCommissions';
+  static const String manageCommissions = 'canManageCommissions';
+
+  // Service & Repairs
+  static const String viewServiceJobs = 'canViewServiceJobs';
+  static const String manageServiceJobs = 'canManageServiceJobs';
+  static const String closeServiceJobs = 'canCloseServiceJobs';
 
   // Import / Export
   static const String importData = 'canImport';
@@ -269,6 +307,13 @@ class AppPermissions {
       description: 'See which stock has stopped moving',
       group: 'dashboard',
       icon: Icons.hourglass_disabled_rounded,
+    ),
+    PermissionDef(
+      key: viewVendorScorecard,
+      label: 'View Vendor Scorecard',
+      description: 'See supplier delivery, fill rate and price performance',
+      group: 'dashboard',
+      icon: Icons.grading_rounded,
     ),
 
     // Products & Categories
@@ -503,6 +548,48 @@ class AppPermissions {
 
     // Sales Orders
     PermissionDef(
+      key: viewQuotations,
+      label: 'View Quotations',
+      description: 'See quotations and the sales pipeline',
+      group: 'salesOrders',
+      icon: Icons.request_quote_rounded,
+    ),
+    PermissionDef(
+      key: manageQuotations,
+      label: 'Manage Quotations',
+      description: 'Create, edit, send and decide quotations',
+      group: 'salesOrders',
+      icon: Icons.edit_note_rounded,
+    ),
+    PermissionDef(
+      key: convertQuotations,
+      label: 'Convert Quotations',
+      description: 'Turn an accepted quotation into a sales order',
+      group: 'salesOrders',
+      icon: Icons.move_down_rounded,
+    ),
+    PermissionDef(
+      key: viewShipments,
+      label: 'View Shipments',
+      description: 'See pick lists, packages and dispatches',
+      group: 'salesOrders',
+      icon: Icons.inventory_rounded,
+    ),
+    PermissionDef(
+      key: manageShipments,
+      label: 'Manage Shipments',
+      description: 'Raise shipments and record picking and packing',
+      group: 'salesOrders',
+      icon: Icons.playlist_add_check_rounded,
+    ),
+    PermissionDef(
+      key: dispatchShipments,
+      label: 'Dispatch Shipments',
+      description: 'Send a packed shipment out, moving its stock',
+      group: 'salesOrders',
+      icon: Icons.local_shipping_rounded,
+    ),
+    PermissionDef(
       key: viewSalesOrders,
       label: 'View Sales Orders',
       description: 'View sales order list and details',
@@ -625,6 +712,20 @@ class AppPermissions {
       group: 'customers',
       icon: Icons.person_remove_rounded,
     ),
+    PermissionDef(
+      key: viewCreditControl,
+      label: 'View Credit Control',
+      description: 'See customer exposure, limits and overdue balances',
+      group: 'customers',
+      icon: Icons.credit_score_rounded,
+    ),
+    PermissionDef(
+      key: manageCreditLimits,
+      label: 'Manage Credit Limits',
+      description: 'Set credit limits, terms and holds on customers',
+      group: 'customers',
+      icon: Icons.gpp_maybe_rounded,
+    ),
 
     // Vendors
     PermissionDef(
@@ -729,6 +830,34 @@ class AppPermissions {
       group: 'manufacturing',
       icon: Icons.precision_manufacturing_rounded,
     ),
+    PermissionDef(
+      key: viewJobWork,
+      label: 'View Job Work',
+      description: 'See work sent out to subcontractors',
+      group: 'manufacturing',
+      icon: Icons.handyman_rounded,
+    ),
+    PermissionDef(
+      key: manageJobWork,
+      label: 'Manage Job Work',
+      description: 'Raise and edit job work orders',
+      group: 'manufacturing',
+      icon: Icons.edit_document,
+    ),
+    PermissionDef(
+      key: issueJobWork,
+      label: 'Issue Job Work',
+      description: 'Send components out to a subcontractor',
+      group: 'manufacturing',
+      icon: Icons.outbox_rounded,
+    ),
+    PermissionDef(
+      key: receiveJobWork,
+      label: 'Receive Job Work',
+      description: 'Take finished goods back from a subcontractor',
+      group: 'manufacturing',
+      icon: Icons.move_to_inbox_rounded,
+    ),
 
     // Billing & Invoices
     PermissionDef(
@@ -800,6 +929,87 @@ class AppPermissions {
       description: 'Create price lists and assign customers to them',
       group: 'billing',
       icon: Icons.price_change_rounded,
+    ),
+    PermissionDef(
+      key: viewRegisterSessions,
+      label: 'View Register Shifts',
+      description: 'See till shifts, takings and cash variances',
+      group: 'billing',
+      icon: Icons.point_of_sale_rounded,
+    ),
+    PermissionDef(
+      key: manageRegisterSessions,
+      label: 'Open & Close Registers',
+      description: 'Start a shift, record cash movements and cash up',
+      group: 'billing',
+      icon: Icons.savings_rounded,
+    ),
+
+    // Finance & Budgets
+    PermissionDef(
+      key: viewExpenses,
+      label: 'View Expenses',
+      description: 'See operating expenses and what they total',
+      group: 'finance',
+      icon: Icons.receipt_rounded,
+    ),
+    PermissionDef(
+      key: manageExpenses,
+      label: 'Manage Expenses',
+      description: 'Record, edit and settle operating expenses',
+      group: 'finance',
+      icon: Icons.post_add_rounded,
+    ),
+    PermissionDef(
+      key: viewBudgets,
+      label: 'View Budgets',
+      description: 'See budgets and how they are tracking',
+      group: 'finance',
+      icon: Icons.donut_small_rounded,
+    ),
+    PermissionDef(
+      key: manageBudgets,
+      label: 'Manage Budgets',
+      description: 'Set period budgets for revenue, purchases and expenses',
+      group: 'finance',
+      icon: Icons.tune_rounded,
+    ),
+    PermissionDef(
+      key: viewCommissions,
+      label: 'View Commissions',
+      description: 'See commission plans and what each person earned',
+      group: 'finance',
+      icon: Icons.workspace_premium_rounded,
+    ),
+    PermissionDef(
+      key: manageCommissions,
+      label: 'Manage Commission Plans',
+      description: 'Create commission schemes and set their rates',
+      group: 'finance',
+      icon: Icons.percent_rounded,
+    ),
+
+    // Service & Repairs
+    PermissionDef(
+      key: viewServiceJobs,
+      label: 'View Service Jobs',
+      description: 'See repairs, warranty jobs and their status',
+      group: 'service',
+      icon: Icons.build_circle_rounded,
+    ),
+    PermissionDef(
+      key: manageServiceJobs,
+      label: 'Manage Service Jobs',
+      description: 'Book units in, diagnose, fit parts and charge for work',
+      group: 'service',
+      icon: Icons.handyman_outlined,
+    ),
+    PermissionDef(
+      key: closeServiceJobs,
+      label: 'Close Service Jobs',
+      description: 'Resolve and close a job, handing the unit back',
+      group: 'service',
+      icon: Icons.task_alt_rounded,
     ),
 
     // Import / Export

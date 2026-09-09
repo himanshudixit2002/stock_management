@@ -39,6 +39,7 @@ FastPosCheckoutPayload buildFastPosInvoice({
   CustomerModel? customer,
   required FastCheckoutMode mode,
   String paymentMethod = 'cash',
+  String registerSessionId = '',
 }) {
   final lineInputs = cartEntries
       .map(
@@ -96,6 +97,8 @@ FastPosCheckoutPayload buildFastPosInvoice({
       id: '',
       invoiceType: InvoiceType.sales,
       invoiceNumber: invoiceNumber,
+      // Stamped so the shift that rang this sale up can tally it at close.
+      registerSessionId: registerSessionId,
       customerId: customer?.id ?? '',
       customerName: customer?.name ?? 'Walk-in Customer',
       customerPhone: customer?.phone ?? '',

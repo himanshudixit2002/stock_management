@@ -155,12 +155,60 @@ import '../screens/landed_costs/landed_cost_list_screen.dart'
     deferred as landed_costs;
 import '../screens/landed_costs/landed_cost_editor_screen.dart'
     deferred as landed_cost_edit;
+import '../screens/quotations/quotation_list_screen.dart'
+    deferred as quotations;
+import '../screens/quotations/quotation_editor_screen.dart'
+    deferred as quotation_edit;
+import '../screens/quotations/quotation_detail_screen.dart'
+    deferred as quotation_detail;
+import '../screens/shipments/shipment_list_screen.dart' deferred as shipments;
+import '../screens/shipments/create_shipment_screen.dart'
+    deferred as shipment_create;
+import '../screens/shipments/shipment_detail_screen.dart'
+    deferred as shipment_detail;
+import '../screens/expenses/expense_list_screen.dart' deferred as expenses;
+import '../screens/expenses/expense_editor_screen.dart'
+    deferred as expense_edit;
+import '../screens/register/register_session_list_screen.dart'
+    deferred as registers;
+import '../screens/register/register_session_detail_screen.dart'
+    deferred as register_detail;
+import '../screens/credit/credit_control_screen.dart' deferred as credit;
+import '../screens/reports/vendor_scorecard_screen.dart'
+    deferred as vendor_scorecard;
+import '../screens/commissions/commission_plan_list_screen.dart'
+    deferred as commission_plans;
+import '../screens/commissions/commission_plan_editor_screen.dart'
+    deferred as commission_plan_edit;
+import '../screens/commissions/commission_statement_screen.dart'
+    deferred as commission_statement;
+import '../screens/budgets/budget_list_screen.dart' deferred as budgets;
+import '../screens/budgets/budget_editor_screen.dart' deferred as budget_edit;
+import '../screens/budgets/budget_detail_screen.dart'
+    deferred as budget_detail;
+import '../screens/service/service_job_list_screen.dart'
+    deferred as service_jobs;
+import '../screens/service/create_service_job_screen.dart'
+    deferred as service_job_create;
+import '../screens/service/service_job_detail_screen.dart'
+    deferred as service_job_detail;
+import '../screens/jobwork/job_work_list_screen.dart' deferred as job_work;
+import '../screens/jobwork/create_job_work_screen.dart'
+    deferred as job_work_create;
+import '../screens/jobwork/job_work_detail_screen.dart'
+    deferred as job_work_detail;
 import '../models/bom_model.dart';
 import '../models/transfer_order_model.dart';
 import '../models/requisition_model.dart';
 import '../models/recurring_invoice_model.dart';
 import '../models/price_list_model.dart';
 import '../models/landed_cost_model.dart';
+import '../models/quotation_model.dart';
+import '../models/expense_model.dart';
+import '../models/commission_plan_model.dart';
+import '../models/budget_model.dart';
+import '../models/serial_model.dart';
+import '../models/job_work_model.dart';
 
 /// A single, shared page transition for every pushed route: the incoming page
 /// fades in while gently settling from a slight scale-down (0.96 -> 1) and a
@@ -1028,6 +1076,243 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
         ),
       ),
     ),
+
+    // -- Quotations --
+    AppRoutes.quotations => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: quotations.loadLibrary(),
+        builder: (_) => quotations.QuotationListScreen(),
+      ),
+    ),
+    AppRoutes.quotationEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: quotation_edit.loadLibrary(),
+        builder: (_) => quotation_edit.QuotationEditorScreen(
+          quotation: settings.arguments as QuotationModel?,
+        ),
+      ),
+    ),
+    // Detail screens take an id and re-read the live document: pushing the
+    // model itself would render a copy that a decision made elsewhere has
+    // already made stale.
+    AppRoutes.quotationDetail => () {
+      final argument = settings.arguments;
+      final id = argument is QuotationModel
+          ? argument.id
+          : (argument is String ? argument : '');
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: quotation_detail.loadLibrary(),
+          builder: (_) => quotation_detail.QuotationDetailScreen(
+            quotationId: id,
+          ),
+        ),
+      );
+    }(),
+
+    // -- Pick, pack & ship --
+    AppRoutes.shipments => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: shipments.loadLibrary(),
+        builder: (_) => shipments.ShipmentListScreen(),
+      ),
+    ),
+    AppRoutes.createShipment => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: shipment_create.loadLibrary(),
+        builder: (_) => shipment_create.CreateShipmentScreen(
+          salesOrderId: settings.arguments as String?,
+        ),
+      ),
+    ),
+    AppRoutes.shipmentDetail => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: shipment_detail.loadLibrary(),
+        builder: (_) => shipment_detail.ShipmentDetailScreen(
+          shipmentId: settings.arguments is String
+              ? settings.arguments as String
+              : '',
+        ),
+      ),
+    ),
+
+    // -- Operating expenses --
+    AppRoutes.expenses => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: expenses.loadLibrary(),
+        builder: (_) => expenses.ExpenseListScreen(),
+      ),
+    ),
+    AppRoutes.expenseEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: expense_edit.loadLibrary(),
+        builder: (_) => expense_edit.ExpenseEditorScreen(
+          expense: settings.arguments as ExpenseModel?,
+        ),
+      ),
+    ),
+
+    // -- Register shifts --
+    AppRoutes.registerSessions => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: registers.loadLibrary(),
+        builder: (_) => registers.RegisterSessionListScreen(),
+      ),
+    ),
+    AppRoutes.registerSessionDetail => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: register_detail.loadLibrary(),
+        builder: (_) => register_detail.RegisterSessionDetailScreen(
+          sessionId: settings.arguments is String
+              ? settings.arguments as String
+              : '',
+        ),
+      ),
+    ),
+
+    // -- Credit control --
+    AppRoutes.creditControl => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: credit.loadLibrary(),
+        builder: (_) => credit.CreditControlScreen(),
+      ),
+    ),
+
+    // -- Vendor scorecard --
+    AppRoutes.vendorScorecard => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: vendor_scorecard.loadLibrary(),
+        builder: (_) => vendor_scorecard.VendorScorecardScreen(),
+      ),
+    ),
+
+    // -- Commissions --
+    AppRoutes.commissionStatement => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: commission_statement.loadLibrary(),
+        builder: (_) => commission_statement.CommissionStatementScreen(),
+      ),
+    ),
+    AppRoutes.commissionPlans => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: commission_plans.loadLibrary(),
+        builder: (_) => commission_plans.CommissionPlanListScreen(),
+      ),
+    ),
+    AppRoutes.commissionPlanEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: commission_plan_edit.loadLibrary(),
+        builder: (_) => commission_plan_edit.CommissionPlanEditorScreen(
+          plan: settings.arguments as CommissionPlanModel?,
+        ),
+      ),
+    ),
+
+    // -- Budgets --
+    AppRoutes.budgets => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: budgets.loadLibrary(),
+        builder: (_) => budgets.BudgetListScreen(),
+      ),
+    ),
+    AppRoutes.budgetEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: budget_edit.loadLibrary(),
+        builder: (_) => budget_edit.BudgetEditorScreen(
+          budget: settings.arguments as BudgetModel?,
+        ),
+      ),
+    ),
+    AppRoutes.budgetDetail => () {
+      final argument = settings.arguments;
+      final id = argument is BudgetModel
+          ? argument.id
+          : (argument is String ? argument : '');
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: budget_detail.loadLibrary(),
+          builder: (_) => budget_detail.BudgetDetailScreen(budgetId: id),
+        ),
+      );
+    }(),
+
+    // -- Service & repairs --
+    AppRoutes.serviceJobs => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: service_jobs.loadLibrary(),
+        builder: (_) => service_jobs.ServiceJobListScreen(),
+      ),
+    ),
+    AppRoutes.createServiceJob => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: service_job_create.loadLibrary(),
+        builder: (_) => service_job_create.CreateServiceJobScreen(
+          serial: settings.arguments as SerialModel?,
+        ),
+      ),
+    ),
+    AppRoutes.serviceJobDetail => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: service_job_detail.loadLibrary(),
+        builder: (_) => service_job_detail.ServiceJobDetailScreen(
+          jobId: settings.arguments is String
+              ? settings.arguments as String
+              : '',
+        ),
+      ),
+    ),
+
+    // -- Job work (subcontracting) --
+    AppRoutes.jobWork => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: job_work.loadLibrary(),
+        builder: (_) => job_work.JobWorkListScreen(),
+      ),
+    ),
+    AppRoutes.createJobWork => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: job_work_create.loadLibrary(),
+        builder: (_) => job_work_create.CreateJobWorkScreen(
+          order: settings.arguments as JobWorkOrderModel?,
+        ),
+      ),
+    ),
+    AppRoutes.jobWorkDetail => () {
+      final argument = settings.arguments;
+      final id = argument is JobWorkOrderModel
+          ? argument.id
+          : (argument is String ? argument : '');
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: job_work_detail.loadLibrary(),
+          builder: (_) => job_work_detail.JobWorkDetailScreen(orderId: id),
+        ),
+      );
+    }(),
 
     // Unknown route: keep a signed-in user inside the app (Home) rather than
     // bouncing them out to the public Landing page. Only signed-out sessions

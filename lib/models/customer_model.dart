@@ -11,6 +11,21 @@ class CustomerModel {
   final String notes;
   final int totalOrders;
   final double totalSpent;
+
+  /// The most this customer may owe at once. Zero means "no limit set", not
+  /// "no credit": a limit of zero would silently stop every credit sale for
+  /// every customer that predates this field.
+  final double creditLimit;
+
+  /// Days this customer gets to pay. Zero falls back to the workspace default
+  /// from billing settings, so a customer with no special terms follows the
+  /// company's.
+  final int paymentTermDays;
+
+  /// Set by hand to stop further credit regardless of the limit — a disputed
+  /// account, a cheque that bounced, a customer being wound up.
+  final bool creditHold;
+
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -27,12 +42,18 @@ class CustomerModel {
     this.notes = '',
     this.totalOrders = 0,
     this.totalSpent = 0,
+    this.creditLimit = 0,
+    this.paymentTermDays = 0,
+    this.creditHold = false,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
     this.createdBy = '',
     this.createdByName = '',
   });
+
+  /// True when a limit has actually been set for this customer.
+  bool get hasCreditLimit => creditLimit > 0;
 
   factory CustomerModel.fromMap(Map<String, dynamic> map, String docId) {
     return CustomerModel(
@@ -45,6 +66,9 @@ class CustomerModel {
       notes: safeString(map['notes']),
       totalOrders: safeInt(map['totalOrders']),
       totalSpent: safeDouble(map['totalSpent']),
+      creditLimit: safeDouble(map['creditLimit']),
+      paymentTermDays: safeInt(map['paymentTermDays']),
+      creditHold: safeBool(map['creditHold']),
       isActive: safeBool(map['isActive'], true),
       createdAt: safeTimestamp(map['createdAt']),
       updatedAt: safeTimestamp(map['updatedAt']),
@@ -62,6 +86,9 @@ class CustomerModel {
     'notes': notes,
     'totalOrders': totalOrders,
     'totalSpent': totalSpent,
+    'creditLimit': creditLimit,
+    'paymentTermDays': paymentTermDays,
+    'creditHold': creditHold,
     'isActive': isActive,
     'createdAt': Timestamp.fromDate(createdAt),
     'updatedAt': Timestamp.fromDate(updatedAt),
@@ -79,6 +106,9 @@ class CustomerModel {
     String? notes,
     int? totalOrders,
     double? totalSpent,
+    double? creditLimit,
+    int? paymentTermDays,
+    bool? creditHold,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -95,6 +125,9 @@ class CustomerModel {
       notes: notes ?? this.notes,
       totalOrders: totalOrders ?? this.totalOrders,
       totalSpent: totalSpent ?? this.totalSpent,
+      creditLimit: creditLimit ?? this.creditLimit,
+      paymentTermDays: paymentTermDays ?? this.paymentTermDays,
+      creditHold: creditHold ?? this.creditHold,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

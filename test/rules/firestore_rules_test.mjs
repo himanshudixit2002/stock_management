@@ -48,14 +48,39 @@ async function seed() {
       canViewBoms:true, canViewSerials:true, canViewTransferOrders:true,
       canViewRequisitions:true, canViewRecurringInvoices:true,
       canViewPriceLists:true, canViewLandedCosts:true,
+      // Second wave.
+      canViewQuotations:true, canViewShipments:true, canViewExpenses:true,
+      canViewRegisterSessions:true, canViewCommissions:true,
+      canViewBudgets:true, canViewServiceJobs:true, canViewJobWork:true,
     }});
     await setDoc(doc(db,'companies/companyA/roles/builder'),{name:'Builder',permissions:{
       canViewBoms:true, canBuildAssemblies:true,
     }});
+    // Roles that hold exactly one of the "act on it" keys, so the carve-outs
+    // that let an action write back to its own document can be tested apart
+    // from the permission that authors documents.
+    await setDoc(doc(db,'companies/companyA/roles/converter'),{name:'Converter',permissions:{
+      canViewQuotations:true, canConvertQuotations:true,
+    }});
+    await setDoc(doc(db,'companies/companyA/roles/closer'),{name:'Closer',permissions:{
+      canViewServiceJobs:true, canCloseServiceJobs:true,
+    }});
+    await setDoc(doc(db,'companies/companyA/roles/receiver'),{name:'Receiver',permissions:{
+      canViewJobWork:true, canReceiveJobWork:true,
+    }});
+    await setDoc(doc(db,'companies/companyA/roles/creditor'),{name:'Credit controller',permissions:{
+      canViewCustomers:true, canViewCreditControl:true, canManageCreditLimits:true,
+    }});
+    await setDoc(doc(db,'users/creditorA'),{uid:'creditorA',email:'cr@a.com',role:'staff',roleId:'creditor',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'companies/companyA/customers/cust1'),{name:'Acme',phone:'999',creditLimit:0});
+    await setDoc(doc(db,'users/converterA'),{uid:'converterA',email:'c@a.com',role:'staff',roleId:'converter',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'users/closerA'),{uid:'closerA',email:'cl@a.com',role:'staff',roleId:'closer',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'users/receiverA'),{uid:'receiverA',email:'r@a.com',role:'staff',roleId:'receiver',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
     await setDoc(doc(db,'users/viewerA'),{uid:'viewerA',email:'v@a.com',role:'staff',roleId:'viewer',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
     await setDoc(doc(db,'users/builderA'),{uid:'builderA',email:'b@a.com',role:'staff',roleId:'builder',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
     await setDoc(doc(db,'users/plainA'),{uid:'plainA',email:'p@a.com',role:'staff',roleId:'plain',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
-    for (const c of ['boms','serials','transferOrders','requisitions','recurringInvoices','priceLists','landedCosts']) {
+    for (const c of ['boms','serials','transferOrders','requisitions','recurringInvoices','priceLists','landedCosts',
+                     'quotations','shipments','expenses','registerSessions','commissionPlans','budgets','serviceJobs','jobWorkOrders']) {
       await setDoc(doc(db,`companies/companyA/${c}/d1`),{name:'seed'});
       await setDoc(doc(db,`companies/companyB/${c}/d9`),{name:'other tenant'});
     }
@@ -309,6 +334,18 @@ const NEW_COLLECTIONS = [
   ['recurringInvoices', 'canViewRecurringInvoices'],
   ['priceLists', 'canViewPriceLists'],
   ['landedCosts', 'canViewLandedCosts'],
+  // The second wave: quotations carry prices, shifts carry cash counts,
+  // expenses and budgets carry the workspace's finances, and service jobs
+  // carry customer contact details. Every one of them is worth a cross-tenant
+  // read test of its own.
+  ['quotations', 'canViewQuotations'],
+  ['shipments', 'canViewShipments'],
+  ['expenses', 'canViewExpenses'],
+  ['registerSessions', 'canViewRegisterSessions'],
+  ['commissionPlans', 'canViewCommissions'],
+  ['budgets', 'canViewBudgets'],
+  ['serviceJobs', 'canViewServiceJobs'],
+  ['jobWorkOrders', 'canViewJobWork'],
 ];
 
 for (const [name] of NEW_COLLECTIONS) {
@@ -337,14 +374,70 @@ await check('build permission may update a BOM but not create one', async () => 
   return assertFails(setDoc(doc(as('builderA'),'companies/companyA/boms/new3'),{name:'x'}));
 });
 
+await check('convert permission may update a quotation but not create one', async () => {
+  // Converting stamps the quote with its new sales order id in the same
+  // transaction that writes the order, so it needs update — and only update.
+  await assertSucceeds(updateDoc(doc(as('converterA'),'companies/companyA/quotations/d1'),{convertedSalesOrderId:'so1'}));
+  return assertFails(setDoc(doc(as('converterA'),'companies/companyA/quotations/new4'),{name:'x'}));
+});
+
+await check('close permission may update a service job but not create one', async () => {
+  await assertSucceeds(updateDoc(doc(as('closerA'),'companies/companyA/serviceJobs/d1'),{status:'closed'}));
+  return assertFails(setDoc(doc(as('closerA'),'companies/companyA/serviceJobs/new5'),{name:'x'}));
+});
+
+await check('receive permission may update a job work order but not create one', async () => {
+  await assertSucceeds(updateDoc(doc(as('receiverA'),'companies/companyA/jobWorkOrders/d1'),{receivedQuantity:5}));
+  return assertFails(setDoc(doc(as('receiverA'),'companies/companyA/jobWorkOrders/new6'),{name:'x'}));
+});
+
+await check('a viewer cannot delete a cashed-up shift', async () => {
+  // A drawer count is the record of what was there. Deleting one is how a
+  // discrepancy disappears, so it is admin-only.
+  await assertFails(deleteDoc(doc(as('viewerA'),'companies/companyA/registerSessions/d1')));
+  return assertSucceeds(deleteDoc(doc(as('ownerA'),'companies/companyA/registerSessions/d1')));
+});
+
+await check('a viewer cannot delete a service job or a job work order', async () => {
+  await assertFails(deleteDoc(doc(as('viewerA'),'companies/companyA/serviceJobs/d1')));
+  return assertFails(deleteDoc(doc(as('viewerA'),'companies/companyA/jobWorkOrders/d1')));
+});
+
+await check('the register lock document is governed by the same rule', async () => {
+  // The one-open-shift-per-register lock lives in registerSessions, so it must
+  // not be writable by somebody who cannot open a shift.
+  await assertFails(setDoc(doc(as('viewerA'),'companies/companyA/registerSessions/lock_main'),{openSessionId:'x'}));
+  return assertSucceeds(setDoc(doc(as('ownerA'),'companies/companyA/registerSessions/lock_main'),{openSessionId:'x'}));
+});
+
+await check('a credit controller may set limits but not rewrite a customer', async () => {
+  // The permission is scoped to the credit fields at the server, not just in
+  // the UI: otherwise granting credit control would quietly grant the right to
+  // change an address or a phone number.
+  await assertSucceeds(updateDoc(doc(as('creditorA'),'companies/companyA/customers/cust1'),
+    {creditLimit:50000, paymentTermDays:30, creditHold:false, updatedAt:new Date()}));
+  return assertFails(updateDoc(doc(as('creditorA'),'companies/companyA/customers/cust1'),
+    {phone:'000', creditLimit:50000}));
+});
+
+await check('credit control does not confer customer deletion', () =>
+  assertFails(deleteDoc(doc(as('creditorA'),'companies/companyA/customers/cust1'))));
+
 await check('a suspended workspace refuses writes to the new collections', () =>
   assertFails(setDoc(doc(as('staffS'),'companies/companyS/priceLists/x'),{name:'x'})));
 
-await check('a super admin can read the new collections', () =>
-  assertSucceeds(getDoc(doc(as('root'),'companies/companyA/landedCosts/d1'))));
+await check('a suspended workspace refuses writes to the second wave too', () =>
+  assertFails(setDoc(doc(as('staffS'),'companies/companyS/expenses/x'),{amount:1})));
 
-await check('a super admin still cannot write the new collections', () =>
-  assertFails(setDoc(doc(as('root'),'companies/companyA/priceLists/x'),{name:'x'})));
+await check('a super admin can read the new collections', async () => {
+  await assertSucceeds(getDoc(doc(as('root'),'companies/companyA/landedCosts/d1')));
+  return assertSucceeds(getDoc(doc(as('root'),'companies/companyA/registerSessions/d1')));
+});
+
+await check('a super admin still cannot write the new collections', async () => {
+  await assertFails(setDoc(doc(as('root'),'companies/companyA/priceLists/x'),{name:'x'}));
+  return assertFails(setDoc(doc(as('root'),'companies/companyA/budgets/x'),{name:'x'}));
+});
 
 await env.cleanup();
 console.log(`\n${pass} passed, ${fail} failed`);

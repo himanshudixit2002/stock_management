@@ -82,6 +82,46 @@ What truly sets SmartShelfKart apart is **Nova**—our integrated AI Assistant. 
   - Spread freight, duty and handling across a receipt by value, quantity or evenly.
   - Applying updates cost prices and writes to Price History; reversal restores them exactly.
 
+- 📄 **Sales Quotations**
+  - Price an offer, set how long it stands, and chase it before it lapses.
+  - An accepted quote converts into a sales order at the prices the customer agreed to.
+
+- 📦 **Pick, Pack & Ship**
+  - Ordered, picked and packed per line, so a short pick is caught at the bench.
+  - Dispatching a shipment goes through the sales order, which is the only path that moves stock.
+
+- 💰 **Operating Expenses**
+  - Rent, wages, freight out and the rest, by head and by month.
+  - Feeds the Profit & Loss report, which finally reports a net profit rather than a gross margin.
+
+- 🧾 **Register Shifts & Cash-Up**
+  - Open a till with a float, record drops and payouts, and close it on a blind count.
+  - Every Fast POS sale is stamped with its shift, so the Z-report tallies what should be in the drawer.
+
+- 🛡️ **Customer Credit Control**
+  - Credit limits, payment terms and holds per customer, with live exposure from unpaid invoices.
+  - Checked at the invoice screen and the till, before the credit is extended rather than after.
+
+- 📊 **Vendor Scorecard**
+  - On-time delivery, fill rate, lead time against the promise and price movement, graded A–D.
+  - Built entirely from purchase orders already in the workspace.
+
+- 🏆 **Sales Commissions**
+  - Revenue or margin basis, category rates, and payment on collection rather than on issue.
+  - Statements computed from the invoices, so anyone can reproduce the figure.
+
+- 🎯 **Budgets & Variance**
+  - Period budgets for revenue, purchases and each expense head, measured against actuals.
+  - Pace-aware: 60% spent is fine in month eight and a problem in month two.
+
+- 🔧 **Warranty & Service Jobs**
+  - Book a unit in against its serial, diagnose it, fit parts and hand it back.
+  - Parts leave stock for real, in one transaction, so a service department cannot quietly lose spares.
+
+- 🤝 **Subcontracting (Job Work)**
+  - Issue components to a vendor and hold them in an explicit *At vendor* bucket while they are away.
+  - Receiving consumes them and creates finished goods costed at components plus the job charge.
+
 ---
 
 ## 🛠️ Technology Stack

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/app_navigation.dart';
 import '../../config/permissions.dart';
+import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/serial_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/serial_provider.dart';
+import '../../providers/service_job_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/glass_panel.dart';
 
@@ -206,6 +209,7 @@ class _SerialDetailSheetState extends State<SerialDetailSheet> {
               ),
             ],
             const Divider(height: 28),
+            _serviceSection(context),
             Text(
               'History',
               style: TextStyle(
@@ -270,6 +274,110 @@ class _SerialDetailSheetState extends State<SerialDetailSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Repairs raised against this unit, and the button that raises another.
+///
+/// Serial tracking exists so a unit can be identified after it is sold; this is
+/// the sheet where somebody standing at a counter with the unit in their hand
+/// actually needs that, so the service history lives here rather than only on
+/// the service list.
+extension _SerialServiceSection on _SerialDetailSheetState {
+  Widget _serviceSection(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user == null ||
+        !user.hasPermission(AppPermissions.viewServiceJobs)) {
+      return const SizedBox.shrink();
+    }
+    final jobs = context.watch<ServiceJobProvider>().forSerial(_serial.id);
+    final canRaise = user.hasPermission(AppPermissions.manageServiceJobs);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Service history',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
+            ),
+            if (canRaise)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  context.pushAppRoute(
+                    AppRoutes.createServiceJob,
+                    extra: _serial,
+                  );
+                },
+                icon: const Icon(Icons.build_circle_rounded, size: 16),
+                label: const Text('Raise a job'),
+              ),
+          ],
+        ),
+        if (jobs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              'This unit has never been back.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSec(context),
+              ),
+            ),
+          )
+        else
+          for (final job in jobs)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.pushAppRoute(
+                    AppRoutes.serviceJobDetail,
+                    extra: job.id,
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Icon(
+                      job.isOpen
+                          ? Icons.pending_actions_rounded
+                          : Icons.check_circle_rounded,
+                      size: 16,
+                      color: job.isOpen
+                          ? AppTheme.warningColor
+                          : AppTheme.successColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        [
+                          if (job.jobNumber.isNotEmpty) job.jobNumber,
+                          job.statusLabel,
+                          if (job.faultDescription.isNotEmpty)
+                            job.faultDescription,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        const Divider(height: 28),
+      ],
     );
   }
 }

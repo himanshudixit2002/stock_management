@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../config/feature_map.dart';
 import '../../../config/plan_limits.dart';
 import '../../../config/theme.dart';
 import '../../../models/company_model.dart';
@@ -622,9 +623,14 @@ class _TierCard extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
+                            // Resolved through the catalog so a lock reads the
+                            // way the rest of the app names the feature. With
+                            // sixteen locks on the entry tier, a column of
+                            // camelCase ids is not a pricing summary.
                             for (final feature in plan.lockedFeatures)
                               ConsoleBadge(
-                                label: 'No $feature',
+                                label:
+                                    'No ${FeatureMap.getById(feature)?.label ?? feature}',
                                 color: AppTheme.dangerColor,
                               ),
                           ],

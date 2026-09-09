@@ -610,9 +610,19 @@ service cloud.firestore {
         allow create: if companyActive(companyId) &&
           (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canAddCustomers')));
+        // Credit control is a separate job from maintaining a customer record,
+        // and the two permissions are deliberately split. Rather than hand a
+        // credit controller a full update right — which would also let them
+        // rewrite the address and the phone number — the second branch is
+        // scoped to the credit fields themselves.
         allow update: if companyActive(companyId) &&
           (belongsToCompany(companyId) &&
-          (isAdmin() || hasPermission(companyId, 'canEditCustomers')));
+          (isAdmin() ||
+           hasPermission(companyId, 'canEditCustomers') ||
+           (hasPermission(companyId, 'canManageCreditLimits') &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['creditLimit', 'paymentTermDays', 'creditHold',
+                        'updatedAt']))));
         allow delete: if companyActive(companyId) &&
           (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canDeleteCustomers')));
@@ -799,6 +809,135 @@ service cloud.firestore {
         allow delete: if companyActive(companyId) &&
           (belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageLandedCosts')));
+      }
+
+      // Quotations subcollection
+      match /quotations/{quotationId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewQuotations'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageQuotations')));
+        // Converting stamps the quote with its sales order id in the same
+        // transaction that creates the order, so the convert permission needs
+        // an update right of its own without gaining the right to author one.
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageQuotations') ||
+           hasPermission(companyId, 'canConvertQuotations')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageQuotations')));
+      }
+
+      // Shipments subcollection
+      match /shipments/{shipmentId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewShipments'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageShipments')));
+        // Dispatch stamps the shipment; the stock itself moves through the
+        // sales order, which is gated separately on canDispatchSalesOrders.
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageShipments') ||
+           hasPermission(companyId, 'canDispatchShipments')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageShipments')));
+      }
+
+      // Operating expenses subcollection
+      match /expenses/{expenseId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewExpenses'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageExpenses')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageExpenses')));
+      }
+
+      // Register shifts subcollection (holds the per-register lock document
+      // too, which is why create and update share one permission).
+      match /registerSessions/{sessionId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewRegisterSessions'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageRegisterSessions')));
+        // A cashed-up shift is the record of what was in the drawer. Deleting
+        // one is how a discrepancy disappears, so only an admin may.
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
+      }
+
+      // Commission plans subcollection
+      match /commissionPlans/{planId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewCommissions'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageCommissions')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageCommissions')));
+      }
+
+      // Budgets subcollection
+      match /budgets/{budgetId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewBudgets'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBudgets')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBudgets')));
+      }
+
+      // Service jobs subcollection
+      match /serviceJobs/{jobId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewServiceJobs'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageServiceJobs')));
+        // Closing a job writes the resolution and the closed timestamp back
+        // onto it, so the close permission carries update but never create.
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageServiceJobs') ||
+           hasPermission(companyId, 'canCloseServiceJobs')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
+      }
+
+      // Job work (subcontracting) subcollection
+      match /jobWorkOrders/{jobWorkId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewJobWork'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageJobWork')));
+        // Issuing and receiving both write the order alongside the stock they
+        // move, so all three write permissions are accepted here. Which of them
+        // a given user may perform is enforced by the client and by the product
+        // writes each path also has to make.
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageJobWork') ||
+           hasPermission(companyId, 'canIssueJobWork') ||
+           hasPermission(companyId, 'canReceiveJobWork')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
       }
 
       // Invite codes subcollection

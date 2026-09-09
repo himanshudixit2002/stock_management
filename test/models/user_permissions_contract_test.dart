@@ -101,6 +101,19 @@ void main() {
         'canCreateTransferOrders',
         'canPrintLabels',
         'canViewTaxReports',
+        // The second wave of modules, held to the same rule.
+        'canManageQuotations',
+        'canConvertQuotations',
+        'canDispatchShipments',
+        'canManageExpenses',
+        'canManageRegisterSessions',
+        'canManageCreditLimits',
+        'canViewVendorScorecard',
+        'canManageCommissions',
+        'canManageBudgets',
+        'canManageServiceJobs',
+        'canIssueJobWork',
+        'canReceiveJobWork',
       ]) {
         expect(staff.hasPermission(key), isFalse, reason: key);
       }

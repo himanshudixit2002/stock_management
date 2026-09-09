@@ -4,8 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
+import '../../providers/expense_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/product_provider.dart';
+import '../../services/expense_summary_service.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../models/product_model.dart';
 import '../../widgets/glass_panel.dart';
@@ -34,6 +37,15 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    // Operating expenses are what turns a gross margin into a profit, and
+    // nothing else on this route starts their stream.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final companyId = context.read<SettingsProvider>().companyId;
+      if (companyId.isNotEmpty) {
+        context.read<ExpenseProvider>().initialize(companyId: companyId);
+      }
+    });
   }
 
   @override
@@ -145,6 +157,17 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
     final grossProfit = totalRevenue - totalCost;
     final margin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0.0;
 
+    // Operating spend over the same window. Until this existed the screen was
+    // a gross margin wearing the word "profit": it saw what stock cost and what
+    // it sold for, and nothing about rent, wages or freight out.
+    final range = _effectiveRange;
+    final expenses = ExpenseSummaryService.summarise(
+      context.watch<ExpenseProvider>().expenses,
+      from: range.start,
+      to: range.end.add(const Duration(seconds: 1)),
+    );
+    final netProfit = grossProfit - expenses.netCost;
+
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
@@ -200,10 +223,19 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
                           ),
                         ),
                         const SizedBox(height: 20),
-                        FadeSlideIn(index: 1, child: _buildTrendChart(byDay)),
+                        FadeSlideIn(
+                          index: 1,
+                          child: _buildOperatingExpenses(
+                            grossProfit,
+                            expenses,
+                            netProfit,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        FadeSlideIn(index: 2, child: _buildTrendChart(byDay)),
                         const SizedBox(height: 20),
                         FadeSlideIn(
-                          index: 2,
+                          index: 3,
                           child: _buildBreakdownTabs(
                             byCategory,
                             byProduct,
@@ -326,6 +358,94 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
           ],
         );
       },
+    );
+  }
+
+  /// Gross margin, less what it costs to keep the doors open.
+  ///
+  /// Tax on an expense is excluded from the cost — it is reclaimed, not spent —
+  /// which is why this reads [ExpenseSummary.netCost] rather than its total.
+  Widget _buildOperatingExpenses(
+    double grossProfit,
+    ExpenseSummary expenses,
+    double netProfit,
+  ) {
+    final heads = expenses.heads.take(5).toList();
+    final otherTotal = expenses.heads
+        .skip(5)
+        .fold(0.0, (acc, h) => acc + h.total);
+
+    return GlassSectionCard(
+      title: 'Operating expenses',
+      icon: Icons.account_balance_wallet_rounded,
+      iconColor: AppTheme.warningColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PnLLine(
+            label: 'Gross profit',
+            value: _fmtCurrency(context, grossProfit),
+          ),
+          if (expenses.count == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Nothing recorded in this period. Rent, wages and freight out '
+                'belong here — without them the profit above is a gross margin, '
+                'not a net one.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
+            )
+          else ...[
+            for (final head in heads)
+              _PnLLine(
+                label: head.label,
+                value: '-${_fmtCurrency(context, head.total)}',
+                muted: true,
+              ),
+            if (otherTotal > 0)
+              _PnLLine(
+                label: 'Other heads',
+                value: '-${_fmtCurrency(context, otherTotal)}',
+                muted: true,
+              ),
+            if (expenses.taxTotal > 0)
+              _PnLLine(
+                label: 'Recoverable tax (excluded)',
+                value: _fmtCurrency(context, expenses.taxTotal),
+                muted: true,
+              ),
+            _PnLLine(
+              label: 'Total operating cost',
+              value: '-${_fmtCurrency(context, expenses.netCost)}',
+            ),
+          ],
+          const Divider(height: 20),
+          _PnLLine(
+            label: 'Net profit',
+            value: _fmtCurrency(context, netProfit),
+            emphasise: true,
+            color: netProfit >= 0
+                ? AppTheme.successColor
+                : AppTheme.dangerColor,
+          ),
+          if (expenses.unpaidTotal > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${_fmtCurrency(context, expenses.unpaidTotal)} of this is '
+                'recorded but not yet paid.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -685,6 +805,52 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
   }
 
   String _compactNumber(double v) => Money.compactNumber(v);
+}
+
+/// One line of the operating-expense block.
+class _PnLLine extends StatelessWidget {
+  const _PnLLine({
+    required this.label,
+    required this.value,
+    this.muted = false,
+    this.emphasise = false,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final bool muted;
+  final bool emphasise;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: emphasise ? 14 : 12.5,
+                fontWeight: emphasise ? FontWeight.w700 : FontWeight.w500,
+                color: muted ? AppTheme.textSec(context) : null,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: emphasise ? 17 : 13,
+              fontWeight: emphasise ? FontWeight.w800 : FontWeight.w600,
+              color: color ?? (muted ? AppTheme.textSec(context) : null),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PnLEntry {

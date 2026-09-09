@@ -5,6 +5,38 @@ import '../models/company_model.dart';
 import '../models/company_plan_model.dart';
 import '../models/role_model.dart';
 
+
+/// One subcollection a workspace owns.
+///
+/// Deliberately plain Dart: this list is what a purge iterates, what the
+/// console counts, and what its collection browser renders, so it must not
+/// depend on the UI layer. Icons and colours are chosen at the presentation
+/// side from [name].
+class CompanyCollection {
+  const CompanyCollection(
+    this.name,
+    this.label, {
+    this.orderBy = 'createdAt',
+    this.isModule = false,
+  });
+
+  /// The Firestore collection id under `companies/{id}`.
+  final String name;
+
+  /// How the console labels it.
+  final String label;
+
+  /// Field the browser sorts newest-first by. Empty means the collection has
+  /// no timestamp worth ordering on (a sequence counter, a lock document), and
+  /// the browser leaves it in document-id order.
+  final String orderBy;
+
+  /// True for the collections behind a catalogued feature module, as opposed
+  /// to the core records every workspace has. Only these are counted on the
+  /// module tab — counting products there would just repeat the overview.
+  final bool isModule;
+}
+
 /// Who performed a platform action, for the audit trail.
 class PlatformActor {
   const PlatformActor({required this.uid, required this.email});
@@ -184,6 +216,56 @@ class SuperAdminService {
       categories: results[9],
       roles: results[10],
     );
+  }
+
+  /// Document counts for every module collection, keyed by collection name.
+  ///
+  /// Aggregation queries, so this never downloads a tenant's documents however
+  /// many they hold. A collection the rules refuse, or one that has never been
+  /// written, reports zero — the point of the tab is which modules a workspace
+  /// actually uses, and both of those mean "not this one".
+  Future<Map<String, int>> moduleCounts(String companyId) async {
+    final names = moduleCollections.map((c) => c.name).toList();
+    final counts = await Future.wait(
+      names.map((name) async {
+        try {
+          final snap = await _companies
+              .doc(companyId)
+              .collection(name)
+              .count()
+              .get();
+          return snap.count ?? 0;
+        } on FirebaseException {
+          return 0;
+        }
+      }),
+    );
+    return {for (var i = 0; i < names.length; i++) names[i]: counts[i]};
+  }
+
+  /// A live read of any company subcollection, for the console browser.
+  ///
+  /// Generic on purpose: a module added later is browsable the moment it is
+  /// listed in [companyCollections], with no new stream, provider field or tab.
+  Stream<List<Map<String, dynamic>>> watchCompanyCollection(
+    String companyId,
+    String name, {
+    int limit = 200,
+  }) {
+    final spec = collectionNamed(name);
+    Query<Map<String, dynamic>> query = _companies
+        .doc(companyId)
+        .collection(name);
+    final orderBy = spec?.orderBy ?? '';
+    if (orderBy.isNotEmpty) {
+      query = query.orderBy(orderBy, descending: true);
+    }
+    return query
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map((d) => {'id': d.id, ...d.data()}).toList(),
+        );
   }
 
   Stream<List<Map<String, dynamic>>> watchCompanyUsers(String companyId) {
@@ -437,31 +519,94 @@ class SuperAdminService {
     );
   }
 
-  /// Subcollections a company owns. Kept in one place so a purge cannot
-  /// silently miss one as the schema grows.
-  static const List<String> companySubcollections = [
-    'products',
-    'categories',
-    'transactions',
-    'stockHolds',
-    'vendors',
-    'purchaseOrders',
-    'salesOrders',
-    'returns',
-    'customers',
-    'batches',
-    'stockTakes',
-    'auditLogs',
-    'notifications',
-    'priceHistory',
-    'warehouseZones',
-    'invoices',
-    'billingSequences',
-    'roles',
-    'invites',
-    'feedback',
-    'members',
+  /// Every subcollection a company owns, in one place.
+  ///
+  /// One list, three jobs: the purge iterates it, the console counts from it,
+  /// and the workspace browser renders it. That is the point — the previous
+  /// version of this list was purge-only and drifted, so the seven collections
+  /// added by the first wave of modules were left behind by a purge that
+  /// claimed to be complete. A workspace deleted on request would have kept its
+  /// price lists and landed costs in Firestore for ever.
+  static const List<CompanyCollection> companyCollections = [
+    // --- Core records ---
+    CompanyCollection('products', 'Products', orderBy: 'updatedAt'),
+    CompanyCollection('categories', 'Categories'),
+    CompanyCollection('transactions', 'Stock ledger', orderBy: 'date'),
+    CompanyCollection('stockHolds', 'Stock holds'),
+    CompanyCollection('vendors', 'Vendors'),
+    CompanyCollection('purchaseOrders', 'Purchase orders'),
+    CompanyCollection('salesOrders', 'Sales orders'),
+    CompanyCollection('returns', 'Returns'),
+    CompanyCollection('customers', 'Customers'),
+    CompanyCollection('batches', 'Batches'),
+    CompanyCollection('stockTakes', 'Stock takes'),
+    CompanyCollection('auditLogs', 'Audit log', orderBy: 'timestamp'),
+    CompanyCollection('notifications', 'Notifications'),
+    CompanyCollection('priceHistory', 'Price history', orderBy: 'timestamp'),
+    CompanyCollection('warehouseZones', 'Warehouse zones'),
+    CompanyCollection('invoices', 'Invoices'),
+    CompanyCollection('billingSequences', 'Billing sequences', orderBy: ''),
+    CompanyCollection('roles', 'Roles'),
+    CompanyCollection('invites', 'Invites'),
+    CompanyCollection('feedback', 'Feedback'),
+    CompanyCollection('members', 'Members', orderBy: ''),
+
+    // --- Modules, first wave ---
+    CompanyCollection('boms', 'Bills of materials', isModule: true),
+    CompanyCollection('serials', 'Serial numbers', isModule: true),
+    CompanyCollection('transferOrders', 'Transfer orders', isModule: true),
+    CompanyCollection('requisitions', 'Requisitions', isModule: true),
+    CompanyCollection(
+      'recurringInvoices',
+      'Billing schedules',
+      isModule: true,
+    ),
+    CompanyCollection('priceLists', 'Price lists', isModule: true),
+    CompanyCollection('landedCosts', 'Landed costs', isModule: true),
+
+    // --- Modules, second wave ---
+    CompanyCollection('quotations', 'Quotations', isModule: true),
+    CompanyCollection('shipments', 'Shipments', isModule: true),
+    CompanyCollection(
+      'expenses',
+      'Expenses',
+      orderBy: 'expenseDate',
+      isModule: true,
+    ),
+    CompanyCollection(
+      'registerSessions',
+      'Register shifts',
+      orderBy: 'openedAt',
+      isModule: true,
+    ),
+    CompanyCollection('commissionPlans', 'Commission plans', isModule: true),
+    CompanyCollection(
+      'budgets',
+      'Budgets',
+      orderBy: 'periodStart',
+      isModule: true,
+    ),
+    CompanyCollection(
+      'serviceJobs',
+      'Service jobs',
+      orderBy: 'receivedAt',
+      isModule: true,
+    ),
+    CompanyCollection('jobWorkOrders', 'Job work', isModule: true),
   ];
+
+  /// The module-backed collections, for the console's module tab.
+  static List<CompanyCollection> get moduleCollections =>
+      companyCollections.where((c) => c.isModule).toList(growable: false);
+
+  static CompanyCollection? collectionNamed(String name) {
+    final idx = companyCollections.indexWhere((c) => c.name == name);
+    return idx == -1 ? null : companyCollections[idx];
+  }
+
+  /// Names only, which is all a purge needs.
+  static List<String> get companySubcollections =>
+      companyCollections.map((c) => c.name).toList(growable: false);
 
   /// Permanently deletes a company and everything under it.
   ///

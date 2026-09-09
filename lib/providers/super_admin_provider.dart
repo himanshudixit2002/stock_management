@@ -76,6 +76,19 @@ class SuperAdminProvider extends ChangeNotifier {
 
   final Map<String, CompanyStats> _expandedStats = {};
 
+  /// Module document counts for the workspace being inspected, keyed by
+  /// collection name. Loaded once per workspace, alongside the expanded stats.
+  Map<String, int> _moduleCounts = {};
+  bool _moduleCountsLoading = false;
+  String? _moduleCountsError;
+
+  /// Live rows for whichever module collection the browser is showing. Only
+  /// one is open at a time — the browser is a drill-in, not a dashboard.
+  String? _openModuleCollection;
+  StreamSubscription? _moduleSubscription;
+  List<Map<String, dynamic>> _moduleRows = [];
+  String? _moduleRowsError;
+
   // Global Users
   StreamSubscription? _globalUsersSubscription;
   List<Map<String, dynamic>> _globalUsers = [];
@@ -198,6 +211,33 @@ class SuperAdminProvider extends ChangeNotifier {
   bool get isInspecting => _inspectCompanyId != null;
 
   CompanyStats? expandedStatsFor(String companyId) => _expandedStats[companyId];
+
+  Map<String, int> get moduleCounts => _moduleCounts;
+
+  bool get moduleCountsLoading => _moduleCountsLoading;
+
+  String? get moduleCountsError => _moduleCountsError;
+
+  /// Modules this workspace has actually used, most-used first.
+  List<CompanyCollection> get modulesInUse {
+    final used = SuperAdminService.moduleCollections
+        .where((c) => (_moduleCounts[c.name] ?? 0) > 0)
+        .toList();
+    used.sort(
+      (a, b) => (_moduleCounts[b.name] ?? 0).compareTo(_moduleCounts[a.name] ?? 0),
+    );
+    return used;
+  }
+
+  int get moduleDocumentTotal =>
+      _moduleCounts.values.fold(0, (acc, v) => acc + v);
+
+  /// The module collection the browser currently has open, if any.
+  String? get browsingCollection => _openModuleCollection;
+
+  List<Map<String, dynamic>> get moduleRows => _moduleRows;
+
+  String? get moduleRowsError => _moduleRowsError;
 
   CompanyStats? statsFor(String companyId) => _stats[companyId];
 
@@ -602,6 +642,7 @@ class SuperAdminProvider extends ChangeNotifier {
     _watchingCompanyId = companyId;
 
     _loadExpandedStats(companyId);
+    _loadModuleCounts(companyId);
     _loadSettings(companyId);
   }
 
@@ -677,11 +718,91 @@ class SuperAdminProvider extends ChangeNotifier {
     _detailSubscriptions.clear();
     _sectionData.clear();
     _sectionErrors.clear();
+    closeModuleCollection();
+    _moduleCounts = {};
+    _moduleCountsError = null;
+    _moduleCountsLoading = false;
     _watchingCompanyId = null;
     _companySettings = null;
     _companySettingsLoading = false;
     _companySettingsError = null;
     notifyListeners();
+  }
+
+  /// Counts every module collection for the workspace being inspected.
+  ///
+  /// Aggregation queries only, so the cost does not grow with the tenant.
+  Future<void> _loadModuleCounts(String companyId) async {
+    _moduleCounts = {};
+    _moduleCountsError = null;
+    _moduleCountsLoading = true;
+    notifyListeners();
+    try {
+      final counts = await _service.moduleCounts(companyId);
+      // A workspace switch while this was in flight must not land the previous
+      // tenant's counts on the new one.
+      if (_watchingCompanyId != companyId) return;
+      _moduleCounts = counts;
+      _moduleCountsLoading = false;
+      notifyListeners();
+    } catch (e) {
+      if (_watchingCompanyId != companyId) return;
+      _moduleCountsError = friendlyError(
+        e,
+        fallback: 'Could not count this workspace\'s modules.',
+      );
+      _moduleCountsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Opens a read-only stream over one module collection.
+  ///
+  /// Generic: any collection listed in [SuperAdminService.companyCollections]
+  /// can be browsed without a provider field of its own, which is what keeps
+  /// the console from drifting behind the schema again.
+  void openModuleCollection(String name) {
+    final companyId = _watchingCompanyId;
+    if (!_isSuperAdmin || companyId == null) return;
+    if (_openModuleCollection == name) return;
+
+    _moduleSubscription?.cancel();
+    _openModuleCollection = name;
+    _moduleRows = [];
+    _moduleRowsError = null;
+    notifyListeners();
+
+    _moduleSubscription = _service
+        .watchCompanyCollection(companyId, name)
+        .listen(
+          (rows) {
+            _moduleRows = rows;
+            _moduleRowsError = null;
+            notifyListeners();
+          },
+          onError: (Object error) {
+            _moduleRowsError = friendlyError(
+              error,
+              fallback: 'Could not read this collection.',
+            );
+            notifyListeners();
+          },
+        );
+  }
+
+  void closeModuleCollection() {
+    _moduleSubscription?.cancel();
+    _moduleSubscription = null;
+    _openModuleCollection = null;
+    _moduleRows = [];
+    _moduleRowsError = null;
+  }
+
+  /// Re-reads the counts for the workspace being inspected.
+  Future<void> refreshModuleCounts() async {
+    final companyId = _watchingCompanyId;
+    if (companyId == null) return;
+    await _loadModuleCounts(companyId);
   }
 
   Future<void> _loadExpandedStats(String companyId) async {

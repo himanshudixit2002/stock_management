@@ -11,6 +11,7 @@ import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
 import '../../models/invoice_model.dart';
 import '../../providers/price_list_provider.dart';
+import '../../services/credit_control_service.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../providers/customer_provider.dart';
@@ -369,6 +370,36 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       createdAt: now,
       updatedAt: now,
     );
+
+    // A sales invoice that is not a draft is credit extended to the customer,
+    // so their limit is checked before it is written rather than reported
+    // afterwards by the credit dashboard. Drafts and purchases are unaffected.
+    if (!asDraft &&
+        _invoiceType == InvoiceType.sales &&
+        (_selectedCustomerId ?? '').isNotEmpty) {
+      final customers = context.read<CustomerProvider>().customers;
+      final idx = customers.indexWhere((c) => c.id == _selectedCustomerId);
+      if (idx != -1) {
+        final exposure = CreditControlService.exposureAfterSale(
+          customer: customers[idx],
+          invoices: billing.invoices,
+          amount: _grandTotal,
+        );
+        if (exposure.isBlocked) {
+          setState(() => _isSaving = false);
+          showErrorSnackBar(
+            context,
+            '${customers[idx].name}: ${exposure.reason} Save it as a draft, or '
+            'clear the balance first.',
+          );
+          return;
+        }
+        if (exposure.verdict == CreditVerdict.warning &&
+            exposure.reason.isNotEmpty) {
+          showInfoSnackBar(context, '${customers[idx].name}: ${exposure.reason}');
+        }
+      }
+    }
 
     final locations = context.read<SettingsProvider>().locations;
     final defaultLoc = locations.isNotEmpty ? locations.first : 'Main';

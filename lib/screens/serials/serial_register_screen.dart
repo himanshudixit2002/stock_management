@@ -8,6 +8,7 @@ import '../../models/serial_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/serial_provider.dart';
+import '../../providers/service_job_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/responsive.dart';
@@ -42,6 +43,9 @@ class _SerialRegisterScreenState extends State<SerialRegisterScreen> {
       final companyId = context.read<SettingsProvider>().companyId;
       if (companyId.isNotEmpty) {
         context.read<SerialProvider>().initialize(companyId: companyId);
+        // The detail sheet shows each unit's repair history, which is the
+        // point of identifying a unit after it has been sold.
+        context.read<ServiceJobProvider>().initialize(companyId: companyId);
       }
     });
   }

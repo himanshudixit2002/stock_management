@@ -9,6 +9,7 @@ import '../../config/theme.dart';
 import '../../models/customer_model.dart';
 import '../../models/product_model.dart';
 import '../../providers/price_list_provider.dart';
+import '../../providers/register_session_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
@@ -17,6 +18,7 @@ import '../../providers/favorites_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/billing_pdf_service.dart';
+import '../../services/credit_control_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/fast_pos_checkout.dart';
 import '../../utils/product_search.dart';
@@ -57,6 +59,14 @@ class _FastPosScreenState extends State<FastPosScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<ProductProvider>().loadAnalytics();
+      // The till needs to know which shift it is ringing into, so every sale
+      // can be stamped with it and counted at the close.
+      final companyId = context.read<SettingsProvider>().companyId;
+      if (companyId.isNotEmpty) {
+        context.read<RegisterSessionProvider>().initialize(
+          companyId: companyId,
+        );
+      }
     });
   }
 
@@ -649,6 +659,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
     final bs = context.read<BillingSettingsProvider>().settings;
     final defaultLocation =
         context.read<SettingsProvider>().locations.firstOrNull ?? 'Main';
+
     final cartIsValid = await _revalidateCartStock();
     if (!mounted) return null;
     if (!cartIsValid) return null;
@@ -680,10 +691,41 @@ class _FastPosScreenState extends State<FastPosScreen> {
       customer: _selectedCustomer,
       mode: _checkoutMode,
       paymentMethod: _paymentMethod,
+      registerSessionId:
+          context
+              .read<RegisterSessionProvider>()
+              .openSessionForUser(user.uid)
+              ?.id ??
+          '',
     );
     if (payload.totals.grandTotal <= 0) {
       showInfoSnackBar(context, 'Total must be greater than 0');
       return null;
+    }
+
+    // Credit is granted at a counter more often than anywhere else, which is
+    // why the limit is checked here and not only on the dashboard that reports
+    // it afterwards. Checked against the finished total, so the figure tested
+    // is the one the customer will owe.
+    final customer = _selectedCustomer;
+    if (_checkoutMode == FastCheckoutMode.credit && customer != null) {
+      final exposure = CreditControlService.exposureAfterSale(
+        customer: customer,
+        invoices: billing.invoices,
+        amount: payload.totals.grandTotal,
+      );
+      if (exposure.isBlocked) {
+        showErrorSnackBar(
+          context,
+          '${customer.name}: ${exposure.reason} Take payment now, or clear the '
+          'balance first.',
+        );
+        return null;
+      }
+      if (exposure.verdict == CreditVerdict.warning &&
+          exposure.reason.isNotEmpty) {
+        showInfoSnackBar(context, '${customer.name}: ${exposure.reason}');
+      }
     }
 
     final id = await billing.addInvoice(
@@ -1219,6 +1261,63 @@ class _FastPosScreenState extends State<FastPosScreen> {
     );
   }
 
+  /// Which till shift this sale will be stamped with, if any.
+  ///
+  /// Shown rather than enforced: a workspace that has never opened a shift
+  /// should still be able to sell, and an unstamped sale simply does not appear
+  /// on anybody's cash-up.
+  Widget _shiftStrip(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (user == null) return const SizedBox.shrink();
+    if (!user.hasPermission(AppPermissions.viewRegisterSessions)) {
+      return const SizedBox.shrink();
+    }
+    final session = context.watch<RegisterSessionProvider>().openSessionForUser(
+      user.uid,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: InkWell(
+        onTap: () => Navigator.of(context).pushNamed(
+          session == null
+              ? AppRoutes.registerSessions
+              : AppRoutes.registerSessionDetail,
+          arguments: session?.id,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        child: Row(
+          children: [
+            Icon(
+              session == null
+                  ? Icons.lock_outline_rounded
+                  : Icons.savings_rounded,
+              size: 14,
+              color: session == null
+                  ? AppTheme.textSec(context)
+                  : AppTheme.successColor,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                session == null
+                    ? 'No shift open — this sale will not be on a cash-up'
+                    : 'Shift: ${session.registerName}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: session == null
+                      ? AppTheme.textSec(context)
+                      : AppTheme.successColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _checkoutButton(
     BuildContext context, {
     required String symbol,
@@ -1307,6 +1406,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
                     ),
                     const SizedBox(height: 10),
                     _customerButton(context),
+                    _shiftStrip(context),
                     if (_selectedCustomer != null && customerDue > 0)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
