@@ -12,11 +12,11 @@
         "aiAssistant"
       ],
       "rawLimits": {
-        "products": 250,
-        "salesOrders": 100,
+        "users": 3,
         "purchaseOrders": 100,
-        "invoices": 100,
-        "users": 3
+        "salesOrders": 100,
+        "products": 250,
+        "invoices": 100
       },
       "limits": {
         "Team members": "3",
@@ -64,8 +64,8 @@
       "archived": false,
       "locked": [],
       "rawLimits": {
-        "users": 50,
-        "products": 20000
+        "products": 20000,
+        "users": 50
       },
       "limits": {
         "Team members": "50",
@@ -104,5 +104,5 @@
     "isFull": false,
     "grantPlanId": "max"
   },
-  "fetchedAt": "2026-09-09T11:28:14.863Z"
+  "fetchedAt": "2026-09-09T19:45:34.459Z"
 }
