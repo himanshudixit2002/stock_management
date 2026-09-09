@@ -136,8 +136,64 @@ Excel:   Import: Pick file → Parse → Preview → bulkAddProducts
          Export: Products | Transactions | Categories | Full report (Excel/CSV)
 ```
 
+
 ---
 
 ## 7. Summary
 
 The app has a clear structure with multi-tenant Firestore and provider-based state. Critical issues (Excel export `companyId`, product refresh, import quantity for location-only format) have been addressed. Remaining items are improvements and long-term maintainability rather than blockers.
+
+---
+
+## 8. Runbook: the AI assistant stops answering
+
+Symptom: every question in Ask AI comes back "the assistant service is
+unavailable", and the AI dashboard tiles report an error.
+
+The assistant is the one feature that leaves Firebase — it calls a Cloud Run
+service (`rag-backend`, `asia-south1`) which answers from Firestore facts and
+Vertex AI. Everything else in the app keeps working while it is down, which is
+why an outage here is easy to misread as a client bug.
+
+Check in this order. The first two take seconds and settle it most of the time:
+
+```bash
+# 1. Is the backend serving at all?
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://rag-backend-647731796550.asia-south1.run.app/health
+
+# 2. If not 200, read the reason. This is the step that matters -- Cloud Run
+#    explains itself here and nowhere else.
+gcloud logging read 'resource.type="cloud_run_revision" AND
+  resource.labels.service_name="rag-backend"' --limit 20 --freshness=1h \
+  --format='value(timestamp,severity,httpRequest.status,textPayload)'
+```
+
+**A 500 or 503 that returns in well under a second never reached the container.**
+Cloud Run rejected it at the front door, so the service description will look
+perfectly healthy — `ContainerHealthy: True`, 100% traffic, `allUsers` invoker —
+and reading that description first is a dead end. This happened on 2026-09-09:
+the request log said `The request failed because billing is disabled for this
+project`, because the project's billing account had been closed.
+
+Beware the field that reads correctly while being useless:
+`gcloud billing projects describe` reports `billingEnabled: true` when an account
+is merely *attached*. A **closed** account still reports true and still refuses
+every request. The state that matters is `open` on the account itself:
+
+```bash
+gcloud billing accounts describe ACCOUNT_ID --format='value(open)'
+```
+
+`bash scripts/restore_ai_backend.sh` performs this whole check, applies the cost
+settings below, and polls until healthy. It deliberately stops short of linking
+billing — which account pays is a decision for a person, not a script.
+
+**Cost shape.** The service ran at `min-instances: 1`, holding 2 vCPU and 1 GiB
+allocated 24 hours a day whether or not anybody asked a question; for a
+bursty internal assistant that is the entire idle bill. It is now
+`min-instances: 0` with `max-instances: 4`. Scale-to-zero costs a cold start —
+the container measures about six seconds to healthy, softened by
+`startup-cpu-boost` and survivable because the client retries once and falls back
+from streaming to a plain request. The instance ceiling bounds the worst case,
+since every request can call a paid model.
