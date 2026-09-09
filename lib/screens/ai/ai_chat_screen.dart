@@ -320,7 +320,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (response != null) {
         _messages[index] = placeholder.copyWith(
           text: response.text,
-          status: ChatStatus.complete,
+          // A response object arriving is not the same as an answer arriving.
+          // The fallback path returns one to carry the failure text, and
+          // rendering that as a normal reply left the user with a dead end
+          // dressed as an answer — no error styling and no way to retry.
+          status: response.failed ? ChatStatus.failed : ChatStatus.complete,
           actionPayload: response.actionPayload,
           statsPayload: response.statsPayload,
           itemsPayload: response.items,

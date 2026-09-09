@@ -33,6 +33,13 @@ class RagResponse {
   /// item instead of reading it out of a markdown table.
   final List<Map<String, dynamic>>? items;
 
+  /// True when this is not an answer but a report that the request failed.
+  ///
+  /// Without it the chat screen rendered a transport failure as an ordinary
+  /// assistant reply — correct-looking text, no error styling, and no Retry —
+  /// because a response object had, technically, arrived.
+  final bool failed;
+
   const RagResponse(
     this.text,
     this.actionPayload, {
@@ -44,6 +51,7 @@ class RagResponse {
     this.pendingAction,
     this.responseKind,
     this.items,
+    this.failed = false,
   });
 }
 
@@ -94,6 +102,43 @@ class RagApiService {
     "I'm still loading your workspace. Give it a second and try again.",
     null,
   );
+
+  /// What a failed ask should say, given the last HTTP status seen.
+  ///
+  /// [status] is null when the request never got a response at all. The
+  /// distinction is the whole point: every failure used to read "I couldn't
+  /// reach the assistant", which sounds like the user's connection. The failure
+  /// that actually took the assistant down was a 500 from Cloud Run whose body
+  /// said "billing is disabled for this project" — nothing to do with the
+  /// device, and nothing the user or the next person debugging could have
+  /// guessed from the message.
+  static String failureMessageFor(int? status) {
+    if (status == null) {
+      return "I couldn't reach the assistant. Check your connection and try "
+          'again.';
+    }
+    if (status == 401 || status == 403) {
+      return "I'm not allowed to answer for this workspace. Ask an admin to "
+          'check your access, then try again.';
+    }
+    if (status == 429) {
+      return 'The assistant is handling too many requests right now. Give it a '
+          'moment and try again.';
+    }
+    if (status >= 500) {
+      return 'The assistant service is unavailable right now — this is not your '
+          'connection. An administrator needs to check the backend.';
+    }
+    return 'The assistant refused that request (error $status). Please try '
+        'again.';
+  }
+
+  /// Whether another attempt could plausibly succeed.
+  ///
+  /// A 401 or a 404 will say the same thing 800 ms later, so retrying it only
+  /// makes the user wait twice as long to read the same message.
+  static bool isRetryableStatus(int status) =>
+      status == 429 || status >= 500;
 
   static Map<String, dynamic> _body(
     String question,
@@ -201,6 +246,10 @@ class RagApiService {
     if (!isWorkspaceReady) return _notReady;
     final url = Uri.parse('${AiBackend.baseUrl}/api/chat');
 
+    // The last status seen, so the message can name what actually went wrong
+    // rather than blaming the network for everything.
+    int? lastStatus;
+
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final response = await http.post(
@@ -211,17 +260,25 @@ class RagApiService {
         if (response.statusCode == 200) {
           return _parse(jsonDecode(response.body) as Map<String, dynamic>);
         }
+        lastStatus = response.statusCode;
+        // The body is where a platform error explains itself. Logging only the
+        // status is what sent the last diagnosis of this to the Cloud Run
+        // console instead of the debug output.
+        final detail = response.body.trim().replaceAll(RegExp(r'\s+'), ' ');
+        debugPrint(
+          'Ask AI attempt ${attempt + 1}: HTTP ${response.statusCode} — '
+          '${detail.length > 300 ? '${detail.substring(0, 300)}…' : detail}',
+        );
+        if (!isRetryableStatus(response.statusCode)) break;
       } catch (e) {
+        lastStatus = null;
         debugPrint('Ask AI attempt ${attempt + 1} failed: $e');
       }
       if (attempt == 0) {
         await Future.delayed(const Duration(milliseconds: 800));
       }
     }
-    return const RagResponse(
-      "I couldn't reach the assistant. Please try again.",
-      null,
-    );
+    return RagResponse(failureMessageFor(lastStatus), null, failed: true);
   }
 
   /// Asks the assistant, streaming the answer when the transport allows it.
