@@ -695,6 +695,112 @@ service cloud.firestore {
           (isAdmin() || hasPermission(companyId, 'canManageWarehouseZones'));
       }
 
+      // Bills of materials subcollection
+      match /boms/{bomId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewBoms'));
+        // Building writes back to the recipe (totalBuilt / lastBuiltAt) in the
+        // same transaction that moves the stock, so the build permission has to
+        // carry an update right of its own.
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBoms')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBoms') ||
+           hasPermission(companyId, 'canBuildAssemblies')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageBoms')));
+      }
+
+      // Serial numbers subcollection
+      match /serials/{serialId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewSerials'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageSerials')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageSerials')));
+      }
+
+      // Transfer orders subcollection
+      match /transferOrders/{transferId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewTransferOrders'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateTransferOrders')));
+        // Dispatch and receipt both update the order alongside the stock they
+        // move, so all three write permissions are accepted here. Which of the
+        // two a given user may actually perform is enforced by the client and
+        // by the product writes each path also has to make.
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canCreateTransferOrders') ||
+           hasPermission(companyId, 'canDispatchTransferOrders') ||
+           hasPermission(companyId, 'canReceiveTransferOrders')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
+      }
+
+      // Purchase requisitions subcollection
+      match /requisitions/{requisitionId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewRequisitions'));
+        allow create: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canCreateRequisitions')));
+        allow update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canCreateRequisitions') ||
+           hasPermission(companyId, 'canApproveRequisitions')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) && isAdmin());
+      }
+
+      // Recurring invoice schedules subcollection
+      match /recurringInvoices/{scheduleId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewRecurringInvoices'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageRecurringInvoices')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() ||
+           hasPermission(companyId, 'canManageRecurringInvoices')));
+      }
+
+      // Customer price lists subcollection
+      match /priceLists/{priceListId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewPriceLists'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManagePriceLists')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManagePriceLists')));
+      }
+
+      // Landed cost sheets subcollection
+      match /landedCosts/{landedCostId} {
+        allow read: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canViewLandedCosts'));
+        allow create, update: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageLandedCosts')));
+        allow delete: if companyActive(companyId) &&
+          (belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageLandedCosts')));
+      }
+
       // Invite codes subcollection
       match /invites/{inviteId} {
         allow get: if isAuthenticated();

@@ -47,6 +47,41 @@ What truly sets SmartShelfKart apart is **Nova**—our integrated AI Assistant. 
   - Enterprise-grade staff permissions.
   - Secure authentication flows managed by Firebase Auth.
 
+- 🏭 **Manufacturing & Assembly**
+  - Define a finished product as a bill of materials, with per-component wastage.
+  - Build and unbuild in one atomic movement — components out, finished goods in, never half-done.
+
+- 🔖 **Serial Number Tracking**
+  - Track individual units below the batch, with status, location and a full movement history.
+  - Warranty dates and case-insensitive lookup, for RMA and recall work.
+
+- 🚚 **Transfer Orders with In-Transit Stock**
+  - Draft → dispatched → received, with partial receipts and shortage reporting.
+  - Stock in a truck sits in an explicit in-transit bucket, so totals reconcile the whole way.
+
+- 📝 **Purchase Requisitions & Approvals**
+  - Ask for stock without committing company money; approval is its own permission.
+  - Approved requests convert straight into a draft purchase order.
+
+- 🧮 **Tax (GST) Summary**
+  - Output and input tax by rate for a month, quarter or financial year, with the net position.
+
+- 🔁 **Recurring Invoices**
+  - Templates on a weekly-to-yearly cadence; generating is idempotent, so nobody is billed twice.
+
+- 💸 **Customer Price Lists**
+  - Per-customer prices, blanket discounts and quantity slabs, applied in both invoicing and the POS.
+
+- 🏷️ **Barcode & Shelf Label Printing**
+  - Printable A4 label sheets with Code 128, EAN-13 or QR, in configurable grids.
+
+- 🪦 **Dead Stock Analysis**
+  - Ranks products by how long they have sat still and the capital they tie up.
+
+- ⚓ **Landed Cost Allocation**
+  - Spread freight, duty and handling across a receipt by value, quantity or evenly.
+  - Applying updates cost prices and writes to Price History; reversal restores them exactly.
+
 ---
 
 ## 🛠️ Technology Stack

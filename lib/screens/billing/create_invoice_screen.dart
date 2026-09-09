@@ -10,6 +10,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
 import '../../models/invoice_model.dart';
+import '../../providers/price_list_provider.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../providers/customer_provider.dart';
@@ -962,9 +963,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                             : result.baseUnit;
                         item.baseUnit = result.baseUnit;
                         item.unitsPerPack = result.unitsPerPack;
+                        // Sales lines price through the customer's price
+                        // list when they are on one, so a wholesale customer
+                        // is not quoted the retail price and corrected by
+                        // hand. Purchases are supplier-side and unaffected.
                         final price = _invoiceType == InvoiceType.purchase
                             ? result.costPrice
-                            : result.sellingPrice;
+                            : context.read<PriceListProvider>().priceFor(
+                                product: result,
+                                customerId: _selectedCustomerId ?? '',
+                                quantity: item.baseQuantity,
+                              ).unitPrice;
                         item.priceCtrl.text = price > 0 ? price.toString() : '';
                       });
                     }

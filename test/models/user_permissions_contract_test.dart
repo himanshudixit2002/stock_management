@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stock_management/config/permissions.dart';
+import 'package:stock_management/models/role_model.dart';
 import 'package:stock_management/models/user_model.dart';
 
 void main() {
@@ -56,6 +58,73 @@ void main() {
       );
       expect(staff.isAdmin, isFalse);
       expect(staff.effectivePermissions, isNotEmpty);
+    });
+  });
+
+  group('permissions added after the granular split', () {
+    UserModel legacyStaff() => UserModel(
+      uid: 'u3',
+      name: 'Legacy',
+      email: 'l@acme.com',
+      role: 'staff',
+      // No roleId: this user predates RBAC, so effectivePermissions falls back
+      // to defaultPermissions instead of resolving through a role document.
+      companyId: 'c1',
+      createdAt: DateTime(2026, 1, 1),
+      permissions: const {},
+    );
+
+    test('allPermissionKeys is the pre-split legacy set, not the live one', () {
+      // This is the load-bearing fact behind the test below, and it is not
+      // obvious: the list still names coarse keys like canManageProducts that
+      // AppPermissions replaced with granular ones. Anything added since is
+      // absent from it by construction.
+      expect(UserModel.allPermissionKeys, contains('canManageProducts'));
+      expect(
+        UserModel.allPermissionKeys.length,
+        lessThan(AppPermissions.allKeys.length),
+      );
+    });
+
+    test('a legacy user is denied every permission added since the split', () {
+      // This is what makes shipping a new module safe: nobody silently gains
+      // its controls on the day they update. An admin grants them through a
+      // role, deliberately.
+      final staff = legacyStaff();
+      for (final key in [
+        'canApproveRequisitions',
+        'canManageLandedCosts',
+        'canManagePriceLists',
+        'canManageRecurringInvoices',
+        'canBuildAssemblies',
+        'canManageSerials',
+        'canCreateTransferOrders',
+        'canPrintLabels',
+        'canViewTaxReports',
+      ]) {
+        expect(staff.hasPermission(key), isFalse, reason: key);
+      }
+    });
+
+    test('a role user is denied a key its role document does not carry', () {
+      // The other half of the same guarantee, for the RBAC population.
+      final role = RoleModel(
+        id: 'viewer',
+        name: 'Viewer',
+        permissions: const {'canViewProducts': true},
+        companyId: 'c1',
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+      expect(role.hasPermission('canViewProducts'), isTrue);
+      expect(role.hasPermission('canApproveRequisitions'), isFalse);
+    });
+
+    test('an admin still holds every permission, new ones included', () {
+      final owner = ownerDoc(permissions: const {});
+      for (final key in AppPermissions.allKeys) {
+        expect(owner.hasPermission(key), isTrue, reason: key);
+      }
     });
   });
 }

@@ -38,6 +38,27 @@ async function seed() {
     await setDoc(doc(db,'companies/companyS/products/p1'),{name:'Frozen',quantity:1});
     await setDoc(doc(db,'users/ownerB'),{uid:'ownerB',email:'o@b.com',role:'admin',roleId:'admin',companyId:'companyB',permissions:{},companyMemberships:[{companyId:'companyB'}]});
     await setDoc(doc(db,'metadata/app'),{firstUserCreated:true});
+
+    // --- The ten newer modules ---------------------------------------------
+    // 'viewer' holds every canView* key for the new collections and none of
+    // the write keys, so read and write can be told apart. 'plain' holds
+    // nothing, which is what a default staff role looks like before an admin
+    // grants anything.
+    await setDoc(doc(db,'companies/companyA/roles/viewer'),{name:'Viewer',permissions:{
+      canViewBoms:true, canViewSerials:true, canViewTransferOrders:true,
+      canViewRequisitions:true, canViewRecurringInvoices:true,
+      canViewPriceLists:true, canViewLandedCosts:true,
+    }});
+    await setDoc(doc(db,'companies/companyA/roles/builder'),{name:'Builder',permissions:{
+      canViewBoms:true, canBuildAssemblies:true,
+    }});
+    await setDoc(doc(db,'users/viewerA'),{uid:'viewerA',email:'v@a.com',role:'staff',roleId:'viewer',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'users/builderA'),{uid:'builderA',email:'b@a.com',role:'staff',roleId:'builder',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'users/plainA'),{uid:'plainA',email:'p@a.com',role:'staff',roleId:'plain',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    for (const c of ['boms','serials','transferOrders','requisitions','recurringInvoices','priceLists','landedCosts']) {
+      await setDoc(doc(db,`companies/companyA/${c}/d1`),{name:'seed'});
+      await setDoc(doc(db,`companies/companyB/${c}/d9`),{name:'other tenant'});
+    }
   });
 }
 
@@ -278,6 +299,52 @@ await check('a super admin can still change plan and status', async () => {
   await assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{plan:{planId:'free',status:'active'}}));
   return assertSucceeds(updateDoc(doc(as('root'),'companies/companyA'),{status:'suspended'}));
 });
+
+console.log('\n--- NEW MODULE COLLECTIONS ---');
+const NEW_COLLECTIONS = [
+  ['boms', 'canViewBoms'],
+  ['serials', 'canViewSerials'],
+  ['transferOrders', 'canViewTransferOrders'],
+  ['requisitions', 'canViewRequisitions'],
+  ['recurringInvoices', 'canViewRecurringInvoices'],
+  ['priceLists', 'canViewPriceLists'],
+  ['landedCosts', 'canViewLandedCosts'],
+];
+
+for (const [name] of NEW_COLLECTIONS) {
+  // Cross-tenant reads are the failure that matters most: these collections
+  // carry costs, prices and customer assignments.
+  await check(`outsider cannot read ${name}`, () =>
+    assertFails(getDoc(doc(as('x'),`companies/companyA/${name}/d1`))));
+  await check(`a member cannot read another tenants ${name}`, () =>
+    assertFails(getDoc(doc(as('staffA'),`companies/companyB/${name}/d9`))));
+  await check(`a granted viewer can read ${name}`, () =>
+    assertSucceeds(getDoc(doc(as('viewerA'),`companies/companyA/${name}/d1`))));
+  await check(`a member without the view permission cannot read ${name}`, () =>
+    assertFails(getDoc(doc(as('plainA'),`companies/companyA/${name}/d1`))));
+  // The view grant must not be a write grant: that is the whole point of
+  // splitting them.
+  await check(`a viewer cannot write ${name}`, () =>
+    assertFails(setDoc(doc(as('viewerA'),`companies/companyA/${name}/new1`),{name:'x'})));
+  await check(`an admin can write ${name}`, () =>
+    assertSucceeds(setDoc(doc(as('ownerA'),`companies/companyA/${name}/new2`),{name:'x'})));
+}
+
+await check('build permission may update a BOM but not create one', async () => {
+  // Building writes totalBuilt/lastBuiltAt back onto the recipe in the same
+  // transaction that moves the stock, so it needs update — and only update.
+  await assertSucceeds(updateDoc(doc(as('builderA'),'companies/companyA/boms/d1'),{totalBuilt:5}));
+  return assertFails(setDoc(doc(as('builderA'),'companies/companyA/boms/new3'),{name:'x'}));
+});
+
+await check('a suspended workspace refuses writes to the new collections', () =>
+  assertFails(setDoc(doc(as('staffS'),'companies/companyS/priceLists/x'),{name:'x'})));
+
+await check('a super admin can read the new collections', () =>
+  assertSucceeds(getDoc(doc(as('root'),'companies/companyA/landedCosts/d1'))));
+
+await check('a super admin still cannot write the new collections', () =>
+  assertFails(setDoc(doc(as('root'),'companies/companyA/priceLists/x'),{name:'x'})));
 
 await env.cleanup();
 console.log(`\n${pass} passed, ${fail} failed`);

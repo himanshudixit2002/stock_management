@@ -39,6 +39,13 @@ import 'providers/billing_provider.dart';
 import 'providers/billing_settings_provider.dart';
 import 'providers/role_provider.dart';
 import 'providers/connectivity_provider.dart';
+import 'providers/bom_provider.dart';
+import 'providers/serial_provider.dart';
+import 'providers/transfer_order_provider.dart';
+import 'providers/requisition_provider.dart';
+import 'providers/recurring_invoice_provider.dart';
+import 'providers/price_list_provider.dart';
+import 'providers/landed_cost_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'firebase_options.dart';
@@ -114,6 +121,13 @@ class StockManagementApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PromoProvider()),
         ChangeNotifierProvider(create: (_) => PlanCatalogProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider(create: (_) => BomProvider()),
+        ChangeNotifierProvider(create: (_) => SerialProvider()),
+        ChangeNotifierProvider(create: (_) => TransferOrderProvider()),
+        ChangeNotifierProvider(create: (_) => RequisitionProvider()),
+        ChangeNotifierProvider(create: (_) => RecurringInvoiceProvider()),
+        ChangeNotifierProvider(create: (_) => PriceListProvider()),
+        ChangeNotifierProvider(create: (_) => LandedCostProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) => MaterialApp(
@@ -440,6 +454,13 @@ class _AuthWrapperState extends State<AuthWrapper>
     context.read<FavoritesProvider>().reset();
     context.read<HomeCustomizationProvider>().reset();
     context.read<SuperAdminProvider>().reset();
+    context.read<BomProvider>().reset();
+    context.read<SerialProvider>().reset();
+    context.read<TransferOrderProvider>().reset();
+    context.read<RequisitionProvider>().reset();
+    context.read<RecurringInvoiceProvider>().reset();
+    context.read<PriceListProvider>().reset();
+    context.read<LandedCostProvider>().reset();
     _providersInitializing = false;
   }
 
@@ -569,6 +590,15 @@ class _AuthWrapperState extends State<AuthWrapper>
       // initializing (e.g. create_invoice_screen reads customers, vendors and
       // sales orders), and those are reachable directly by route.
       context.read<BillingProvider>().initialize(companyId: companyId);
+      // Price lists and billing schedules start here rather than lazily: the
+      // invoice and POS screens price through PriceListProvider without
+      // initializing it, and the schedules banner has to be able to say
+      // something is due before anyone opens its screen. The other five new
+      // providers each have exactly one screen, which starts them itself.
+      context.read<PriceListProvider>().initialize(companyId: companyId);
+      context.read<RecurringInvoiceProvider>().initialize(
+        companyId: companyId,
+      );
       // Full-catalog analytics fills in the dashboard/report numbers; the Home
       // shell already shows cached/first-page stats until this lands.
       context.read<ProductProvider>().loadAnalytics();

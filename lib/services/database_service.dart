@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
+import '../utils/parse_helpers.dart';
 import '../config/plan_limits.dart';
 import '../models/company_plan_model.dart';
 import '../models/product_model.dart';
@@ -18,6 +19,14 @@ import '../models/price_history_model.dart';
 import '../models/warehouse_zone_model.dart';
 import '../models/invoice_model.dart';
 import '../models/stock_hold_model.dart';
+import '../models/bom_model.dart';
+import '../models/serial_model.dart';
+import '../models/transfer_order_model.dart';
+import '../models/requisition_model.dart';
+import '../models/recurring_invoice_model.dart';
+import '../models/price_list_model.dart';
+import '../models/landed_cost_model.dart';
+import 'landed_cost_allocator.dart';
 import 'notification_engine.dart';
 
 class DatabaseService {
@@ -3607,6 +3616,1076 @@ class DatabaseService {
         'status': newStatus,
         'updatedAt': Timestamp.now(),
       });
+    });
+  }
+
+  // ==================== BILL OF MATERIALS ====================
+
+  CollectionReference<Map<String, dynamic>> get _boms {
+    _ensureCompanyId();
+    return _firestore.collection('companies').doc(_companyId).collection('boms');
+  }
+
+  Stream<List<BomModel>> getBoms() {
+    return _boms
+        .orderBy('name')
+        .snapshots()
+        .map((s) => s.docs.map((d) => BomModel.fromMap(d.data(), d.id)).toList());
+  }
+
+  Future<String> addBom(BomModel bom) async {
+    final ref = await _boms.add(bom.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateBom(BomModel bom) async {
+    await _boms.doc(bom.id).update(bom.toMap());
+  }
+
+  Future<void> deleteBom(String id) async {
+    await _boms.doc(id).delete();
+  }
+
+  /// Consumes [bom]'s components and produces its output, in one transaction.
+  ///
+  /// Atomic on purpose: a build that took the components but failed before
+  /// creating the finished goods would destroy stock, and the two-manual-
+  /// movements workaround this replaces could do exactly that. Returns the
+  /// number of output units produced.
+  ///
+  /// [reverse] runs the same movement backwards (an unbuild), consuming the
+  /// finished goods and returning the components to the shelf.
+  Future<int> runAssembly({
+    required BomModel bom,
+    required int runs,
+    required String location,
+    required String userId,
+    required String userName,
+    bool reverse = false,
+    String reason = '',
+  }) async {
+    if (runs <= 0) throw ArgumentError('runs must be > 0');
+    if (bom.components.isEmpty) {
+      throw Exception('This BOM has no components to build from.');
+    }
+    final bucket = _normalizeLocation(location);
+    final consumption = bom.consumptionFor(runs);
+    final output = bom.outputFor(runs);
+    if (output <= 0) throw Exception('This BOM produces no output.');
+    if (bom.outputProductId.isEmpty) {
+      throw Exception('This BOM has no output product.');
+    }
+
+    // What each product's stock must do. A product that is both a component
+    // and the output nets out here rather than being written twice — a
+    // second txn.update on the same document inside one transaction would
+    // silently drop the first.
+    final deltas = <String, int>{};
+    for (final entry in consumption.entries) {
+      deltas[entry.key] = (deltas[entry.key] ?? 0) + (reverse ? entry.value : -entry.value);
+    }
+    deltas[bom.outputProductId] =
+        (deltas[bom.outputProductId] ?? 0) + (reverse ? -output : output);
+
+    final names = <String, String>{
+      for (final c in bom.components) c.productId: c.productName,
+      bom.outputProductId: bom.outputProductName,
+    };
+
+    final now = DateTime.now();
+    final label = reverse ? 'unbuild' : 'build';
+    final movementReason = reason.isNotEmpty
+        ? reason
+        : 'Assembly $label — ${bom.name}';
+
+    await _firestore.runTransaction((txn) async {
+      // Every read first: Firestore refuses a read after a write in the same
+      // transaction.
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in deltas.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (!snap.exists) {
+          throw Exception(
+            'Product "${names[productId] ?? productId}" no longer exists.',
+          );
+        }
+        snapshots[productId] = snap;
+      }
+
+      for (final entry in deltas.entries) {
+        final delta = entry.value;
+        if (delta == 0) continue;
+        final data = snapshots[entry.key]!.data()!;
+        final name = names[entry.key] ?? '';
+        if (delta < 0) {
+          _assertAvailableAtLocation(data, bucket, -delta);
+        }
+
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final next = (locMap[bucket] ?? 0) + delta;
+        if (next <= 0) {
+          locMap.remove(bucket);
+        } else {
+          locMap[bucket] = next;
+        }
+        txn.update(_products.doc(entry.key), {
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        final movement = StockTransactionModel(
+          id: '',
+          productId: entry.key,
+          productName: name,
+          type: delta > 0 ? TransactionType.stockIn : TransactionType.stockOut,
+          quantity: delta.abs(),
+          location: bucket,
+          reason: movementReason,
+          userId: userId,
+          userName: userName,
+          date: now,
+        );
+        txn.set(_transactions.doc(), movement.toMap());
+      }
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'assembly_$label',
+          entityType: 'BOM',
+          entityId: bom.id,
+          entityName: bom.name,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'runs': runs,
+            'outputUnits': reverse ? -output : output,
+            'location': bucket,
+            'components': consumption.length,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+
+      if (bom.id.isNotEmpty) {
+        final built = bom.totalBuilt + (reverse ? -output : output);
+        txn.update(_boms.doc(bom.id), {
+          'totalBuilt': built < 0 ? 0 : built,
+          'lastBuiltAt': Timestamp.fromDate(now),
+          'updatedAt': Timestamp.fromDate(now),
+        });
+      }
+    });
+
+    return output;
+  }
+
+  // ==================== SERIAL NUMBERS ====================
+
+  CollectionReference<Map<String, dynamic>> get _serials {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('serials');
+  }
+
+  /// Recent serials, newest first.
+  ///
+  /// Capped because a serialised catalog grows without bound and the register
+  /// screen only ever shows a page of it; targeted lookups go through
+  /// [findSerial], which queries rather than scans.
+  Stream<List<SerialModel>> getSerials({int limit = 500}) {
+    return _serials
+        .orderBy('updatedAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (s) => s.docs.map((d) => SerialModel.fromMap(d.data(), d.id)).toList(),
+        );
+  }
+
+  /// The unit carrying [serialNumber], or null.
+  ///
+  /// Matches on the normalised key, so "sn 001", "SN-001 " and "sn001" are not
+  /// silently treated as three different units.
+  Future<SerialModel?> findSerial(String serialNumber) async {
+    final key = SerialModel.normalizeSerial(serialNumber);
+    if (key.isEmpty) return null;
+    final snap = await _serials
+        .where('serialKey', isEqualTo: key)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return null;
+    final doc = snap.docs.first;
+    return SerialModel.fromMap(doc.data(), doc.id);
+  }
+
+  /// Registers [serials], refusing any whose number is already on file.
+  ///
+  /// Returns the numbers that were rejected as duplicates. A serial number that
+  /// identifies two units identifies neither, so a partial success that names
+  /// the clashes beats an all-or-nothing failure on a fifty-unit intake.
+  Future<List<String>> addSerials(List<SerialModel> serials) async {
+    if (serials.isEmpty) return const [];
+    final rejected = <String>[];
+    final candidates = <SerialModel>[];
+    final seen = <String>{};
+
+    for (final serial in serials) {
+      final key = serial.serialKey;
+      if (key.isEmpty) continue;
+      // Duplicates inside the submitted batch, caught before touching the
+      // server.
+      if (!seen.add(key)) {
+        rejected.add(serial.serialNumber);
+        continue;
+      }
+      candidates.add(serial);
+    }
+
+    // Existing numbers are looked up in batches rather than one query per
+    // serial: a fifty-unit intake was fifty round trips, which is the common
+    // case for this screen. 30 is the `whereIn` ceiling.
+    final taken = <String>{};
+    for (var i = 0; i < candidates.length; i += 30) {
+      final chunk = candidates.skip(i).take(30).map((s) => s.serialKey).toList();
+      final snap = await _serials
+          .where('serialKey', whereIn: chunk)
+          .get();
+      for (final doc in snap.docs) {
+        taken.add(safeString(doc.data()['serialKey']));
+      }
+    }
+
+    final accepted = <SerialModel>[];
+    for (final serial in candidates) {
+      if (taken.contains(serial.serialKey)) {
+        rejected.add(serial.serialNumber);
+      } else {
+        accepted.add(serial);
+      }
+    }
+
+    for (var i = 0; i < accepted.length; i += kFirestoreBatchLimit) {
+      final chunk = accepted.skip(i).take(kFirestoreBatchLimit).toList();
+      final batch = _firestore.batch();
+      for (final serial in chunk) {
+        batch.set(_serials.doc(), serial.toMap());
+      }
+      await batch.commit();
+    }
+
+    return rejected;
+  }
+
+  Future<void> updateSerial(SerialModel serial) async {
+    await _serials.doc(serial.id).update(serial.toMap());
+  }
+
+  Future<void> deleteSerial(String id) async {
+    await _serials.doc(id).delete();
+  }
+
+  // ==================== TRANSFER ORDERS ====================
+
+  /// The virtual location dispatched-but-not-received stock sits in.
+  ///
+  /// Modelling in-transit as a location rather than as "gone from the source"
+  /// keeps a product's total on-hand constant across the whole journey, which
+  /// is what makes valuation and the stock ledger reconcile while a shipment is
+  /// on the road. Transfer transactions net to zero for exactly this reason.
+  static const String inTransitLocation = 'In transit';
+
+  CollectionReference<Map<String, dynamic>> get _transferOrders {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('transferOrders');
+  }
+
+  Stream<List<TransferOrderModel>> getTransferOrders() {
+    return _transferOrders
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => TransferOrderModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addTransferOrder(TransferOrderModel order) async {
+    final ref = await _transferOrders.add(order.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateTransferOrder(TransferOrderModel order) async {
+    await _transferOrders.doc(order.id).update(order.toMap());
+  }
+
+  Future<void> deleteTransferOrder(String id) async {
+    await _transferOrders.doc(id).delete();
+  }
+
+  /// Moves every line's stock from the source location into [inTransitLocation]
+  /// and marks the order dispatched.
+  Future<void> dispatchTransferOrder({
+    required TransferOrderModel order,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!order.canDispatch) {
+      throw Exception('This transfer order cannot be dispatched.');
+    }
+    final from = _normalizeLocation(order.fromLocation);
+    final to = _normalizeLocation(order.toLocation);
+    if (from == to) {
+      throw Exception('Source and destination locations must be different.');
+    }
+    await _moveTransferStock(
+      order: order,
+      quantities: {
+        for (final line in order.lines)
+          if (line.quantity > 0) line.productId: line.quantity,
+      },
+      fromBucket: from,
+      toBucket: inTransitLocation,
+      routeLabel: '$from → $inTransitLocation',
+      action: 'transfer_dispatch',
+      userId: userId,
+      userName: userName,
+      applyToLines: (line, moved) =>
+          line.copyWith(dispatchedQuantity: line.dispatchedQuantity + moved),
+      orderUpdates: {
+        'status': TransferOrderModel.statusToString(
+          TransferOrderStatus.dispatched,
+        ),
+        'dispatchedAt': Timestamp.now(),
+        'dispatchedBy': userId,
+        'dispatchedByName': userName,
+      },
+    );
+  }
+
+  /// Receives [quantities] (keyed by product id) into the destination.
+  ///
+  /// A partial receipt leaves the order in transit with the remainder still in
+  /// [inTransitLocation]; [closeShort] settles the rest as a shortage so an
+  /// order that will never fully arrive can be closed without inventing stock.
+  Future<void> receiveTransferOrder({
+    required TransferOrderModel order,
+    required Map<String, int> quantities,
+    required String userId,
+    required String userName,
+    bool closeShort = false,
+  }) async {
+    if (!order.canReceive) {
+      throw Exception('This transfer order has nothing left to receive.');
+    }
+    final to = _normalizeLocation(order.toLocation);
+
+    final capped = <String, int>{};
+    for (final line in order.lines) {
+      final asked = quantities[line.productId] ?? 0;
+      if (asked <= 0) continue;
+      // Never receive more than actually left: the difference would be stock
+      // conjured out of a data-entry slip.
+      final allowed = asked > line.inTransitQuantity
+          ? line.inTransitQuantity
+          : asked;
+      if (allowed > 0) capped[line.productId] = allowed;
+    }
+    if (capped.isEmpty && !closeShort) {
+      throw Exception('Enter at least one quantity to receive.');
+    }
+
+    final receivedTotal = capped.values.fold(0, (acc, v) => acc + v);
+    final fullyReceived =
+        closeShort || receivedTotal >= order.totalInTransit;
+
+    await _moveTransferStock(
+      order: order,
+      quantities: capped,
+      fromBucket: inTransitLocation,
+      toBucket: to,
+      routeLabel: '$inTransitLocation → $to',
+      action: 'transfer_receive',
+      userId: userId,
+      userName: userName,
+      applyToLines: (line, moved) =>
+          line.copyWith(receivedQuantity: line.receivedQuantity + moved),
+      orderUpdates: fullyReceived
+          ? {
+              'status': TransferOrderModel.statusToString(
+                TransferOrderStatus.received,
+              ),
+              'receivedAt': Timestamp.now(),
+              'receivedBy': userId,
+              'receivedByName': userName,
+            }
+          : const {},
+    );
+  }
+
+  /// Cancels [order], returning anything still in transit to the source.
+  Future<void> cancelTransferOrder({
+    required TransferOrderModel order,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!order.canCancel) {
+      throw Exception('This transfer order can no longer be cancelled.');
+    }
+    final cancelled = {
+      'status': TransferOrderModel.statusToString(
+        TransferOrderStatus.cancelled,
+      ),
+      'updatedAt': Timestamp.now(),
+    };
+
+    if (order.status == TransferOrderStatus.draft || order.totalInTransit == 0) {
+      await _transferOrders.doc(order.id).update(cancelled);
+      return;
+    }
+
+    final from = _normalizeLocation(order.fromLocation);
+    await _moveTransferStock(
+      order: order,
+      quantities: {
+        for (final line in order.lines)
+          if (line.inTransitQuantity > 0)
+            line.productId: line.inTransitQuantity,
+      },
+      fromBucket: inTransitLocation,
+      toBucket: from,
+      routeLabel: '$inTransitLocation → $from',
+      action: 'transfer_cancel',
+      userId: userId,
+      userName: userName,
+      applyToLines: (line, moved) =>
+          line.copyWith(dispatchedQuantity: line.dispatchedQuantity - moved),
+      orderUpdates: cancelled,
+    );
+  }
+
+  /// Shared movement path for dispatch, receipt and cancellation.
+  ///
+  /// One transaction covering every line and the order document, so a transfer
+  /// can never be half-dispatched: either all the stock moves and the order
+  /// records it, or nothing happens at all.
+  Future<void> _moveTransferStock({
+    required TransferOrderModel order,
+    required Map<String, int> quantities,
+    required String fromBucket,
+    required String toBucket,
+    required String routeLabel,
+    required String action,
+    required String userId,
+    required String userName,
+    required TransferOrderLine Function(TransferOrderLine line, int moved)
+    applyToLines,
+    required Map<String, dynamic> orderUpdates,
+  }) async {
+    final moves = Map<String, int>.from(quantities)
+      ..removeWhere((_, value) => value <= 0);
+
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in moves.keys) {
+        final snap = await txn.get(_products.doc(productId));
+        if (!snap.exists) {
+          throw Exception('A product on this transfer no longer exists.');
+        }
+        snapshots[productId] = snap;
+      }
+
+      for (final entry in moves.entries) {
+        final data = snapshots[entry.key]!.data()!;
+        _assertAvailableAtLocation(data, fromBucket, entry.value);
+
+        final locMap = _toIntMap(
+          data['locationQuantities'] as Map<dynamic, dynamic>?,
+        );
+        final remaining = (locMap[fromBucket] ?? 0) - entry.value;
+        if (remaining <= 0) {
+          locMap.remove(fromBucket);
+        } else {
+          locMap[fromBucket] = remaining;
+        }
+        locMap[toBucket] = (locMap[toBucket] ?? 0) + entry.value;
+
+        txn.update(_products.doc(entry.key), {
+          'quantity': _sumMapValues(locMap),
+          'locationQuantities': locMap,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        txn.set(
+          _transactions.doc(),
+          StockTransactionModel(
+            id: '',
+            productId: entry.key,
+            productName: safeString(data['name']),
+            type: TransactionType.transfer,
+            quantity: entry.value,
+            location: routeLabel,
+            reason: order.referenceNumber.isEmpty
+                ? 'Transfer order'
+                : 'Transfer order ${order.referenceNumber}',
+            userId: userId,
+            userName: userName,
+            date: now,
+          ).toMap(),
+        );
+      }
+
+      final lines = [
+        for (final line in order.lines)
+          moves.containsKey(line.productId)
+              ? applyToLines(line, moves[line.productId]!)
+              : line,
+      ];
+
+      txn.update(_transferOrders.doc(order.id), {
+        'lines': lines.map((l) => l.toMap()).toList(),
+        'updatedAt': Timestamp.fromDate(now),
+        ...orderUpdates,
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: action,
+          entityType: 'TransferOrder',
+          entityId: order.id,
+          entityName: order.referenceNumber.isEmpty
+              ? '${order.fromLocation} → ${order.toLocation}'
+              : order.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'units': moves.values.fold(0, (acc, v) => acc + v),
+            'lines': moves.length,
+            'route': routeLabel,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  // ==================== REQUISITIONS ====================
+
+  CollectionReference<Map<String, dynamic>> get _requisitions {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('requisitions');
+  }
+
+  Stream<List<RequisitionModel>> getRequisitions() {
+    return _requisitions
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => RequisitionModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addRequisition(RequisitionModel requisition) async {
+    final ref = await _requisitions.add(requisition.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateRequisition(RequisitionModel requisition) async {
+    await _requisitions.doc(requisition.id).update(requisition.toMap());
+  }
+
+  Future<void> deleteRequisition(String id) async {
+    await _requisitions.doc(id).delete();
+  }
+
+  /// Records an approve/reject decision on [requisition].
+  ///
+  /// The status transition is checked inside the transaction against what the
+  /// document actually says, not against the copy the approver has on screen —
+  /// two approvers looking at the same queue would otherwise both "decide" it.
+  Future<void> decideRequisition({
+    required RequisitionModel requisition,
+    required bool approved,
+    required String note,
+    required String userId,
+    required String userName,
+  }) async {
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final ref = _requisitions.doc(requisition.id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw Exception('This requisition no longer exists.');
+      final current = RequisitionModel.fromMap(snap.data()!, snap.id);
+      if (!current.canDecide) {
+        throw Exception(
+          'This requisition has already been ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+
+      txn.update(ref, {
+        'status': RequisitionModel.statusToString(
+          approved ? RequisitionStatus.approved : RequisitionStatus.rejected,
+        ),
+        'decidedBy': userId,
+        'decidedByName': userName,
+        'decidedAt': Timestamp.fromDate(now),
+        'decisionNote': note,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: approved ? 'requisition_approved' : 'requisition_rejected',
+          entityType: 'Requisition',
+          entityId: requisition.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.title
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'estimatedTotal': current.estimatedTotal,
+            'lines': current.lines.length,
+            'note': note,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+  }
+
+  /// Turns an approved requisition into a draft purchase order.
+  ///
+  /// Both documents are written together so a requisition can never be marked
+  /// ordered against a purchase order that failed to save. Returns the new
+  /// purchase order id.
+  Future<String> convertRequisitionToPurchaseOrder({
+    required RequisitionModel requisition,
+    required DateTime expectedDate,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!requisition.canConvert) {
+      throw Exception('Only an approved requisition can become an order.');
+    }
+    await _enforcePlanLimit(PlanLimitKeys.purchaseOrders, 'purchaseOrders');
+
+    final now = DateTime.now();
+    final poRef = _purchaseOrders.doc();
+    final order = PurchaseOrderModel(
+      id: poRef.id,
+      vendorId: requisition.vendorId,
+      vendorName: requisition.vendorName,
+      status: POStatus.draft,
+      items: [
+        for (final line in requisition.lines)
+          if (line.quantity > 0)
+            POItem(
+              productId: line.productId,
+              productName: line.productName,
+              quantity: line.quantity,
+              unitPrice: line.estimatedUnitCost,
+            ),
+      ],
+      totalAmount: requisition.estimatedTotal,
+      expectedDate: expectedDate,
+      notes: requisition.referenceNumber.isEmpty
+          ? requisition.justification
+          : 'From requisition ${requisition.referenceNumber}. '
+                '${requisition.justification}',
+      createdBy: userId,
+      createdByName: userName,
+      createdAt: now,
+      updatedAt: now,
+    );
+    if (order.items.isEmpty) {
+      throw Exception('This requisition has no orderable lines.');
+    }
+
+    await _firestore.runTransaction((txn) async {
+      final reqRef = _requisitions.doc(requisition.id);
+      final snap = await txn.get(reqRef);
+      if (!snap.exists) throw Exception('This requisition no longer exists.');
+      final current = RequisitionModel.fromMap(snap.data()!, snap.id);
+      if (!current.canConvert) {
+        throw Exception('This requisition has already been ordered.');
+      }
+
+      txn.set(poRef, order.toMap());
+      txn.update(reqRef, {
+        'status': RequisitionModel.statusToString(RequisitionStatus.converted),
+        'purchaseOrderId': poRef.id,
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'requisition_converted',
+          entityType: 'Requisition',
+          entityId: requisition.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.title
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'purchaseOrderId': poRef.id,
+            'lines': order.items.length,
+            'totalAmount': order.totalAmount,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+    });
+
+    return poRef.id;
+  }
+
+  // ==================== RECURRING INVOICES ====================
+
+  CollectionReference<Map<String, dynamic>> get _recurringInvoices {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('recurringInvoices');
+  }
+
+  Stream<List<RecurringInvoiceModel>> getRecurringInvoices() {
+    return _recurringInvoices
+        .orderBy('nextRunAt')
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => RecurringInvoiceModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addRecurringInvoice(RecurringInvoiceModel schedule) async {
+    final ref = await _recurringInvoices.add(schedule.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateRecurringInvoice(RecurringInvoiceModel schedule) async {
+    await _recurringInvoices.doc(schedule.id).update(schedule.toMap());
+  }
+
+  Future<void> deleteRecurringInvoice(String id) async {
+    await _recurringInvoices.doc(id).delete();
+  }
+
+  /// Issues the invoice [schedule] currently owes and advances it.
+  ///
+  /// Idempotent by construction: the invoice write and the `nextRunAt` advance
+  /// are one transaction, and the transaction re-reads the schedule and bails
+  /// if it is no longer due. Two people pressing "Generate due" at the same
+  /// moment therefore produce one invoice, not two — which for a billing
+  /// feature is the only acceptable behaviour.
+  ///
+  /// Returns the new invoice id, or null when the schedule was not due.
+  Future<String?> generateRecurringInvoice({
+    required RecurringInvoiceModel schedule,
+    required String invoiceNumber,
+    required InvoiceModel Function(DateTime issueDate, String number) build,
+    required String userId,
+    required String userName,
+  }) async {
+    if (!schedule.isDue()) return null;
+    await _enforcePlanLimit(PlanLimitKeys.invoices, 'invoices');
+
+    final now = DateTime.now();
+    final invoiceRef = _invoices.doc();
+    String? issuedId;
+
+    await _firestore.runTransaction((txn) async {
+      final scheduleRef = _recurringInvoices.doc(schedule.id);
+      final snap = await txn.get(scheduleRef);
+      if (!snap.exists) throw Exception('This schedule no longer exists.');
+      final current = RecurringInvoiceModel.fromMap(snap.data()!, snap.id);
+      if (!current.isDue()) {
+        // Somebody else generated it between the button press and here.
+        issuedId = null;
+        return;
+      }
+
+      final issueDate = current.nextRunAt;
+      final invoice = build(issueDate, invoiceNumber);
+      txn.set(invoiceRef, invoice.toMap());
+
+      final nextRun = current.advanceFrom(issueDate);
+      final generated = [...current.generatedInvoiceIds, invoiceRef.id];
+      final trimmed = generated.length > RecurringInvoiceModel.historyLimit
+          ? generated.sublist(
+              generated.length - RecurringInvoiceModel.historyLimit,
+            )
+          : generated;
+      final count = current.generatedCount + 1;
+      final reachedCap =
+          current.maxOccurrences > 0 && count >= current.maxOccurrences;
+      final pastEnd =
+          current.endDate != null && nextRun.isAfter(current.endDate!);
+
+      txn.update(scheduleRef, {
+        'nextRunAt': Timestamp.fromDate(nextRun),
+        'lastRunAt': Timestamp.fromDate(now),
+        'generatedCount': count,
+        'generatedInvoiceIds': trimmed,
+        'updatedAt': Timestamp.fromDate(now),
+        if (reachedCap || pastEnd)
+          'status': RecurringInvoiceModel.statusToString(
+            RecurringInvoiceStatus.ended,
+          ),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: 'recurring_invoice_generated',
+          entityType: 'RecurringInvoice',
+          entityId: current.id,
+          entityName: current.title.isEmpty
+              ? current.customerName
+              : current.title,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'invoiceId': invoiceRef.id,
+            'invoiceNumber': invoiceNumber,
+            'grandTotal': invoice.grandTotal,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
+
+      issuedId = invoiceRef.id;
+    });
+
+    return issuedId;
+  }
+
+  // ==================== PRICE LISTS ====================
+
+  CollectionReference<Map<String, dynamic>> get _priceLists {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('priceLists');
+  }
+
+  Stream<List<PriceListModel>> getPriceLists() {
+    return _priceLists
+        .orderBy('name')
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => PriceListModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addPriceList(PriceListModel list) async {
+    final ref = await _priceLists.add(list.toMap());
+    return ref.id;
+  }
+
+  Future<void> updatePriceList(PriceListModel list) async {
+    await _priceLists.doc(list.id).update(list.toMap());
+  }
+
+  Future<void> deletePriceList(String id) async {
+    await _priceLists.doc(id).delete();
+  }
+
+  // ==================== LANDED COSTS ====================
+
+  CollectionReference<Map<String, dynamic>> get _landedCosts {
+    _ensureCompanyId();
+    return _firestore
+        .collection('companies')
+        .doc(_companyId)
+        .collection('landedCosts');
+  }
+
+  Stream<List<LandedCostModel>> getLandedCosts() {
+    return _landedCosts
+        .orderBy('shipmentDate', descending: true)
+        .limit(300)
+        .snapshots()
+        .map(
+          (s) => s.docs
+              .map((d) => LandedCostModel.fromMap(d.data(), d.id))
+              .toList(),
+        );
+  }
+
+  Future<String> addLandedCost(LandedCostModel sheet) async {
+    final ref = await _landedCosts.add(sheet.toMap());
+    return ref.id;
+  }
+
+  Future<void> updateLandedCost(LandedCostModel sheet) async {
+    await _landedCosts.doc(sheet.id).update(sheet.toMap());
+  }
+
+  Future<void> deleteLandedCost(String id) async {
+    await _landedCosts.doc(id).delete();
+  }
+
+  /// Writes each line's landed unit cost onto its product's `costPrice`.
+  ///
+  /// The pre-existing cost is captured on the line as it goes, so [reverse] can
+  /// put back exactly what was there rather than subtracting an allocation from
+  /// a cost that may have moved for unrelated reasons in between. A price
+  /// history row is written per product, so the change shows up in the same
+  /// place every other cost change does.
+  Future<void> applyLandedCost({
+    required LandedCostModel sheet,
+    required String userId,
+    required String userName,
+    bool reverse = false,
+  }) async {
+    if (!reverse && !sheet.canApply) {
+      throw Exception('This landed cost sheet is not ready to apply.');
+    }
+    if (reverse && !sheet.canReverse) {
+      throw Exception('Only an applied sheet can be reversed.');
+    }
+
+    final now = DateTime.now();
+    await _firestore.runTransaction((txn) async {
+      final sheetRef = _landedCosts.doc(sheet.id);
+      final sheetSnap = await txn.get(sheetRef);
+      if (!sheetSnap.exists) throw Exception('This sheet no longer exists.');
+      final current = LandedCostModel.fromMap(sheetSnap.data()!, sheetSnap.id);
+      if (reverse ? !current.canReverse : !current.canApply) {
+        throw Exception(
+          'This sheet has already been ${current.statusLabel.toLowerCase()}.',
+        );
+      }
+
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final line in current.lines) {
+        if (line.productId.isEmpty) continue;
+        snapshots[line.productId] = await txn.get(_products.doc(line.productId));
+      }
+
+      // One cost per product, not one per line: see
+      // [LandedCostAllocator.aggregateByProduct] for why.
+      final updatedLines = <LandedCostLine>[];
+      final applicable = <LandedCostLine>[];
+      final costBefore = <String, double>{};
+
+      for (final line in current.lines) {
+        final snap = snapshots[line.productId];
+        // A product deleted since the sheet was drafted is skipped rather than
+        // failing the whole apply — the sheet keeps its record of what it
+        // intended, and the remaining products still get their true cost.
+        if (snap == null || !snap.exists) {
+          updatedLines.add(line);
+          continue;
+        }
+        final existingCost = safeDouble(snap.data()!['costPrice']);
+        costBefore[line.productId] = existingCost;
+        applicable.add(line);
+        updatedLines.add(
+          reverse ? line : line.copyWith(previousUnitCost: existingCost),
+        );
+      }
+
+      for (final change in LandedCostAllocator.aggregateByProduct(applicable)) {
+        final newCost = reverse
+            ? change.previousUnitCost
+            : change.landedUnitCost;
+
+        txn.update(_products.doc(change.productId), {
+          'costPrice': newCost,
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        // Recorded through the same collection every other cost change goes
+        // through, so the Price History screen shows landed costs alongside
+        // manual edits instead of leaving an unexplained jump.
+        txn.set(
+          _priceHistory.doc(),
+          PriceHistoryModel(
+            id: '',
+            productId: change.productId,
+            productName: change.productName,
+            field: 'costPrice',
+            oldValue: costBefore[change.productId] ?? 0,
+            newValue: newCost,
+            changedBy: userId,
+            changedByName: userName,
+            timestamp: now,
+          ).toMap(),
+        );
+      }
+
+      txn.update(sheetRef, {
+        'lines': updatedLines.map((l) => l.toMap()).toList(),
+        'status': LandedCostModel.statusToString(
+          reverse ? LandedCostStatus.reversed : LandedCostStatus.applied,
+        ),
+        'appliedBy': userId,
+        'appliedByName': userName,
+        'appliedAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      final auditRef = _auditLogs.doc();
+      txn.set(
+        auditRef,
+        AuditLogModel(
+          id: auditRef.id,
+          action: reverse ? 'landed_cost_reversed' : 'landed_cost_applied',
+          entityType: 'LandedCost',
+          entityId: current.id,
+          entityName: current.referenceNumber.isEmpty
+              ? current.purchaseOrderNumber
+              : current.referenceNumber,
+          userId: userId,
+          userName: userName,
+          changes: {
+            'charges': current.totalCharges,
+            'lines': current.lines.length,
+            'upliftPercent': current.upliftPercent,
+          },
+          timestamp: now,
+        ).toMap(),
+      );
     });
   }
 }

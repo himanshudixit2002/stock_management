@@ -164,7 +164,18 @@ class PlanCatalog {
       PlanLimitKeys.salesOrders: 100,
       PlanLimitKeys.purchaseOrders: 100,
     },
-    lockedFeatures: {'aiAssistant'},
+    // A single-location workspace has no use for transfers or requisitions,
+    // and the manufacturing/costing modules are what the higher tiers are for.
+    lockedFeatures: {
+      'aiAssistant',
+      'boms',
+      'serials',
+      'transferOrders',
+      'requisitions',
+      'recurringInvoices',
+      'priceLists',
+      'landedCosts',
+    },
   );
 
   static const PlanDefinition growth = PlanDefinition(
@@ -180,7 +191,9 @@ class PlanCatalog {
       PlanLimitKeys.salesOrders: 1000,
       PlanLimitKeys.purchaseOrders: 1000,
     },
-    lockedFeatures: {'aiAssistant'},
+    // Growth gets the multi-location and billing modules; assembly, serialised
+    // units and landed costing stay with Pro.
+    lockedFeatures: {'aiAssistant', 'boms', 'serials', 'landedCosts'},
   );
 
   static const PlanDefinition pro = PlanDefinition(

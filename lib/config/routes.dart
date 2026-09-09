@@ -124,4 +124,40 @@ class AppRoutes {
   static const String customerStatement = '/billing/customer-statement';
   static const String vendorStatement = '/billing/vendor-statement';
   static const String fastPos = '/pos/fast';
+
+  // Manufacturing & assembly
+  static const String boms = '/manufacturing/boms';
+  static const String bomEditor = '/manufacturing/boms/edit';
+
+  // Serialised units
+  static const String serials = '/serials';
+
+  // Transfer orders (multi-step, with in-transit stock)
+  static const String transferOrders = '/transfers';
+  static const String createTransferOrder = '/transfers/create';
+  static const String transferOrderDetail = '/transfers/detail';
+
+  // Purchase requisitions
+  static const String requisitions = '/requisitions';
+  static const String createRequisition = '/requisitions/create';
+  static const String requisitionDetail = '/requisitions/detail';
+
+  // Reports added alongside the existing set
+  static const String taxSummary = '/reports/tax';
+  static const String deadStock = '/reports/dead-stock';
+
+  // Billing schedules
+  static const String recurringInvoices = '/billing/recurring';
+  static const String recurringInvoiceEditor = '/billing/recurring/edit';
+
+  // Customer pricing
+  static const String priceLists = '/pricing/lists';
+  static const String priceListEditor = '/pricing/lists/edit';
+
+  // Label printing
+  static const String labelPrint = '/labels';
+
+  // Landed costs
+  static const String landedCosts = '/landed-costs';
+  static const String landedCostEditor = '/landed-costs/edit';
 }

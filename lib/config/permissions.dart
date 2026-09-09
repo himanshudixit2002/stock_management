@@ -77,6 +77,11 @@ class AppPermissions {
       icon: Icons.layers_rounded,
     ),
     PermissionGroup(
+      id: 'manufacturing',
+      label: 'Manufacturing',
+      icon: Icons.precision_manufacturing_rounded,
+    ),
+    PermissionGroup(
       id: 'billing',
       label: 'Billing & Invoices',
       icon: Icons.receipt_rounded,
@@ -107,6 +112,8 @@ class AppPermissions {
   static const String viewReports = 'canViewReports';
   static const String viewAuditLog = 'canViewAuditLog';
   static const String viewActivityTimeline = 'canViewActivityTimeline';
+  static const String viewTaxReports = 'canViewTaxReports';
+  static const String viewDeadStock = 'canViewDeadStock';
 
   // Products & Categories
   static const String viewProducts = 'canViewProducts';
@@ -114,6 +121,7 @@ class AppPermissions {
   static const String editProducts = 'canEditProducts';
   static const String deleteProducts = 'canDeleteProducts';
   static const String manageCategories = 'canManageCategories';
+  static const String printLabels = 'canPrintLabels';
 
   // Stock Operations
   static const String stockIn = 'canStockIn';
@@ -126,6 +134,10 @@ class AppPermissions {
   static const String holdStock = 'canHoldStock';
   static const String releaseStock = 'canReleaseStock';
   static const String viewStockHolds = 'canViewStockHolds';
+  static const String viewTransferOrders = 'canViewTransferOrders';
+  static const String createTransferOrders = 'canCreateTransferOrders';
+  static const String dispatchTransferOrders = 'canDispatchTransferOrders';
+  static const String receiveTransferOrders = 'canReceiveTransferOrders';
 
   // Purchase Orders
   static const String viewPurchaseOrders = 'canViewPurchaseOrders';
@@ -135,6 +147,11 @@ class AppPermissions {
   static const String approvePurchaseOrders = 'canApprovePurchaseOrders';
   static const String receivePurchaseOrders = 'canReceivePurchaseOrders';
   static const String cancelPurchaseOrders = 'canCancelPurchaseOrders';
+  static const String viewRequisitions = 'canViewRequisitions';
+  static const String createRequisitions = 'canCreateRequisitions';
+  static const String approveRequisitions = 'canApproveRequisitions';
+  static const String viewLandedCosts = 'canViewLandedCosts';
+  static const String manageLandedCosts = 'canManageLandedCosts';
 
   // Sales Orders
   static const String viewSalesOrders = 'canViewSalesOrders';
@@ -171,6 +188,13 @@ class AppPermissions {
   static const String viewExpiryAlerts = 'canViewExpiryAlerts';
   static const String viewReorderSuggestions = 'canViewReorderSuggestions';
   static const String viewStockForecast = 'canViewStockForecast';
+  static const String viewSerials = 'canViewSerials';
+  static const String manageSerials = 'canManageSerials';
+
+  // Manufacturing
+  static const String viewBoms = 'canViewBoms';
+  static const String manageBoms = 'canManageBoms';
+  static const String buildAssemblies = 'canBuildAssemblies';
 
   // Billing & Invoices
   static const String viewInvoices = 'canViewInvoices';
@@ -179,6 +203,10 @@ class AppPermissions {
   static const String deleteInvoices = 'canDeleteInvoices';
   static const String recordPayments = 'canRecordPayments';
   static const String useFastPos = 'canUseFastPos';
+  static const String viewRecurringInvoices = 'canViewRecurringInvoices';
+  static const String manageRecurringInvoices = 'canManageRecurringInvoices';
+  static const String viewPriceLists = 'canViewPriceLists';
+  static const String managePriceLists = 'canManagePriceLists';
 
   // Import / Export
   static const String importData = 'canImport';
@@ -228,6 +256,20 @@ class AppPermissions {
       group: 'dashboard',
       icon: Icons.timeline_rounded,
     ),
+    PermissionDef(
+      key: viewTaxReports,
+      label: 'View Tax Summary',
+      description: 'See the period tax position built from invoices',
+      group: 'dashboard',
+      icon: Icons.receipt_long_rounded,
+    ),
+    PermissionDef(
+      key: viewDeadStock,
+      label: 'View Dead Stock',
+      description: 'See which stock has stopped moving',
+      group: 'dashboard',
+      icon: Icons.hourglass_disabled_rounded,
+    ),
 
     // Products & Categories
     PermissionDef(
@@ -264,6 +306,13 @@ class AppPermissions {
       description: 'Create, edit, and delete categories',
       group: 'products',
       icon: Icons.category_rounded,
+    ),
+    PermissionDef(
+      key: printLabels,
+      label: 'Print Labels',
+      description: 'Generate barcode and shelf label sheets',
+      group: 'products',
+      icon: Icons.local_offer_rounded,
     ),
 
     // Stock Operations
@@ -337,6 +386,34 @@ class AppPermissions {
       group: 'stock',
       icon: Icons.lock_clock_rounded,
     ),
+    PermissionDef(
+      key: viewTransferOrders,
+      label: 'View Transfer Orders',
+      description: 'See transfers between locations and stock in transit',
+      group: 'stock',
+      icon: Icons.local_shipping_rounded,
+    ),
+    PermissionDef(
+      key: createTransferOrders,
+      label: 'Create Transfer Orders',
+      description: 'Raise a transfer between two locations',
+      group: 'stock',
+      icon: Icons.add_road_rounded,
+    ),
+    PermissionDef(
+      key: dispatchTransferOrders,
+      label: 'Dispatch Transfers',
+      description: 'Send stock out of the source location',
+      group: 'stock',
+      icon: Icons.outbound_rounded,
+    ),
+    PermissionDef(
+      key: receiveTransferOrders,
+      label: 'Receive Transfers',
+      description: 'Book in-transit stock into the destination',
+      group: 'stock',
+      icon: Icons.move_to_inbox_rounded,
+    ),
 
     // Purchase Orders
     PermissionDef(
@@ -387,6 +464,41 @@ class AppPermissions {
       description: 'Cancel purchase orders',
       group: 'purchaseOrders',
       icon: Icons.cancel_rounded,
+    ),
+    PermissionDef(
+      key: viewRequisitions,
+      label: 'View Requisitions',
+      description: 'See internal requests to buy',
+      group: 'purchaseOrders',
+      icon: Icons.assignment_rounded,
+    ),
+    PermissionDef(
+      key: createRequisitions,
+      label: 'Raise Requisitions',
+      description: 'Ask for stock without committing an order',
+      group: 'purchaseOrders',
+      icon: Icons.post_add_rounded,
+    ),
+    PermissionDef(
+      key: approveRequisitions,
+      label: 'Approve Requisitions',
+      description: 'Approve or reject requests, and turn them into orders',
+      group: 'purchaseOrders',
+      icon: Icons.verified_rounded,
+    ),
+    PermissionDef(
+      key: viewLandedCosts,
+      label: 'View Landed Costs',
+      description: 'See freight and duty allocated onto received stock',
+      group: 'purchaseOrders',
+      icon: Icons.local_shipping_outlined,
+    ),
+    PermissionDef(
+      key: manageLandedCosts,
+      label: 'Manage Landed Costs',
+      description: 'Allocate shipping charges and update product cost prices',
+      group: 'purchaseOrders',
+      icon: Icons.calculate_rounded,
     ),
 
     // Sales Orders
@@ -580,6 +692,43 @@ class AppPermissions {
       group: 'inventory',
       icon: Icons.trending_up_rounded,
     ),
+    PermissionDef(
+      key: viewSerials,
+      label: 'View Serial Numbers',
+      description: 'Look up individual tracked units',
+      group: 'inventory',
+      icon: Icons.qr_code_2_rounded,
+    ),
+    PermissionDef(
+      key: manageSerials,
+      label: 'Manage Serial Numbers',
+      description: 'Register units and change their status',
+      group: 'inventory',
+      icon: Icons.edit_note_rounded,
+    ),
+
+    // Manufacturing
+    PermissionDef(
+      key: viewBoms,
+      label: 'View Bills of Materials',
+      description: 'See assembly recipes and their components',
+      group: 'manufacturing',
+      icon: Icons.account_tree_rounded,
+    ),
+    PermissionDef(
+      key: manageBoms,
+      label: 'Manage Bills of Materials',
+      description: 'Create and edit assembly recipes',
+      group: 'manufacturing',
+      icon: Icons.edit_rounded,
+    ),
+    PermissionDef(
+      key: buildAssemblies,
+      label: 'Build Assemblies',
+      description: 'Consume components to produce finished goods',
+      group: 'manufacturing',
+      icon: Icons.precision_manufacturing_rounded,
+    ),
 
     // Billing & Invoices
     PermissionDef(
@@ -623,6 +772,34 @@ class AppPermissions {
       description: 'Create quick sales with paid-now or credit checkout',
       group: 'billing',
       icon: Icons.point_of_sale_rounded,
+    ),
+    PermissionDef(
+      key: viewRecurringInvoices,
+      label: 'View Billing Schedules',
+      description: 'See recurring invoice schedules',
+      group: 'billing',
+      icon: Icons.event_repeat_rounded,
+    ),
+    PermissionDef(
+      key: manageRecurringInvoices,
+      label: 'Manage Billing Schedules',
+      description: 'Create schedules and generate the invoices they owe',
+      group: 'billing',
+      icon: Icons.autorenew_rounded,
+    ),
+    PermissionDef(
+      key: viewPriceLists,
+      label: 'View Price Lists',
+      description: 'See customer pricing and discount tiers',
+      group: 'billing',
+      icon: Icons.sell_rounded,
+    ),
+    PermissionDef(
+      key: managePriceLists,
+      label: 'Manage Price Lists',
+      description: 'Create price lists and assign customers to them',
+      group: 'billing',
+      icon: Icons.price_change_rounded,
     ),
 
     // Import / Export

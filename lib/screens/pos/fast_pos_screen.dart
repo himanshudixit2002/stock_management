@@ -8,6 +8,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/customer_model.dart';
 import '../../models/product_model.dart';
+import '../../providers/price_list_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
@@ -225,6 +226,11 @@ class _FastPosScreenState extends State<FastPosScreen> {
     if (nextQty > available) {
       return 'Only $available ${product.baseUnit} available at $location.';
     }
+    // A line's price comes from the customer's price list when they are on
+    // one. Existing lines keep the price they were added at until the cart is
+    // repriced, so a quantity bump cannot silently move the price under the
+    // operator mid-sale.
+    final unitPrice = _priceFor(product, 1);
     setState(() {
       if (existing != null) {
         _cart[key] = existing.copyWith(quantity: existing.quantity + 1);
@@ -232,7 +238,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
         _cart[key] = _CartLine(
           product: product,
           quantity: 1,
-          unitPrice: product.sellingPrice,
+          unitPrice: unitPrice,
           location: location,
         );
       }
@@ -536,7 +542,35 @@ class _FastPosScreenState extends State<FastPosScreen> {
     if (selected == null) return;
     setState(() {
       _selectedCustomer = customers.firstWhere((c) => c.id == selected);
+      // Choosing the customer after items are scanned is the normal order of
+      // events at a counter, so the cart is repriced rather than left on
+      // whatever prices the first scan happened to pick up.
+      _repriceCart();
     });
+  }
+
+  /// The unit price [product] carries for the selected customer.
+  double _priceFor(ProductModel product, int quantity) {
+    return context
+        .read<PriceListProvider>()
+        .priceFor(
+          product: product,
+          customerId: _selectedCustomer?.id ?? '',
+          quantity: quantity,
+        )
+        .unitPrice;
+  }
+
+  /// Re-applies price-list pricing to every line already in the cart.
+  ///
+  /// Call inside a [setState]: it mutates [_cart] in place.
+  void _repriceCart() {
+    for (final entry in _cart.entries.toList()) {
+      final line = entry.value;
+      _cart[entry.key] = line.copyWith(
+        unitPrice: _priceFor(line.product, line.quantity),
+      );
+    }
   }
 
   Future<bool> _revalidateCartStock() async {

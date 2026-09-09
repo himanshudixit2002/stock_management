@@ -34,6 +34,13 @@ companies/{companyId}
 ├── categories   → name, description
 ├── transactions → productId, type (stock_in|out|damage|transfer), quantity, location, ...
 ├── vendors      → name, contactName, email, phone, ...
+├── boms         → outputProductId, outputQuantity, components[], status
+├── serials      → serialNumber, serialKey, productId, status, location, history[]
+├── transferOrders   → fromLocation, toLocation, status, lines[] (ordered/dispatched/received)
+├── requisitions     → title, urgency, status, lines[], vendorId, decidedBy, purchaseOrderId
+├── recurringInvoices → customerId, items[], cadence, nextRunAt, generatedCount
+├── priceLists   → name, defaultDiscountPercent, entries[], customerIds[]
+├── landedCosts  → purchaseOrderId, charges[], lines[], status
 └── (company doc) → settings: { pricingEnabled, vendorsEnabled, companies[], sizes[], locations[] }
 
 users/{uid}      → role, companyId, approved, permissions

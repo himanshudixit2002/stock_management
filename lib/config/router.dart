@@ -123,6 +123,45 @@ import '../screens/billing/vendor_statement_screen.dart'
 import '../screens/bulk/bulk_stock_in_screen.dart' deferred as bulk_in;
 import '../screens/bulk/bulk_edit_screen.dart' deferred as bulk_edit;
 
+// The ten newer modules. All deferred: none of them is on the first-paint
+// path, and several pull in heavy leaves (the label sheet drags in `pdf` and
+// `printing`) that would otherwise sit in main.dart.js for every session.
+import '../screens/manufacturing/bom_list_screen.dart' deferred as boms;
+import '../screens/manufacturing/bom_editor_screen.dart' deferred as bom_edit;
+import '../screens/serials/serial_register_screen.dart' deferred as serials;
+import '../screens/transfers/transfer_order_list_screen.dart'
+    deferred as transfers;
+import '../screens/transfers/create_transfer_order_screen.dart'
+    deferred as transfer_create;
+import '../screens/transfers/transfer_order_detail_screen.dart'
+    deferred as transfer_detail;
+import '../screens/requisitions/requisition_list_screen.dart'
+    deferred as requisitions;
+import '../screens/requisitions/create_requisition_screen.dart'
+    deferred as requisition_create;
+import '../screens/requisitions/requisition_detail_screen.dart'
+    deferred as requisition_detail;
+import '../screens/reports/tax_summary_screen.dart' deferred as tax_summary;
+import '../screens/reports/dead_stock_screen.dart' deferred as dead_stock;
+import '../screens/billing/recurring_invoice_list_screen.dart'
+    deferred as recurring_list;
+import '../screens/billing/recurring_invoice_editor_screen.dart'
+    deferred as recurring_edit;
+import '../screens/pricing/price_list_screen.dart' deferred as price_lists;
+import '../screens/pricing/price_list_editor_screen.dart'
+    deferred as price_list_edit;
+import '../screens/labels/label_print_screen.dart' deferred as labels;
+import '../screens/landed_costs/landed_cost_list_screen.dart'
+    deferred as landed_costs;
+import '../screens/landed_costs/landed_cost_editor_screen.dart'
+    deferred as landed_cost_edit;
+import '../models/bom_model.dart';
+import '../models/transfer_order_model.dart';
+import '../models/requisition_model.dart';
+import '../models/recurring_invoice_model.dart';
+import '../models/price_list_model.dart';
+import '../models/landed_cost_model.dart';
+
 /// A single, shared page transition for every pushed route: the incoming page
 /// fades in while gently settling from a slight scale-down (0.96 -> 1) and a
 /// small upward slide (12px -> 0). Kept subtle so it complements — rather than
@@ -813,6 +852,180 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
       DeferredScreenLoader(
         future: pos.loadLibrary(),
         builder: (_) => pos.FastPosScreen(),
+      ),
+    ),
+
+    // -- Manufacturing & assembly --
+    AppRoutes.boms => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: boms.loadLibrary(),
+        builder: (_) => boms.BomListScreen(),
+      ),
+    ),
+    AppRoutes.bomEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: bom_edit.loadLibrary(),
+        builder: (_) =>
+            bom_edit.BomEditorScreen(bom: settings.arguments as BomModel?),
+      ),
+    ),
+
+    // -- Serial numbers --
+    AppRoutes.serials => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: serials.loadLibrary(),
+        builder: (_) => serials.SerialRegisterScreen(),
+      ),
+    ),
+
+    // -- Transfer orders --
+    AppRoutes.transferOrders => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: transfers.loadLibrary(),
+        builder: (_) => transfers.TransferOrderListScreen(),
+      ),
+    ),
+    AppRoutes.createTransferOrder => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: transfer_create.loadLibrary(),
+        builder: (_) => transfer_create.CreateTransferOrderScreen(
+          order: settings.arguments as TransferOrderModel?,
+        ),
+      ),
+    ),
+    // Detail screens take an id and re-read the live document: pushing the
+    // model itself would render a copy that a dispatch or receipt elsewhere has
+    // already made stale.
+    AppRoutes.transferOrderDetail => () {
+      final order = settings.arguments;
+      final id = order is TransferOrderModel
+          ? order.id
+          : (order is String ? order : '');
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: transfer_detail.loadLibrary(),
+          builder: (_) =>
+              transfer_detail.TransferOrderDetailScreen(orderId: id),
+        ),
+      );
+    }(),
+
+    // -- Requisitions --
+    AppRoutes.requisitions => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: requisitions.loadLibrary(),
+        builder: (_) => requisitions.RequisitionListScreen(),
+      ),
+    ),
+    AppRoutes.createRequisition => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: requisition_create.loadLibrary(),
+        builder: (_) => requisition_create.CreateRequisitionScreen(
+          requisition: settings.arguments as RequisitionModel?,
+        ),
+      ),
+    ),
+    AppRoutes.requisitionDetail => () {
+      final requisition = settings.arguments;
+      final id = requisition is RequisitionModel
+          ? requisition.id
+          : (requisition is String ? requisition : '');
+      return _slideRoute(
+        settings,
+        DeferredScreenLoader(
+          future: requisition_detail.loadLibrary(),
+          builder: (_) =>
+              requisition_detail.RequisitionDetailScreen(requisitionId: id),
+        ),
+      );
+    }(),
+
+    // -- Reports --
+    AppRoutes.taxSummary => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: tax_summary.loadLibrary(),
+        builder: (_) => tax_summary.TaxSummaryScreen(),
+      ),
+    ),
+    AppRoutes.deadStock => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: dead_stock.loadLibrary(),
+        builder: (_) => dead_stock.DeadStockScreen(),
+      ),
+    ),
+
+    // -- Billing schedules --
+    AppRoutes.recurringInvoices => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: recurring_list.loadLibrary(),
+        builder: (_) => recurring_list.RecurringInvoiceListScreen(),
+      ),
+    ),
+    AppRoutes.recurringInvoiceEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: recurring_edit.loadLibrary(),
+        builder: (_) => recurring_edit.RecurringInvoiceEditorScreen(
+          schedule: settings.arguments as RecurringInvoiceModel?,
+        ),
+      ),
+    ),
+
+    // -- Customer pricing --
+    AppRoutes.priceLists => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: price_lists.loadLibrary(),
+        builder: (_) => price_lists.PriceListScreen(),
+      ),
+    ),
+    AppRoutes.priceListEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: price_list_edit.loadLibrary(),
+        builder: (_) => price_list_edit.PriceListEditorScreen(
+          list: settings.arguments as PriceListModel?,
+        ),
+      ),
+    ),
+
+    // -- Label printing --
+    AppRoutes.labelPrint => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: labels.loadLibrary(),
+        builder: (_) => labels.LabelPrintScreen(
+          initialProduct: settings.arguments as ProductModel?,
+        ),
+      ),
+    ),
+
+    // -- Landed costs --
+    AppRoutes.landedCosts => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: landed_costs.loadLibrary(),
+        builder: (_) => landed_costs.LandedCostListScreen(),
+      ),
+    ),
+    AppRoutes.landedCostEditor => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: landed_cost_edit.loadLibrary(),
+        builder: (_) => landed_cost_edit.LandedCostEditorScreen(
+          sheet: settings.arguments as LandedCostModel?,
+        ),
       ),
     ),
 
