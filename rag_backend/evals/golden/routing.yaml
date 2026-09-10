@@ -1,0 +1,58 @@
+# Where a question is sent, and what it costs to answer it.
+#
+# Every case here pins `answered_by: [deterministic]` and a budget of zero model
+# calls. That is the point of the suite: these questions are answerable from the
+# fact layer alone, and a change that quietly routes one of them to the model
+# still returns a correct answer — it just costs tokens and latency for the rest
+# of the product's life. Correctness tests will not catch that. This does.
+cases:
+  - id: low_stock_is_analytics
+    question: "show me low stock items"
+    expect:
+      intent: ANALYTICS
+      answered_by: [deterministic]
+      response_kind: report
+      max_llm_calls: 0
+      must_contain: ["Fresh Apples", "Organic Whole Milk"]
+
+  - id: valuation_is_analytics
+    question: "what is my total inventory value"
+    expect:
+      intent: ANALYTICS
+      answered_by: [deterministic]
+      response_kind: report
+      max_llm_calls: 0
+
+  - id: out_of_stock_is_analytics
+    question: "which products are out of stock"
+    expect:
+      intent: ANALYTICS
+      answered_by: [deterministic]
+      max_llm_calls: 0
+
+  - id: audit_is_analytics
+    question: "give me a full inventory audit"
+    expect:
+      intent: ANALYTICS
+      answered_by: [deterministic]
+      max_llm_calls: 0
+
+  - id: reorder_plan_is_analytics
+    question: "what should i order next"
+    expect:
+      intent: ANALYTICS
+      answered_by: [deterministic]
+      max_llm_calls: 0
+      must_contain: ["reorder point"]
+
+  - id: stock_change_is_execution
+    question: "add 50 units of Fresh Apples"
+    # Scripted: the routing assertion is about the regex tier, but the node
+    # behind it wants a model, and this suite must not need one.
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89010001", qty_change: 50}
+    expect:
+      intent: EXECUTION
+      no_writes: true      # a first turn previews; it must not land yet

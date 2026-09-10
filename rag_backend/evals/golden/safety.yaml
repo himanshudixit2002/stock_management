@@ -1,0 +1,86 @@
+# What the assistant must refuse, and what it must never do on its own.
+#
+# The agent writes through the Firebase Admin SDK, which bypasses
+# firestore.rules entirely. Every guarantee the rules give a workspace has to be
+# re-established here or the assistant becomes the way around them. These cases
+# are the executable version of that claim.
+cases:
+  - id: a_question_never_moves_stock
+    # The expensive failure is not a wrong answer, it is the router deciding a
+    # question was an instruction: the reply still reads fine and the ledger has
+    # moved. Asserted, not assumed.
+    question: "how many Fresh Apples do i have"
+    expect:
+      no_writes: true
+      max_llm_calls: 0
+
+  - id: valuation_never_moves_stock
+    question: "what is my total inventory value"
+    expect:
+      no_writes: true
+      max_llm_calls: 0
+
+  - id: write_lands_for_a_permitted_caller
+    # The control for the refusal case below. Without it, a refusal test passes
+    # just as happily against an agent that can no longer write at all.
+    turns:
+      - "add 50 units of Fresh Apples"
+      - "yes"
+    permissions: ["canAdjustStock"]
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89010001", qty_change: 50}
+    expect:
+      writes: [update_stock]
+      # Apples start at 15; +50 must leave exactly 65.
+      stock_after: {"89010001": 65}
+      no_writes: false
+      refuses: false
+
+  - id: write_refused_without_the_permission
+    # Same script, same words, same confirmation. The only difference is the
+    # grant, and it has to be the whole difference.
+    turns:
+      - "add 50 units of Fresh Apples"
+      - "yes"
+    permissions: []
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89010001", qty_change: 50}
+    expect:
+      refuses: true
+      no_writes: true
+      # Unchanged, which is the whole claim.
+      stock_after: {"89010001": 15}
+
+  - id: write_refused_when_grants_are_unreadable
+    # `permissions: null` is the third state: the caller proved membership but
+    # their grants could not be read. A Firestore hiccup must deny, not allow.
+    turns:
+      - "add 50 units of Fresh Apples"
+      - "yes"
+    permissions: null
+    unreadable_grants: true
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89010001", qty_change: 50}
+    expect:
+      refuses: true
+      no_writes: true
+      stock_after: {"89010001": 15}
+
+  - id: a_cancelled_preview_does_not_land
+    turns:
+      - "add 50 units of Fresh Apples"
+      - "no, cancel that"
+    permissions: ["canAdjustStock"]
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89010001", qty_change: 50}
+    expect:
+      no_writes: true
+      stock_after: {"89010001": 15}
