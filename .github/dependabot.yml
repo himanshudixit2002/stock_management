@@ -48,6 +48,14 @@ updates:
         patterns: ["org.springframework*", "org.springframework.boot*"]
       java-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Boot 3 -> 4 is a framework migration, not a version bump: autoconfigure
+      # was split into per-domain modules, and Hibernate now validates the schema
+      # before Flyway migrates it, so the context will not start. Investigated and
+      # closed in #2. Left to Dependabot it reopens weekly and holds CI red for a
+      # change nobody is ready to make.
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-major"]
 
   # The workflows pin action versions; without this they silently rot.
   - package-ecosystem: github-actions
