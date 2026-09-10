@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: reporting-service
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/smartshelfkart_reporting}
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    hikari:
+      # A read model serving reports: connections are held for the length of an
+      # aggregate query, not a user session. Ten is generous for a single
+      # container and small enough that a scaled-out deployment does not exhaust
+      # the database's own connection limit.
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 5000
+
+  jpa:
+    # Flyway owns the schema. Hibernate is told to validate against it and
+    # nothing more: `update` would let an entity change silently alter a
+    # production table, which is how a migration history stops being the truth.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 200
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${PORT:8081}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Prometheus is scraped from the same place the Python service is, so
+        # both land on one dashboard.
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      service: reporting-service
+
+reporting:
+  # When true, identity checks are skipped entirely. Development and tests only;
+  # a deployed configuration must leave this false.
+  offline-mode: ${REPORTING_OFFLINE_MODE:false}
+  sync:
+    # The scheduled projection refresh. Off by default so a deployment has to
+    # opt in rather than discovering a background job reading Firestore.
+    enabled: ${SYNC_ENABLED:false}
+    interval-ms: ${SYNC_INTERVAL_MS:900000}
+    # Workspaces the scheduled job maintains, comma separated. The on-demand
+    # endpoint works for any workspace the caller can prove access to.
+    companies: ${SYNC_COMPANIES:}
+
+logging:
+  level:
+    com.smartshelfkart.reporting: INFO
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}
