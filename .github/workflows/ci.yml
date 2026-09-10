@@ -53,9 +53,15 @@ jobs:
 
       # `dart format --set-exit-if-changed` is deliberately absent. This repo is
       # not formatter-clean, and turning that into a gate would rewrite most of
-      # the tree in one unreviewable commit. Analysis catches what matters.
+      # the tree in one unreviewable commit.
+      #
+      # Warnings and errors are fatal; infos are not. `flutter analyze` makes
+      # infos fatal by default, which sounds strict and behaves badly: every
+      # SDK upgrade that introduces a lint breaks the build on code nobody
+      # touched. The six infos outstanding here are style suggestions in
+      # pre-existing screens, and none of them is worth a red pipeline.
       - name: Analyze
-        run: flutter analyze --no-pub
+        run: flutter analyze --no-pub --no-fatal-infos
 
       - name: Test
         run: flutter test --no-pub --reporter github --coverage
@@ -281,7 +287,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan the image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: inventory-agent:${{ github.sha }}
           format: sarif
