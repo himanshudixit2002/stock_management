@@ -1,7 +1,7 @@
 // GENERATED — DO NOT EDIT BY HAND.
 //
 // Source: rag_backend/openapi.json (API version 1.0.0)
-// Regenerate: cd rag_backend && venv/bin/python tools/generate_dart_client.py
+// Regenerate: cd rag_backend && venv/bin/python tools/generate_client.py
 //
 // These are data classes for the inventory agent API, generated so that the
 // field names on the wire exist in exactly one place. CI regenerates this file

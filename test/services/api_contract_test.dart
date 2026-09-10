@@ -49,7 +49,7 @@ void main() {
         generated,
         equals(declared),
         reason: 'inventory_api.g.dart is stale. Regenerate:\n'
-            '  cd rag_backend && venv/bin/python tools/generate_dart_client.py',
+            '  cd rag_backend && venv/bin/python tools/generate_client.py',
       );
     });
 

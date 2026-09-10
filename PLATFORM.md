@@ -176,7 +176,7 @@ A rename now has to touch three files in one commit, where a reviewer sees it.
 ```bash
 cd rag_backend
 venv/bin/python tools/export_openapi.py          # regenerate the schema
-venv/bin/python tools/generate_dart_client.py    # regenerate the Dart models
+venv/bin/python tools/generate_client.py    # regenerate the Dart models
 ```
 
 `test/services/api_contract_test.dart` closes the last gap: every field the
@@ -249,7 +249,7 @@ venv/bin/python run_evals.py
 
 # Contract: schema and generated client current?
 venv/bin/python tools/export_openapi.py --check
-venv/bin/python tools/generate_dart_client.py --check
+venv/bin/python tools/generate_client.py --check
 
 # Client
 cd ..
