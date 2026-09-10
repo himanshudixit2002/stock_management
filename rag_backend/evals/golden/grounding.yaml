@@ -1,0 +1,50 @@
+# Whether the numbers and the products in an answer are real.
+#
+# The failure this suite exists for is not a wrong tone or a missing caveat. It
+# is an answer that reads perfectly and contains a figure the data cannot
+# produce, or a row for a SKU that does not exist. Both are silent, both survive
+# code review, and both are exactly what an inventory assistant must never do.
+cases:
+  - id: valuation_figures_trace_to_facts
+    question: "what is my total inventory value"
+    expect:
+      grounded_numbers: true
+      # Retail 101,759.42 and cost 65,830.00, computed by hand in catalogs.py.
+      must_contain: ["101,759.42", "65,830.00"]
+      max_llm_calls: 0
+
+  - id: low_stock_rows_are_real_products
+    question: "show me low stock items"
+    expect:
+      items_are_real_products: true
+      grounded_numbers: true
+      # Plausible for a shop like this one, and absent from the catalog.
+      decoy_products:
+        - "Whole Wheat Bread"
+        - "Cheddar Cheese Block"
+        - "SKU-00000"
+        - "Product A"
+      max_llm_calls: 0
+
+  - id: reorder_rows_are_real_products
+    question: "what should i order next"
+    expect:
+      items_are_real_products: true
+      grounded_numbers: true
+      decoy_products: ["Placeholder Item", "Example Product", "TBD"]
+      max_llm_calls: 0
+
+  - id: audit_figures_trace_to_facts
+    question: "give me a full inventory audit"
+    expect:
+      grounded_numbers: true
+      max_llm_calls: 0
+
+  - id: no_sales_history_is_admitted
+    # There are no transactions in the seeded catalog, so burn rate and days of
+    # cover cannot be computed. Saying so is the correct answer; inventing a
+    # trend is the failure.
+    question: "which product will run out first"
+    expect:
+      grounded_numbers: true
+      max_llm_calls: 0
