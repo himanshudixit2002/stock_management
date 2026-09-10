@@ -139,10 +139,28 @@ What truly sets SmartShelfKart apart is **Nova**—our integrated AI Assistant. 
 - **Storage:** Firebase Cloud Storage
 
 ### AI Microservice (`rag_backend`)
-- **Framework:** Python, LangGraph
-- **LLM:** Google Gemini (`gemini-3.1-flash-lite` for operations, `gemini-3.5-flash` for deep analytics)
-- **Embeddings & Vector Store:** Google Generative AI Embeddings, ChromaDB
-- **Deployment:** Docker container deployed on Google Cloud Run
+- **Framework:** Python, FastAPI, LangGraph
+- **LLM:** Google Gemini, tiered by cost — `gemini-2.5-flash-lite` routes,
+  `gemini-2.5-flash` reasons, `gemini-2.5-pro` opt-in for genuinely multi-step asks
+- **Retrieval:** none, by design. Inventory is structured, relational, numeric
+  data, so the agent **queries** it rather than embedding it — reading the row
+  beats hoping cosine similarity surfaces it. See `BACKEND_ARCHITECTURE.md`.
+- **Deployment:** Docker container on Google Cloud Run
+
+### Platform & Delivery
+- **Agent evaluation:** offline golden-set harness with CI gates on both
+  correctness and *cost* — 21 cases, 0 tokens, no API key
+- **Observability:** OpenTelemetry (GenAI semantic conventions), Prometheus
+  metrics, per-turn token and cost accounting, hashed tenants
+- **Integration:** Model Context Protocol server exposing the inventory to MCP
+  clients, behind the same permission checks as the app
+- **API contract:** OpenAPI 3.1 generated from the app, typed Dart models
+  generated from that, both drift-gated in CI
+- **CI/CD:** GitHub Actions — analyze, 781 Flutter tests, 19 backend suites,
+  eval gate, contract gate, `pip-audit`/`npm audit`/gitleaks, Trivy image scan
+
+📐 **[PLATFORM.md](PLATFORM.md)** covers how the agent is graded, watched and
+kept honest against its client.
 
 ---
 
