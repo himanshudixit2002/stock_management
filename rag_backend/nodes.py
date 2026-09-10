@@ -221,7 +221,18 @@ WRITE_TOOL_PERMISSIONS = {
     "transfer_stock": "canTransfer",
     "audit_inventory": "canAdjustStock",
     "set_reorder_threshold": "canEditProducts",
+    # `bulk_action` is a dispatcher, not a write of its own: a bulk request is
+    # executed as its inner tool, and that inner tool is what the choke point
+    # actually checks. It is mapped anyway for two reasons. It keeps the
+    # "every write tool has a permission" invariant total, with no exception to
+    # remember. And it means that if a malformed plan ever arrives without its
+    # `inner_tool`, the fallback lands on a real grant instead of on the empty
+    # string, which `may_run_tool` would have read as "needs nothing".
+    "bulk_action": "canAdjustStock",
 }
+
+# The wrapper a bulk action travels as. Not a tool anyone may run.
+BULK_SENTINEL = "__bulk__"
 
 # What each bulk operation maps to, so one grant check covers both routes: a
 # bulk stock change is still a stock change, and must not become a way around
@@ -251,9 +262,20 @@ def may_run_tool(tool: str, permissions) -> bool:
     could not be established — in which case reads are still fine but writes are
     refused, so a Firestore hiccup denies rather than allows.
     """
+    if tool == BULK_SENTINEL:
+        # Reaching here means a bulk action lost the inner tool that carries its
+        # permission. That is a bug, and the safe reading of a bug on the write
+        # path is no.
+        return False
+
     needed = permission_for_tool(tool)
     if not needed:
-        return True
+        # A tool that writes but has no mapping must not fall through to "needs
+        # nothing" — that is precisely how a newly added write tool becomes
+        # available to everyone without anyone noticing. The invariant is
+        # asserted in the tests; this enforces it at runtime too, because the
+        # test only protects the tools that existed when it last ran.
+        return tool not in WRITE_TOOL_NAMES
     if permissions is None:
         return False
     return "*" in permissions or needed in permissions
@@ -1155,7 +1177,7 @@ def _execute_pending(
 
     # A bulk action is many writes of one kind; it is checked, and reported,
     # against that kind.
-    checked_tool = action.get("inner_tool", tool) if tool == "__bulk__" else tool
+    checked_tool = action.get("inner_tool", tool) if tool == BULK_SENTINEL else tool
 
     if not may_run_tool(checked_tool, permissions):
         needed = permission_for_tool(checked_tool)
@@ -1169,7 +1191,7 @@ def _execute_pending(
             },
         )
 
-    if tool == "__bulk__":
+    if tool == BULK_SENTINEL:
         return bulk.execute(
             action,
             facts,
