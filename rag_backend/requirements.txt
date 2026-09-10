@@ -19,3 +19,25 @@ rapidfuzz>=3.6.0                  # fast product-name resolution
 # Vector search was removed from the request path: inventory is structured,
 # relational, numeric data, and querying it directly beats embedding it.
 # chromadb / sentence-transformers / langchain-chroma are no longer needed.
+
+# --- Observability ---
+# The OTel API and SDK arrive transitively with the Google libraries, but a
+# transitive dependency is not a contract: pinning them here means `telemetry.py`
+# keeps working when an upstream package drops them. The exporter is only
+# reached when OTEL_EXPORTER_OTLP_ENDPOINT is set, so an unconfigured deployment
+# pays nothing for it.
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-exporter-otlp-proto-grpc>=1.20.0
+
+# --- Model Context Protocol ---
+# Serves `mcp_server.py`, which exposes the inventory to MCP clients. Not
+# imported by the FastAPI app, so the API runs without it — but it ships in the
+# image so one requirements file describes the whole backend.
+mcp>=2.0.0
+
+# --- Test and tooling only ---
+# The golden-set harness reads its cases from YAML. pyyaml is already present
+# transitively via langchain; named here because `evals/dataset.py` imports it
+# directly and should say so.
+pyyaml>=6.0
