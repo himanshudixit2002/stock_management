@@ -107,7 +107,7 @@ class _ExcelUpdateScreenState extends State<ExcelUpdateScreen> {
 
   Future<void> _pickAndParse() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: kIsWeb ? FileType.any : FileType.custom,
         allowedExtensions: kIsWeb ? null : ['xlsx'],
         withData: true,

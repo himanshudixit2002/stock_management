@@ -50,7 +50,7 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: kIsWeb ? FileType.any : FileType.custom,
         allowedExtensions: kIsWeb ? null : ['xlsx', 'csv'],
         withData: kIsWeb,
