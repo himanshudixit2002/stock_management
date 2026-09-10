@@ -7,7 +7,7 @@ langchain-openai>=1.0.0           # optional OpenAI-compatible fallback provider
 
 # --- API ---
 fastapi>=0.110.0
-uvicorn>=0.28.0
+uvicorn>=0.52.4
 pydantic>=2.6.4
 python-dotenv>=1.0.1
 
