@@ -66,3 +66,8 @@ rag_backend/venv/
 
 # Firebase CLI deploy cache
 .firebase/
+
+# Editor/agent tooling config — local to a machine, not part of the project.
+# `launch.json` here was tracked by accident; it describes how one developer
+# starts a dev server, which is not something a clone should inherit.
+.claude/
