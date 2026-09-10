@@ -17,8 +17,8 @@ These are DTOs, deliberately. Nothing here calls the network, so the existing
 hand-written service keeps its behaviour and can adopt the types where they
 help.
 
-    venv/bin/python tools/generate_dart_client.py
-    venv/bin/python tools/generate_dart_client.py --check
+    venv/bin/python tools/generate_client.py
+    venv/bin/python tools/generate_client.py --check
 """
 
 from __future__ import annotations
@@ -256,7 +256,7 @@ def render(schema: Dict[str, Any]) -> str:
     header = f'''// GENERATED — DO NOT EDIT BY HAND.
 //
 // Source: rag_backend/openapi.json (API version {version})
-// Regenerate: cd rag_backend && venv/bin/python tools/generate_dart_client.py
+// Regenerate: cd rag_backend && venv/bin/python tools/generate_client.py
 //
 // These are data classes for the inventory agent API, generated so that the
 // field names on the wire exist in exactly one place. CI regenerates this file
@@ -291,7 +291,7 @@ def main_cli() -> int:
             print(
                 f"{OUT.relative_to(REPO)} is out of date with openapi.json.\n"
                 "Regenerate it and commit the result:\n"
-                "    cd rag_backend && venv/bin/python tools/generate_dart_client.py"
+                "    cd rag_backend && venv/bin/python tools/generate_client.py"
             )
             return 1
         print(f"{OUT.name} matches the schema.")
