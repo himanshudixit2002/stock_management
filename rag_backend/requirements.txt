@@ -9,7 +9,7 @@ langchain-openai>=1.0.0           # optional OpenAI-compatible fallback provider
 fastapi>=0.110.0
 uvicorn>=0.28.0
 pydantic>=2.6.4
-python-dotenv>=1.0.1
+python-dotenv>=1.2.3
 
 # --- Data ---
 firebase-admin>=6.0.0             # Firestore: products, transactions, vendors
