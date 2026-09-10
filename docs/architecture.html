@@ -99,7 +99,7 @@
     <dt>Scope</dt><dd>Data model, authorization, domain modules, inventory
         mathematics, the assistant service, and the delivery pipeline</dd>
     <dt>Audience</dt><dd>Engineers joining the codebase, and reviewers assessing it</dd>
-    <dt>Status</dt><dd>Describes the system as built. Sections 12 and 13 record
+    <dt>Status</dt><dd>Describes the system as built. Sections 13 and 14 record
         open items and the reasoning behind decisions that look unusual.</dd>
   </dl>
 </section>
@@ -118,6 +118,8 @@
      <ol><li>Demand</li><li>Safety stock and the reorder point</li><li>Replenishment quantity</li><li>Classification</li></ol></li>
   <li>The assistant
      <ol><li>Request path</li><li>The fact layer</li><li>The deterministic bank</li><li>Routing and cost tiers</li><li>Product resolution</li><li>Writes: preview, confirm, execute</li><li>Bulk actions</li><li>Guardrails and the autonomous swarm</li><li>Answer caching</li><li>Why there is no vector search</li></ol></li>
+  <li>The financial read model
+     <ol><li>Money</li><li>Tenancy is the physical layout</li><li>The reports</li><li>Authorization, for the third time</li><li>The sync is a full rebuild</li><li>Portable SQL</li></ol></li>
   <li>Grading the assistant
      <ol><li>What the golden set asserts</li><li>Ground truth</li><li>Scripting the model, not the system</li><li>Deterministic coverage as a cost gate</li><li>Testing the graders</li></ol></li>
   <li>Observability
@@ -141,11 +143,11 @@ jobs, and the financial reporting that falls out of them.</p>
 
 <p>Layered over that is a natural-language assistant that answers questions about live
 inventory and, on confirmation, changes it. The assistant is the part of the system with
-the most unusual engineering in it, and sections 6 through 9 are mostly about it.</p>
+the most unusual engineering in it, and sections 6 through 10 are mostly about it.</p>
 
 <h3>1.1 Runtimes and where work happens</h3>
 
-<p>Three runtimes, with a deliberate imbalance in how much each is trusted.</p>
+<p>Four runtimes, with a deliberate imbalance in how much each is trusted.</p>
 
 <table style="page-break-inside:avoid">
 <tr><th>Runtime</th><th>Responsibility</th><th>Trust</th></tr>
@@ -159,6 +161,11 @@ the most unusual engineering in it, and sections 6 through 9 are mostly about it
     agent-driven writes, over HTTP and over the Model Context Protocol</td>
     <td>Runs with Admin SDK credentials, which bypass rules entirely — so it re-implements
     the authorization model itself. See section 3.</td></tr>
+<tr><td>Reporting service (Java)</td><td>Financial reports over a PostgreSQL
+    projection of the operational data: tax, aging, profit and loss, customer
+    exposure</td>
+    <td>Also Admin SDK, so also re-implements the model. Read-only with respect
+    to business data — it writes nothing back. See section 7.</td></tr>
 </table>
 
 <p>The client talks to Firestore directly rather than through an API tier. For a system
@@ -715,7 +722,127 @@ how-to guides — which is the one thing retrieval is actually good at here.</p>
 <code>requirements.txt</code>. Documentation that still claimed them was corrected in this
 revision; it had been arguing against the architecture it was describing.</div>
 
-<h2><span class="num">7</span>Grading the assistant</h2>
+<h2><span class="num">7</span>The financial read model</h2>
+
+<p>The reports in section 4.5 — tax summary, aging, profit and loss, customer
+exposure — were computed in memory on the client, over collections loaded in
+full, with no pagination anywhere. Around two thousand lines of it. That works
+until a workspace has a year of invoices, and then it does not work at all.</p>
+
+<p>They are also the wrong shape for the store underneath them. <em>Group by tax
+rate across a quarter. Bucket receivables by age. Join lines to invoices to
+payments and subtract.</em> Those are relational questions, and Firestore is a
+good operational store and a poor analytical one. Making it into one is not the
+fix.</p>
+
+<p>So there is a projection, in PostgreSQL, behind a Spring Boot service:</p>
+
+<div class="ascii">   Firestore  ──rebuild──▶  PostgreSQL  ──▶  reporting endpoints
+   (operational,            (analytical
+    source of truth)         read model)</div>
+
+<p>It owns no business truth. Every row in it is derived, and the whole thing can
+be dropped and rebuilt. Nothing writes back. It also replaces nothing: the
+assistant still queries Firestore directly and should, because its questions are
+about current stock, which is exactly what a document store is good at.</p>
+
+<h3>7.1 Money</h3>
+
+<p>Every amount is a <code>BIGINT</code> of minor units. Never a floating-point
+type. A <code>DOUBLE</code> column accumulates error across a quarter and
+eventually reports a tax total of 4999.999999997, and a financial report that is
+nearly right is worse than one that is missing, because nobody notices.</p>
+
+<p>The conversion happens once, at the sync boundary, and the detail there
+matters more than it looks:</p>
+
+<pre><code>// new BigDecimal(19.99) is 19.98999999999999843680598... and rounds to 1998.
+// BigDecimal.valueOf goes through the shortest decimal representation and
+// gives 1999, which is the number printed on the invoice.
+BigDecimal.valueOf(number.doubleValue()).movePointRight(2)
+          .setScale(0, RoundingMode.HALF_UP).longValueExact();</code></pre>
+
+<h3>7.2 Tenancy is the physical layout</h3>
+
+<p><code>company_id</code> is the first column of every primary key and every
+index in the schema. That is not decoration: it means a query that forgets to
+scope by workspace cannot use an index, so a tenancy bug is simultaneously a
+full table scan and is found in review rather than in an incident.</p>
+
+<p>The isolation test seeds two workspaces two orders of magnitude apart, so a
+leak is an obviously wrong number rather than a rounding difference, and runs
+every report for each. It was verified by removing the predicate from one query:
+the aging report then answered 10,100,000 where 100,000 was expected, and three
+tests failed. A test that has never been made to fail is not evidence of
+anything.</p>
+
+<h3>7.3 The reports</h3>
+
+<table>
+<tr><th>Endpoint</th><th>Grant</th><th>Returns</th></tr>
+<tr><td><code>GET /api/reports/tax-summary</code></td><td><code>canViewTaxReports</code></td>
+    <td>Output and input tax by rate, and the net position — which can be
+    reclaimable rather than payable, and is reported as such</td></tr>
+<tr><td><code>GET /api/reports/aging</code></td><td><code>canViewReports</code></td>
+    <td>Receivables in five buckets, empty ones included</td></tr>
+<tr><td><code>GET /api/reports/profit-and-loss</code></td><td><code>canViewReports</code></td>
+    <td>Revenue net of tax, cost of goods sold, overhead, and what is left</td></tr>
+<tr><td><code>GET /api/reports/customer-balances</code></td><td><code>canViewCreditControl</code></td>
+    <td>Exposure per customer, worst first</td></tr>
+<tr><td><code>POST /api/sync</code></td><td><code>canManageCompanySettings</code></td>
+    <td>Rebuilds the caller's projection</td></tr>
+</table>
+
+<p>No handler takes a company parameter. The workspace comes from the
+authenticated principal, so there is no code path where a caller can name the
+workspace whose revenue they want to read.</p>
+
+<p>Revenue is net of tax on purpose. Tax collected on a sale was never income —
+it is money held on behalf of the authority — and counting it overstates the top
+line by exactly the tax rate.</p>
+
+<h3>7.4 Authorization, for the third time</h3>
+
+<p>This service re-implements the model in section 3 for the same reason the
+assistant does: it reads through the Admin SDK, which bypasses the security
+rules completely. Membership against the member document, then owner and admin,
+then the role document, then per-user overrides. Membership cached 300 seconds,
+grants 30. Grants that cannot be read at all deny.</p>
+
+<p>Spring Security carries the grants as authorities, so a report declares what
+it needs rather than checking it:</p>
+
+<pre><code>@PreAuthorize("hasAuthority('canViewTaxReports') or hasAuthority('*')")</code></pre>
+
+<h3>7.5 The sync is a full rebuild</h3>
+
+<p>Not an incremental merge, and the reason is worth keeping. Incremental sync of
+a document store means detecting deletes, which Firestore will not tell you
+about after the fact — so a deleted invoice would linger in the projection
+forever and quietly inflate every report that touches it. A workspace rebuild is
+a few thousand rows, runs in one transaction, and either replaces everything or
+changes nothing. A half-applied projection is a financial report that is wrong
+in a way nobody can see.</p>
+
+<h3>7.6 Portable SQL, and why the tests can run anywhere</h3>
+
+<p>The queries avoid date arithmetic, <code>FILTER</code> and every dialect
+function; age-bucket boundaries are computed in Java and bound as dates. That
+constraint buys something specific: the test suite runs against H2 in PostgreSQL
+mode, in memory, with no container runtime, so it runs on a laptop with nothing
+installed. CI then runs the same suite a second time against a real PostgreSQL
+service container. Portability is what keeps those two honest about each
+other — if they ever disagree, a query has started depending on a dialect.</p>
+
+<div class="warn"><strong>Open item</strong> — cost of goods sold is only as good
+as its source. The operational invoice line records <code>unitPrice</code> and
+<code>taxRate</code> but not the cost at the time of sale, so margin cannot be
+reconstructed exactly. Filling it from the product's <em>current</em> cost was
+considered and rejected: it would rewrite the margin on every historical sale
+each time someone edited a cost price. The real fix is upstream — the invoice
+line should capture cost when the sale is made.</div>
+
+<h2><span class="num">8</span>Grading the assistant</h2>
 
 <p>Unit tests answer whether a function still returns four. They do not answer the question
 that decides whether this assistant is shippable: when the prompt changes, does it still
@@ -724,7 +851,7 @@ quote real numbers about real products? <code>rag_backend/evals/</code> exists f
 <pre><code>venv/bin/python run_evals.py                    # 21 cases, four suites
 venv/bin/python run_evals.py --suite safety -v  # one suite, showing every check</code></pre>
 
-<h3>7.1 What the golden set asserts</h3>
+<h3>8.1 What the golden set asserts</h3>
 
 <table>
 <tr><th>Suite</th><th>What it pins</th></tr>
@@ -750,7 +877,7 @@ floor is deliberate. Below it, numbers are counts, ranks and list indices; polic
 produces noise instead of signal, and a scorer people learn to ignore protects
 nothing.</p>
 
-<h3>7.2 Ground truth</h3>
+<h3>8.2 Ground truth</h3>
 
 <p>Expected values are arithmetic written out by hand in <code>evals/catalogs.py</code>,
 not values read back out of the code under test:</p>
@@ -763,7 +890,7 @@ not values read back out of the code under test:</p>
 that the system agrees with itself. These numbers are the independent side of the
 comparison, and they are the same figures the reporting screens must agree with.</p>
 
-<h3>7.3 Scripting the model, not the system</h3>
+<h3>8.3 Scripting the model, not the system</h3>
 
 <p>The read path grades itself, because it answers from the deterministic bank with no
 model involved. The write path does not — every stock change begins with the agent
@@ -798,7 +925,7 @@ flawless — and a refusal test that only checks the wording would pass just as 
 against an agent that had lost the ability to write anything at all, which is why the
 permitted-caller control case exists alongside it.</p>
 
-<h3>7.4 Deterministic coverage as a cost gate</h3>
+<h3>8.4 Deterministic coverage as a cost gate</h3>
 
 <pre><code>run_evals.py --min-pass-rate 100 --min-deterministic-coverage 70</code></pre>
 
@@ -808,7 +935,7 @@ correctness test will ever catch the regression it protects against. Route a fre
 through the agent and the answer stays right; the latency and the bill grow quietly for
 the life of the product. This fails the build instead.</p>
 
-<h3>7.5 Testing the graders</h3>
+<h3>8.5 Testing the graders</h3>
 
 <p><code>test_evals.py</code> hands every scorer a turn it is supposed to reject: an
 invented total, a placeholder SKU row, a write during a read-only turn, a ledger that never
@@ -820,12 +947,12 @@ every case green — and the first anyone would know is when a fabricated number
 customer. A suite that has never failed is not evidence the system is correct. It is
 evidence of nothing.</p>
 
-<h2><span class="num">8</span>Observability</h2>
+<h2><span class="num">9</span>Observability</h2>
 
-<p>Section 7 is about the assistant before it ships. This is about what it did afterwards,
+<p>Section 8 is about the assistant before it ships. This is about what it did afterwards,
 because "it feels slow and the bill went up" is not a debuggable statement.</p>
 
-<h3>8.1 Spans</h3>
+<h3>9.1 Spans</h3>
 
 <p>Spans follow the OpenTelemetry GenAI semantic conventions rather than bespoke attribute
 names. Using the standard costs nothing and means any backend that understands LLM traces
@@ -845,9 +972,9 @@ attributes are the ones that pay off in practice:</p>
 <p>Latency tells you a turn was slow. <code>answered_by</code> tells you why. A question
 that used to come from the deterministic bank and now goes to the model shows up on this
 attribute long before it shows up on an invoice — it is the production counterpart of the
-coverage gate in section 7.4.</p>
+coverage gate in section 8.4.</p>
 
-<h3>8.2 Metrics</h3>
+<h3>9.2 Metrics</h3>
 
 <p><code>GET /metrics</code> serves Prometheus text exposition: counters per intent and
 per answering layer, cache hits and misses, token totals, accumulated cost, and latency
@@ -862,7 +989,7 @@ aggregates across instances, which is where the sum belongs.</p>
 platform console, behind the ordinary membership check, since that is a product surface
 rather than an infrastructure one.</p>
 
-<h3>8.3 Privacy</h3>
+<h3>9.3 Privacy</h3>
 
 <p>Traces are exported to a third party. Inventory is not.</p>
 
@@ -881,7 +1008,7 @@ secret compared with <code>==</code> leaks its prefix to anyone patient.</p>
 <p>Finally, every function in the telemetry module swallows its own exceptions. A
 misconfigured collector endpoint should produce empty dashboards, not a 500.</p>
 
-<h2><span class="num">9</span>The Model Context Protocol surface</h2>
+<h2><span class="num">10</span>The Model Context Protocol surface</h2>
 
 <p><code>mcp_server.py</code> is a third front door onto the same inventory, for MCP
 clients, so a question about stock can be asked inside whatever tool the work is already
@@ -908,7 +1035,7 @@ happening in.</p>
 so all three quote the same number. A second implementation of "what is low on stock" that
 drifted from the first would be worse than having no MCP server at all.</p>
 
-<h3>9.1 The security model, stated plainly</h3>
+<h3>10.1 The security model, stated plainly</h3>
 
 <p>stdio has no per-request identity. The client is a local process the user launched, and
 there is no bearer token to verify per call. That is a genuine narrowing compared with the
@@ -929,7 +1056,7 @@ HTTP API, where every call re-proves membership, and it is stated rather than gl
 product named in a result exists in the catalog, and a product that cannot be found should
 produce a refusal rather than a plausible substitute.</p>
 
-<h2><span class="num">10</span>The API contract</h2>
+<h2><span class="num">11</span>The API contract</h2>
 
 <p>The client parses assistant responses by hand, pulling values out of a decoded map with
 string literals. That is good code — it distinguishes a transport failure from an answer,
@@ -961,9 +1088,9 @@ fields. <code>analytics_data</code> and <code>retries</code> are free to produce
 Firestore on every turn that writes, and nothing anywhere consumes the result. It is
 recorded rather than deleted because removing a field is an API change, not a cleanup.</div>
 
-<h2><span class="num">11</span>Delivery</h2>
+<h2><span class="num">12</span>Delivery</h2>
 
-<h3>11.1 Pipeline</h3>
+<h3>12.1 Pipeline</h3>
 
 <p>Six jobs, none of which needs a secret to be useful — which is the only reason the
 gates stay switched on.</p>
@@ -975,6 +1102,8 @@ gates stay switched on.</p>
 <tr><td>Backend</td><td>19 test files, both testing conventions in the repository</td></tr>
 <tr><td>Evaluations</td><td>100% pass rate and at least 70% deterministic coverage</td></tr>
 <tr><td>Contract</td><td>Schema and generated client are current</td></tr>
+<tr><td>Reporting</td><td>35 tests, run twice: H2 in PostgreSQL mode, then a real
+    PostgreSQL service container</td></tr>
 <tr><td>Security</td><td><code>pip-audit</code>, <code>npm audit</code>, and a secret scan
     over full history</td></tr>
 <tr><td>Image</td><td>Container build, then a vulnerability scan reported into code
@@ -989,7 +1118,7 @@ build.</p>
 making it one would rewrite most of the tree in a single unreviewable commit. Static
 analysis catches what actually matters.</p>
 
-<h3>11.2 Two traps in the test setup</h3>
+<h3>12.2 Two traps in the test setup</h3>
 
 <p>Both of these produce a <em>green</em> build over a broken system, which makes them
 worth stating explicitly rather than leaving in a comment.</p>
@@ -1021,7 +1150,7 @@ place first. The placeholder holds no real values and reaches no live project; c
 it also fixed the older problem that a fresh clone could not build until someone
 hand-copied a file nobody had documented.</p>
 
-<h2><span class="num">12</span>Deployment</h2>
+<h2><span class="num">13</span>Deployment</h2>
 
 <table>
 <tr><th>Component</th><th>Where it runs</th><th>Notes</th></tr>
@@ -1033,6 +1162,10 @@ hand-copied a file nobody had documented.</p>
 <tr><td>Assistant service</td><td>Cloud Run, container</td><td>Python 3.12 slim; one
     worker, because the graph is async end to end and concurrency comes from the event
     loop rather than from processes</td></tr>
+<tr><td>Reporting service</td><td>Cloud Run, container</td><td>JDK 17, non-root,
+    heap sized against the container's own limit rather than the host's</td></tr>
+<tr><td>Analytical store</td><td>PostgreSQL</td><td>Schema owned by Flyway;
+    Hibernate is set to validate, never to update</td></tr>
 <tr><td>Data</td><td>Firestore</td><td>Rules and indexes deployed from the
     repository</td></tr>
 <tr><td>Functions</td><td>Cloud Functions (Node 20)</td><td>One trigger, on user
@@ -1060,14 +1193,27 @@ hand-copied a file nobody had documented.</p>
     <td>unset / off / none</td><td>Protocol server scope and write gating</td></tr>
 </table>
 
+<p>And for the reporting service:</p>
+
+<table>
+<tr><th>Variable</th><th>Default</th><th>Effect</th></tr>
+<tr><td><code>DATABASE_URL</code></td><td>local PostgreSQL</td><td>The analytical store</td></tr>
+<tr><td><code>DB_POOL_SIZE</code></td><td>10</td><td>Connections held per container</td></tr>
+<tr><td><code>REPORTING_OFFLINE_MODE</code></td><td>false</td><td>Skips identity checks.
+    Development only; a deployed configuration must leave this false</td></tr>
+<tr><td><code>SYNC_ENABLED</code> / <code>SYNC_INTERVAL_MS</code> / <code>SYNC_COMPANIES</code></td>
+    <td>off / 15 min / none</td><td>The scheduled rebuild, off until a deployment
+    opts in</td></tr>
+</table>
+
 <div class="note"><strong>On the rate limiter</strong> — the budget is per instance and
 held in memory, so the effective ceiling rises as the service scales out. It is a guard
 against a runaway loop, not a quota. Real enforcement needs shared state, and the code says
 so rather than implying a guarantee it does not provide.</div>
 
-<h2><span class="num">13</span>Decisions and open items</h2>
+<h2><span class="num">14</span>Decisions and open items</h2>
 
-<h3>13.1 Decisions worth knowing before changing something</h3>
+<h3>14.1 Decisions worth knowing before changing something</h3>
 
 <table>
 <tr><th>Decision</th><th>Reasoning</th></tr>
@@ -1087,6 +1233,13 @@ so rather than implying a guarantee it does not provide.</div>
     place to commit, one place where a refusal is final.</td></tr>
 <tr><td>Permissions cached for less time than membership</td><td>A stale permission keeps
     granting what was just revoked. A stale membership only delays a removal.</td></tr>
+<tr><td>A separate store for financial reporting</td><td>Aggregates over
+    invoices, lines, payments and expenses are relational questions. The
+    projection is derived and disposable, so the split costs a rebuild rather
+    than a second source of truth. See section 7.</td></tr>
+<tr><td>Money as integer minor units</td><td>Floating point cannot represent
+    0.10, and the error compounds across a reporting period into a total that is
+    plausible and wrong.</td></tr>
 <tr><td>Formatting is not a build gate</td><td>The tree is not formatter-clean; enforcing it
     would produce one enormous unreviewable commit.</td></tr>
 <tr><td>Optimisation enabled on release builds</td><td>The directive that previously
@@ -1094,7 +1247,7 @@ so rather than implying a guarantee it does not provide.</div>
     size.</td></tr>
 </table>
 
-<h3>13.2 Open items</h3>
+<h3>14.2 Open items</h3>
 
 <ol>
 <li><strong><code>updated_catalog</code> is computed and discarded.</strong> Producing it
@@ -1110,6 +1263,16 @@ not adequate as a quota. Shared state would fix it.</li>
 so hit rates fall as the service scales out. The fingerprint keying means this costs
 efficiency and never correctness, which is why it has not been urgent.</li>
 
+<li><strong>Cost at the time of sale is not recorded.</strong> The operational
+invoice line has no cost field, so the projection cannot reconstruct historical
+margin exactly and reports zero rather than substituting a current cost that
+would rewrite past margins on every price change. The fix belongs upstream.</li>
+
+<li><strong>Purchase bills are summarised at a single tax rate</strong> — the
+rate of the largest line. Correct for the common single-rate bill, an
+approximation for a mixed one, and it wants purchase lines projected properly
+before a return is ever filed from this data.</li>
+
 <li><strong>Two testing conventions coexist.</strong> <code>run_tests.py</code> handles
 both, so nothing is silently skipped, but converging on one would remove the need for
 it.</li>
@@ -1120,7 +1283,7 @@ reports this honestly rather than substituting zero, but it does mean the most v
 analytics only appear once a workspace has been used for a while.</li>
 </ol>
 
-<h3>13.3 Fixed during this revision</h3>
+<h3>14.3 Fixed during this revision</h3>
 
 <ol>
 <li><strong>An unmapped write tool needed no permission.</strong> <code>may_run_tool</code>
@@ -1141,7 +1304,7 @@ advertised a vector database and embedding models that were deliberately removed
 request path, and listed model identifiers that do not match what the code resolves.</li>
 </ol>
 
-<h3>13.4 Running everything locally</h3>
+<h3>14.4 Running everything locally</h3>
 
 <pre><code># Assistant service: tests, then the golden set
 cd rag_backend
@@ -1155,9 +1318,10 @@ venv/bin/python tools/generate_client.py --check
 # Protocol server, read-only
 MCP_COMPANY_ID=&lt;workspace&gt; venv/bin/python mcp_server.py</code></pre>
 
-<p>Expected result at the revision this document describes: 19 test files pass, 21
-evaluation cases pass at 76.2% deterministic coverage, both contract checks report
-current, and the client suite reports 781 passing tests.</p>
+<p>Expected result at the revision this document describes: 19 backend test files
+pass, 21 evaluation cases pass at 76.2% deterministic coverage, both contract
+checks report current, the reporting service reports 35 passing tests, and the
+client suite reports 781.</p>
 
 </body>
 </html>

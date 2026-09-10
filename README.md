@@ -147,6 +147,17 @@ What truly sets SmartShelfKart apart is **Nova**—our integrated AI Assistant. 
   beats hoping cosine similarity surfaces it. See `BACKEND_ARCHITECTURE.md`.
 - **Deployment:** Docker container on Google Cloud Run
 
+### Reporting Service (`reporting_service`)
+- **Framework:** Java 17, Spring Boot 3, Spring Security, Spring Data JPA
+- **Store:** PostgreSQL, schema owned by Flyway (Hibernate validates, never updates)
+- **Why:** tax summaries, aging, P&L and customer exposure are relational
+  questions — group by rate across a quarter, bucket by age, join and subtract.
+  They were being computed in memory on the client over unpaginated collections.
+  This is a **derived, disposable projection**; it owns no business truth.
+- **Money:** integer minor units end to end, never floating point
+- **Tenancy:** `company_id` leads every primary key and index, and the isolation
+  test seeds two workspaces to prove no report crosses between them
+
 ### Platform & Delivery
 - **Agent evaluation:** offline golden-set harness with CI gates on both
   correctness and *cost* — 21 cases, 0 tokens, no API key
@@ -156,8 +167,9 @@ What truly sets SmartShelfKart apart is **Nova**—our integrated AI Assistant. 
   clients, behind the same permission checks as the app
 - **API contract:** OpenAPI 3.1 generated from the app, typed Dart models
   generated from that, both drift-gated in CI
-- **CI/CD:** GitHub Actions — analyze, 781 Flutter tests, 19 backend suites,
-  eval gate, contract gate, `pip-audit`/`npm audit`/gitleaks, Trivy image scan
+- **CI/CD:** GitHub Actions — analyze, 781 client tests, 19 backend suites,
+  35 JVM tests run twice (H2 and real PostgreSQL), eval gate, contract gate,
+  `pip-audit`/`npm audit`/gitleaks, Trivy image scans
 
 📐 **[PLATFORM.md](PLATFORM.md)** covers how the agent is graded, watched and
 kept honest against its client.
