@@ -3,7 +3,7 @@ langgraph>=1.0.0
 langchain-core>=1.0.0
 langchain>=1.0.0
 langchain-google-genai>=4.0.0     # serves both the Gemini API and Vertex (vertexai=True)
-langchain-openai>=1.0.0           # optional OpenAI-compatible fallback provider
+langchain-openai>=1.6.0           # optional OpenAI-compatible fallback provider
 
 # --- API ---
 fastapi>=0.110.0
