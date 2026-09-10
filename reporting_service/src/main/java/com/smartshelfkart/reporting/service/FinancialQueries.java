@@ -118,30 +118,35 @@ public class FinancialQueries {
      * <p>An invoice with no due date counts as current. It is not overdue until
      * something says when it was due, and guessing a date here would put real
      * money in a bucket nobody agreed to.
+     *
+     * <p>The bucketing sits in a subquery and the outer statement groups by its
+     * alias, rather than repeating the CASE in both SELECT and GROUP BY. The
+     * repeated form works on H2 and is rejected by PostgreSQL: a named
+     * parameter used twice expands to two <em>different</em> positional
+     * placeholders, so the two CASE expressions are no longer syntactically
+     * identical and the planner demands due_on in the GROUP BY. Computing the
+     * bucket once is both portable and the clearer statement of intent.
      */
     private static final String AGING = """
-            SELECT CASE
-                     WHEN i.due_on IS NULL     THEN 'current'
-                     WHEN i.due_on >= :asOf    THEN 'current'
-                     WHEN i.due_on >= :days30  THEN '1-30'
-                     WHEN i.due_on >= :days60  THEN '31-60'
-                     WHEN i.due_on >= :days90  THEN '61-90'
-                     ELSE '90+'
-                   END                                        AS bucket,
-                   COUNT(*)                                   AS invoices,
-                   SUM(i.total_minor - i.paid_minor)          AS outstanding_minor
-              FROM invoices i
-             WHERE i.company_id = :companyId
-               AND i.status <> 'void'
-               AND i.total_minor > i.paid_minor
-             GROUP BY CASE
-                     WHEN i.due_on IS NULL     THEN 'current'
-                     WHEN i.due_on >= :asOf    THEN 'current'
-                     WHEN i.due_on >= :days30  THEN '1-30'
-                     WHEN i.due_on >= :days60  THEN '31-60'
-                     WHEN i.due_on >= :days90  THEN '61-90'
-                     ELSE '90+'
-                   END
+            SELECT bucket,
+                   COUNT(*)                 AS invoices,
+                   SUM(outstanding_minor)   AS outstanding_minor
+              FROM (
+                    SELECT CASE
+                             WHEN i.due_on IS NULL     THEN 'current'
+                             WHEN i.due_on >= :asOf    THEN 'current'
+                             WHEN i.due_on >= :days30  THEN '1-30'
+                             WHEN i.due_on >= :days60  THEN '31-60'
+                             WHEN i.due_on >= :days90  THEN '61-90'
+                             ELSE '90+'
+                           END                               AS bucket,
+                           i.total_minor - i.paid_minor      AS outstanding_minor
+                      FROM invoices i
+                     WHERE i.company_id = :companyId
+                       AND i.status <> 'void'
+                       AND i.total_minor > i.paid_minor
+                   ) aged
+             GROUP BY bucket
             """;
 
     private static final List<String> BUCKET_ORDER =
