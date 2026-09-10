@@ -40,4 +40,4 @@ mcp>=2.0.0
 # The golden-set harness reads its cases from YAML. pyyaml is already present
 # transitively via langchain; named here because `evals/dataset.py` imports it
 # directly and should say so.
-pyyaml>=6.0
+pyyaml>=6.0.3
