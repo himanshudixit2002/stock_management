@@ -13,9 +13,9 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Firebase
-  firebase_core: ^3.12.1
-  firebase_auth: ^5.5.1
-  cloud_firestore: ^5.6.5
+  firebase_core: ^4.14.0
+  firebase_auth: ^6.6.1
+  cloud_firestore: ^6.9.0
 
   # State Management
   provider: ^6.1.2
@@ -66,7 +66,7 @@ dev_dependencies:
   # In-memory Firestore, so the settings write path can be tested for real.
   # Its dotted-key semantics match the SDK's — set() takes a key literally,
   # update() reads it as a field path — which is the whole bug these tests pin.
-  fake_cloud_firestore: ^3.1.0
+  fake_cloud_firestore: ^4.2.0
   flutter_launcher_icons: ^0.14.3
 
 flutter_launcher_icons:
