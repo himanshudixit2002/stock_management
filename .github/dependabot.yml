@@ -1,0 +1,46 @@
+# Dependency updates, batched so the noise stays reviewable.
+#
+# Grouped on purpose: ungrouped Dependabot on four ecosystems opens a dozen PRs
+# a week, they get rubber-stamped or ignored, and the security updates get lost
+# among the patch bumps. Security advisories still arrive as their own PRs.
+version: 2
+updates:
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      flutter-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: /rag_backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The agent runtime moves fast and its packages move together; a langchain
+      # bump that lands without langgraph is usually broken.
+      agent-runtime:
+        patterns: ["langchain*", "langgraph*"]
+      python-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /functions
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      firebase:
+        patterns: ["firebase*"]
+
+  # The workflows pin action versions; without this they silently rot.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
