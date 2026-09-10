@@ -52,7 +52,12 @@ void main() {
       );
       await tester.pumpWidget(_host(const SizedBox()));
 
-      // Still usable after the field is gone.
+      // Still usable after the field is gone. `hasListeners` is protected, and
+      // reaching for it here is deliberate: it asserts the notifier has not been
+      // disposed, which is exactly the claim being made. Analysis treats
+      // warnings as fatal, so the exception is stated rather than left to fail
+      // the build.
+      // ignore: invalid_use_of_protected_member
       expect(() => focus.hasListeners, returnsNormally);
       focus.dispose();
     });
