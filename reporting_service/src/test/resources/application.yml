@@ -1,0 +1,41 @@
+# The test database.
+#
+# H2 in PostgreSQL compatibility mode, in memory. That is a compromise and it is
+# worth naming: H2 is not PostgreSQL, and a query that leans on anything
+# PostgreSQL-specific would pass here and fail in production.
+#
+# Two things keep it honest. The SQL in FinancialQueries is deliberately
+# portable — no date arithmetic, no FILTER, no dialect functions — and CI runs
+# this same suite a second time against a real PostgreSQL service container. If
+# the two ever disagree, the query is doing something it should not.
+#
+# The alternative, Testcontainers, needs a container runtime for every developer
+# and every run. This suite runs on a laptop with nothing installed, which is
+# the difference between tests people run and tests people skip.
+spring:
+  datasource:
+    url: jdbc:h2:mem:reporting;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    clean-disabled: false
+
+reporting:
+  # Identity checks are skipped in tests; tenant *isolation* is not, and is
+  # asserted directly in TenantIsolationTest.
+  offline-mode: true
+  sync:
+    enabled: false
+
+logging:
+  level:
+    org.flywaydb: WARN
+    org.hibernate: WARN

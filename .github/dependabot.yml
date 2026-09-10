@@ -36,6 +36,19 @@ updates:
       firebase:
         patterns: ["firebase*"]
 
+  - package-ecosystem: maven
+    directory: /reporting_service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Spring's modules are released together and a partial bump is usually
+      # broken; the parent POM manages the versions, so they move as one.
+      spring:
+        patterns: ["org.springframework*", "org.springframework.boot*"]
+      java-minor-and-patch:
+        update-types: [minor, patch]
+
   # The workflows pin action versions; without this they silently rot.
   - package-ecosystem: github-actions
     directory: /
