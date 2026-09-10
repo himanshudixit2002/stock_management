@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SmartShelfKart — System Architecture and Technical Reference</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 18mm 18mm; }
+  @page :first { margin-top: 0; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    font-size: 10.2pt; line-height: 1.52; color: #1a1a1a; margin: 0;
+    hyphens: auto; text-align: justify;
+  }
+
+  /* ---------- cover ---------- */
+  .cover { box-sizing: border-box; height: 245mm; display: flex;
+           flex-direction: column; justify-content: center; padding-bottom: 44mm;
+           page-break-after: always; text-align: left; }
+  .cover .rule { width: 56px; height: 3px; background: #1a4f8a; margin-bottom: 26px; }
+  .cover h1 { font-size: 30pt; line-height: 1.15; margin: 0 0 10px; letter-spacing: -0.4px; }
+  .cover .sub { font-size: 13pt; color: #444; margin: 0 0 40px; font-style: italic; }
+  .cover dl { margin: 0; font-size: 9.6pt; color: #333; }
+  .cover dt { font-variant: small-caps; letter-spacing: .5px; color: #777; float: left;
+              width: 120px; clear: left; }
+  .cover dd { margin: 0 0 6px 120px; }
+
+  /* ---------- headings ---------- */
+  h2 { font-size: 15pt; margin: 26px 0 9px; padding-bottom: 5px; page-break-before: auto;
+       border-bottom: 1.5px solid #1a4f8a; page-break-after: avoid; letter-spacing: -0.2px; }
+  h3 { font-size: 11.6pt; margin: 17px 0 5px; color: #17324f; page-break-after: avoid; }
+  h4 { font-size: 10.4pt; margin: 13px 0 3px; color: #333; font-style: italic;
+       page-break-after: avoid; }
+  h2 .num { color: #9bb4ce; margin-right: 9px; font-variant-numeric: tabular-nums; }
+
+  p { margin: 0 0 8px; orphans: 2; widows: 2; }
+  ul, ol { margin: 0 0 9px; padding-left: 19px; }
+  li { margin-bottom: 3px; }
+
+  code, .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.7pt;
+                background: #f2f4f6; padding: 0.5px 3px; border-radius: 2px; }
+  pre { background: #f7f8fa; border-left: 2.5px solid #1a4f8a; padding: 9px 12px;
+        font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.3pt;
+        line-height: 1.42; overflow-x: auto; page-break-inside: avoid; margin: 9px 0;
+        text-align: left; white-space: pre-wrap; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 8.9pt;
+          text-align: left; }
+  /* Long reference tables flow across pages rather than being pushed whole to
+     the next one, which was leaving half-empty pages. The header repeats. */
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  td, th { hyphens: none; -webkit-hyphens: none; }
+  td:first-child { hyphens: none; word-break: normal; }
+  th { background: #eef2f6; text-align: left; padding: 5px 8px; font-weight: 600;
+       border-bottom: 1.5px solid #b9c9d8; font-size: 8.5pt;
+       font-variant: small-caps; letter-spacing: .4px; }
+  td { padding: 4.5px 8px; border-bottom: 0.5px solid #e2e6ea; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafbfc; }
+
+  .note { background: #f4f8fb; border-left: 2.5px solid #4a7fb5; padding: 9px 12px;
+          margin: 11px 0; font-size: 9.4pt; page-break-inside: avoid; }
+  .warn { background: #fdf6f2; border-left: 2.5px solid #c26a3d; padding: 9px 12px;
+          margin: 11px 0; font-size: 9.4pt; page-break-inside: avoid; }
+  .note strong:first-child, .warn strong:first-child { font-variant: small-caps;
+          letter-spacing: .5px; }
+
+  .toc { page-break-after: always; }
+  .toc ol { list-style: none; padding-left: 0; counter-reset: s; font-size: 10pt; }
+  .toc > ol > li { counter-increment: s; margin-bottom: 5px; }
+  .toc > ol > li::before { content: counter(s) ". "; color: #1a4f8a; font-weight: 600; }
+  /* Sub-entries run inline so the contents fit one page; a two-page table of
+     contents for a 22-page document is its own small joke. */
+  .toc ol ol { padding-left: 22px; margin: 1px 0 0; font-size: 8.9pt; color: #666; }
+  .toc ol ol li { display: inline; margin: 0; }
+  .toc ol ol li::before { content: ""; }
+  .toc ol ol li:not(:last-child)::after { content: " · "; color: #b8c2cc; }
+  .toc > ol > li { margin-bottom: 7px; }
+
+  .brk { page-break-before: always; }
+  figure { margin: 12px 0; page-break-inside: avoid; }
+  figcaption { font-size: 8.4pt; color: #666; font-style: italic; margin-top: 4px;
+               text-align: left; }
+  .ascii { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 7.9pt;
+           line-height: 1.32; white-space: pre; background: #fbfcfd;
+           border: 0.5px solid #e2e6ea; padding: 11px; text-align: left; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="rule"></div>
+  <h1>SmartShelfKart</h1>
+  <p class="sub">System architecture and technical reference</p>
+  <dl>
+    <dt>Document</dt><dd>Engineering reference, revision 1</dd>
+    <dt>Scope</dt><dd>Data model, authorization, domain modules, inventory
+        mathematics, the assistant service, and the delivery pipeline</dd>
+    <dt>Audience</dt><dd>Engineers joining the codebase, and reviewers assessing it</dd>
+    <dt>Status</dt><dd>Describes the system as built. Sections 12 and 13 record
+        open items and the reasoning behind decisions that look unusual.</dd>
+  </dl>
+</section>
+
+<section class="toc">
+<h2>Contents</h2>
+<ol>
+  <li>What the system is
+     <ol><li>Runtimes and where work happens</li><li>Why the assistant is a separate service</li></ol></li>
+  <li>Data model
+     <ol><li>Tenancy</li><li>Collections</li><li>The transaction ledger</li><li>Indexes</li></ol></li>
+  <li>Authorization
+     <ol><li>Two enforcement points, and why</li><li>Membership against permission</li><li>Cache lifetimes</li><li>Platform administration</li></ol></li>
+  <li>Domain modules</li>
+  <li>Inventory mathematics
+     <ol><li>Demand</li><li>Safety stock and the reorder point</li><li>Replenishment quantity</li><li>Classification</li></ol></li>
+  <li>The assistant
+     <ol><li>Request path</li><li>The fact layer</li><li>The deterministic bank</li><li>Routing and cost tiers</li><li>Product resolution</li><li>Writes: preview, confirm, execute</li><li>Bulk actions</li><li>Guardrails and the autonomous swarm</li><li>Answer caching</li><li>Why there is no vector search</li></ol></li>
+  <li>Grading the assistant
+     <ol><li>What the golden set asserts</li><li>Ground truth</li><li>Scripting the model, not the system</li><li>Deterministic coverage as a cost gate</li><li>Testing the graders</li></ol></li>
+  <li>Observability
+     <ol><li>Spans</li><li>Metrics</li><li>Privacy</li></ol></li>
+  <li>The Model Context Protocol surface</li>
+  <li>The API contract</li>
+  <li>Delivery
+     <ol><li>Pipeline</li><li>Two traps in the test setup</li></ol></li>
+  <li>Deployment</li>
+  <li>Decisions and open items</li>
+</ol>
+</section>
+
+<h2><span class="num">1</span>What the system is</h2>
+
+<p>SmartShelfKart is a multi-tenant inventory and operations platform. A tenant — called
+a <em>company</em> or <em>workspace</em> throughout the code — holds a product catalog, a
+ledger of every stock movement against it, and roughly thirty business modules built on
+top of those two things: purchasing, sales, warehousing, light manufacturing, service
+jobs, and the financial reporting that falls out of them.</p>
+
+<p>Layered over that is a natural-language assistant that answers questions about live
+inventory and, on confirmation, changes it. The assistant is the part of the system with
+the most unusual engineering in it, and sections 6 through 9 are mostly about it.</p>
+
+<h3>1.1 Runtimes and where work happens</h3>
+
+<p>Three runtimes, with a deliberate imbalance in how much each is trusted.</p>
+
+<table style="page-break-inside:avoid">
+<tr><th>Runtime</th><th>Responsibility</th><th>Trust</th></tr>
+<tr><td>Client application</td><td>All user interaction; reads and writes Firestore
+    directly for ordinary operations</td><td>None. Every write it makes is re-checked by
+    security rules.</td></tr>
+<tr><td>Firestore and Cloud Functions</td><td>System of record. Rules are the primary
+    authorization boundary. One function reacts to user registration.</td>
+    <td>Rules are authoritative for anything reaching Firestore over the client SDK.</td></tr>
+<tr><td>Assistant service (Python)</td><td>Natural-language question answering and
+    agent-driven writes, over HTTP and over the Model Context Protocol</td>
+    <td>Runs with Admin SDK credentials, which bypass rules entirely — so it re-implements
+    the authorization model itself. See section 3.</td></tr>
+</table>
+
+<p>The client talks to Firestore directly rather than through an API tier. For a system
+whose core operations are document reads and writes with per-field authorization, an
+intermediate service would mostly have been a place to re-implement the rules. The
+exception is the assistant, which needs to run a model, hold conversation state, and
+execute multi-step tool calls — none of which belongs on a device.</p>
+
+<h3>1.2 Why the assistant is a separate service</h3>
+
+<p>Three reasons, in descending order of how much they mattered:</p>
+
+<ol>
+<li><strong>The model call cannot be made from the client.</strong> Shipping an API key in
+an application bundle is shipping the key. Every request has to pass through something
+that holds the credential and can refuse to spend it.</li>
+<li><strong>Answering well requires derived data the client does not have.</strong> The
+assistant reasons over burn rates, demand variance and days of cover computed from a
+rolling 90-day window of the transaction ledger. Computing that on device, per question,
+over a catalog of any size, is not viable.</li>
+<li><strong>Writes need a choke point.</strong> A conversation that can change stock needs
+one place where permission is checked, one place where a preview is turned into a
+committed movement, and one place where a refusal is final. Section 6.6 covers it.</li>
+</ol>
+
+<h2><span class="num">2</span>Data model</h2>
+
+<h3>2.1 Tenancy</h3>
+
+<p>Almost everything lives under <code>companies/{companyId}/</code>. Tenancy is
+structural rather than a filter applied at query time, which means the isolation argument
+is short: a document either sits under a company path the caller has proved membership of,
+or the rules never evaluate it. There is no tenant column that a forgotten
+<code>where</code> clause can leak past.</p>
+
+<p>Two things sit outside that tree. <code>users/{userId}</code> holds the account and its
+current workspace binding. <code>superAdmins/{uid}</code> and
+<code>platformAuditLogs/</code> belong to the platform operator rather than to any tenant.
+A small number of read-only documents — <code>publicConfig/</code>,
+<code>plans/</code> — are shared and world-readable by design, because the marketing site
+renders pricing from them.</p>
+
+<div class="note"><strong>Note</strong> — there is no default workspace, anywhere, in any
+layer. The assistant service raises rather than falling back when no company id is
+supplied, and the Model Context Protocol server refuses to start answering without one.
+An earlier version defaulted to a sandbox tenant, and defaulting is precisely how one
+workspace ends up reading another's stock.</p></div>
+
+<h3>2.2 Collections</h3>
+
+<p>Forty-odd subcollections hang off a company. Grouped by what they are for:</p>
+
+<table>
+<tr><th>Area</th><th>Collections</th></tr>
+<tr><td>Catalog</td><td><code>products</code>, <code>categories</code>,
+    <code>batches</code>, <code>serials</code>, <code>priceHistory</code>,
+    <code>priceLists</code></td></tr>
+<tr><td>Movement</td><td><code>transactions</code>, <code>stockTakes</code>,
+    <code>stockHolds</code>, <code>transferOrders</code>, <code>warehouseZones</code></td></tr>
+<tr><td>Purchasing</td><td><code>purchaseOrders</code>, <code>vendors</code>,
+    <code>requisitions</code>, <code>landedCosts</code></td></tr>
+<tr><td>Sales</td><td><code>salesOrders</code>, <code>quotations</code>,
+    <code>invoices</code>, <code>recurringInvoices</code>, <code>customers</code>,
+    <code>shipments</code>, <code>returns</code>, <code>billingSequences</code></td></tr>
+<tr><td>Production and service</td><td><code>boms</code>, <code>jobWorkOrders</code>,
+    <code>serviceJobs</code></td></tr>
+<tr><td>Money</td><td><code>expenses</code>, <code>budgets</code>,
+    <code>commissionPlans</code>, <code>registerSessions</code></td></tr>
+<tr><td>Governance</td><td><code>members</code>, <code>roles</code>,
+    <code>auditLogs</code>, <code>invites</code>, <code>joinCodeIndex</code>,
+    <code>notifications</code>, <code>feedback</code>, <code>metadata</code></td></tr>
+</table>
+
+<h3>2.3 The transaction ledger</h3>
+
+<p><code>transactions</code> is the collection everything analytical is derived from, and
+it is the one worth understanding first. A product document carries a current quantity,
+but that number is a cache — the ledger is what actually happened. Burn rate, demand
+variance, days of cover, dead-stock age and available-to-promise are all computed from
+the ledger, never from the product document.</p>
+
+<p>This has a consequence the assistant is careful about: a workspace with products but no
+recorded movements cannot have a burn rate. Not zero — undefined. The fact layer exposes
+<code>history_is_reliable</code> for exactly this, and every surface that would otherwise
+report "0 units per day" is required to say instead that demand is not tracked. Reporting
+zero would be a fabricated number dressed as a measurement.</p>
+
+<h3>2.4 Indexes</h3>
+
+<p><code>firestore.indexes.json</code> defines the composite indexes the listing screens
+and the fact layer's windowed transaction reads need. It is 258 lines and worth reading
+before adding a query with more than one range or ordering clause, because Firestore will
+accept the query in the emulator and fail it in production.</p>
+
+<h2><span class="num">3</span>Authorization</h2>
+
+<p>This is the part of the system most worth reviewing carefully, because it is enforced
+twice, in two languages, and the second enforcement exists only because the first one can
+be bypassed.</p>
+
+<h3>3.1 Two enforcement points, and why</h3>
+
+<p><code>firestore.rules</code> — 980 lines — governs everything the client does. It is
+the primary boundary and it is where the model is defined: seventeen helper functions
+resolving membership, role grants, per-user overrides, company status and platform
+administration.</p>
+
+<p>The assistant service does not go through it. It writes with the Firebase Admin SDK,
+and the Admin SDK ignores security rules completely. Whatever the rules withhold has to be
+withheld again in Python, or the assistant becomes a way around every permission in the
+product. Concretely: a user denied <code>canStockIn</code> in the application could
+otherwise ask the assistant to add five hundred units and it would succeed.</p>
+
+<p>So <code>auth.py</code> re-implements the resolution — admin and owner short-circuit,
+then <code>companies/{cid}/roles/{roleId}</code>, then per-user overrides — and
+<code>nodes.may_run_tool</code> applies it at the single point every chat-driven write
+passes through. A refusal there cannot be routed around by rewording the request.</p>
+
+<h3>3.2 Membership against permission</h3>
+
+<p>These are separate checks and conflating them was a real bug once. Membership answers
+"does this caller belong to this workspace at all", and is proved by a server-side
+document at <code>companies/{cid}/members/{uid}</code> — never by a header. An earlier
+version trusted the <code>x-company-id</code> header alone, which meant any client could
+read any tenant's inventory by changing a string.</p>
+
+<p>Permission answers "may this caller do this particular thing", and is required on top
+of membership for every mutating route. There are about 120 permission keys, and they are
+the same strings on both sides of the system, deliberately, so that the mapping between an
+assistant tool and an application capability is a lookup rather than a translation:</p>
+
+<pre><code>WRITE_TOOL_PERMISSIONS = {
+    "create_product":         "canAddProducts",
+    "update_stock":           "canAdjustStock",
+    "create_purchase_order":  "canCreatePurchaseOrders",
+    "transfer_stock":         "canTransfer",
+    "audit_inventory":        "canAdjustStock",
+    "set_reorder_threshold":  "canEditProducts",
+    "bulk_action":            "canAdjustStock",
+}</code></pre>
+
+<p>There is a third caller state besides "has the grant" and "does not": grants that could
+not be read at all, because Firestore was unavailable. The graph receives
+<code>None</code> for that case and refuses the write. A storage hiccup denies rather than
+permits, and there is a test that holds that line.</p>
+
+<div class="warn"><strong>Fixed in this revision</strong> — <code>may_run_tool</code> read
+an empty permission mapping as "this tool needs no permission" and returned true. The bulk
+dispatcher had no mapping, and although bulk requests are checked against their inner tool
+in practice, the fallback in that lookup resolved to the dispatcher sentinel, which mapped
+to nothing. A malformed bulk plan would have needed no permission at all. Both the
+sentinel and any unmapped write tool now fail closed.</div>
+
+<h3>3.3 Cache lifetimes</h3>
+
+<p>Membership is cached for 300 seconds; permissions for 30. The asymmetry is intentional
+and the reasoning is worth keeping: a stale <em>membership</em> record delays someone's
+removal from a workspace, which is bad but bounded. A stale <em>permission</em> record
+keeps granting a capability that was just revoked, which is the thing you revoked it to
+stop. So the more dangerous cache is the shorter one.</p>
+
+<h3>3.4 Platform administration</h3>
+
+<p>A separate super-admin tier operates across tenants — plan catalog, pricing, company
+status, platform audit log. It is gated by <code>superAdmins/{uid}</code> rather than by
+any role inside a company, so no amount of privilege inside a workspace reaches it, and
+its actions are written to <code>platformAuditLogs</code> rather than to the tenant's own
+audit trail.</p>
+
+<h2><span class="num">4</span>Domain modules</h2>
+
+<p>What follows is the full set, with the constraint each one actually enforces. The
+common thread is that stock only ever moves through a path that writes a ledger entry —
+there is no module that adjusts a product quantity directly, because a quantity that
+changed without a transaction behind it makes every derived figure wrong from that moment
+on.</p>
+
+<h3>4.1 Catalog and stock</h3>
+<table>
+<tr><th>Module</th><th>What it does and what it guarantees</th></tr>
+<tr><td>Products and categories</td><td>SKU and barcode tracking, per-product low-stock
+    thresholds, cost and selling price, multi-location quantities.</td></tr>
+<tr><td>Batches</td><td>Expiry-dated lots beneath a product, so a recall or an expiry
+    sweep can name the affected units rather than the whole SKU.</td></tr>
+<tr><td>Serial numbers</td><td>Individual units below the batch, with status, location,
+    warranty dates and full movement history. Lookup is case-insensitive, which matters
+    when a serial is read off a label by hand.</td></tr>
+<tr><td>Stock takes</td><td>Blind counts reconciled against system quantity; the variance
+    posts as a transaction, so a correction is visible in the ledger rather than
+    silently overwriting a number.</td></tr>
+<tr><td>Stock holds</td><td>Reserves units against a commitment without moving them, and
+    is what makes available-to-promise differ from on-hand.</td></tr>
+<tr><td>Warehouse zones</td><td>Named locations within a site. A product holding stock in
+    more than one location must name the location on any movement.</td></tr>
+<tr><td>Price lists and price history</td><td>Per-customer prices, blanket discounts and
+    quantity slabs, applied in both invoicing and the till. Every cost-price change is
+    written to history, which is what makes landed-cost reversal exact.</td></tr>
+<tr><td>Label printing</td><td>Printable label sheets with Code 128, EAN-13 or QR in
+    configurable grids.</td></tr>
+</table>
+
+<h3>4.2 Purchasing</h3>
+<table>
+<tr><th>Module</th><th>What it does and what it guarantees</th></tr>
+<tr><td>Purchase orders</td><td>Draft through sent, received and closed, with partial
+    receipts. Receiving is the only path that increases stock from a supplier.</td></tr>
+<tr><td>Requisitions</td><td>Requests stock without committing company money. Approval is
+    its own permission, and an approved request converts to a draft purchase order rather
+    than to stock.</td></tr>
+<tr><td>Landed costs</td><td>Spreads freight, duty and handling across a receipt by value,
+    quantity or evenly. Applying updates cost prices and writes price history; reversal
+    restores the previous values exactly, which is only possible because of that
+    history.</td></tr>
+<tr><td>Vendor scorecard</td><td>On-time delivery, fill rate, lead time against promise
+    and price movement, graded A–D. Computed entirely from purchase orders already in the
+    workspace, so it needs no separate data entry and cannot drift from reality.</td></tr>
+</table>
+
+<h3>4.3 Sales</h3>
+<table>
+<tr><th>Module</th><th>What it does and what it guarantees</th></tr>
+<tr><td>Quotations</td><td>Priced offers with a validity window. An accepted quote
+    converts to a sales order at the prices the customer agreed to, not at current
+    prices.</td></tr>
+<tr><td>Sales orders</td><td>Confirmation, dispatch and delivery. Dispatch through the
+    sales order is the only path that removes stock for a sale.</td></tr>
+<tr><td>Pick, pack and ship</td><td>Ordered, picked and packed tracked per line, so a
+    short pick is caught at the bench rather than at the customer.</td></tr>
+<tr><td>Invoices and recurring invoices</td><td>Numbered from
+    <code>billingSequences</code>. Recurring generation is idempotent — the guard exists
+    because the failure mode is billing a customer twice.</td></tr>
+<tr><td>Returns</td><td>Customer and vendor returns, with approval and rejection as
+    distinct permissions.</td></tr>
+<tr><td>Credit control</td><td>Credit limits, payment terms and holds per customer, with
+    live exposure computed from unpaid invoices. Checked at the invoice screen and at the
+    till — before credit is extended, rather than after.</td></tr>
+<tr><td>Fast POS and register sessions</td><td>Open a till with a float, record drops and
+    payouts, close on a blind count. Every sale is stamped with its shift, so the closing
+    report reconciles against what should be in the drawer.</td></tr>
+<tr><td>Commissions</td><td>Revenue or margin basis, per-category rates, payable on
+    collection rather than on issue. Statements are computed from invoices so anyone can
+    reproduce a figure.</td></tr>
+</table>
+
+<h3>4.4 Movement, production and service</h3>
+<table>
+<tr><th>Module</th><th>What it does and what it guarantees</th></tr>
+<tr><td>Transfer orders</td><td>Draft, dispatched, received, with partial receipts and
+    shortage reporting. Stock in transit sits in an explicit bucket, so totals reconcile
+    at every point of the journey rather than only at both ends.</td></tr>
+<tr><td>Bills of materials</td><td>A finished product defined as components with
+    per-component wastage.</td></tr>
+<tr><td>Assembly</td><td>Build and unbuild in one atomic movement — components out,
+    finished goods in — so an interrupted build cannot leave the ledger half-done.</td></tr>
+<tr><td>Job work</td><td>Issue material to a subcontractor and receive finished goods
+    back, with the outstanding balance tracked in between.</td></tr>
+<tr><td>Service jobs</td><td>Book a unit in against its serial, diagnose, fit parts, hand
+    it back. Parts leave stock in the same transaction, so a service department cannot
+    quietly lose spares.</td></tr>
+</table>
+
+<h3>4.5 Financial and governance</h3>
+<table>
+<tr><th>Module</th><th>What it does and what it guarantees</th></tr>
+<tr><td>Expenses</td><td>Rent, wages, freight out and the rest, by head and month. This is
+    what lets the profit-and-loss report state a net profit rather than a gross
+    margin.</td></tr>
+<tr><td>Budgets and variance</td><td>Period budgets against actuals, pace-aware: 60% spent
+    is fine in month eight and a problem in month two, and the report says which.</td></tr>
+<tr><td>Tax summary</td><td>Output and input tax by rate for a month, quarter or financial
+    year, with the net position.</td></tr>
+<tr><td>Reporting</td><td>Valuation, dead stock, aging, vendor performance, register
+    tallies, health forecasts. Exports to spreadsheet and PDF.</td></tr>
+<tr><td>Roles and users</td><td>Custom roles built from the permission key set, plus
+    per-user overrides. Invites and join codes for onboarding.</td></tr>
+<tr><td>Audit log</td><td>Who changed what, when. Separate from the platform audit
+    log.</td></tr>
+<tr><td>Notifications</td><td>Low stock, expiry and overdue invoices, raised by an
+    on-device scan against local preferences. There is no push server.</td></tr>
+<tr><td>Plans and feature access</td><td>Three tiers — starter, pro, business — with
+    feature and quantity limits resolved from a plan catalog the platform console edits,
+    rather than from constants compiled into a release.</td></tr>
+</table>
+
+<h2><span class="num">5</span>Inventory mathematics</h2>
+
+<p>All of this lives in <code>facts.py</code> and is mirrored by the reporting code in the
+client, because the assistant and the reports screen have to quote the same numbers. The
+parity is pinned by a test rather than left to discipline.</p>
+
+<h3>5.1 Demand</h3>
+
+<p>Over a rolling window — 90 days by default, <code>FACTS_WINDOW_DAYS</code> — outbound
+transactions give a daily burn rate and the standard deviation of daily demand. Days of
+cover is on-hand divided by burn rate, and is reported as undefined rather than as a
+large number when burn is zero.</p>
+
+<p>The window matters more than it looks. A product that sold steadily and stopped two
+months ago still has a burn rate inside a 90-day window, and will not be flagged as dead
+stock until the window clears it. That is the intended behaviour — a seasonal item should
+not be written off in November — but it is the first thing to check when a dead-stock
+figure looks wrong.</p>
+
+<h3>5.2 Safety stock and the reorder point</h3>
+
+<p>Safety stock uses the standard service-level formula:</p>
+
+<pre><code>safety_stock = Z × σ × √L
+
+    Z  service-level factor, 1.65 by default (≈95%), SERVICE_LEVEL_Z
+    σ  standard deviation of daily demand; falls back to 30% of burn
+       rate when the sample is too thin to compute one honestly
+    L  vendor lead time in days, defaulting to 3 when the vendor
+       record does not state one</code></pre>
+
+<p>The square root of lead time is the part people get wrong when reimplementing this:
+demand variance accumulates over the lead time, so the buffer scales with √L rather than
+with L.</p>
+
+<p>The reorder point is then the larger of the manually configured threshold and what the
+mathematics suggests:</p>
+
+<pre><code>reorder_point = max(min_threshold, round(burn_rate × L) + safety_stock)
+needs_reorder = available_qty ≤ reorder_point</code></pre>
+
+<p>Taking the maximum rather than replacing the threshold is deliberate. A user who sets a
+minimum has a reason the ledger does not know about — a contract, a display requirement, a
+supplier's minimum order — and the model should not quietly overrule it.</p>
+
+<p>Note that the comparison uses <em>available</em> quantity, not on-hand. Units under a
+stock hold are spoken for, and counting them as available is how a system promises stock
+twice.</p>
+
+<h3>5.3 Replenishment quantity</h3>
+
+<p>When a product is below its reorder point, the suggested order covers the lead time
+plus a review cycle, then tops up to that target:</p>
+
+<pre><code>review_days = max(L, 14)
+target      = round(burn_rate × (L + review_days)) + safety_stock
+target      = max(target, min_threshold × 2)
+suggested   = max(1, target - available_qty)</code></pre>
+
+<p>The floor of twice the minimum threshold stops the suggestion collapsing to a trivial
+quantity for slow movers, where ordering three units repeatedly costs more in handling
+than the stock is worth.</p>
+
+<p><code>predictive_ml.py</code> additionally offers economic order quantity for cases
+where ordering and holding costs are known:
+<code>EOQ = √(2 × annual demand × ordering cost / holding cost)</code>. It is not on the
+default path, because most workspaces have no reliable figure for either cost.</p>
+
+<h3>5.4 Classification</h3>
+
+<p>Every product lands in one health bucket per evaluation: out of stock, low, at risk
+(under fourteen days of cover), optimal, or overstocked (over ninety days of cover). Dead
+stock is separate and is a function of time since last movement together with the capital
+tied up, which is why it ranks by value rather than by age alone — a pallet that has not
+moved in a year matters more than a single forgotten item.</p>
+
+<p>Products with no movement in the window are classified <em>not tracked</em> rather than
+being folded into any of the above. This distinction is load-bearing: it is what stops a
+new workspace being told its entire catalog is dead.</p>
+
+<h2><span class="num">6</span>The assistant</h2>
+
+<p>The service is FastAPI in front of a LangGraph state machine. The governing idea is
+that <strong>inventory is structured, relational, numeric data, so the agent queries it
+rather than retrieving it.</strong> Almost every design decision below follows from that
+one sentence.</p>
+
+<h3>6.1 Request path</h3>
+
+<p>A question is filtered through progressively more expensive layers, and most questions
+never reach the last one.</p>
+
+<div class="ascii">  request
+     │
+     ├─ answer cache ─────────── hit ──▶ response          (keyed on inventory fingerprint)
+     │      miss
+     ├─ router ────────────────────────▶ intent            (pending → bulk → regex → model)
+     │
+     ├─ fact layer ────────────────────▶ facts + context   (Firestore, 45s TTL)
+     │
+     ├─ deterministic answer bank ─ hit ▶ response          (0 tokens, ~1 ms)
+     │      miss
+     └─ agent node ────────────────────▶ response          (tool-calling model)
+             EXECUTION │ ANALYTICS │ KNOWLEDGE</div>
+
+<p>The router resolves intent in four tiers, cheapest first. An outstanding pending action
+wins outright — while a "which product did you mean?" question is open, a bare barcode in
+reply looks exactly like a lookup, and routing it as one strands the pending action. Then
+bulk detection, because an instruction like "restock everything that's low" carries no
+quantity and no product name, so the execution patterns miss it and the analytics patterns
+claim it; users asking for a change were getting a report. Then regular expressions. Only
+an ambiguous remainder reaches a model, and it reaches the cheapest one.</p>
+
+<h3>6.2 The fact layer</h3>
+
+<p><code>facts.py</code> is the single source of truth for a turn. It reads products, a
+windowed slice of the transaction ledger, categories, locations and vendors from
+Firestore, derives everything in section 5, and hands the result to every node as one
+immutable object.</p>
+
+<p>Nothing downstream re-reads Firestore mid-turn. That is what makes an answer internally
+consistent: the count in the prose, the rows in the table and the totals in the summary
+all come from one snapshot, so they cannot disagree with each other.</p>
+
+<p>The store caches per company for 45 seconds and exposes an explicit
+<code>bump()</code> that any write calls. A content hash of the live inventory — the
+<em>fingerprint</em> — is computed alongside, and section 6.9 explains what it is for.</p>
+
+<h3>6.3 The deterministic answer bank</h3>
+
+<p><code>deterministic.py</code> is the cheapest and most accurate path in the system, and
+at roughly 810 lines it is also one of the largest files. It answers about twenty
+question shapes — low stock, valuation, reorder plan, health audit, dead stock,
+overstock, best sellers, what runs out first, order log, product detail, setup overview,
+growth plan — by matching phrases and then computing the answer from facts.</p>
+
+<p>Every one of these is a database query rather than a reasoning problem. Answering them
+from computed facts costs zero tokens, takes about a millisecond, and cannot hallucinate,
+because no model is involved in producing the number. Sixteen of the twenty-one cases in
+the evaluation suite are answered this way.</p>
+
+<p>Answers are returned as markdown tables with a machine-readable trailer —
+<code>[STATS: {...}]</code> — which the client parses into metric cards. The trailer is
+stripped from the streamed token display, since it is data rather than prose.</p>
+
+<h3>6.4 Routing and cost tiers</h3>
+
+<p>Three model tiers, all overridable by environment variable, because intent
+classification has no business paying what multi-step reasoning costs:</p>
+
+<table>
+<tr><th>Tier</th><th>Default</th><th>Used for</th></tr>
+<tr><td><code>ROUTER_MODEL</code></td><td>gemini-2.5-flash-lite</td><td>Intent
+    classification, disambiguation, short lookups</td></tr>
+<tr><td><code>AGENT_MODEL</code></td><td>gemini-2.5-flash</td><td>Analytics, execution,
+    tool calling, conversation</td></tr>
+<tr><td><code>HEAVY_MODEL</code></td><td>gemini-2.5-pro</td><td>Opt-in only, for genuinely
+    multi-step strategic questions</td></tr>
+</table>
+
+<p>Clients are built once and cached per tier and tool signature. The provider resolves in
+order — Gemini API key, then Vertex through the service account, then an
+OpenAI-compatible endpoint — and logs which one served, because a silent fall-through
+between providers makes latency and cost reports impossible to interpret.</p>
+
+<p>Per-tier call and token counts are accumulated in process and exposed through the
+health endpoint, which is what the observability layer differences to attribute spend to
+a single turn.</p>
+
+<h3>6.5 Product resolution</h3>
+
+<p><code>resolver.py</code> is one ranked matcher shared by chat, voice and visual audit.
+It replaced three separate substring matchers that each picked a product by "first thing
+containing this word", which is how the assistant ended up updating the wrong SKU.</p>
+
+<p>Resolution returns a product <em>and a confidence</em>, plus the alternatives it was
+chosen over. Low confidence produces a clarification question rather than a guess, and the
+write path applies a stricter floor than the read path — a near miss is good enough to
+show someone a product, and not good enough to move stock on it.</p>
+
+<h3>6.6 Writes: preview, confirm, execute</h3>
+
+<p>No chat-driven write happens in one turn. The agent produces a preview and parks a
+pending action against <code>(company, session)</code>; a confirmation in the next turn
+executes exactly what was previewed.</p>
+
+<p>The session key is the caller's uid when the client sends no session id, and this is a
+fix rather than a detail. Defaulting the session to the company id meant two people in one
+workspace shared a slot, so one could confirm a change the other had previewed — and it
+would execute under the confirmer's permissions.</p>
+
+<p>Execution funnels through a single function. It resolves the tool, checks the
+permission, applies the write through <code>writes.py</code>, and bumps the fact store.
+Because there is exactly one such point, a refusal is final:</p>
+
+<pre><code>checked_tool = action.get("inner_tool", tool) if tool == BULK_SENTINEL else tool
+
+if not may_run_tool(checked_tool, permissions):
+    return ("You don't have permission to make that change, so I've left "
+            f"everything as it was. Ask an admin for the **{needed}** permission…",
+            {"tool": tool, "result": {"success": False, "error": "permission_denied"}})</code></pre>
+
+<p>The refusal is structured as well as worded. Downstream code and tests key on
+<code>error: "permission_denied"</code> rather than on the sentence, which is what lets
+the evaluation suite assert refusal behaviour without pinning prose.</p>
+
+<h3>6.7 Bulk actions</h3>
+
+<p>One instruction, many products: "restock everything below its minimum", "add 10 to
+every product in Beverages". <code>bulk.py</code> resolves a selector to a target set,
+computes a per-product quantity in one of several modes — fixed, top up to minimum,
+suggested reorder — and previews the whole set before anything runs.</p>
+
+<p>A bulk change is still a stock change and must not become a way around
+<code>canAdjustStock</code>. Each bulk operation maps to the single-write tool it is
+equivalent to, and the permission is checked against that inner tool.</p>
+
+<h3>6.8 Guardrails and the autonomous swarm</h3>
+
+<p><code>guardrails.py</code> enforces business policy independently of what any model
+proposes: a ceiling on auto-approved spend (1,000 by default) above which a purchase needs
+human sign-off, and a ceiling on units in a single reorder (10,000) to catch a misplaced
+decimal point before it becomes a purchase order.</p>
+
+<p><code>agent_swarm.py</code> runs closed-loop background agents per tenant — batch
+auto-reorder, stock decay and idle clearance, supplier cost and variance watch — through
+a planner, a code engine, the guardrails and a reflection step. Proposed purchase orders
+land in an approval queue rather than being placed.</p>
+
+<h3>6.9 Answer caching</h3>
+
+<p>The cache key is
+<code>(company_id, business_type, normalised question, inventory fingerprint)</code>,
+and the fingerprint is the interesting term. It is a content hash of live inventory, so
+<em>any</em> stock change anywhere rotates the key automatically, on every instance, with
+no invalidation message and no coordination between them. A stale answer becomes
+unreachable rather than being explicitly evicted.</p>
+
+<p>Four things were wrong with the previous design and each is worth knowing as a failure
+pattern. The key hashed full chat history, so it changed every turn and never hit. On a
+miss it scanned the whole table comparing the question against every stored question —
+linear work per request, for a cache that never hit. A second "semantic" tier compared
+bag-of-words vectors at a 0.80 threshold, loose enough to serve one product's answer for
+another's question. And invalidation happened only when the assistant itself wrote, so a
+change made in the application left answers wrong for the full ten-minute lifetime.</p>
+
+<p>Previews, clarifications and confirmations are never cached. A cached preview would
+reproduce the card without the pending action behind it, so confirming would do nothing —
+and worse, "cancel" is an ordinary-looking answer to cache, and replaying it would leave
+the real pending action live for a later "confirm" to apply something the user believed
+they had dropped.</p>
+
+<h3>6.10 Why there is no vector search</h3>
+
+<p>It was removed from the request path on purpose, and the reasoning generalises beyond
+this project.</p>
+
+<p>Retrieval-augmented generation earns its place when the corpus is prose and the query
+is fuzzy. Inventory is neither. "How many units of SKU 89010001 do I have" has an exact
+answer that a query returns exactly; embedding the stock table and hoping cosine
+similarity surfaces the right row is strictly worse than reading the row — slower, more
+expensive, and capable of returning a confidently wrong neighbour. Aggregates make it
+worse still: no amount of nearest-neighbour search computes a sum over the catalog.</p>
+
+<p>A small optional document store remains available for genuine prose — policies,
+how-to guides — which is the one thing retrieval is actually good at here.</p>
+
+<div class="note"><strong>Consequence</strong> — <code>chromadb</code>,
+<code>sentence-transformers</code> and the embedding dependencies are absent from
+<code>requirements.txt</code>. Documentation that still claimed them was corrected in this
+revision; it had been arguing against the architecture it was describing.</div>
+
+<h2><span class="num">7</span>Grading the assistant</h2>
+
+<p>Unit tests answer whether a function still returns four. They do not answer the question
+that decides whether this assistant is shippable: when the prompt changes, does it still
+quote real numbers about real products? <code>rag_backend/evals/</code> exists for that.</p>
+
+<pre><code>venv/bin/python run_evals.py                    # 21 cases, four suites
+venv/bin/python run_evals.py --suite safety -v  # one suite, showing every check</code></pre>
+
+<h3>7.1 What the golden set asserts</h3>
+
+<table>
+<tr><th>Suite</th><th>What it pins</th></tr>
+<tr><td><code>routing</code></td><td>Which layer answers, and what it costs in model
+    calls</td></tr>
+<tr><td><code>grounding</code></td><td>Every figure traces to the fact layer; no row
+    refers to a product that does not exist</td></tr>
+<tr><td><code>safety</code></td><td>A question never moves stock; a write without the
+    grant is refused; a cancelled preview does not land</td></tr>
+<tr><td><code>edge_cases</code></td><td>An empty catalog is not the same statement as
+    "everything is out of stock"</td></tr>
+</table>
+
+<p>Cases assert <em>structural</em> properties — the intent routed to, the rows returned,
+whether the ledger moved — rather than diffing prose against a reference paragraph.
+Grading on string equality punishes the assistant for rewording and lets a confidently
+wrong number through, which is exactly backwards when the numbers are the product.</p>
+
+<p>The grounding scorer walks every figure of three digits or more in an answer and
+requires it to trace to something the fact layer can produce: a quantity, a threshold, a
+price, an aggregate, a barcode, or a number the user themselves supplied. The three-digit
+floor is deliberate. Below it, numbers are counts, ranks and list indices; policing them
+produces noise instead of signal, and a scorer people learn to ignore protects
+nothing.</p>
+
+<h3>7.2 Ground truth</h3>
+
+<p>Expected values are arithmetic written out by hand in <code>evals/catalogs.py</code>,
+not values read back out of the code under test:</p>
+
+<pre><code>#   apples 15 × 2.50 =     37.50      laptops 100 × 999.00 = 99900.00
+#   water 200 × 8.99 =   1798.00      milk      8 ×   2.99 =    23.92
+#                                                    total = 101759.42</code></pre>
+
+<p>An evaluation that derives its expectation from the system it is grading proves only
+that the system agrees with itself. These numbers are the independent side of the
+comparison, and they are the same figures the reporting screens must agree with.</p>
+
+<h3>7.3 Scripting the model, not the system</h3>
+
+<p>The read path grades itself, because it answers from the deterministic bank with no
+model involved. The write path does not — every stock change begins with the agent
+choosing a tool, and that choice is the model's. Left alone, the cases that matter most
+could only run against a paid endpoint, which in practice means they would not run.</p>
+
+<p>So <code>evals/fake_llm.py</code> scripts the model's decision and lets everything
+downstream of it be real. The tool call is fabricated; the permission check, the resolver,
+the pending store, the ledger write and the arithmetic are the shipping code. The half
+that is faked is the half that costs money. The half that is real is the half that has
+bugs.</p>
+
+<p>That is what allows this pair to run on every push, for nothing:</p>
+
+<pre><code>- id: write_lands_for_a_permitted_caller
+  turns: ["add 50 units of Fresh Apples", "yes"]
+  permissions: ["canAdjustStock"]
+  expect: { writes: [update_stock], stock_after: {"89010001": 65} }
+
+- id: write_refused_without_the_permission
+  turns: ["add 50 units of Fresh Apples", "yes"]
+  permissions: []
+  expect: { refuses: true, stock_after: {"89010001": 15} }</code></pre>
+
+<p>Same words, same script, same confirmation. The grant is the only difference and it has
+to be the whole difference. A third case covers grants that could not be read at all, and
+a fourth confirms a cancelled preview leaves stock untouched.</p>
+
+<p>The <code>stock_after</code> assertion reads the fact layer rather than the answer. An
+agent that says it moved fifty units and moved none fails there even when the prose is
+flawless — and a refusal test that only checks the wording would pass just as happily
+against an agent that had lost the ability to write anything at all, which is why the
+permitted-caller control case exists alongside it.</p>
+
+<h3>7.4 Deterministic coverage as a cost gate</h3>
+
+<pre><code>run_evals.py --min-pass-rate 100 --min-deterministic-coverage 70</code></pre>
+
+<p>Deterministic coverage is the share of the golden set answered with no model call at
+all: currently <strong>76.2%</strong>, sixteen cases of twenty-one. It is gated because no
+correctness test will ever catch the regression it protects against. Route a free question
+through the agent and the answer stays right; the latency and the bill grow quietly for
+the life of the product. This fails the build instead.</p>
+
+<h3>7.5 Testing the graders</h3>
+
+<p><code>test_evals.py</code> hands every scorer a turn it is supposed to reject: an
+invented total, a placeholder SKU row, a write during a read-only turn, a ledger that never
+moved, a refusal that never refused, a scorer with nothing to assert. Each must reject
+it.</p>
+
+<p>Without that file the suite could be silently inert — every check returning nothing,
+every case green — and the first anyone would know is when a fabricated number reached a
+customer. A suite that has never failed is not evidence the system is correct. It is
+evidence of nothing.</p>
+
+<h2><span class="num">8</span>Observability</h2>
+
+<p>Section 7 is about the assistant before it ships. This is about what it did afterwards,
+because "it feels slow and the bill went up" is not a debuggable statement.</p>
+
+<h3>8.1 Spans</h3>
+
+<p>Spans follow the OpenTelemetry GenAI semantic conventions rather than bespoke attribute
+names. Using the standard costs nothing and means any backend that understands LLM traces
+renders these without a custom mapping. Alongside <code>gen_ai.*</code>, the routing
+attributes are the ones that pay off in practice:</p>
+
+<table>
+<tr><th>Attribute</th><th>Values</th></tr>
+<tr><td><code>agent.intent</code></td><td>ANALYTICS | EXECUTION | KNOWLEDGE</td></tr>
+<tr><td><code>agent.route_source</code></td><td>regex | llm | pending | bulk | cache</td></tr>
+<tr><td><code>agent.answered_by</code></td><td>deterministic | llm | pending | fallback | cache</td></tr>
+<tr><td><code>agent.cache_hit</code></td><td>boolean</td></tr>
+<tr><td><code>agent.llm_calls</code>, <code>gen_ai.usage.*</code></td><td>calls and tokens for the turn</td></tr>
+<tr><td><code>agent.cost_usd</code></td><td>priced per tier, rates overridable per environment</td></tr>
+</table>
+
+<p>Latency tells you a turn was slow. <code>answered_by</code> tells you why. A question
+that used to come from the deterministic bank and now goes to the model shows up on this
+attribute long before it shows up on an invoice — it is the production counterpart of the
+coverage gate in section 7.4.</p>
+
+<h3>8.2 Metrics</h3>
+
+<p><code>GET /metrics</code> serves Prometheus text exposition: counters per intent and
+per answering layer, cache hits and misses, token totals, accumulated cost, and latency
+histograms. It is roughly thirty lines of rendering rather than a dependency on the
+Prometheus client library, because four primitives were all this needed and the image is
+deliberately slim.</p>
+
+<p>Counters are per instance, like the rate limiter. That is the correct shape — Prometheus
+aggregates across instances, which is where the sum belongs.</p>
+
+<p><code>GET /api/observability/summary</code> serves the same data as JSON for the
+platform console, behind the ordinary membership check, since that is a product surface
+rather than an infrastructure one.</p>
+
+<h3>8.3 Privacy</h3>
+
+<p>Traces are exported to a third party. Inventory is not.</p>
+
+<p>Company identifiers are hashed to a stable twelve-character digest at the point the
+span is created — enough to say "this tenant's p95 doubled", not enough for whoever
+operates the tracing backend to learn who the tenant is. Question text is attached only
+under an explicit <code>OTEL_CAPTURE_PROMPTS=1</code>, which is a thing you switch on to
+debug your own workspace and switch off again.</p>
+
+<p><code>/metrics</code> sits behind <code>METRICS_TOKEN</code> and returns 404 when that
+variable is unset, rather than defaulting to open. On a managed container platform the
+service URL is public, so "metrics are only reachable internally" is an assumption about
+a network boundary that does not exist. The comparison is constant-time, because a fixed
+secret compared with <code>==</code> leaks its prefix to anyone patient.</p>
+
+<p>Finally, every function in the telemetry module swallows its own exceptions. A
+misconfigured collector endpoint should produce empty dashboards, not a 500.</p>
+
+<h2><span class="num">9</span>The Model Context Protocol surface</h2>
+
+<p><code>mcp_server.py</code> is a third front door onto the same inventory, for MCP
+clients, so a question about stock can be asked inside whatever tool the work is already
+happening in.</p>
+
+<pre><code>MCP_COMPANY_ID=&lt;workspace&gt; venv/bin/python mcp_server.py</code></pre>
+
+<table>
+<tr><th>Tool</th><th>Returns</th></tr>
+<tr><td><code>inventory_summary</code></td><td>Counts, valuation, and an explicit flag for
+    whether demand figures are trustworthy</td></tr>
+<tr><td><code>low_stock</code></td><td>Out-of-stock and below-threshold products</td></tr>
+<tr><td><code>reorder_plan</code></td><td>What to order and how much</td></tr>
+<tr><td><code>valuation</code></td><td>Retail value, cost basis, unrealised margin</td></tr>
+<tr><td><code>find_product</code></td><td>Match with a confidence score and the
+    alternatives considered</td></tr>
+<tr><td><code>dead_stock</code></td><td>Stagnant stock, or a refusal when there is no
+    history to judge it by</td></tr>
+<tr><td><code>list_products</code></td><td>The catalog, briefly</td></tr>
+<tr><td><code>adjust_stock</code></td><td>A stock change — gated, see below</td></tr>
+</table>
+
+<p>Every tool reads through the same fact store as the HTTP API and the reporting screens,
+so all three quote the same number. A second implementation of "what is low on stock" that
+drifted from the first would be worse than having no MCP server at all.</p>
+
+<h3>9.1 The security model, stated plainly</h3>
+
+<p>stdio has no per-request identity. The client is a local process the user launched, and
+there is no bearer token to verify per call. That is a genuine narrowing compared with the
+HTTP API, where every call re-proves membership, and it is stated rather than glossed:</p>
+
+<ul>
+<li>The workspace is fixed for the life of the process by <code>MCP_COMPANY_ID</code>, and
+    is never defaulted. An unset value makes every tool refuse.</li>
+<li>Writes are off unless <code>MCP_ALLOW_WRITES=1</code>.</li>
+<li>Even then, writes pass through the same <code>may_run_tool</code> choke point as the
+    chat agent, against the grants named in <code>MCP_PERMISSIONS</code>. A grant withheld
+    in the application is withheld here.</li>
+<li>A product name that resolves below the confidence floor is refused rather than guessed
+    at. Silently adjusting the wrong product is worse than adjusting nothing.</li>
+</ul>
+
+<p>The server instructions given to the client end with the rule that matters most: every
+product named in a result exists in the catalog, and a product that cannot be found should
+produce a refusal rather than a plausible substitute.</p>
+
+<h2><span class="num">10</span>The API contract</h2>
+
+<p>The client parses assistant responses by hand, pulling values out of a decoded map with
+string literals. That is good code — it distinguishes a transport failure from an answer,
+which a generated client would not — but it means every field name exists twice, in two
+languages, with nothing connecting them. Rename <code>answered_by</code> in a response
+model and the client keeps compiling, keeps running, and reads null forever.</p>
+
+<p>So the field names get one source of truth and a chain that cannot drift quietly:</p>
+
+<div class="ascii">   FastAPI application  ──▶  openapi.json  ──▶  generated client models
+        (authoritative)         (committed)           (committed)</div>
+
+<p>Both generated artefacts are committed, and the pipeline regenerates both and fails on
+any difference. A rename now has to touch three files in one commit, where a reviewer sees
+it, instead of surfacing weeks later as a null on someone's device.</p>
+
+<pre><code>venv/bin/python tools/export_openapi.py          # 25 paths, 15 schemas
+venv/bin/python tools/generate_client.py    # 13 model classes
+venv/bin/python tools/export_openapi.py --check  # what the pipeline runs</code></pre>
+
+<p>A contract test closes the last gap: every field the server sends must be either read
+by the client or listed as knowingly ignored with a stated reason. The drift detection was
+verified by simulating a rename — both the generator check and the contract test fail, as
+intended.</p>
+
+<div class="warn"><strong>Open item</strong> — the ignore list currently holds three
+fields. <code>analytics_data</code> and <code>retries</code> are free to produce.
+<code>updated_catalog</code> is not: building it forces a full re-read of the catalog from
+Firestore on every turn that writes, and nothing anywhere consumes the result. It is
+recorded rather than deleted because removing a field is an API change, not a cleanup.</div>
+
+<h2><span class="num">11</span>Delivery</h2>
+
+<h3>11.1 Pipeline</h3>
+
+<p>Six jobs, none of which needs a secret to be useful — which is the only reason the
+gates stay switched on.</p>
+
+<table>
+<tr><th>Job</th><th>Gate</th></tr>
+<tr><td>Client</td><td>Static analysis and the full unit suite (781 tests), coverage
+    uploaded</td></tr>
+<tr><td>Backend</td><td>19 test files, both testing conventions in the repository</td></tr>
+<tr><td>Evaluations</td><td>100% pass rate and at least 70% deterministic coverage</td></tr>
+<tr><td>Contract</td><td>Schema and generated client are current</td></tr>
+<tr><td>Security</td><td><code>pip-audit</code>, <code>npm audit</code>, and a secret scan
+    over full history</td></tr>
+<tr><td>Image</td><td>Container build, then a vulnerability scan reported into code
+    scanning</td></tr>
+</table>
+
+<p>The image is built but not pushed. A green check should prove the image assembles;
+deployment is a separate credentialed step rather than a side effect of a passing
+build.</p>
+
+<p>Formatting is deliberately not a gate. This repository is not formatter-clean, and
+making it one would rewrite most of the tree in a single unreviewable commit. Static
+analysis catches what actually matters.</p>
+
+<h3>11.2 Two traps in the test setup</h3>
+
+<p>Both of these produce a <em>green</em> build over a broken system, which makes them
+worth stating explicitly rather than leaving in a comment.</p>
+
+<h4>Plain test collection reports a false pass</h4>
+
+<p>The repository grew two kinds of test. Fourteen files assert at import time and call
+<code>sys.exit(1)</code>; four are conventional test modules. Running the standard test
+runner collects the four, silently ignores the fourteen, and exits zero — so "the tests
+pass" was a claim about a fifth of them. <code>run_tests.py</code> classifies each file,
+runs it the appropriate way, and fails if either kind does.</p>
+
+<h4>An environment variable can disable the entire permission suite</h4>
+
+<p><code>OFFLINE_MODE=1</code> makes <code>Principal.has</code> short-circuit to true. Set
+it globally — in a shell, or helpfully in a job definition "because the tests are
+offline" — and every permission assertion becomes a tautology: five green ticks for an
+agent that would let a read-only user write.</p>
+
+<p>It is therefore never set at job level, and <code>run_tests.py</code> strips it from
+the child environment rather than passing it through. The files that genuinely need the
+offline store set it themselves, at import, through the shared test kit.</p>
+
+<h4>A third, smaller trap</h4>
+
+<p>The generated Firebase configuration file is not committed, and two source files import
+it, so a fresh checkout cannot even be analysed. Every client job copies a placeholder into
+place first. The placeholder holds no real values and reaches no live project; committing
+it also fixed the older problem that a fresh clone could not build until someone
+hand-copied a file nobody had documented.</p>
+
+<h2><span class="num">12</span>Deployment</h2>
+
+<table>
+<tr><th>Component</th><th>Where it runs</th><th>Notes</th></tr>
+<tr><td>Client (web)</td><td>Firebase Hosting</td><td>Marketing pages and legal routes are
+    served as real crawlable pages, redirected away from the in-app routes so search
+    engines can read them</td></tr>
+<tr><td>Client (Android)</td><td>Google Play</td><td>Release builds run with code
+    shrinking and optimisation enabled</td></tr>
+<tr><td>Assistant service</td><td>Cloud Run, container</td><td>Python 3.12 slim; one
+    worker, because the graph is async end to end and concurrency comes from the event
+    loop rather than from processes</td></tr>
+<tr><td>Data</td><td>Firestore</td><td>Rules and indexes deployed from the
+    repository</td></tr>
+<tr><td>Functions</td><td>Cloud Functions (Node 20)</td><td>One trigger, on user
+    registration</td></tr>
+</table>
+
+<p>Environment variables the assistant service reads:</p>
+
+<table>
+<tr><th>Variable</th><th>Default</th><th>Effect</th></tr>
+<tr><td><code>ROUTER_MODEL</code> / <code>AGENT_MODEL</code> / <code>HEAVY_MODEL</code></td>
+    <td>flash-lite / flash / pro</td><td>Model per cost tier</td></tr>
+<tr><td><code>GEMINI_API_KEY</code></td><td>unset</td><td>When absent, falls back to the
+    platform service account</td></tr>
+<tr><td><code>FACTS_WINDOW_DAYS</code></td><td>90</td><td>Demand window</td></tr>
+<tr><td><code>FACTS_TTL_SECONDS</code></td><td>45</td><td>Fact cache lifetime</td></tr>
+<tr><td><code>SERVICE_LEVEL_Z</code></td><td>1.65</td><td>Safety-stock service level</td></tr>
+<tr><td><code>DEFAULT_LEAD_TIME_DAYS</code></td><td>3</td><td>Used when a vendor states none</td></tr>
+<tr><td><code>ANSWER_CACHE_TTL</code></td><td>900</td><td>Answer cache lifetime</td></tr>
+<tr><td><code>RATE_LIMIT_PER_MINUTE</code></td><td>30</td><td>Per company, per instance</td></tr>
+<tr><td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td><td>unset</td><td>Tracing off when unset</td></tr>
+<tr><td><code>OTEL_CAPTURE_PROMPTS</code></td><td>unset</td><td>Attach question text to spans</td></tr>
+<tr><td><code>METRICS_TOKEN</code></td><td>unset</td><td>Required for /metrics; 404 without it</td></tr>
+<tr><td><code>MCP_COMPANY_ID</code> / <code>MCP_ALLOW_WRITES</code> / <code>MCP_PERMISSIONS</code></td>
+    <td>unset / off / none</td><td>Protocol server scope and write gating</td></tr>
+</table>
+
+<div class="note"><strong>On the rate limiter</strong> — the budget is per instance and
+held in memory, so the effective ceiling rises as the service scales out. It is a guard
+against a runaway loop, not a quota. Real enforcement needs shared state, and the code says
+so rather than implying a guarantee it does not provide.</div>
+
+<h2><span class="num">13</span>Decisions and open items</h2>
+
+<h3>13.1 Decisions worth knowing before changing something</h3>
+
+<table>
+<tr><th>Decision</th><th>Reasoning</th></tr>
+<tr><td>No vector search on the request path</td><td>Inventory is structured numeric data.
+    Reading the row beats embedding it, and no nearest-neighbour search computes an
+    aggregate. A prose document store remains available for policies. See 6.10.</td></tr>
+<tr><td>Two authorization implementations</td><td>The assistant writes with Admin SDK
+    credentials, which bypass security rules. The duplication is the price of that, not an
+    oversight. See 3.1.</td></tr>
+<tr><td>Deterministic answers before the model</td><td>Twenty question shapes are database
+    queries, not reasoning problems. Zero tokens, about a millisecond, and no possibility
+    of a hallucinated figure.</td></tr>
+<tr><td>Cache keyed on an inventory fingerprint</td><td>Any stock change rotates the key on
+    every instance with no coordination. Stale answers become unreachable rather than
+    needing eviction.</td></tr>
+<tr><td>Preview then confirm for every write</td><td>One place to check permission, one
+    place to commit, one place where a refusal is final.</td></tr>
+<tr><td>Permissions cached for less time than membership</td><td>A stale permission keeps
+    granting what was just revoked. A stale membership only delays a removal.</td></tr>
+<tr><td>Formatting is not a build gate</td><td>The tree is not formatter-clean; enforcing it
+    would produce one enormous unreviewable commit.</td></tr>
+<tr><td>Optimisation enabled on release builds</td><td>The directive that previously
+    disabled it was preserving nothing measurable and cost roughly 17% of binary
+    size.</td></tr>
+</table>
+
+<h3>13.2 Open items</h3>
+
+<ol>
+<li><strong><code>updated_catalog</code> is computed and discarded.</strong> Producing it
+forces a full catalog re-read from Firestore on every turn that writes, and no consumer
+exists in the client, the web bundle or the functions. Removing it is an API change and
+wants a deprecation rather than a deletion. Recorded in the contract test's ignore list so
+it stays visible.</li>
+
+<li><strong>The rate limiter is per instance.</strong> Adequate as a runaway-loop guard,
+not adequate as a quota. Shared state would fix it.</li>
+
+<li><strong>The answer cache is per instance too.</strong> Backed by SQLite on local disk,
+so hit rates fall as the service scales out. The fingerprint keying means this costs
+efficiency and never correctness, which is why it has not been urgent.</li>
+
+<li><strong>Two testing conventions coexist.</strong> <code>run_tests.py</code> handles
+both, so nothing is silently skipped, but converging on one would remove the need for
+it.</li>
+
+<li><strong>Demand statistics need history.</strong> A workspace with no recorded
+transactions gets no burn rate, no days of cover and no dead-stock analysis. Every surface
+reports this honestly rather than substituting zero, but it does mean the most valuable
+analytics only appear once a workspace has been used for a while.</li>
+</ol>
+
+<h3>13.3 Fixed during this revision</h3>
+
+<ol>
+<li><strong>An unmapped write tool needed no permission.</strong> <code>may_run_tool</code>
+treated an empty permission mapping as "nothing required" and returned true. The bulk
+dispatcher had no mapping; in practice bulk requests are checked against their inner tool,
+but the fallback in that lookup resolved to the dispatcher sentinel, which mapped to
+nothing — so a malformed bulk plan would have bypassed permission entirely. Both now fail
+closed, and the invariant is enforced at runtime as well as asserted in a test, so it also
+covers write tools added later.</li>
+
+<li><strong>The metrics endpoint was initially added unauthenticated.</strong> An existing
+test asserts that only the health endpoint is open, and it caught this immediately. The
+endpoint now requires a token and returns 404 when none is configured. The test's registry
+of permitted dependencies is designed to be edited deliberately, and it was.</li>
+
+<li><strong>Documentation contradicted the architecture.</strong> The project README
+advertised a vector database and embedding models that were deliberately removed from the
+request path, and listed model identifiers that do not match what the code resolves.</li>
+</ol>
+
+<h3>13.4 Running everything locally</h3>
+
+<pre><code># Assistant service: tests, then the golden set
+cd rag_backend
+venv/bin/python run_tests.py
+venv/bin/python run_evals.py
+
+# Contract: are the schema and the generated client current?
+venv/bin/python tools/export_openapi.py --check
+venv/bin/python tools/generate_client.py --check
+
+# Protocol server, read-only
+MCP_COMPANY_ID=&lt;workspace&gt; venv/bin/python mcp_server.py</code></pre>
+
+<p>Expected result at the revision this document describes: 19 test files pass, 21
+evaluation cases pass at 76.2% deterministic coverage, both contract checks report
+current, and the client suite reports 781 passing tests.</p>
+
+</body>
+</html>
