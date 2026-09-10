@@ -186,9 +186,55 @@ with a reason. That list currently holds `analytics_data`, `retries` and
 
 ---
 
-## 5. CI — `.github/workflows/ci.yml`
+## 5. The financial read model — `reporting_service/`
 
-Six jobs, none of which need a secret to be useful.
+Spring Boot over PostgreSQL, holding a projection of the financial data.
+
+It exists because the reports — tax summary, aging, profit and loss, customer
+exposure — were computed in memory on the client, over collections loaded in
+full, with **no `.limit()` anywhere** in the reporting path. Around two thousand
+lines of it. And because those questions are relational: *group by tax rate
+across a quarter, bucket receivables by age, join lines to invoices to payments
+and subtract.* Firestore is a good operational store and a poor analytical one.
+
+```bash
+cd reporting_service
+JAVA_HOME=$(/usr/libexec/java_home -v 17) mvn test   # 35 tests, no DB, no Docker
+```
+
+**It owns no business truth.** Every row is derived and the whole projection can
+be dropped and rebuilt. Nothing writes back, and the assistant still queries
+Firestore directly — its questions are about current stock, which is what a
+document store is good at.
+
+Four things worth knowing:
+
+**Money is `BIGINT` minor units.** Converted once at the sync boundary, using
+`BigDecimal.valueOf` rather than `new BigDecimal(double)` — the constructor
+takes the exact binary value and turns 19.99 into 1998 paise. There is a test
+pinning that specific number.
+
+**`company_id` leads every primary key and index**, so tenancy is the physical
+layout rather than a filter the application has to remember. `TenantIsolationTest`
+seeds two workspaces two orders of magnitude apart and runs every report for
+each. Verified by breaking it: removing the predicate from the aging query makes
+it answer **10,100,000 where 100,000 was expected**, and three tests fail.
+
+**Authorization is re-implemented here**, for the third time in the platform and
+for the same reason — the Admin SDK bypasses `firestore.rules` entirely. Grants
+become Spring Security authorities, so a report declares what it needs:
+`@PreAuthorize("hasAuthority('canViewTaxReports') or hasAuthority('*')")`.
+
+**The SQL is portable on purpose** — no date arithmetic, no `FILTER`, no dialect
+functions. That is what lets the suite run on H2 in PostgreSQL mode with nothing
+installed, while CI runs the same tests again against a real PostgreSQL service.
+If those two ever disagree, a query has started depending on a dialect.
+
+---
+
+## 6. CI — `.github/workflows/ci.yml`
+
+Seven jobs, none of which need a secret to be useful.
 
 | Job | Gate |
 |---|---|
@@ -196,6 +242,7 @@ Six jobs, none of which need a secret to be useful.
 | `backend` | 19 test files, **both** conventions in this repo |
 | `evals` | 100% pass rate and ≥70% deterministic coverage |
 | `contract` | schema and generated client are current |
+| `reporting` | 35 JVM tests, run twice: H2, then real PostgreSQL |
 | `security` | `pip-audit`, `npm audit`, gitleaks |
 | `image` | Docker build + Trivy scan → GitHub code scanning |
 
@@ -242,7 +289,7 @@ rather than a cleanup:
 ## Running everything locally
 
 ```bash
-# Backend: tests, then the agent's golden set
+# Agent service: tests, then the golden set
 cd rag_backend
 venv/bin/python run_tests.py
 venv/bin/python run_evals.py
@@ -250,6 +297,10 @@ venv/bin/python run_evals.py
 # Contract: schema and generated client current?
 venv/bin/python tools/export_openapi.py --check
 venv/bin/python tools/generate_client.py --check
+
+# Reporting service
+cd ../reporting_service
+JAVA_HOME=$(/usr/libexec/java_home -v 17) mvn test
 
 # Client
 cd ..
