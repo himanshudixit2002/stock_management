@@ -18,14 +18,15 @@ change anywhere rotates the key and stale answers become unreachable.
 import asyncio
 import voice
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Set
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv()
@@ -33,6 +34,7 @@ load_dotenv()
 import auth
 import deterministic
 import llm as llm_factory
+import telemetry
 import writes
 from cache import answer_cache
 from facts import fact_store
@@ -45,6 +47,32 @@ app = FastAPI(
     title="Inventory Agent API",
     description="Grounded, tool-calling inventory assistant over live Firestore data",
 )
+
+# Tracing is configured once, at import, so the first request is instrumented
+# like every other one. With no OTLP endpoint set this installs nothing and
+# costs nothing.
+telemetry.configure()
+
+
+def _usage_now() -> Dict[str, int]:
+    snap = llm_factory.usage.snapshot()
+    return {
+        "calls": int(snap.get("total_calls", 0)),
+        "input_tokens": int(snap.get("total_input_tokens", 0)),
+        "output_tokens": int(snap.get("total_output_tokens", 0)),
+    }
+
+
+def _usage_delta(before: Dict[str, int]) -> Dict[str, int]:
+    """What this turn cost.
+
+    The usage counter is per-process and cumulative, so a turn's own spend is a
+    difference. Under concurrency this attributes some of a neighbour's tokens
+    to whichever turn finishes first; the aggregate over an instance stays
+    exact, which is the number the cost dashboards are actually built on.
+    """
+    after = _usage_now()
+    return {k: max(0, after[k] - before.get(k, 0)) for k in after}
 
 # The app's own origins only. This was "*", which combined with the missing
 # token check meant any page on the internet could read a tenant's inventory.
@@ -185,65 +213,76 @@ async def chat_endpoint(
     company_id = principal.company_id
     business_type = request.business_type or "retail_store"
 
-    facts = await asyncio.to_thread(fact_store.get, company_id)
-    cached = (
-        None
-        if _bypass_cache(request.question)
-        else answer_cache.get(
-            request.question, company_id, facts.fingerprint, business_type
+    with telemetry.turn_span(
+        "chat", company_id=company_id, question=request.question
+    ) as span:
+        facts = await asyncio.to_thread(fact_store.get, company_id)
+        cached = (
+            None
+            if _bypass_cache(request.question)
+            else answer_cache.get(
+                request.question, company_id, facts.fingerprint, business_type
+            )
         )
-    )
-    if cached:
+        if cached:
+            span.set("agent.cache_hit", True)
+            span.set("agent.answered_by", "cache")
+            telemetry.metrics.increment("agent.cache_hits")
+            return QueryResponse(
+                answer=cached["answer"],
+                intent=cached.get("intent", "KNOWLEDGE"),
+                analytics_data=cached.get("analytics_data"),
+                executed_actions=[],
+                answered_by="cache",
+                clarification_options=cached.get("clarification_options"),
+                response_kind=cached.get("response_kind", "prose"),
+                items=cached.get("items"),
+            )
+
+        span.set("agent.cache_hit", False)
+        telemetry.metrics.increment("agent.cache_misses")
+
+        inputs = _inputs(request, principal, principal.granted())
+        inputs["facts"] = facts
+        usage_before = _usage_now()
+        state = await rag_pipeline.ainvoke(inputs)
+        telemetry.record_turn(span, state, _usage_delta(usage_before))
+
+        answer = state.get("generation") or "I couldn't produce an answer for that."
+        intent = state.get("intent", "KNOWLEDGE")
+        executed = state.get("executed_actions") or []
+
+        if executed:
+            answer_cache.clear(company_id)
+        elif _cacheable(state):
+            answer_cache.set(
+                request.question,
+                company_id,
+                facts.fingerprint,
+                {
+                    "answer": answer,
+                    "intent": intent,
+                    "analytics_data": state.get("analytics_data"),
+                    "clarification_options": state.get("clarification_options"),
+                    "response_kind": state.get("response_kind", "prose"),
+                    "items": state.get("items"),
+                },
+                business_type,
+            )
+
         return QueryResponse(
-            answer=cached["answer"],
-            intent=cached.get("intent", "KNOWLEDGE"),
-            analytics_data=cached.get("analytics_data"),
-            executed_actions=[],
-            answered_by="cache",
-            clarification_options=cached.get("clarification_options"),
-            response_kind=cached.get("response_kind", "prose"),
-            items=cached.get("items"),
+            answer=answer,
+            retries=state.get("retries", 0),
+            intent=intent,
+            executed_actions=executed,
+            analytics_data=state.get("analytics_data"),
+            updated_catalog=_catalog_if_mutated(state, company_id),
+            answered_by=state.get("answered_by"),
+            clarification_options=state.get("clarification_options"),
+            pending_action=state.get("pending_action"),
+            response_kind=state.get("response_kind", "prose"),
+            items=state.get("items"),
         )
-
-    inputs = _inputs(request, principal, principal.granted())
-    inputs["facts"] = facts
-    state = await rag_pipeline.ainvoke(inputs)
-
-    answer = state.get("generation") or "I couldn't produce an answer for that."
-    intent = state.get("intent", "KNOWLEDGE")
-    executed = state.get("executed_actions") or []
-
-    if executed:
-        answer_cache.clear(company_id)
-    elif _cacheable(state):
-        answer_cache.set(
-            request.question,
-            company_id,
-            facts.fingerprint,
-            {
-                "answer": answer,
-                "intent": intent,
-                "analytics_data": state.get("analytics_data"),
-                "clarification_options": state.get("clarification_options"),
-                "response_kind": state.get("response_kind", "prose"),
-                "items": state.get("items"),
-            },
-            business_type,
-        )
-
-    return QueryResponse(
-        answer=answer,
-        retries=state.get("retries", 0),
-        intent=intent,
-        executed_actions=executed,
-        analytics_data=state.get("analytics_data"),
-        updated_catalog=_catalog_if_mutated(state, company_id),
-        answered_by=state.get("answered_by"),
-        clarification_options=state.get("clarification_options"),
-        pending_action=state.get("pending_action"),
-        response_kind=state.get("response_kind", "prose"),
-        items=state.get("items"),
-    )
 
 
 # `[STATS: {...}]` and friends are machine-readable trailers, not prose. They
@@ -931,6 +970,65 @@ async def health_check():
         "provider": llm_factory.active_provider() or "lazy",
     }
     return payload
+
+
+@app.get("/metrics")
+async def metrics_endpoint(_: None = Depends(auth.verified_metrics_scrape)):
+    """Prometheus scrape target, behind ``METRICS_TOKEN``.
+
+    Workspace identity never appears in the output regardless — tenants are
+    hashed where the span is created, not on the way out — but the counters
+    still describe a customer's traffic, so this is not open the way /health is.
+    """
+    return PlainTextResponse(
+        telemetry.metrics.render_prometheus(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@app.get("/api/observability/summary")
+async def observability_summary(
+    company_id: str = Depends(auth.verified_company_id),
+):
+    """The same counters as JSON, for the app's own admin console.
+
+    Behind the normal membership check, unlike /metrics, because this is a
+    product surface rather than an infrastructure one.
+    """
+    snapshot = telemetry.metrics.snapshot()
+    counters = snapshot["counters"]
+    turns = counters.get("agent.turns", 0)
+    free = counters.get("agent.zero_token_turns", 0)
+    return {
+        "turns": turns,
+        # The headline the eval harness also reports, measured live: what share
+        # of real traffic never reached a model.
+        "zero_token_turn_pct": round(100 * free / turns, 1) if turns else 0.0,
+        "cache_hit_pct": _hit_rate(
+            counters.get("agent.cache_hits", 0), counters.get("agent.cache_misses", 0)
+        ),
+        "tokens": {
+            "input": counters.get("agent.tokens.input", 0),
+            "output": counters.get("agent.tokens.output", 0),
+        },
+        "estimated_cost_usd": snapshot["totals"].get("agent.cost_usd", 0.0),
+        "latency_ms": snapshot["latency_ms"],
+        "by_intent": {
+            k.rsplit(".", 1)[-1]: v
+            for k, v in counters.items()
+            if k.startswith("agent.intent.")
+        },
+        "by_answered_by": {
+            k.rsplit(".", 1)[-1]: v
+            for k, v in counters.items()
+            if k.startswith("agent.answered_by.")
+        },
+    }
+
+
+def _hit_rate(hits: int, misses: int) -> float:
+    total = hits + misses
+    return round(100 * hits / total, 1) if total else 0.0
 
 
 if __name__ == "__main__":

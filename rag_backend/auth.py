@@ -22,6 +22,7 @@ the rules' own `hasPermission()` so the two agree on who may change what.
 """
 
 import os
+import secrets
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -316,6 +317,36 @@ def rate_limit(company_id: str) -> None:
             },
         )
     window.append(now)
+
+
+async def verified_metrics_scrape(
+    authorization: Optional[str] = Header(None),
+) -> None:
+    """Gate for the Prometheus scrape endpoint.
+
+    Not a Firebase token: a scraper is a machine with no user behind it, so this
+    is a shared secret in ``METRICS_TOKEN``.
+
+    It fails closed in both directions. With no token configured the endpoint is
+    refused outright rather than served openly — on Cloud Run the service URL is
+    public, and "metrics are only internal" is an assumption about a network
+    boundary that is not there. And the comparison is constant-time, because a
+    fixed secret compared with ``==`` leaks its prefix to anyone patient.
+    """
+    expected = os.environ.get("METRICS_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "metrics_disabled",
+                "message": "Metrics are not exposed on this deployment.",
+            },
+        )
+    if not secrets.compare_digest(_bearer(authorization), expected):
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "unauthorized", "message": "Invalid metrics token."},
+        )
 
 
 async def verified_company_id_rate_limited(

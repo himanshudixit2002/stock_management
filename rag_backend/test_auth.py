@@ -45,12 +45,18 @@ print("\nevery route except /health requires a verified company")
 #   verified_company_id_with_permission  writes, via require_permission(...)
 #   verified_principal(_rate_limited)    needs the caller's identity too, so the
 #                                        agent knows what they may change
+#   verified_metrics_scrape              /metrics, held by a shared secret
+#                                        rather than a user token, because the
+#                                        caller is a scraper with no user
+#                                        behind it. Refuses outright when
+#                                        METRICS_TOKEN is unset.
 AUTH_DEPENDENCIES = (
     "verified_company_id",
     "verified_company_id_rate_limited",
     "verified_company_id_with_permission",
     "verified_principal",
     "verified_principal_rate_limited",
+    "verified_metrics_scrape",
 )
 open_routes = []
 for r in main.app.routes:
