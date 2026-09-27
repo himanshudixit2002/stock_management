@@ -19,6 +19,7 @@ import '../../widgets/product_picker.dart';
 import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
+import 'bulk_stock_in_gate.dart';
 
 class _BulkRow {
   ProductModel? product;
@@ -172,12 +173,17 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
     final products = productProvider.analyticsProducts;
     final locations = context.watch<SettingsProvider>().locations;
 
-    // "No Products Yet" and "the catalog has not arrived" are different
-    // statements, and only one of them is ever true on a fresh open.
-    final bool loading = !productProvider.isFullCatalogLoaded &&
-        products.isEmpty &&
-        (productProvider.isLoadingAnalytics || productProvider.isLoading);
-    final bool isEmpty = !loading && products.isEmpty;
+    final gate = bulkStockInGate(
+      isFullCatalogLoaded: productProvider.isFullCatalogLoaded,
+      isLoadingAnalytics: productProvider.isLoadingAnalytics,
+      isLoadingProducts: productProvider.isLoading,
+      productCount: products.length,
+      locationCount: locations.length,
+    );
+    final bool loading = gate == BulkStockInGate.loading;
+    final bool noLocations = gate == BulkStockInGate.noLocations;
+    final bool isEmpty =
+        gate == BulkStockInGate.noProducts || noLocations;
 
     return AppScreenScaffold(
       icon: Icons.playlist_add_rounded,
@@ -185,13 +191,28 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
       iconColor: AppTheme.successColor,
       isLoading: loading,
       isEmpty: isEmpty,
-      emptyState: EmptyStateWidget(
-        icon: Icons.inventory_2_rounded,
-        title: 'No Products Yet',
-        subtitle: 'Add products before using bulk stock in.',
-        buttonText: 'Add Product',
-        onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
-      ),
+      emptyState: noLocations
+          ? EmptyStateWidget(
+              icon: Icons.location_off_rounded,
+              title: 'No Locations Configured',
+              subtitle: 'Add locations in Settings before receiving stock.',
+              buttonText: 'Add locations',
+              // The literal rather than ManageListAction.locations: that
+              // constant lives in a settings screen the router loads
+              // deferred, and importing it here would pull it into this
+              // screen's bundle. Stock In deep-links the same way.
+              onButtonPressed: () => context.pushAppRoute(
+                AppRoutes.settingsCatalog,
+                extra: 'locations',
+              ),
+            )
+          : EmptyStateWidget(
+              icon: Icons.inventory_2_rounded,
+              title: 'No Products Yet',
+              subtitle: 'Add products before using bulk stock in.',
+              buttonText: 'Add Product',
+              onButtonPressed: () => context.pushAppRoute(AppRoutes.addProduct),
+            ),
       bottomNavigationBar: (isEmpty || loading) ? null : _buildActionBar(),
       body: Form(
         key: _formKey,

@@ -314,11 +314,13 @@ cd stock_management
 ```
 
 > [!IMPORTANT]
-> `lib/firebase_options.dart` is gitignored, so a fresh clone **cannot even be
-> analyzed** — `main.dart` imports it. Copy the placeholder first, or generate the
-> real one with `flutterfire configure`:
+> The `lib/firebase_options*.dart` files are gitignored, so a fresh clone
+> **cannot even be analyzed** — `main.dart` imports one and
+> `config/firebase_app_options.dart` imports both. Copy the placeholders first,
+> or generate the real ones with `flutterfire configure`:
 > ```bash
-> cp lib/firebase_options.dart.example lib/firebase_options.dart
+> cp lib/firebase_options.dart.example     lib/firebase_options.dart
+> cp lib/firebase_options_gpb.dart.example lib/firebase_options_gpb.dart
 > ```
 
 <details>
@@ -369,6 +371,75 @@ MCP_COMPANY_ID=<workspace> venv/bin/python mcp_server.py
 Read-only unless `MCP_ALLOW_WRITES=1`, and writes still pass the same permission
 choke point as the app. Eight tools; see [`mcp_server.py`](rag_backend/mcp_server.py).
 </details>
+
+---
+
+## Two brands, one codebase
+
+The client ships against two independent Firebase projects. They share every
+line of Dart and nothing else: separate Firestore databases, separate auth user
+pools, separate hosting. A company created in one does not exist in the other.
+
+| | `smartshelf` (default) | `gpb` |
+|---|---|---|
+| Firebase project | `stockmanagement-27af8` | `gpbstockinventory` |
+| Android `applicationId` | `com.stockmanager.stock_management` | `com.gbp.android` |
+| Launcher label | SmartShelfKart | GPB Stock |
+| Web | smartshelfkart.com, app at `/app` | `gpbstockinventory.web.app`, app at `/` |
+| Hosting config | `firebase.json` | `firebase.gpb.json` |
+| Pipeline | `./deploy_all.sh` (web only) | `./deploy_gpb.sh` (APK + web + rules + indexes + hosting) |
+
+`com.gbp.android` is not a typo in this table. The brand is GPB; the package
+name was registered with the letters transposed, and an `applicationId` cannot
+be changed after publication, so it is frozen that way. Everything else — flavor
+id, project, label, file names — is `gpb`.
+
+```bash
+./deploy_gpb.sh                 # build APK + web, deploy rules + indexes + hosting
+./deploy_gpb.sh --build-only    # build both, deploy nothing
+./deploy_gpb.sh --aab           # also produce an App Bundle for Play
+```
+
+Or by hand:
+
+```bash
+# Android / iOS — Gradle picks the flavor, and the flavor picks google-services.json
+flutter run --flavor gpb
+flutter build apk --release --flavor gpb
+flutter build appbundle --release --flavor gpb
+
+# Web — `flutter build web` does not accept --flavor, so the brand is a dart-define
+flutter build web --release --dart-define=FLAVOR=gpb
+```
+
+Two knobs rather than one is not an oversight: on a device the Firebase config
+is baked in natively by Gradle long before Dart runs, so `--flavor` has to be
+the one that decides, and web has no `--flavor` to give. `AppBrand` in
+[`lib/config/flavor.dart`](lib/config/flavor.dart) reads whichever is present,
+prefers `--flavor`, and throws if the two disagree rather than letting a build
+authenticate against one project and read Firestore from the other.
+
+> [!WARNING]
+> Declaring a Gradle flavor dimension removes the flavorless variant, so
+> **`flutter build apk` / `appbundle` / `run` now require `--flavor`**. The
+> existing Play Store app is `--flavor smartshelf`.
+
+One consequence worth knowing: because the selector imports both options
+files and picks between them at runtime, dart2js cannot tree-shake the unused
+one, so **every web bundle contains both projects' Firebase config**. These are
+public client identifiers rather than secrets — the real access boundary is
+`firestore.rules` — but it does mean you cannot tell from the bundle alone
+which project it will talk to. `deploy_gpb.sh` therefore checks the APK
+negatively (Gradle bakes in exactly one `google-services.json`, so the other
+project's id must be absent) and the web bundle only positively, leaving the
+live site as the real proof.
+
+Adding a third brand is four things: a case in `AppBrand`, a
+`lib/firebase_options_<id>.dart` (plus its `.example`), a `productFlavors` entry
+with its own `src/<id>/google-services.json`, and a `firebase.<id>.json`. Brand
+*strings* are not wired through `AppBrand` yet — "SmartShelfKart" is still
+hardcoded across ~28 Dart and HTML files, and the Android label is the only one
+that varies today.
 
 ---
 
@@ -448,6 +519,8 @@ reporting_service/      Spring Boot analytical read model (PostgreSQL, Flyway)
 functions/              Cloud Functions (Node 20)
 docs/                   Architecture reference source + PDF build
 firestore.rules         980 lines, 17 helpers — the primary auth boundary
+lib/config/flavor.dart  Which brand/Firebase project this build talks to
+firebase.gpb.json       Hosting + Firestore config for the second project
 ```
 
 ---

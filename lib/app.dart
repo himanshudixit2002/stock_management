@@ -56,7 +56,7 @@ import 'providers/service_job_provider.dart';
 import 'providers/job_work_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
-import 'firebase_options.dart';
+import 'config/firebase_app_options.dart';
 import 'services/firestore_config.dart';
 import 'services/local_notification_service.dart';
 import 'utils/notification_routing.dart';
@@ -332,7 +332,7 @@ class _AuthWrapperState extends State<AuthWrapper>
         // error screen below, which at least says what happened and offers a
         // retry.
         await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
+          options: FlavoredFirebaseOptions.currentPlatform,
         ).timeout(
           const Duration(seconds: 20),
           onTimeout: () => throw Exception(

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher label. Overridden per brand in src/<flavor>/res/values/strings.xml;
+         this is the default flavor's (smartshelf) value. -->
+    <string name="app_name">SmartShelfKart</string>
+</resources>

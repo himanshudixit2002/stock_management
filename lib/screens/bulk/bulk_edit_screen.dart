@@ -474,6 +474,72 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
     final settings = context.watch<SettingsProvider>();
     final categories = context.watch<CategoryProvider>().categories;
 
+    /// One value field — or, when nothing is configured to pick from, a row
+    /// that says so and opens the editor that fixes it.
+    ///
+    /// Category, company and sub-category are all fed from workspace settings,
+    /// and those lists start empty. Previously the picker simply opened with
+    /// no items: the field could never be given a value, so this step blocked
+    /// on "missing values" forever with no indication of where to go. That is
+    /// a dead end on every fresh workspace.
+    Widget valueField({
+      required String label,
+      required String pickerTitle,
+      required IconData icon,
+      required List<String> options,
+      required String? current,
+      required ValueChanged<String> onPicked,
+      required String emptyMessage,
+      required VoidCallback onConfigure,
+    }) {
+      if (options.isEmpty) {
+        return InkWell(
+          onTap: onConfigure,
+          borderRadius: BorderRadius.circular(12),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: Icon(icon),
+              suffixIcon: const Icon(Icons.arrow_forward_rounded, size: 18),
+            ),
+            child: Text(
+              emptyMessage,
+              style: const TextStyle(color: AppTheme.dangerColor),
+            ),
+          ),
+        );
+      }
+      return GestureDetector(
+        onTap: () async {
+          final result = await showSearchablePicker(
+            context: context,
+            title: pickerTitle,
+            selectedValue: current,
+            items: options
+                .map(
+                  (o) => PickerItem(
+                    value: o,
+                    label: o,
+                    icon: icon,
+                    iconColor: AppTheme.primaryColor,
+                  ),
+                )
+                .toList(),
+          );
+          if (result != null) onPicked(result);
+        },
+        child: InputDecorator(
+          decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+          child: Text(
+            current ?? 'Tap to select',
+            style: TextStyle(
+              color: current != null ? null : AppTheme.textSec(context),
+            ),
+          ),
+        ),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -483,108 +549,49 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
         ),
         const SizedBox(height: 16),
         if (_selectedFields.contains('category')) ...[
-          GestureDetector(
-            onTap: () async {
-              final result = await showSearchablePicker(
-                context: context,
-                title: 'Category',
-                selectedValue: _newCategory,
-                items: categories
-                    .map(
-                      (c) => PickerItem(
-                        value: c.name,
-                        label: c.name,
-                        icon: Icons.category_rounded,
-                        iconColor: AppTheme.primaryColor,
-                      ),
-                    )
-                    .toList(),
-              );
-              if (result != null) setState(() => _newCategory = result);
-            },
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'New Category',
-                prefixIcon: Icon(Icons.category_rounded),
-              ),
-              child: Text(
-                _newCategory ?? 'Tap to select',
-                style: TextStyle(
-                  color: _newCategory != null
-                      ? null
-                      : AppTheme.textSec(context),
-                ),
-              ),
-            ),
+          valueField(
+            label: 'New Category',
+            pickerTitle: 'Category',
+            icon: Icons.category_rounded,
+            options: categories.map((c) => c.name).toList(),
+            current: _newCategory,
+            onPicked: (v) => setState(() => _newCategory = v),
+            emptyMessage: 'No categories yet — tap to add one',
+            onConfigure: () => context.pushAppRoute(AppRoutes.categories),
           ),
           const SizedBox(height: 16),
         ],
         if (_selectedFields.contains('company')) ...[
-          GestureDetector(
-            onTap: () async {
-              final result = await showSearchablePicker(
-                context: context,
-                title: 'Company / Brand',
-                selectedValue: _newCompany,
-                items: settings.companies
-                    .map(
-                      (c) => PickerItem(
-                        value: c,
-                        label: c,
-                        icon: Icons.business_rounded,
-                        iconColor: AppTheme.primaryColor,
-                      ),
-                    )
-                    .toList(),
-              );
-              if (result != null) setState(() => _newCompany = result);
-            },
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'New Company / Brand',
-                prefixIcon: Icon(Icons.business_rounded),
-              ),
-              child: Text(
-                _newCompany ?? 'Tap to select',
-                style: TextStyle(
-                  color: _newCompany != null ? null : AppTheme.textSec(context),
-                ),
-              ),
+          valueField(
+            label: 'New Company / Brand',
+            pickerTitle: 'Company / Brand',
+            icon: Icons.business_rounded,
+            options: settings.companies,
+            current: _newCompany,
+            onPicked: (v) => setState(() => _newCompany = v),
+            emptyMessage: 'No companies yet — tap to add one',
+            // The literal rather than ManageListAction.companies: that
+            // constant lives in a settings screen the router loads deferred,
+            // and importing it here would pull it into this screen's bundle.
+            onConfigure: () => context.pushAppRoute(
+              AppRoutes.settingsCatalog,
+              extra: 'companies',
             ),
           ),
           const SizedBox(height: 16),
         ],
         if (_selectedFields.contains('size')) ...[
-          GestureDetector(
-            onTap: () async {
-              final result = await showSearchablePicker(
-                context: context,
-                title: 'Sub-Category',
-                selectedValue: _newSize,
-                items: settings.sizes
-                    .map(
-                      (s) => PickerItem(
-                        value: s,
-                        label: s,
-                        icon: Icons.label_rounded,
-                        iconColor: AppTheme.primaryColor,
-                      ),
-                    )
-                    .toList(),
-              );
-              if (result != null) setState(() => _newSize = result);
-            },
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'New Sub-Category',
-                prefixIcon: Icon(Icons.label_rounded),
-              ),
-              child: Text(
-                _newSize ?? 'Tap to select',
-                style: TextStyle(
-                  color: _newSize != null ? null : AppTheme.textSec(context),
-                ),
-              ),
+          valueField(
+            label: 'New Sub-Category',
+            pickerTitle: 'Sub-Category',
+            icon: Icons.label_rounded,
+            options: settings.sizes,
+            current: _newSize,
+            onPicked: (v) => setState(() => _newSize = v),
+            emptyMessage: 'No sub-categories yet — tap to add one',
+            onConfigure: () => context.pushAppRoute(
+              AppRoutes.settingsCatalog,
+              extra: 'sizes',
             ),
           ),
           const SizedBox(height: 16),

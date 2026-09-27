@@ -40,6 +40,35 @@ android {
         versionName = flutter.versionName
     }
 
+    // One codebase, two Firebase projects. The flavor is what selects the
+    // native half of that: the applicationId, and therefore which
+    // google-services.json the Google Services plugin resolves. The Dart half
+    // is `AppBrand` in lib/config/flavor.dart, which reads the same name back
+    // out of `--flavor`; keep the spellings identical.
+    //
+    // Note that declaring any dimension removes the flavorless variant, so
+    // `flutter build apk` / `appbundle` / `run` now REQUIRE `--flavor`. The
+    // existing app is `smartshelf`.
+    flavorDimensions += "brand"
+
+    productFlavors {
+        create("smartshelf") {
+            dimension = "brand"
+            // applicationId, label and google-services.json all inherit from
+            // defaultConfig / src/main / the module-root JSON, so this flavor
+            // is byte-for-byte what the app built before flavors existed.
+        }
+        create("gpb") {
+            dimension = "brand"
+            // Yes, "gbp" here and "gpb" everywhere else. The brand is GPB
+            // (project gpbstockinventory, gpbgroup.co.in); the package name was
+            // registered with the letters transposed and an applicationId can
+            // never be changed after publication. Do not "fix" this one — it
+            // must match the package_name in src/gpb/google-services.json.
+            applicationId = "com.gbp.android"
+        }
+    }
+
     if (keystorePropertiesFile.exists()) {
         signingConfigs {
             create("release") {

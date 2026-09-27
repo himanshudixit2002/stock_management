@@ -12,7 +12,7 @@
          a device that has no microphone. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <application
-        android:label="SmartShelfKart"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"

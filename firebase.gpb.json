@@ -1,0 +1,87 @@
+{
+  "//": [
+    "Hosting + Firestore config for the `gpb` flavor (project gpbstockinventory).",
+    "Used with `--config firebase.gpb.json`; firebase.json stays the smartshelfkart.com config.",
+    "",
+    "Deliberately NOT a copy of firebase.json. That file serves a hand-authored",
+    "marketing site at / and moves the Flutter shell to /app.html, which is a",
+    "smartshelfkart.com SEO decision (see seo/README.md) and nothing this brand",
+    "needs. Here the app is the site: it is served at /, seo/build.mjs never runs,",
+    "and every path falls through to the SPA.",
+    "",
+    "`functions` is absent on purpose — functions/index.js is a documented no-op,",
+    "and deploying it would put this project on the Blaze plan for nothing."
+  ],
+  "firestore": {
+    "//": "Same rules and indexes as the other project. They are tenant-agnostic; they gate on companies/{id}/members/{uid}, not on a project.",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.symbols", "**/*.js.map"],
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "//": [
+          "Extension-less paths ONLY. A catch-all `**` here is actively harmful:",
+          "Hosting serves a rewrite when no file matches, so a request for a",
+          "chunk that is no longer deployed -- say main.dart.js_37.part.js after",
+          "a rebuild renamed it -- comes back as 200 text/html instead of 404.",
+          "The browser then executes index.html as JavaScript, loadLibrary()",
+          "rejects, and every deferred screen shows \"Could not load this",
+          "screen\". Safari hit this and Chrome did not, purely because Safari",
+          "was still asking for the older chunk names.",
+          "",
+          "RE2, so no lookahead: match paths containing no dot at all. That",
+          "covers /dashboard and /products/123 while every real asset request",
+          "falls through to an honest 404. firebase.json makes the same choice",
+          "for smartshelfkart.com and says so."
+        ],
+        "regex": "^/[^.]*$",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "//": "Firebase applies every matching rule and the LAST one wins: this is the default, everything below overrides it.",
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]
+      },
+      {
+        "//": "Content-hashed or version-pinned by the Flutter build, so a year is safe.",
+        "source": "**/*.@(ttf|otf|woff|woff2)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "**/*.wasm",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "**/assets/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "//": "The entry point. Matching is on the REQUEST path, not the file on disk, so this has to say / -- a rule keyed on /index.html never fires for the page anyone actually loads. Cached, this strands users on an old build whose chunk names no longer exist.",
+        "source": "/",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+      },
+      {
+        "source": "/flutter_service_worker.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/flutter_bootstrap.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "**/*.js.map",
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      }
+    ]
+  }
+}

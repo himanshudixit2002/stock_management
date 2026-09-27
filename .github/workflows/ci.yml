@@ -2,10 +2,11 @@
 #
 # Two things here are not boilerplate and are worth reading before editing.
 #
-# `lib/firebase_options.dart` is gitignored, so a checkout has no Firebase
-# config and cannot even be analyzed — `main.dart` imports it. Every Flutter job
-# therefore copies the placeholder into place first. The placeholder is not a
-# secret and reaches no live project; the unit tests do not touch the network.
+# The `lib/firebase_options*.dart` files are gitignored, so a checkout has no
+# Firebase config and cannot even be analyzed — `main.dart` imports one and
+# `config/firebase_app_options.dart` imports both, one per flavor. Every Flutter
+# job therefore copies the placeholders into place first. They are not secrets
+# and reach no live project; the unit tests do not touch the network.
 #
 # OFFLINE_MODE is never set at the job level. `Principal.has` short-circuits to
 # True when it is set, which would turn every permission assertion in the auth
@@ -47,7 +48,11 @@ jobs:
           cache: true
 
       - name: Provide Firebase config
-        run: cp lib/firebase_options.dart.example lib/firebase_options.dart
+        # One per flavor: config/firebase_app_options.dart imports both
+        # unconditionally, so a missing one fails analysis, not just the build.
+        run: |
+          cp lib/firebase_options.dart.example lib/firebase_options.dart
+          cp lib/firebase_options_gpb.dart.example lib/firebase_options_gpb.dart
 
       - run: flutter pub get
 

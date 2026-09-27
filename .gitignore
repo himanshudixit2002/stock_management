@@ -53,8 +53,10 @@ android/key.properties
 rag_backend/.env
 upload_certificate.pem
 android/app/google-services.json
+android/app/src/gpb/google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
+lib/firebase_options_gpb.dart
 rag_backend/chroma_db/
 
 

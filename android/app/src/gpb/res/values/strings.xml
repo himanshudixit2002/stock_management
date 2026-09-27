@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides src/main. Flavor resources win over main's for the same name. -->
+    <string name="app_name">GPB Stock</string>
+</resources>

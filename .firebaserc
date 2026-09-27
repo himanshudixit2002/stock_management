@@ -1,5 +1,8 @@
 {
+  "//": "One codebase, two projects. `default` stays the original so bare `firebase deploy` is unchanged; pass `--project gpb --config firebase.gpb.json` for the parallel one (or just run ./deploy_gpb.sh).",
   "projects": {
-    "default": "stockmanagement-27af8"
+    "default": "stockmanagement-27af8",
+    "smartshelf": "stockmanagement-27af8",
+    "gpb": "gpbstockinventory"
   }
 }

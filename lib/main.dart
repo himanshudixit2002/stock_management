@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'config/firebase_app_options.dart';
 import 'services/firestore_config.dart';
 import 'app.dart';
 
@@ -37,7 +37,7 @@ void main() async {
   if (!kIsWeb) {
     try {
       await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+        options: FlavoredFirebaseOptions.currentPlatform,
       );
       // Before anything can reach FirebaseFirestore.instance — settings are
       // read once, when the client is first started, and ignored after.
