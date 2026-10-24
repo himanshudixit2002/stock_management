@@ -241,13 +241,17 @@ class SalesOrderProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final shortId = order.id.length >= 6 ? order.id.substring(0, 6) : order.id;
-      final newItems = List<SOItem>.from(order.items);
+      // Saved after every line, as purchase-order cancellation does: the
+      // order was only updated once every line's stock had gone out, so a
+      // failure on a later line left the earlier ones dispatched in stock but
+      // not on the order, and a retry took their stock out again.
+      var working = order;
       var anyDispatched = false;
 
       for (final entry in dispatchByItemIndex.entries) {
         final index = entry.key;
-        if (index < 0 || index >= newItems.length) continue;
-        final item = newItems[index];
+        if (index < 0 || index >= working.items.length) continue;
+        final item = working.items[index];
         var qty = entry.value;
         if (qty <= 0) continue;
         if (qty > item.remainingToDispatch) qty = item.remainingToDispatch;
@@ -269,41 +273,56 @@ class SalesOrderProvider extends ChangeNotifier {
         }
 
         var remainingQty = qty;
-        for (final loc in heldByLocation.entries) {
-          if (remainingQty <= 0) break;
-          final take =
-              loc.value < remainingQty ? loc.value : remainingQty;
-          final consumed = await db.consumeHeldStockForOutbound(
-            productId: item.productId,
-            productName: item.productName,
-            quantity: take,
-            location: loc.key,
-            userId: userId,
-            userName: userName,
-            sourceType: 'sales_order',
-            sourceId: order.id,
-            reason: 'SO #$shortId hold consumed',
-          );
-          remainingQty -= consumed;
-        }
+        try {
+          for (final loc in heldByLocation.entries) {
+            if (remainingQty <= 0) break;
+            final take =
+                loc.value < remainingQty ? loc.value : remainingQty;
+            final consumed = await db.consumeHeldStockForOutbound(
+              productId: item.productId,
+              productName: item.productName,
+              quantity: take,
+              location: loc.key,
+              userId: userId,
+              userName: userName,
+              sourceType: 'sales_order',
+              sourceId: order.id,
+              reason: 'SO #$shortId hold consumed',
+            );
+            remainingQty -= consumed;
+          }
 
-        if (remainingQty > 0) {
-          await db.removeStock(
-            productId: item.productId,
-            productName: item.productName,
-            quantity: remainingQty,
-            location: location,
-            userId: userId,
-            userName: userName,
-            reason: 'SO #$shortId',
-          );
+          if (remainingQty > 0) {
+            await db.removeStock(
+              productId: item.productId,
+              productName: item.productName,
+              quantity: remainingQty,
+              location: location,
+              userId: userId,
+              userName: userName,
+              reason: 'SO #$shortId',
+            );
+            remainingQty = 0;
+          }
+        } finally {
+          // Whatever left stock is recorded, even when the line failed
+          // part-way through.
+          final done = qty - remainingQty;
+          if (done > 0) {
+            final lines = List<SOItem>.from(working.items);
+            lines[index] = item.copyWith(
+              dispatchedQuantity: item.dispatchedQuantity + done,
+            );
+            working = working.copyWith(
+              items: lines,
+              updatedAt: DateTime.now(),
+            );
+            await _databaseService.updateSalesOrder(working);
+            anyDispatched = true;
+          }
         }
-
-        newItems[index] = item.copyWith(
-          dispatchedQuantity: item.dispatchedQuantity + qty,
-        );
-        anyDispatched = true;
       }
+      final newItems = working.items;
 
       if (!anyDispatched) {
         _errorMessage = 'Select at least one item and quantity to dispatch.';

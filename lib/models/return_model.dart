@@ -75,6 +75,11 @@ class ReturnModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Indexes into [items] whose stock movement has been applied. Processing
+  /// records each line as it goes, so a retry after a failure part-way
+  /// resumes instead of moving the earlier lines' stock a second time.
+  final List<int> stockAppliedLines;
+
   ReturnModel({
     required this.id,
     required this.type,
@@ -92,6 +97,7 @@ class ReturnModel {
     this.createdByName = '',
     required this.createdAt,
     required this.updatedAt,
+    this.stockAppliedLines = const [],
   });
 
   String get typeLabel => switch (type) {
@@ -154,6 +160,10 @@ class ReturnModel {
       createdByName: safeString(map['createdByName']),
       createdAt: safeTimestamp(map['createdAt']),
       updatedAt: safeTimestamp(map['updatedAt']),
+      stockAppliedLines: [
+        for (final v in (map['stockAppliedLines'] as List?) ?? const [])
+          if (v is num) v.toInt(),
+      ],
     );
   }
 
@@ -173,6 +183,7 @@ class ReturnModel {
     'createdByName': createdByName,
     'createdAt': Timestamp.fromDate(createdAt),
     'updatedAt': Timestamp.fromDate(updatedAt),
+    if (stockAppliedLines.isNotEmpty) 'stockAppliedLines': stockAppliedLines,
   };
 
   ReturnModel copyWith({
@@ -192,6 +203,7 @@ class ReturnModel {
     String? createdByName,
     DateTime? createdAt,
     DateTime? updatedAt,
+    List<int>? stockAppliedLines,
   }) {
     return ReturnModel(
       id: id ?? this.id,
@@ -210,6 +222,7 @@ class ReturnModel {
       createdByName: createdByName ?? this.createdByName,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      stockAppliedLines: stockAppliedLines ?? this.stockAppliedLines,
     );
   }
 }

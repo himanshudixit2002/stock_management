@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/billing_settings_model.dart';
@@ -14,6 +16,12 @@ class BillingSettingsProvider extends ChangeNotifier {
   bool _initialized = false;
   String? _errorMessage;
 
+  /// Follows the counters invoices are actually numbered from. They were read
+  /// once at sign-in, so after the first invoice of a session the "next
+  /// number" on the new-invoice screen and in Settings kept showing the number
+  /// just used.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sequenceSub;
+
   BillingSettings get settings => _settings;
   bool get isInitialized => _initialized;
   String? get errorMessage => _errorMessage;
@@ -23,6 +31,8 @@ class BillingSettingsProvider extends ChangeNotifier {
       _firestore.collection('companies').doc(_companyId);
 
   void reset() {
+    _sequenceSub?.cancel();
+    _sequenceSub = null;
     _companyId = '';
     _settings = const BillingSettings();
     _initialized = false;
@@ -69,21 +79,17 @@ class BillingSettingsProvider extends ChangeNotifier {
       if (billing != null) {
         _settings = BillingSettings.fromMap(billing);
       }
-      final seqSnap = await _companyDoc
-          .collection('billingSequences')
-          .doc('default')
-          .get();
+      final seqRef = _companyDoc.collection('billingSequences').doc('default');
+      final seqSnap = await seqRef.get();
       if (seqSnap.exists && seqSnap.data() != null) {
-        final s = seqSnap.data()!;
-        _settings = _settings.copyWith(
-          nextInvoiceNumber:
-              (s['nextInvoiceNumber'] as num?)?.toInt() ??
-              _settings.nextInvoiceNumber,
-          nextPurchaseNumber:
-              (s['nextPurchaseNumber'] as num?)?.toInt() ??
-              _settings.nextPurchaseNumber,
-        );
+        _applySequences(seqSnap.data()!);
       }
+      _sequenceSub?.cancel();
+      _sequenceSub = seqRef.snapshots().listen((snap) {
+        final data = snap.data();
+        if (data == null || companyId != _companyId) return;
+        if (_applySequences(data)) notifyListeners();
+      }, onError: (_) {});
     } catch (e) {
       _errorMessage = friendlyError(
         e,
@@ -92,6 +98,31 @@ class BillingSettingsProvider extends ChangeNotifier {
     }
     _initialized = true;
     notifyListeners();
+  }
+
+  /// Takes the counters from the sequences document; true if either moved.
+  bool _applySequences(Map<String, dynamic> data) {
+    final inv =
+        (data['nextInvoiceNumber'] as num?)?.toInt() ??
+        _settings.nextInvoiceNumber;
+    final pur =
+        (data['nextPurchaseNumber'] as num?)?.toInt() ??
+        _settings.nextPurchaseNumber;
+    if (inv == _settings.nextInvoiceNumber &&
+        pur == _settings.nextPurchaseNumber) {
+      return false;
+    }
+    _settings = _settings.copyWith(
+      nextInvoiceNumber: inv,
+      nextPurchaseNumber: pur,
+    );
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _sequenceSub?.cancel();
+    super.dispose();
   }
 
   Future<bool> toggleBilling(bool enabled) async {

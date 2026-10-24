@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
 import '../utils/parse_helpers.dart';
 import '../config/plan_limits.dart';
+import '../models/billing_settings_model.dart';
 import '../models/company_plan_model.dart';
 import '../models/product_model.dart';
 import '../models/category_model.dart';
@@ -3430,7 +3431,7 @@ class DatabaseService {
           }
         }
       }
-      final formatted = '$prefix-${nextInv.toString().padLeft(4, '0')}';
+      final formatted = BillingSettings.documentNumber(prefix, nextInv);
       txn.set(seqRef, {
         'nextInvoiceNumber': nextInv + 1,
         'nextPurchaseNumber': nextPur,
@@ -3455,7 +3456,7 @@ class DatabaseService {
       if (seqSnap.exists && seqSnap.data() != null) {
         next = (seqSnap.data()!['nextCreditNoteNumber'] as num?)?.toInt() ?? 1;
       }
-      final formatted = '$prefix-${next.toString().padLeft(4, '0')}';
+      final formatted = BillingSettings.documentNumber(prefix, next);
       txn.set(seqRef, {
         'nextCreditNoteNumber': next + 1,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -3486,7 +3487,7 @@ class DatabaseService {
           }
         }
       }
-      final formatted = '$prefix-${nextPur.toString().padLeft(4, '0')}';
+      final formatted = BillingSettings.documentNumber(prefix, nextPur);
       txn.set(seqRef, {
         'nextInvoiceNumber': nextInv,
         'nextPurchaseNumber': nextPur + 1,

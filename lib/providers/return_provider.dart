@@ -164,8 +164,17 @@ class ReturnProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      for (final item in actualReturn.items) {
-        if (item.quantity <= 0) continue;
+      // Each line is recorded on the return as soon as its stock has moved,
+      // so a failure part-way leaves the return saying exactly which lines
+      // are done, and a retry skips them. The whole loop used to run before
+      // anything was saved, so retrying after a failure on line 3 put lines 1
+      // and 2 back into stock a second time.
+      var working = actualReturn;
+      for (var i = 0; i < working.items.length; i++) {
+        final item = working.items[i];
+        if (item.quantity <= 0 || working.stockAppliedLines.contains(i)) {
+          continue;
+        }
         if (returnModel.type == ReturnType.customerReturn) {
           final ref = 'Return #${returnModel.id.substring(0, 6)}';
           // Goods always come back onto the books first, so the ledger shows
@@ -204,6 +213,11 @@ class ReturnProvider extends ChangeNotifier {
             reason: 'Vendor Return #${returnModel.id.substring(0, 6)}',
           );
         }
+        working = working.copyWith(
+          stockAppliedLines: [...working.stockAppliedLines, i],
+          updatedAt: DateTime.now(),
+        );
+        await _databaseService.updateReturn(working);
       }
 
       final now = DateTime.now();
@@ -245,7 +259,7 @@ class ReturnProvider extends ChangeNotifier {
         }
       }
 
-      final updated = actualReturn.copyWith(
+      final updated = working.copyWith(
         status: ReturnStatus.processed,
         refundAmount: refund,
         updatedAt: now,

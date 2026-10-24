@@ -169,11 +169,21 @@ class BillingSettings {
     );
   }
 
-  String formatInvoiceNumber(int number) {
-    return '$invoicePrefix-${number.toString().padLeft(4, '0')}';
-  }
+  String formatInvoiceNumber(int number) =>
+      documentNumber(invoicePrefix, number);
 
-  String formatPurchaseNumber(int number) {
-    return '$purchasePrefix-${number.toString().padLeft(4, '0')}';
+  String formatPurchaseNumber(int number) =>
+      documentNumber(purchasePrefix, number);
+
+  /// `INV-0042`: the prefix, a dash, and the number padded to four digits.
+  ///
+  /// No dash is added when the prefix already ends in a separator, so a prefix
+  /// typed as "INV-" gives "INV-0042" rather than "INV--0042", and an empty
+  /// prefix gives just the number instead of "-0042".
+  static String documentNumber(String prefix, int number) {
+    final digits = number.toString().padLeft(4, '0');
+    if (prefix.isEmpty) return digits;
+    final last = prefix[prefix.length - 1];
+    return ' -/_.#'.contains(last) ? '$prefix$digits' : '$prefix-$digits';
   }
 }
