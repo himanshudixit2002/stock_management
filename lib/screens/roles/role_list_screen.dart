@@ -298,6 +298,7 @@ class _RoleCard extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
             child: const Text('Create'),
           ),
@@ -305,9 +306,18 @@ class _RoleCard extends StatelessWidget {
       ),
     ).whenComplete(nameController.dispose);
     if (result != null && result.isNotEmpty && context.mounted) {
-      await context.read<RoleProvider>().duplicateRole(role, result);
-      if (context.mounted) {
+      final roles = context.read<RoleProvider>();
+      final created = await roles.duplicateRole(role, result);
+      if (!context.mounted) return;
+      // Only claims success when the role was saved; it used to say
+      // "created" either way.
+      if (created != null) {
         showSuccessSnackBar(context, 'Role "$result" created');
+      } else {
+        showErrorSnackBar(
+          context,
+          roles.errorMessage ?? 'Could not create the role.',
+        );
       }
     }
   }
@@ -329,6 +339,7 @@ class _RoleCard extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(88, 44),
               backgroundColor: AppTheme.dangerColor,
             ),
             child: const Text('Delete'),
@@ -337,9 +348,17 @@ class _RoleCard extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      final success = await context.read<RoleProvider>().deleteRole(role.id);
-      if (context.mounted && success) {
+      final roles = context.read<RoleProvider>();
+      final success = await roles.deleteRole(role.id);
+      if (!context.mounted) return;
+      if (success) {
         showSuccessSnackBar(context, 'Role "${role.name}" deleted');
+      } else {
+        // A failed delete used to say nothing at all.
+        showErrorSnackBar(
+          context,
+          roles.errorMessage ?? 'Could not delete "${role.name}".',
+        );
       }
     }
   }

@@ -708,13 +708,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               ? null
                               : () async {
                                   setSheetState(() => isChanging = true);
-                                  await context
-                                      .read<AuthProvider>()
-                                      .updateUserRoleId(
-                                        user.uid,
-                                        selectedRoleId!,
-                                      );
+                                  final auth = context.read<AuthProvider>();
+                                  final ok = await auth.updateUserRoleId(
+                                    user.uid,
+                                    selectedRoleId!,
+                                  );
                                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                                  if (!ok) {
+                                    if (context.mounted) {
+                                      showErrorSnackBar(
+                                        context,
+                                        auth.errorMessage ??
+                                            'Could not change the role.',
+                                      );
+                                    }
+                                    return;
+                                  }
                                   if (context.mounted) {
                                     setState(() => _usersStreamEpoch++);
                                     final roleName = roles

@@ -304,7 +304,10 @@ class AuthProvider extends ChangeNotifier {
     }
     _currentUser!.resolvedPermissions = _roleProvider!.resolvePermissions(
       roleId: roleId,
-      overrides: _currentUser!.permissions,
+      // Only overrides this workspace set; the rules ignore the rest.
+      overrides: _currentUser!.overridesApply
+          ? _currentUser!.permissions
+          : null,
     );
   }
 
@@ -534,17 +537,29 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateUserRoleId(String uid, String roleId) async {
-    if (_isLoading) return;
+  /// Gives [uid] the role [roleId] in the current workspace. Returns whether
+  /// it was saved; [errorMessage] says why not. It returned nothing, so the
+  /// screen announced success even when the write was refused.
+  Future<bool> updateUserRoleId(String uid, String roleId) async {
+    final companyId = _currentUser?.companyId ?? '';
+    if (companyId.isEmpty) return false;
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+    var ok = false;
     try {
-      await _authService.updateUserRoleAssignment(uid, roleId);
+      await _authService.updateUserRoleAssignment(
+        uid,
+        roleId,
+        companyId: companyId,
+      );
+      ok = true;
     } catch (e) {
-      _errorMessage = friendlyError(e);
+      _errorMessage = friendlyError(e, fallback: 'Could not change the role.');
     }
     _isLoading = false;
     notifyListeners();
+    return ok;
   }
 
   Future<bool> updateStaffPermissions(
@@ -555,7 +570,11 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      await _authService.updateUserPermissions(uid, perms);
+      await _authService.updateUserPermissions(
+        uid,
+        perms,
+        companyId: _currentUser?.companyId ?? '',
+      );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -702,11 +721,8 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       // AuthService explains a refused switch in its own words (removed from
-      // the workspace, or no member record yet). friendlyError would replace
-      // those with its generic fallback.
-      _errorMessage = e is Exception && e is! FirebaseException
-          ? e.toString().replaceFirst('Exception: ', '')
-          : friendlyError(e);
+      // the workspace, or no member record yet); friendlyError keeps those.
+      _errorMessage = friendlyError(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -806,7 +822,12 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      // Its own explanations as written; a Firestore or network failure as a
+      // sentence instead of the raw "[cloud_firestore/...]" text.
+      _errorMessage = friendlyError(
+        e,
+        fallback: 'Could not join with that code. Check it and try again.',
+      );
       _isLoading = false;
       notifyListeners();
       return false;

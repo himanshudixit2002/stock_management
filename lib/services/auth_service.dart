@@ -53,12 +53,16 @@ class AuthService {
   }) async {
     if (companyId.isEmpty || uid.isEmpty) return;
     try {
-      await _firestore
+      final ref = _firestore
           .collection('companies')
           .doc(companyId)
           .collection('members')
-          .doc(uid)
-          .set({
+          .doc(uid);
+      // Creates only. An existing member doc holds the role the workspace
+      // granted, and only its admins may change that; rewriting it from the
+      // account's own cached role was refused, or worse, undid a role change.
+      if ((await ref.get()).exists) return;
+      await ref.set({
             'uid': uid,
             'role': role,
             'roleId': roleId,
@@ -449,14 +453,42 @@ class AuthService {
   }
 
   /// Updates `roleId`, derived `role`, and matching `companyMemberships` entry.
-  Future<void> updateUserRoleAssignment(String uid, String roleId) async {
+  /// Gives [uid] the role [roleId] in [companyId], the workspace the admin is
+  /// managing.
+  ///
+  /// The member doc is written first: it is the record the rules check a role
+  /// against when the member later switches back into this workspace. This
+  /// used to change the user doc alone, and only for whichever workspace the
+  /// member happened to be active in, so a demotion did not stick (the member
+  /// could restore the old role from the unchanged member doc) and a
+  /// promotion locked them out of switching back ("not recorded as a member").
+  Future<void> updateUserRoleAssignment(
+    String uid,
+    String roleId, {
+    required String companyId,
+  }) async {
+    final roleField = RoleModel.userRoleFieldForRoleId(roleId);
+    await _firestore
+        .collection('companies')
+        .doc(companyId)
+        .collection('members')
+        .doc(uid)
+        .set({
+          'uid': uid,
+          'role': roleField,
+          'roleId': roleId,
+        }, SetOptions(merge: true));
+
     final ref = _firestore.collection('users').doc(uid);
     final snap = await ref.get();
-    if (!snap.exists) return;
-
+    if (!snap.exists) {
+      throw Exception('That account no longer exists.');
+    }
     final data = snap.data()!;
-    final roleField = RoleModel.userRoleFieldForRoleId(roleId);
-    final activeCompanyId = data['companyId'] as String? ?? '';
+    // Someone active in another workspace keeps that workspace's role on
+    // their user doc; this one applies when they switch back (switchCompany
+    // reads the member doc), and an admin here may not write their doc.
+    if ((data['companyId'] ?? '') != companyId) return;
 
     final rawList = data['companyMemberships'];
     final List<Map<String, dynamic>> updatedMemberships = [];
@@ -464,7 +496,7 @@ class AuthService {
       for (final e in rawList) {
         if (e is! Map) continue;
         final m = Map<String, dynamic>.from(e);
-        if (m['companyId']?.toString() == activeCompanyId) {
+        if (m['companyId']?.toString() == companyId) {
           m['role'] = roleField;
           m['roleId'] = roleId;
         }
@@ -479,13 +511,29 @@ class AuthService {
     await ref.update(update);
   }
 
+  /// Sets [uid]'s per-user overrides, scoped to [companyId] (the workspace
+  /// whose admin is setting them). See overridesApplyTo in firestore.rules.
   Future<void> updateUserPermissions(
     String uid,
-    Map<String, bool> perms,
-  ) async {
+    Map<String, bool> perms, {
+    required String companyId,
+  }) async {
     await _firestore.collection('users').doc(uid).update({
       'permissions': perms,
+      'permissionsCompanyId': companyId,
     });
+  }
+
+  /// Ties overrides written before scoping to the workspace the account is
+  /// leaving, as part of the update that moves it. Otherwise, once it is in
+  /// two workspaces, they would stop counting in the one that granted them.
+  static Map<String, dynamic> _pinLegacyOverrides(Map<String, dynamic> data) {
+    final perms = data['permissions'];
+    final scope = (data['permissionsCompanyId'] ?? '') as String;
+    final current = (data['companyId'] ?? '') as String;
+    if (scope.isNotEmpty || current.isEmpty) return const {};
+    if (perms is! Map || perms.isEmpty) return const {};
+    return {'permissionsCompanyId': current};
   }
 
   Stream<List<UserModel>> getAllUsers({required String companyId}) {
@@ -565,80 +613,179 @@ class AuthService {
     if (userData == null) {
       throw Exception('User data not found.');
     }
+    final uid = user.uid;
 
-    if (userData.isAdmin) {
-      final companyId = userData.companyId;
-      final admins = await _firestore
-          .collection('users')
-          .where('companyId', isEqualTo: companyId)
-          .where('role', isEqualTo: 'admin')
-          .get();
+    final workspaces = <String>{
+      userData.companyId,
+      for (final m in userData.companyMemberships) m.companyId,
+    }..remove('');
 
-      if (admins.docs.length <= 1) {
-        await _deleteCompanyData(companyId);
+    // Only workspaces this account owns are deleted with it. This used to
+    // decide by counting accounts with role 'admin' active in the workspace,
+    // so a promoted admin could delete a workspace they did not own, and
+    // admins active elsewhere were not counted.
+    final owned = <String, String>{};
+    for (final companyId in workspaces) {
+      try {
+        final company = await _firestore
+            .collection('companies')
+            .doc(companyId)
+            .get();
+        final data = company.data();
+        if (data?['adminUid'] == uid) {
+          owned[companyId] = (data?['companyName'] as String?) ?? '';
+        }
+      } on FirebaseException {
+        // Not readable: not ours to delete.
       }
     }
 
-    await _firestore.collection('users').doc(user.uid).delete();
+    // Checked for every owned workspace before anything is deleted. A
+    // workspace other people still use is theirs too: this used to delete it,
+    // and their user docs with it.
+    for (final entry in owned.entries) {
+      if (await _hasOtherMembers(entry.key, uid)) {
+        final name = entry.value.isEmpty ? 'a workspace' : entry.value;
+        throw Exception(
+          'You own $name, and other people still use it. Remove them in '
+          'Users first: deleting your account would delete the workspace '
+          'for them too.',
+        );
+      }
+    }
+
+    for (final companyId in owned.keys) {
+      await _deleteCompanyData(companyId, uid);
+    }
+    for (final companyId in workspaces.difference(owned.keys.toSet())) {
+      await _dropMemberDoc(companyId: companyId, uid: uid);
+    }
+
+    await _firestore.collection('users').doc(uid).delete();
     await user.delete();
   }
 
-  Future<void> _deleteCompanyData(String companyId) async {
+  /// Whether anyone but [uid] belongs to [companyId]: a member doc, or a user
+  /// doc active there (accounts from before member docs existed).
+  Future<bool> _hasOtherMembers(String companyId, String uid) async {
+    final members = await _firestore
+        .collection('companies')
+        .doc(companyId)
+        .collection('members')
+        .limit(5)
+        .get();
+    if (members.docs.any((d) => d.id != uid)) return true;
+    final users = await _firestore
+        .collection('users')
+        .where('companyId', isEqualTo: companyId)
+        .limit(5)
+        .get();
+    return users.docs.any((d) => d.id != uid);
+  }
+
+  /// Every collection a workspace keeps under its company doc.
+  static const List<String> _companyCollections = [
+    'products',
+    'categories',
+    'transactions',
+    'vendors',
+    'purchaseOrders',
+    'salesOrders',
+    'returns',
+    'customers',
+    'batches',
+    'stockTakes',
+    'stockHolds',
+    'notifications',
+    'warehouseZones',
+    'invoices',
+    'billingSequences',
+    'boms',
+    'serials',
+    'transferOrders',
+    'requisitions',
+    'recurringInvoices',
+    'priceLists',
+    'landedCosts',
+    'quotations',
+    'shipments',
+    'expenses',
+    'registerSessions',
+    'commissionPlans',
+    'budgets',
+    'serviceJobs',
+    'jobWorkOrders',
+    'feedback',
+    'invites',
+    'removedMembers',
+    'auditLogs',
+    'priceHistory',
+    'roles',
+    'members',
+  ];
+
+  /// Deletes a workspace [uid] owns and nobody else uses.
+  ///
+  /// Each collection is cleared as far as the rules allow and the rest is
+  /// left behind, unreachable once the company doc is gone. This used to stop
+  /// at the first refusal (audit logs, price history and the built-in roles
+  /// cannot be deleted from the app), after the products, categories and
+  /// transactions were already gone: the inventory was wiped and the account
+  /// survived, with a raw error. The member doc goes last, because the
+  /// deletes before it depend on it.
+  Future<void> _deleteCompanyData(String companyId, String uid) async {
+    // The rules admit deletes in the workspace the account is active in. If
+    // it cannot switch there, the workspace is left as it is rather than the
+    // whole deletion stopping halfway.
+    try {
+      await switchCompany(
+        uid: uid,
+        companyId: companyId,
+        companyName: '',
+        role: 'admin',
+        roleId: RoleModel.ownerRoleId,
+      );
+    } catch (_) {
+      return;
+    }
     final companyRef = _firestore.collection('companies').doc(companyId);
-    final companySnap = await companyRef.get();
-    if (companySnap.exists) {
+    try {
       final code =
-          (companySnap.data()?['permanentJoinCode'] as String?)?.trim() ?? '';
+          ((await companyRef.get()).data()?['permanentJoinCode'] as String?)
+              ?.trim() ??
+          '';
       if (code.isNotEmpty) {
         await _firestore.collection('joinCodeIndex').doc(code).delete();
       }
-    }
+    } catch (_) {}
 
-    for (final sub in [
-      'products',
-      'categories',
-      'transactions',
-      'vendors',
-      'roles',
-      'purchaseOrders',
-      'salesOrders',
-      'returns',
-      'customers',
-      'batches',
-      'stockTakes',
-      'auditLogs',
-      'notifications',
-      'priceHistory',
-      'warehouseZones',
-      'invoices',
-      'invites',
-      'removedMembers',
-    ]) {
-      QuerySnapshot snapshot;
-      do {
-        snapshot = await companyRef.collection(sub).limit(400).get();
-        if (snapshot.docs.isEmpty) break;
-        final batch = _firestore.batch();
-        for (final doc in snapshot.docs) {
-          batch.delete(doc.reference);
-        }
-        await batch.commit();
-      } while (snapshot.docs.length == 400);
-    }
-
-    final staffDocs = await _firestore
-        .collection('users')
-        .where('companyId', isEqualTo: companyId)
-        .get();
-    if (staffDocs.docs.isNotEmpty) {
-      final batch = _firestore.batch();
-      for (final doc in staffDocs.docs) {
-        batch.delete(doc.reference);
+    for (final sub in _companyCollections) {
+      try {
+        QuerySnapshot snapshot;
+        do {
+          snapshot = await companyRef.collection(sub).limit(400).get();
+          final docs = snapshot.docs
+              .where((d) => !(sub == 'members' && d.id == uid))
+              .toList();
+          if (docs.isEmpty) break;
+          final batch = _firestore.batch();
+          for (final doc in docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        } while (snapshot.docs.length == 400);
+      } catch (_) {
+        // Refused (or one refused document sank the batch): leave the rest of
+        // this collection and carry on.
       }
-      await batch.commit();
     }
 
-    await companyRef.delete();
+    try {
+      await companyRef.delete();
+    } catch (_) {}
+    try {
+      await companyRef.collection('members').doc(uid).delete();
+    } catch (_) {}
   }
 
   /// Removes [uid] from [companyId] without touching their other workspaces.
@@ -747,6 +894,7 @@ class AuthService {
         'companyName': companyName,
         'role': 'admin',
         'roleId': RoleModel.ownerRoleId,
+        ..._pinLegacyOverrides(data),
       });
     } else {
       await _firestore.collection('users').doc(uid).update({
@@ -755,6 +903,7 @@ class AuthService {
         'companyName': companyName,
         'role': 'admin',
         'roleId': RoleModel.ownerRoleId,
+        ..._pinLegacyOverrides(data),
       });
     }
 
@@ -768,6 +917,13 @@ class AuthService {
     required String role,
     String roleId = '',
   }) async {
+    // The role comes from the member doc, which only the workspace's admins
+    // can change, rather than from the account's own cached list. After an
+    // admin changed someone's role the cache was stale, and the rules (which
+    // compare against the member doc) refused the switch.
+    final granted = await _grantedRole(companyId: companyId, uid: uid);
+    if (granted != null) (role, roleId) = granted;
+
     // Switching now requires a server-verified member doc for the target
     // workspace (see selfUserUpdateDoesNotEscalate in firestore.rules).
     // Memberships that predate member docs have none, so try to create one
@@ -782,11 +938,23 @@ class AuthService {
     );
 
     try {
-      await _firestore.collection('users').doc(uid).update({
+      final ref = _firestore.collection('users').doc(uid);
+      final data = (await ref.get()).data() ?? const {};
+      // Keep the switcher's cached entry in step with what was granted.
+      final memberships = [
+        for (final m in (data['companyMemberships'] as List?) ?? const [])
+          if (m is Map)
+            m['companyId'] == companyId
+                ? {...Map<String, dynamic>.from(m), 'role': role, 'roleId': roleId}
+                : Map<String, dynamic>.from(m),
+      ];
+      await ref.update({
         'companyId': companyId,
         'companyName': companyName,
         'role': role,
         'roleId': roleId,
+        if (memberships.isNotEmpty) 'companyMemberships': memberships,
+        ..._pinLegacyOverrides(data),
       });
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
@@ -805,6 +973,30 @@ class AuthService {
         );
       }
       rethrow;
+    }
+  }
+
+  /// The role [uid]'s member doc in [companyId] records, or null if there is
+  /// no member doc or it cannot be read.
+  Future<(String, String)?> _grantedRole({
+    required String companyId,
+    required String uid,
+  }) async {
+    try {
+      final member = (await _firestore
+              .collection('companies')
+              .doc(companyId)
+              .collection('members')
+              .doc(uid)
+              .get())
+          .data();
+      if (member == null) return null;
+      final role = member['role'] as String? ?? '';
+      final roleId = member['roleId'] as String? ?? '';
+      if (role.isEmpty) return null;
+      return (role, roleId);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -923,28 +1115,19 @@ class AuthService {
       final idx = indexSnap.data()!;
       companyId = idx['companyId'] as String;
       companyName = idx['companyName'] as String? ?? '';
-      final co = await _firestore.collection('companies').doc(companyId).get();
-      if (!co.exists) {
-        throw Exception('This company no longer exists.');
-      }
-      final onCompany =
-          (co.data()?['permanentJoinCode'] as String?)?.trim().toUpperCase() ??
-          '';
-      if (onCompany != normalized) {
-        // Not the permanent code, so it has to be an invite. The index only
-        // told us which company to look in; the invite doc is what carries the
-        // expiry, and it is readable by id.
-        final inviteDoc = await _firestore
-            .collection('companies')
-            .doc(companyId)
-            .collection('invites')
-            .doc(normalized)
-            .get();
-        if (!inviteDoc.exists) {
-          throw Exception(
-            'This join code is no longer valid. Ask for the current code.',
-          );
-        }
+      // The company document is not read here: someone joining is not a
+      // member yet, so the rules refuse it, and reading it made every join by
+      // code fail with a permission error. Whether the code is the current
+      // permanent code or a live invite is checked by the rules when the
+      // member doc is written (joinCodeAdmits). The invite doc, which anyone
+      // signed in may read by id, is read only to explain an expired invite.
+      final inviteDoc = await _firestore
+          .collection('companies')
+          .doc(companyId)
+          .collection('invites')
+          .doc(normalized)
+          .get();
+      if (inviteDoc.exists) {
         final expiresAt = (inviteDoc.data()?['expiresAt'] as Timestamp?)
             ?.toDate();
         if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
@@ -955,15 +1138,43 @@ class AuthService {
       }
     }
 
-    final membership = CompanyMembership(
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final data = userDoc.data() ?? {};
+    final existing =
+        (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
+        [];
+
+    // Already a member: a code for your own workspace used to re-add you as
+    // Staff, overwriting your member doc (an owner demoted themselves) and
+    // adding a second entry to the company switcher.
+    final mine = existing
+        .map(CompanyMembership.fromMap)
+        .where((m) => m.companyId == companyId)
+        .firstOrNull;
+    if (mine != null || data['companyId'] == companyId) {
+      if (data['companyId'] == companyId) {
+        throw Exception(
+          'You are already in ${companyName.isEmpty ? 'this workspace' : companyName}.',
+        );
+      }
+      await switchCompany(
+        uid: uid,
+        companyId: companyId,
+        companyName: mine!.companyName.isEmpty
+            ? companyName
+            : mine.companyName,
+        role: mine.role,
+        roleId: mine.roleId,
+      );
+      return mine;
+    }
+
+    var membership = CompanyMembership(
       companyId: companyId,
       companyName: companyName,
       role: 'staff',
       roleId: RoleModel.staffRoleId,
     );
-
-    final userDoc = await _firestore.collection('users').doc(uid).get();
-    final data = userDoc.data() ?? {};
 
     // Record the server-verifiable membership. The code is passed through so
     // the rules can confirm it really maps to this company — unlike
@@ -977,10 +1188,17 @@ class AuthService {
       email: (data['email'] ?? '') as String,
       name: (data['name'] ?? '') as String,
     );
-
-    final existing =
-        (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
-        [];
+    // A member doc that already existed keeps the role it records, and the
+    // rules compare the user doc against it.
+    final granted = await _grantedRole(companyId: companyId, uid: uid);
+    if (granted != null) {
+      membership = CompanyMembership(
+        companyId: companyId,
+        companyName: companyName,
+        role: granted.$1,
+        roleId: granted.$2,
+      );
+    }
 
     final Map<String, dynamic> update;
     if (existing.isEmpty) {
@@ -1005,6 +1223,7 @@ class AuthService {
         'companyName': companyName,
         'role': membership.role,
         'roleId': membership.roleId,
+        ..._pinLegacyOverrides(data),
       };
     } else {
       update = {
@@ -1013,6 +1232,7 @@ class AuthService {
         'companyName': companyName,
         'role': membership.role,
         'roleId': membership.roleId,
+        ..._pinLegacyOverrides(data),
       };
     }
 
@@ -1045,7 +1265,25 @@ class AuthService {
   }) async {
     final ref = _firestore.collection('users').doc(uid);
     final snap = await ref.get();
-    if (!snap.exists) return;
+    if (!snap.exists) {
+      throw Exception('Your account could not be loaded. Please try again.');
+    }
+
+    // The owner cannot leave: the workspace would be left with nobody able to
+    // manage it, and the rules refuse the member doc deletion anyway.
+    try {
+      final company = await _firestore
+          .collection('companies')
+          .doc(membership.companyId)
+          .get();
+      if (company.data()?['adminUid'] == uid) {
+        throw Exception(
+          'You own ${membership.companyName}, so you cannot leave it.',
+        );
+      }
+    } on FirebaseException {
+      // Unreadable: carry on, and let the rules decide.
+    }
 
     final data = snap.data()!;
     final activeCompanyId = (data['companyId'] ?? '') as String;
@@ -1076,9 +1314,10 @@ class AuthService {
           'role': 'staff',
           'roleId': RoleModel.staffRoleId,
         });
+        await _dropMemberDoc(companyId: membership.companyId, uid: uid);
         return;
       }
-      throw Exception('You are not a member of this company.');
+      throw Exception('You are not a member of ${membership.companyName}.');
     }
 
     final remaining = List<Map<String, dynamic>>.from(list);
@@ -1105,6 +1344,25 @@ class AuthService {
     }
 
     await ref.update(updates);
+    await _dropMemberDoc(companyId: membership.companyId, uid: uid);
+  }
+
+  /// Deletes the leaver's member doc, which is what the rules treat as access.
+  /// Leaving used to edit the user doc only, so the leaver kept access and
+  /// could switch straight back in. Best effort: the user doc has already
+  /// changed, and an older ruleset refuses the deletion.
+  Future<void> _dropMemberDoc({
+    required String companyId,
+    required String uid,
+  }) async {
+    try {
+      await _firestore
+          .collection('companies')
+          .doc(companyId)
+          .collection('members')
+          .doc(uid)
+          .delete();
+    } catch (_) {}
   }
 
   Future<void> logout() async {

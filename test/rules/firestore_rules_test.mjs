@@ -670,6 +670,136 @@ await check('a workspace-less account joins with a live code', async () => {
     {companyId:'companyA',companyName:'A',role:'staff',roleId:'staff',companyMemberships:[{companyId:'companyA',companyName:'A',role:'staff',roleId:'staff'}]}));
 });
 
+console.log('\n--- JOINING BY CODE ---');
+// AuthService.joinCompany no longer reads the company doc (a newcomer may not),
+// and relies on these instead.
+await check('a newcomer cannot read the company doc', async () => {
+  await seedRemoval();
+  return assertFails(getDoc(doc(as('x'),'companies/companyA')));
+});
+await check('a newcomer can look a code up in the index', async () => {
+  await seedRemoval();
+  return assertSucceeds(getDoc(doc(as('x'),'joinCodeIndex/PRE001')));
+});
+await check('a newcomer can read an invite by its code, to explain an expiry', async () => {
+  await seedRemoval();
+  return assertSucceeds(getDoc(doc(as('x'),'companies/companyA/invites/EXP001')));
+});
+await check('a newcomer can check for a member doc of their own before joining', async () => {
+  await seedRemoval();
+  return assertSucceeds(getDoc(doc(as('x'),'companies/companyA/members/x')));
+});
+
+console.log('\n--- LEAVING ---');
+await check('a member can delete their own member doc to leave', async () => {
+  await seedRemoval();
+  return assertSucceeds(deleteDoc(doc(as('roamer'),'companies/companyA/members/roamer')));
+});
+await check('after leaving, they cannot switch back in', async () => {
+  await seedRemoval();
+  await deleteDoc(doc(as('roamer'),'companies/companyA/members/roamer'));
+  return assertFails(updateDoc(doc(as('roamer'),'users/roamer'),{companyId:'companyA',companyName:'A'}));
+});
+await check('an owner who drops their member doc can re-create it as creator', async () => {
+  await seedRemoval();
+  await assertSucceeds(deleteDoc(doc(as('ownerA'),'companies/companyA/members/ownerA')));
+  return assertSucceeds(setDoc(doc(as('ownerA'),'companies/companyA/members/ownerA'),{uid:'ownerA',role:'admin',roleId:'owner'}));
+});
+await check('a member cannot delete another members doc', async () => {
+  await seedRemoval();
+  return assertFails(deleteDoc(doc(as('staffA'),'companies/companyA/members/roamer')));
+});
+
+console.log('\n--- ROLE CHANGES LIVE ON THE MEMBER DOC ---');
+// AuthService.updateUserRoleAssignment writes the member doc first; switching
+// back in takes the role from it.
+await check('an admin changes a members role on their member doc', async () => {
+  await seedRemoval();
+  return assertSucceeds(updateDoc(doc(as('ownerA'),'companies/companyA/members/roamer'),{role:'admin',roleId:'admin'}));
+});
+await check('a member cannot change their own member doc role', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('staffA'),'companies/companyA/members/staffA'),{role:'admin',roleId:'admin'}));
+});
+await check('a promoted admin can switch back in as admin', async () => {
+  await seedRemoval();
+  await updateDoc(doc(as('ownerA'),'companies/companyA/members/roamer'),{role:'admin',roleId:'admin'});
+  return assertSucceeds(updateDoc(doc(as('roamer'),'users/roamer'),{companyId:'companyA',companyName:'A',role:'admin',roleId:'admin'}));
+});
+await check('a member cannot switch in with a role the member doc does not record', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('roamer'),'users/roamer'),{companyId:'companyA',companyName:'A',role:'admin',roleId:'admin'}));
+});
+await check('a demoted admin cannot restore the old role on switching back', async () => {
+  await seedRemoval();
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyA/members/roamer'),{uid:'roamer',role:'admin',roleId:'admin'}));
+  await updateDoc(doc(as('ownerA'),'companies/companyA/members/roamer'),{role:'staff',roleId:'staff'});
+  return assertFails(updateDoc(doc(as('roamer'),'users/roamer'),{companyId:'companyA',companyName:'A',role:'admin',roleId:'admin'}));
+});
+
+console.log('\n--- PER-USER OVERRIDES BELONG TO ONE WORKSPACE ---');
+// Creating an invite needs canManageUsers, so it shows whether an override
+// counted. roamer is a member of A and B and active in B.
+const setUser = (uid, data) => env.withSecurityRulesDisabled(async (ctx) =>
+  updateDoc(doc(ctx.firestore(),`users/${uid}`), data));
+const inviteIn = (uid, companyId) =>
+  setDoc(doc(as(uid),`companies/${companyId}/invites/T${uid.slice(0,4).toUpperCase()}`),
+    {code:'X',companyId,createdAt:serverTimestamp()});
+await check('an override scoped to the workspace applies there', async () => {
+  await seedRemoval();
+  await setUser('staffA',{permissions:{canManageUsers:true},permissionsCompanyId:'companyA'});
+  return assertSucceeds(inviteIn('staffA','companyA'));
+});
+await check('an override scoped to another workspace does not apply', async () => {
+  await seedRemoval();
+  await setUser('roamer',{permissions:{canManageUsers:true},permissionsCompanyId:'companyA'});
+  return assertFails(inviteIn('roamer','companyB'));
+});
+await check('an unscoped override does not apply for an account in two workspaces', async () => {
+  await seedRemoval();
+  await setUser('roamer',{permissions:{canManageUsers:true}});
+  return assertFails(inviteIn('roamer','companyB'));
+});
+await check('an unscoped override still applies for an account in one workspace', async () => {
+  await seedRemoval();
+  await setUser('staffA',{permissions:{canManageUsers:true}});
+  return assertSucceeds(inviteIn('staffA','companyA'));
+});
+await check('an override switched off revokes what the role grants', async () => {
+  await seedRemoval();
+  await setUser('viewerA',{permissions:{canViewBoms:false},permissionsCompanyId:'companyA'});
+  return assertFails(getDoc(doc(as('viewerA'),'companies/companyA/boms/d1')));
+});
+await check('the role still decides permissions without an override', async () => {
+  await seedRemoval();
+  return assertSucceeds(getDoc(doc(as('viewerA'),'companies/companyA/boms/d1')));
+});
+await check('an admin writes overrides scoped to their workspace', async () => {
+  await seedRemoval();
+  return assertSucceeds(updateDoc(doc(as('ownerA'),'users/staffA'),
+    {permissions:{canManageUsers:true},permissionsCompanyId:'companyA'}));
+});
+await check('an admin cannot scope overrides to another workspace', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('ownerA'),'users/staffA'),
+    {permissions:{canManageUsers:true},permissionsCompanyId:'companyB'}));
+});
+await check('an admin cannot write unscoped overrides', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('ownerA'),'users/staffA'),{permissions:{canManageUsers:true}}));
+});
+await check('an account cannot move its overrides to another workspace', async () => {
+  await seedRemoval();
+  await setUser('staffA',{permissions:{canManageUsers:true},permissionsCompanyId:'companyA'});
+  return assertFails(updateDoc(doc(as('staffA'),'users/staffA'),{permissionsCompanyId:'companyB'}));
+});
+await check('an account may pin unscoped overrides to the workspace it is in', async () => {
+  await seedRemoval();
+  await setUser('staffA',{permissions:{canManageUsers:true}});
+  return assertSucceeds(updateDoc(doc(as('staffA'),'users/staffA'),{permissionsCompanyId:'companyA'}));
+});
+
 await env.cleanup();
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail===0?0:1);

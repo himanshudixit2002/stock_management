@@ -103,6 +103,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () async {
               final name = nameCtrl.text.trim();
               if (name.isEmpty) return;
@@ -173,6 +174,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () async {
               final code = codeCtrl.text.trim().toUpperCase();
               if (code.length < 6) return;
@@ -263,6 +265,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
         ),
         actions: [
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Done'),
           ),
@@ -304,6 +307,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Regenerate'),
           ),
@@ -341,6 +345,7 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(88, 44),
               backgroundColor: AppTheme.dangerColor,
             ),
             onPressed: () async {
@@ -472,7 +477,13 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                             onTap: entry.value.companyId == activeId
                                 ? null
                                 : () => _switchCompany(context, entry.value),
-                            onLeave: entry.value.companyId == activeId
+                            // Not for a workspace you created: you own it,
+                            // and leaving would strand it.
+                            onLeave:
+                                entry.value.companyId == activeId ||
+                                    _creatorCompanyIds.contains(
+                                      entry.value.companyId,
+                                    )
                                 ? null
                                 : () => _confirmLeave(context, entry.value),
                           ),

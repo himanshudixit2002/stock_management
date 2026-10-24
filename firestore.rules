@@ -110,9 +110,21 @@ service cloud.firestore {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       let target = request.resource.data.companyId;
       return !changed.hasAny(['email', 'uid', 'createdAt', 'permissions'])
+        // An account may pin overrides written before scoping to the
+        // workspace it is in (the app does so on leaving it), never move them.
+        && (!changed.hasAny(['permissionsCompanyId'])
+            || (resource.data.get('permissionsCompanyId', '') == ''
+                && request.resource.data.permissionsCompanyId
+                   == resource.data.companyId))
         && (!changed.hasAny(['role'])
             || request.resource.data.role in ['staff', 'viewer', 'manager']
-            || (target != '' && isCompanyCreator(target)))
+            || (target != '' && isCompanyCreator(target))
+            // A role the workspace's admins granted, as its member doc records.
+            // Only those admins can write a member doc's role, so it cannot be
+            // self-granted; without this an admin who did not create the
+            // workspace could never switch back into it.
+            || (target != '' && hasMemberDoc(target)
+                && memberDocFor(target).get('role', '') == request.resource.data.role))
         && (!changed.hasAny(['roleId']) || selfRoleIdIsVerified(target))
         && (target == resource.data.companyId
             || target == ''
@@ -177,13 +189,33 @@ service cloud.firestore {
     function hasPermission(companyId, permission) {
       let userData = getUserData();
       let roleId = userData.roleId;
+      let overrides = userOverrides(userData);
       // Admin/owner bypass: mirror isAdmin() for consistency
       return userData.role == 'admin' || userData.role == 'owner' ||
-        (roleId != null && roleId != '' &&
-         exists(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)) &&
-         get(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)).data.permissions[permission] == true) ||
-        // Per-user override
-        (userData.permissions != null && userData.permissions[permission] == true);
+        // A per-user override decides, either way, where it applies: the app
+        // has always shown a switched-off override as revoking the role's
+        // grant, and the rules used to OR it with the role instead.
+        (overridesApplyTo(userData, companyId) && permission in overrides
+          ? overrides[permission] == true
+          : (roleId != null && roleId != '' &&
+             exists(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)) &&
+             get(/databases/$(database)/documents/companies/$(companyId)/roles/$(roleId)).data.permissions[permission] == true));
+    }
+
+    function userOverrides(userData) {
+      let p = userData.get('permissions', {});
+      return p is map ? p : {};
+    }
+
+    // Per-user overrides are set by one workspace's admins and belong to that
+    // workspace (permissionsCompanyId). They used to follow the account into
+    // every workspace it joined, so an admin of one workspace could grant
+    // permissions in another. Overrides written before the scope existed
+    // still count for an account in at most one workspace.
+    function overridesApplyTo(userData, companyId) {
+      let scope = userData.get('permissionsCompanyId', '');
+      return scope == companyId
+        || (scope == '' && userData.get('companyMemberships', []).size() <= 1);
     }
 
     // Allow the original creator of a company to bootstrap it (seed roles, etc.)
@@ -236,12 +268,19 @@ service cloud.firestore {
     //    the person who created the workspace and lock them out of it.
     function adminUserUpdateAllowed(userId) {
       let target = request.resource.data.get('companyId', '');
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
       return (request.auth.uid == userId
               || !isWorkspaceOwner(resource.data.companyId, userId))
         && (target == resource.data.get('companyId', '')
             || target == ''
             || exists(/databases/$(database)/documents/companies/$(target)/members/$(userId))
-            || isWorkspaceOwner(target, userId));
+            || isWorkspaceOwner(target, userId))
+        // Overrides an admin writes are scoped to the admin's workspace, or
+        // cleared; see overridesApplyTo.
+        && (!changed.hasAny(['permissions', 'permissionsCompanyId'])
+            || userOverrides(request.resource.data).size() == 0
+            || request.resource.data.get('permissionsCompanyId', '')
+               == resource.data.companyId);
     }
 
     // Whether [code] may still admit [uid] to [companyId] as a new member.
@@ -540,6 +579,13 @@ service cloud.firestore {
         allow create, update, delete: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageUsers')) &&
           (request.auth.uid == memberUid || !isWorkspaceOwner(companyId, memberUid));
+
+        // Leaving: anyone may delete their own member doc, which only ever
+        // takes access away. Leaving used to edit the user doc alone, so the
+        // member doc stayed and the leaver could still switch back in. (The
+        // app does not offer the owner Leave; an owner who drops the doc can
+        // re-create it as the workspace's creator.)
+        allow delete: if isAuthenticated() && request.auth.uid == memberUid;
       }
 
       // Accounts an admin removed from this workspace. The record is what stops

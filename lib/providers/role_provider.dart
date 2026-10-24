@@ -203,9 +203,15 @@ class RoleProvider extends ChangeNotifier {
   Future<bool> deleteRole(String roleId) async {
     final role = getRoleById(roleId);
     if (role == null) return false;
-    if (role.isSystem && role.id == RoleModel.ownerRoleId) return false;
+    if (role.isSystem) {
+      // The rules keep built-in roles; say so instead of failing silently.
+      _errorMessage = 'Built-in roles cannot be deleted.';
+      notifyListeners();
+      return false;
+    }
 
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
     try {
       await _rolesRef.doc(roleId).delete();
@@ -213,7 +219,7 @@ class RoleProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = friendlyError(e, fallback: 'Could not delete the role.');
       _isLoading = false;
       notifyListeners();
       return false;
@@ -233,6 +239,7 @@ class RoleProvider extends ChangeNotifier {
       updatedAt: now,
     );
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
     try {
       final docRef = await _rolesRef.add(dup.toMap());
@@ -240,7 +247,7 @@ class RoleProvider extends ChangeNotifier {
       notifyListeners();
       return dup.copyWith(id: docRef.id);
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = friendlyError(e, fallback: 'Could not create the role.');
       _isLoading = false;
       notifyListeners();
       return null;

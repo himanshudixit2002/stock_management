@@ -48,6 +48,11 @@ class UserModel {
   final Map<String, bool> permissions;
   final List<CompanyMembership> companyMemberships;
 
+  /// The workspace whose admins set [permissions]. Overrides apply only
+  /// there; ones written before this existed apply only to an account in a
+  /// single workspace. Mirrors overridesApplyTo in firestore.rules.
+  final String permissionsCompanyId;
+
   /// Resolved permissions from the role + per-user overrides.
   /// Set externally by AuthProvider after loading the role.
   Map<String, bool>? _resolvedPermissions;
@@ -120,8 +125,14 @@ class UserModel {
     required this.createdAt,
     Map<String, bool>? permissions,
     List<CompanyMembership>? companyMemberships,
+    this.permissionsCompanyId = '',
   }) : permissions = permissions ?? defaultPermissions,
        companyMemberships = companyMemberships ?? const [];
+
+  /// Whether [permissions] count in the workspace the account is in now.
+  bool get overridesApply =>
+      permissionsCompanyId == companyId ||
+      (permissionsCompanyId.isEmpty && companyMemberships.length <= 1);
 
   bool get isAdmin => role == 'admin' || role == 'owner';
   bool get isStaff => role == 'staff';
@@ -196,6 +207,7 @@ class UserModel {
       createdAt: safeTimestamp(map['createdAt']),
       permissions: perms,
       companyMemberships: memberships,
+      permissionsCompanyId: safeString(map['permissionsCompanyId']),
     );
   }
 
@@ -212,6 +224,8 @@ class UserModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'permissions': permissions,
       'companyMemberships': companyMemberships.map((m) => m.toMap()).toList(),
+      if (permissionsCompanyId.isNotEmpty)
+        'permissionsCompanyId': permissionsCompanyId,
     };
   }
 
@@ -227,6 +241,7 @@ class UserModel {
     DateTime? createdAt,
     Map<String, bool>? permissions,
     List<CompanyMembership>? companyMemberships,
+    String? permissionsCompanyId,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -240,6 +255,7 @@ class UserModel {
       createdAt: createdAt ?? this.createdAt,
       permissions: permissions ?? this.permissions,
       companyMemberships: companyMemberships ?? this.companyMemberships,
+      permissionsCompanyId: permissionsCompanyId ?? this.permissionsCompanyId,
     );
   }
 }
