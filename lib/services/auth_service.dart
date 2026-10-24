@@ -3,12 +3,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/company_plan_model.dart';
 import '../models/user_model.dart';
+import '../models/workspace_member_model.dart';
+import 'member_removal_service.dart';
+import 'membership_access.dart';
 import 'promo_service.dart';
 import '../models/role_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final MemberRemovalService _members = MemberRemovalService(
+    firestore: _firestore,
+  );
 
   static const _joinCodeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -594,6 +600,7 @@ class AuthService {
       'warehouseZones',
       'invoices',
       'invites',
+      'removedMembers',
     ]) {
       QuerySnapshot snapshot;
       do {
@@ -622,35 +629,45 @@ class AuthService {
     await companyRef.delete();
   }
 
-  /// Removes a staff member from [companyId].
+  /// Removes [uid] from [companyId] without touching their other workspaces.
   ///
-  /// The member doc has to go too. It is the server-verified record of
-  /// belonging: the AI backend authorises purely on it, so leaving it behind
-  /// let a removed employee keep full assistant-mediated read and write on the
-  /// workspace. It is also what a self-created user doc is checked against, so
-  /// a stale one let them re-create their own user doc and walk straight back
-  /// in. Deleting the user doc alone revoked nothing durable.
+  /// This used to delete the person's user doc outright. That doc holds every
+  /// workspace they belong to, so removing someone from one workspace cost
+  /// them all of them, including any they owned, and left a login that could
+  /// neither be used nor re-registered. See [MemberRemovalService.removeMember]
+  /// for what happens now.
   ///
-  /// The Firebase Auth account itself survives — deleting another user's
-  /// account needs the Admin SDK and cannot be done from the client. That is
-  /// fine once the member doc is gone: with no user doc and no membership,
-  /// every rule and every backend route denies them.
-  Future<void> deleteStaffUser(String staffUid, {String companyId = ''}) async {
-    final cid = companyId.trim();
-    if (cid.isNotEmpty) {
-      try {
-        await _firestore
-            .collection('companies')
-            .doc(cid)
-            .collection('members')
-            .doc(staffUid)
-            .delete();
-      } catch (_) {
-        // Best-effort: an older workspace may have no member doc at all, and
-        // the user doc below is what the app itself reads.
-      }
-    }
-    await _firestore.collection('users').doc(staffUid).delete();
+  /// The Firebase Auth account survives either way. Deleting another user's
+  /// account needs the Admin SDK and cannot be done from the client.
+  Future<void> removeMember({
+    required String companyId,
+    required String uid,
+    String removedByUid = '',
+    String name = '',
+    String email = '',
+  }) {
+    return _members.removeMember(
+      companyId: companyId,
+      uid: uid,
+      removedByUid: removedByUid,
+      name: name,
+      email: email,
+    );
+  }
+
+  /// Live view of [uid]'s own user doc. The session watches it to notice being
+  /// removed from its workspace while the app is open.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchUserDoc(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots();
+  }
+
+  /// Everyone holding a member doc in [companyId].
+  Stream<List<WorkspaceMember>> watchMembers(String companyId) {
+    return _members.watchMembers(companyId);
+  }
+
+  Future<bool> wasRemovedFrom({required String companyId, required String uid}) {
+    return _members.wasRemovedFrom(companyId: companyId, uid: uid);
   }
 
   Future<CompanyMembership> createNewCompany({
@@ -679,6 +696,22 @@ class AuthService {
         (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
         [];
 
+    // The member doc has to exist before the user doc moves to the new
+    // workspace, because the rules only let an account switch into a
+    // workspace it holds a member doc for. Written afterwards, as it used to
+    // be, the switch was refused unless the account happened to administer its
+    // current workspace, and the new workspace was left behind empty. That
+    // covered everyone in the workspace-less state, where creating a workspace
+    // is one of the three ways forward.
+    await _ensureMemberDoc(
+      companyId: companyDoc.id,
+      uid: uid,
+      role: 'admin',
+      roleId: RoleModel.ownerRoleId,
+      email: data['email']?.toString() ?? '',
+      name: data['name']?.toString() ?? '',
+    );
+
     if (existing.isEmpty) {
       final currentId = (data['companyId'] ?? '') as String;
       final currentName = (data['companyName'] ?? '') as String;
@@ -691,7 +724,12 @@ class AuthService {
         roleId: currentRoleId,
       );
       await _firestore.collection('users').doc(uid).update({
-        'companyMemberships': [currentMembership.toMap(), membership.toMap()],
+        'companyMemberships': [
+          // A workspace-less account has no current membership to carry over.
+          // Writing one anyway put a nameless entry in the company switcher.
+          if (currentId.isNotEmpty) currentMembership.toMap(),
+          membership.toMap(),
+        ],
         'companyId': companyDoc.id,
         'companyName': companyName,
         'role': 'admin',
@@ -706,13 +744,6 @@ class AuthService {
         'roleId': RoleModel.ownerRoleId,
       });
     }
-
-    await _ensureMemberDoc(
-      companyId: companyDoc.id,
-      uid: uid,
-      role: 'admin',
-      roleId: RoleModel.ownerRoleId,
-    );
 
     return membership;
   }
@@ -746,6 +777,15 @@ class AuthService {
       });
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
+        if (await _members.wasRemovedFrom(companyId: companyId, uid: uid)) {
+          // The entry is self-written and now points at a workspace that will
+          // never let them back in, so drop it rather than offer it forever.
+          await _forgetMembership(uid, companyId);
+          throw Exception(
+            'You were removed from $companyName, so it is no longer on your '
+            'list. Ask an admin there for a new invite to rejoin.',
+          );
+        }
         throw Exception(
           'You are not recorded as a member of $companyName yet. Ask an admin '
           'for the join code, or have them re-add you.',
@@ -753,6 +793,22 @@ class AuthService {
       }
       rethrow;
     }
+  }
+
+  /// Drops [companyId] from the account's own membership list. Best-effort:
+  /// it only tidies the company switcher.
+  Future<void> _forgetMembership(String uid, String companyId) async {
+    try {
+      final ref = _firestore.collection('users').doc(uid);
+      final data = (await ref.get()).data();
+      if (data == null) return;
+      await ref.update({
+        'companyMemberships': MembershipAccess.membershipsWithout(
+          data,
+          companyId,
+        ),
+      });
+    } catch (_) {}
   }
 
   Future<String> generateInviteCode({
@@ -774,7 +830,9 @@ class AuthService {
           'code': code,
           'companyId': companyId,
           'companyName': companyName,
-          'createdAt': Timestamp.now(),
+          // Server time, because the rules compare it with the time a member
+          // was removed: only an invite issued after the removal re-admits them.
+          'createdAt': FieldValue.serverTimestamp(),
           'expiresAt': Timestamp.fromDate(
             DateTime.now().add(const Duration(days: 7)),
           ),
@@ -911,6 +969,7 @@ class AuthService {
         (data['companyMemberships'] as List?)?.cast<Map<String, dynamic>>() ??
         [];
 
+    final Map<String, dynamic> update;
     if (existing.isEmpty) {
       final currentId = (data['companyId'] ?? '') as String;
       final currentName = (data['companyName'] ?? '') as String;
@@ -922,21 +981,46 @@ class AuthService {
         role: currentRole,
         roleId: currentRoleId,
       );
-      await _firestore.collection('users').doc(uid).update({
-        'companyMemberships': [currentMembership.toMap(), membership.toMap()],
+      update = {
+        'companyMemberships': [
+          // A workspace-less account has no current membership to carry over.
+          // Writing one anyway put a nameless entry in the company switcher.
+          if (currentId.isNotEmpty) currentMembership.toMap(),
+          membership.toMap(),
+        ],
         'companyId': companyId,
         'companyName': companyName,
         'role': membership.role,
         'roleId': membership.roleId,
-      });
+      };
     } else {
-      await _firestore.collection('users').doc(uid).update({
+      update = {
         'companyMemberships': FieldValue.arrayUnion([membership.toMap()]),
         'companyId': companyId,
         'companyName': companyName,
         'role': membership.role,
         'roleId': membership.roleId,
-      });
+      };
+    }
+
+    try {
+      await _firestore.collection('users').doc(uid).update(update);
+    } on FirebaseException catch (e) {
+      // The rules refused the member doc above (the code is not live, or this
+      // account was removed from the workspace), so the switch is refused
+      // too. _ensureMemberDoc swallows its own failure, so this is where it
+      // surfaces.
+      if (e.code != 'permission-denied') rethrow;
+      if (await _members.wasRemovedFrom(companyId: companyId, uid: uid)) {
+        throw Exception(
+          'You were removed from $companyName. Ask an admin there for a new '
+          'invite code to rejoin.',
+        );
+      }
+      throw Exception(
+        'This code could not add you to $companyName. Ask an admin for a new '
+        'code.',
+      );
     }
 
     return membership;

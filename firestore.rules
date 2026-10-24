@@ -209,6 +209,95 @@ service cloud.firestore {
         .hasOnly(['permanentJoinCode']);
     }
 
+    // Whether [uid] created [companyId], i.e. owns that workspace.
+    //
+    // isCompanyCreator() asks this about the caller; this asks it about anyone.
+    // It is keyed on adminUid because that is server-side truth: a company admin
+    // cannot change it (companyPrivilegedFieldsUnchanged). role and roleId are no
+    // evidence of ownership — the owner's user doc says role 'admin' like every
+    // other admin's, and any admin can assign the Owner role to anybody.
+    function isWorkspaceOwner(companyId, uid) {
+      return get(/databases/$(database)/documents/companies/$(companyId)).data
+        .get('adminUid', '') == uid;
+    }
+
+    // What an admin, or a holder of canManageUsers, may write to a user doc in
+    // their own workspace. Two limits:
+    //
+    //  * The account may stay in this workspace, or be detached from every
+    //    workspace (companyId '', which is what removing a member writes). It
+    //    may not be moved into a different workspace it cannot prove it belongs
+    //    to. This branch used to constrain the written data not at all, and it
+    //    matches an admin's OWN doc as well: anyone who signed up, and so
+    //    administers a workspace of their own, could point their companyId at
+    //    any other workspace, keep role 'admin', and read and write all of it.
+    //  * Nobody else may change the workspace owner's doc. Without this a
+    //    second admin, or anyone granted canManageUsers, could remove or demote
+    //    the person who created the workspace and lock them out of it.
+    function adminUserUpdateAllowed(userId) {
+      let target = request.resource.data.get('companyId', '');
+      return (request.auth.uid == userId
+              || !isWorkspaceOwner(resource.data.companyId, userId))
+        && (target == resource.data.get('companyId', '')
+            || target == ''
+            || exists(/databases/$(database)/documents/companies/$(target)/members/$(userId))
+            || isWorkspaceOwner(target, userId));
+    }
+
+    // Whether [code] may still admit [uid] to [companyId] as a new member.
+    //
+    // There are two kinds of code, and either must be live:
+    //  * the workspace's permanent code, as the company doc names it now
+    //    (regenerating it retires the old one), or
+    //  * an invite, which carries its own expiry.
+    // This used to check only that joinCodeIndex mapped the code to the
+    // company. Nothing ever deletes index entries for invites, so an invite
+    // went on admitting people long after it expired.
+    //
+    // An account an admin removed is refused by either kind, unless the invite
+    // was issued after the removal. Sending someone a fresh invite is how an
+    // admin takes them back. Before this, the code that let a person in the
+    // first time let them straight back in after they were removed.
+    function joinCodeAdmits(companyId, code, uid) {
+      return code.matches('^[A-Z0-9]{6,32}$') && (
+        (isCurrentPermanentCode(companyId, code) && !wasRemovedFrom(companyId, uid))
+        || (isLiveInvite(companyId, code)
+            && (!wasRemovedFrom(companyId, uid)
+                || inviteIssuedAfterRemoval(companyId, code, uid))));
+    }
+
+    function isCurrentPermanentCode(companyId, code) {
+      return get(/databases/$(database)/documents/companies/$(companyId)).data
+        .get('permanentJoinCode', '').upper() == code;
+    }
+
+    function isLiveInvite(companyId, code) {
+      return exists(/databases/$(database)/documents/companies/$(companyId)/invites/$(code))
+        && inviteUnexpired(get(/databases/$(database)/documents/companies/$(companyId)/invites/$(code)).data);
+    }
+
+    // An invite with no expiry never lapses, which is what joinCompany has
+    // always accepted on the client.
+    function inviteUnexpired(invite) {
+      return !('expiresAt' in invite) || invite.expiresAt > request.time;
+    }
+
+    function wasRemovedFrom(companyId, uid) {
+      return exists(/databases/$(database)/documents/companies/$(companyId)/removedMembers/$(uid));
+    }
+
+    // Both sides are server time. generateInviteCode writes createdAt with
+    // serverTimestamp(), and a removal record is refused unless its removedAt
+    // is the request time. Invites minted by older app versions carry device
+    // time instead, so for those the comparison is only as good as that
+    // device's clock.
+    function inviteIssuedAfterRemoval(companyId, code, uid) {
+      let invite = get(/databases/$(database)/documents/companies/$(companyId)/invites/$(code)).data;
+      let removal = get(/databases/$(database)/documents/companies/$(companyId)/removedMembers/$(uid)).data;
+      return invite.get('createdAt', null) is timestamp
+        && invite.createdAt > removal.removedAt;
+    }
+
     // Super admin allowlist. Readable only by the subject (so the app can ask
     // "am I one?"), never listable, and never writable from a client.
     match /superAdmins/{uid} {
@@ -307,12 +396,16 @@ service cloud.firestore {
       allow update: if (isAuthenticated() && request.auth.uid == userId &&
           selfUserUpdateDoesNotEscalate()) ||
         (belongsToCompany(resource.data.companyId) &&
-         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers'))) ||
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')) &&
+         adminUserUpdateAllowed(userId)) ||
         isSuperAdmin();
 
+      // The workspace owner can delete their own doc (account deletion), but
+      // no other admin can delete it for them.
       allow delete: if (isAuthenticated() && request.auth.uid == userId) ||
         (belongsToCompany(resource.data.companyId) &&
-         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers'))) ||
+         (isAdmin() || hasPermission(resource.data.companyId, 'canManageUsers')) &&
+         !isWorkspaceOwner(resource.data.companyId, userId)) ||
         isSuperAdmin();
     }
 
@@ -437,14 +530,38 @@ service cloud.firestore {
               // mirror that roleId onto your own user doc as "verified".
               && request.resource.data.get('roleId', 'staff') == 'staff'
               && request.resource.data.joinCode is string
-              && exists(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode))
-              && get(/databases/$(database)/documents/joinCodeIndex/$(request.resource.data.joinCode)).data.companyId == companyId)
+              && joinCodeAdmits(companyId, request.resource.data.joinCode, memberUid))
             || isCompanyCreator(companyId)
           );
 
         // Admins may add members directly (staff invite flow) and are the only
-        // ones who can change or revoke a role.
+        // ones who can change or revoke a role — except the owner's, which
+        // only the owner can touch.
         allow create, update, delete: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageUsers')) &&
+          (request.auth.uid == memberUid || !isWorkspaceOwner(companyId, memberUid));
+      }
+
+      // Accounts an admin removed from this workspace. The record is what stops
+      // a removed person from rejoining with a code they already know (see
+      // joinCodeAdmits). AuthService.removeMember writes it in the same batch
+      // that deletes the member doc.
+      match /removedMembers/{memberUid} {
+        // The removed account may read its own record, so the app can tell
+        // them why a code was refused instead of calling it invalid.
+        allow read: if isAuthenticated() && (request.auth.uid == memberUid ||
+          (belongsToCompany(companyId) &&
+           (isAdmin() || hasPermission(companyId, 'canManageUsers'))));
+        // removedAt must be the server's clock. An invite only re-admits
+        // someone if it was issued after the removal, so a client-chosen time
+        // in the past would quietly turn existing invites back into keys.
+        allow create, update: if belongsToCompany(companyId) &&
+          (isAdmin() || hasPermission(companyId, 'canManageUsers')) &&
+          request.auth.uid != memberUid &&
+          !isWorkspaceOwner(companyId, memberUid) &&
+          request.resource.data.uid == memberUid &&
+          request.resource.data.removedAt == request.time;
+        allow delete: if belongsToCompany(companyId) &&
           (isAdmin() || hasPermission(companyId, 'canManageUsers'));
       }
 

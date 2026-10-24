@@ -411,19 +411,30 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
                   ),
                   children: [
                     const SizedBox(height: 8),
-                    Text(
-                      memberships.length > 1
-                          ? 'Your Companies'
-                          : 'Current Company',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textSec(context),
-                        letterSpacing: 0.5,
+                    if (activeId.isEmpty && user != null)
+                      _buildNoWorkspaceBanner(
+                        context,
+                        auth,
+                        hasOtherWorkspaces: memberships.isNotEmpty,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (memberships.isEmpty && user != null)
+                    if (activeId.isNotEmpty || memberships.isNotEmpty) ...[
+                      Text(
+                        memberships.length > 1 || activeId.isEmpty
+                            ? 'Your Companies'
+                            : 'Current Company',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textSec(context),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    // A workspace-less account has no current company to show.
+                    if (memberships.isEmpty &&
+                        user != null &&
+                        activeId.isNotEmpty)
                       AnimatedListItem(
                         index: 0,
                         child: Padding(
@@ -529,6 +540,85 @@ class _CompanySwitcherScreenState extends State<CompanySwitcherScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// Shown when the account is in no workspace, which is what this screen is
+  /// when the app shell has nothing else to show. That happens after an admin
+  /// removes them from the workspace they were using, after leaving their last
+  /// one, or after a platform admin purges it.
+  Widget _buildNoWorkspaceBanner(
+    BuildContext context,
+    AuthProvider auth, {
+    required bool hasOtherWorkspaces,
+  }) {
+    final notice = auth.accessNotice;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: GlassPanel(
+        useContentVariant: true,
+        borderRadius: 16,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.domain_disabled_rounded,
+                  color: AppTheme.warningColor,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "You're not in a workspace",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPri(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (notice != null) ...[
+              Text(
+                notice,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPri(context),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            Text(
+              hasOtherWorkspaces
+                  ? 'Pick one of your workspaces below, join another with a '
+                        'code from its admin, or create your own.'
+                  : 'Join a workspace with a code from its admin, or create '
+                        'your own.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSec(context),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: auth.isLoading ? null : () => auth.logout(),
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const Text('Sign out'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

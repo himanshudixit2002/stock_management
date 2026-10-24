@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/permissions.dart';
 import '../utils/parse_helpers.dart';
+import 'role_model.dart';
 
 class CompanyMembership {
   final String companyId;
@@ -124,7 +125,14 @@ class UserModel {
 
   bool get isAdmin => role == 'admin' || role == 'owner';
   bool get isStaff => role == 'staff';
-  bool get isOwner => role == 'owner';
+  /// Holds the Owner role.
+  ///
+  /// This read `role == 'owner'` alone, which no account ever has: signup
+  /// writes the founder as role 'admin' with roleId 'owner', so the check that
+  /// was meant to keep "Remove User" off the owner never matched. Note that
+  /// any admin can assign the Owner role; the workspace's actual owner is the
+  /// company doc's adminUid, which is what the security rules protect.
+  bool get isOwner => role == 'owner' || roleId == RoleModel.ownerRoleId;
 
   Map<String, bool> get effectivePermissions {
     if (isAdmin) return AppPermissions.allTrue();

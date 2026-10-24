@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../config/permissions.dart';
 import '../models/user_model.dart';
+import '../models/workspace_member_model.dart';
 import '../services/auth_service.dart';
+import '../services/membership_access.dart';
 import '../providers/role_provider.dart';
 import '../utils/error_helpers.dart';
 
@@ -18,6 +21,15 @@ class AuthProvider extends ChangeNotifier {
 
   RoleProvider? _roleProvider;
   StreamSubscription<User?>? _authStateSub;
+
+  /// Live view of the signed-in account's own user doc. See [_watchUserDoc].
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userDocSub;
+  String? _userDocSubUid;
+  int _userDocWatchFailures = 0;
+
+  /// Why the session just lost access, for the UI to tell the user.
+  String? _accessNotice;
+  int _accessNoticeEpoch = 0;
 
   /// A stand-in user used while a platform admin inspects a workspace.
   ///
@@ -102,6 +114,37 @@ class AuthProvider extends ChangeNotifier {
   bool get isAdmin => currentUser?.isAdmin ?? false;
   bool get sessionExpired => _sessionExpired;
 
+  /// Set when the session loses access underneath the user: an admin removed
+  /// them from the workspace they were using, or their account record is gone.
+  /// The app shell shows it; [accessNoticeEpoch] changes each time a new one is
+  /// raised, so the shell can react once per notice.
+  String? get accessNotice => _accessNotice;
+  int get accessNoticeEpoch => _accessNoticeEpoch;
+
+  /// Drops the notice once it has been shown. Does not notify: nothing needs to
+  /// rebuild because a message was read.
+  void clearAccessNotice() {
+    _accessNotice = null;
+  }
+
+  void _raiseAccessNotice(String message) {
+    _accessNotice = message;
+    _accessNoticeEpoch++;
+  }
+
+  static String _lostAccessNotice(String companyName) => companyName.isEmpty
+      ? 'You no longer have access to your workspace.'
+      : 'You no longer have access to $companyName.';
+
+  static String _removedByAdminNotice(String companyName) =>
+      companyName.isEmpty
+      ? 'An admin removed you from your workspace.'
+      : 'An admin removed you from $companyName.';
+
+  static const String _noAccountRecordNotice =
+      'This account is no longer part of any workspace. If an admin removed '
+      'you, ask them for a new invite.';
+
   /// Re-resolve when the roles stream emits (roles load after first frame).
   void _onRoleProviderChanged() {
     _resolveUserPermissions();
@@ -125,8 +168,130 @@ class AuthProvider extends ChangeNotifier {
   @override
   void dispose() {
     _authStateSub?.cancel();
+    _stopWatchingUserDoc();
     detachRoleProvider();
     super.dispose();
+  }
+
+  /// Watches the signed-in account's own user doc for as long as it is signed
+  /// in.
+  ///
+  /// Nothing watched it before, so a person an admin removed kept their whole
+  /// session. The rules refused every new read and write, but the app stayed
+  /// on Home showing permission errors until it was restarted. Now a removal
+  /// lands within moments. The account is detached from the workspace (see
+  /// MembershipAccess.detachFields), the shell drops it into the workspace-less
+  /// screen with an explanation, and an account whose doc was deleted outright
+  /// (by an older build) is signed out with one.
+  ///
+  /// Other server-side changes are adopted too, such as a role or permission
+  /// an admin changed, or a switch made on another device. The rules already
+  /// apply those to every request, so the session catching up keeps what the
+  /// app shows in line with what it is allowed to do.
+  void _watchUserDoc() {
+    final uid = _currentUser?.uid ?? '';
+    if (uid.isEmpty) {
+      _stopWatchingUserDoc();
+      return;
+    }
+    if (_userDocSub != null && _userDocSubUid == uid) return;
+    _stopWatchingUserDoc();
+    _userDocSubUid = uid;
+    late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>> sub;
+    sub = _authService.watchUserDoc(uid).listen(
+      (snap) {
+        _userDocWatchFailures = 0;
+        _onUserDocSnapshot(snap);
+      },
+      // Firestore closes a listener that errors. The usual cause is the session
+      // briefly belonging to another account (adding staff signs in as the new
+      // account and back), which is not a removal. Forget this one. The auth
+      // listener starts a fresh one when the session is back on this account,
+      // or, if it already is, a retry below does.
+      onError: (Object _) {
+        if (!identical(_userDocSub, sub)) return;
+        _userDocSub = null;
+        _userDocSubUid = null;
+        if (++_userDocWatchFailures > 5) return;
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          if (_userDocSub == null &&
+              _currentUser?.uid == uid &&
+              _authService.currentUser?.uid == uid) {
+            _watchUserDoc();
+          }
+        });
+      },
+    );
+    _userDocSub = sub;
+  }
+
+  void _stopWatchingUserDoc() {
+    _userDocSub?.cancel();
+    _userDocSub = null;
+    _userDocSubUid = null;
+  }
+
+  void _onUserDocSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
+    final before = _currentUser;
+    if (before == null || snap.id != before.uid) return;
+    // Our own writes echo back before the server has them, and a cached
+    // snapshot can be older than what the session last read from the server.
+    // Neither one is news.
+    if (snap.metadata.hasPendingWrites || snap.metadata.isFromCache) return;
+    final data = snap.data();
+    final after = data == null ? null : {...data, 'uid': snap.id};
+    switch (MembershipAccess.classify(before, after)) {
+      case AccessChange.none:
+        return;
+      case AccessChange.accountRemoved:
+        unawaited(_endSessionAfterRemoval(before.companyName));
+      case AccessChange.removedFromWorkspace:
+        _adoptServerUser(after!);
+        final notice = _lostAccessNotice(before.companyName);
+        _raiseAccessNotice(notice);
+        notifyListeners();
+        unawaited(_explainLostAccess(before, notice));
+      case AccessChange.updated:
+        _adoptServerUser(after!);
+        notifyListeners();
+    }
+  }
+
+  /// Sharpens [notice] once it is known that an admin removed the account,
+  /// rather than the workspace being purged or the user leaving it elsewhere.
+  Future<void> _explainLostAccess(UserModel before, String notice) async {
+    final removed = await _authService.wasRemovedFrom(
+      companyId: before.companyId,
+      uid: before.uid,
+    );
+    if (!removed || _accessNotice != notice) return;
+    _accessNotice = _removedByAdminNotice(before.companyName);
+    notifyListeners();
+  }
+
+  void _adoptServerUser(Map<String, dynamic> data) {
+    _currentUser = UserModel.fromMap(data);
+    _resolveUserPermissions();
+  }
+
+  /// Signs out an account whose user doc is gone. Without that doc every rule
+  /// refuses it, so there is nothing left to keep the session open for.
+  Future<void> _endSessionAfterRemoval(String companyName) async {
+    _stopWatchingUserDoc();
+    detachRoleProvider();
+    _clearInspection();
+    // Cleared before signing out so the auth listener does not also report an
+    // expired session on top of the clearer notice below.
+    _currentUser = null;
+    _sessionExpired = false;
+    _raiseAccessNotice(
+      '${_lostAccessNotice(companyName)} Contact an admin if this is a '
+      'mistake.',
+    );
+    notifyListeners();
+    try {
+      await _authService.logout();
+    } catch (_) {}
   }
 
   void _resolveUserPermissions() {
@@ -151,6 +316,12 @@ class AuthProvider extends ChangeNotifier {
       try {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
         _resolveUserPermissions();
+        if (_currentUser == null) {
+          // Signed in to Firebase, but the account record is gone: an older
+          // build's "remove user" deleted it. The shell signs out next, and
+          // used to do so with no word of why.
+          _raiseAccessNotice(_noAccountRecordNotice);
+        }
       } catch (e) {
         _currentUser = null;
         _errorMessage = friendlyError(
@@ -158,6 +329,7 @@ class AuthProvider extends ChangeNotifier {
           fallback: 'Could not load account data.',
         );
       }
+      _watchUserDoc();
       notifyListeners();
     }
     _listenAuthState();
@@ -168,6 +340,7 @@ class AuthProvider extends ChangeNotifier {
     _authStateSub = _authService.authStateChanges.listen((firebaseUser) async {
       if (firebaseUser == null && _currentUser != null) {
         _sessionExpired = true;
+        _stopWatchingUserDoc();
         detachRoleProvider();
         _clearInspection();
         _currentUser = null;
@@ -176,8 +349,14 @@ class AuthProvider extends ChangeNotifier {
         try {
           _currentUser = await _authService.getUserData(firebaseUser.uid);
           _resolveUserPermissions();
+          _watchUserDoc();
           notifyListeners();
         } catch (_) {}
+      } else if (firebaseUser != null &&
+          firebaseUser.uid == _currentUser?.uid) {
+        // Back on this account after the session briefly belonged to another
+        // one (adding staff does that), which closed the doc listener.
+        _watchUserDoc();
       }
     });
   }
@@ -189,6 +368,7 @@ class AuthProvider extends ChangeNotifier {
       try {
         _currentUser = await _authService.getUserData(firebaseUser.uid);
         _resolveUserPermissions();
+        _watchUserDoc();
         notifyListeners();
       } catch (e) {
         _errorMessage = friendlyError(
@@ -220,6 +400,7 @@ class AuthProvider extends ChangeNotifier {
         phone: phone,
       );
       _resolveUserPermissions();
+      _watchUserDoc();
       _isLoading = false;
       notifyListeners();
       return _currentUser != null;
@@ -241,14 +422,14 @@ class AuthProvider extends ChangeNotifier {
 
       if (_currentUser == null) {
         await _authService.logout();
-        _errorMessage =
-            'Account data not found. Please contact your administrator.';
+        _errorMessage = _noAccountRecordNotice;
         _isLoading = false;
         notifyListeners();
         return false;
       }
 
       _resolveUserPermissions();
+      _watchUserDoc();
       _isLoading = false;
       notifyListeners();
       return true;
@@ -302,6 +483,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _errorMessage = null;
     _sessionExpired = false;
+    // Before signing out, so the listener does not report the sign-out itself
+    // as a permission error.
+    _stopWatchingUserDoc();
     try {
       await _authService.logout();
     } catch (e) {
@@ -320,6 +504,12 @@ class AuthProvider extends ChangeNotifier {
 
   void clearSessionExpired() {
     _sessionExpired = false;
+  }
+
+  /// Everyone holding a member doc in the workspace on screen, including people
+  /// currently active in another workspace, whom [getAllUsers] cannot see.
+  Stream<List<WorkspaceMember>> getWorkspaceMembers() {
+    return _authService.watchMembers(currentUser?.companyId ?? '');
   }
 
   Stream<List<UserModel>> getAllUsers() {
@@ -408,6 +598,9 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> deleteAccount(String password) async {
     _isLoading = true;
     _errorMessage = null;
+    // The account deletes its own user doc on the way out. That is not a
+    // removal to report, so stop listening first.
+    _stopWatchingUserDoc();
     notifyListeners();
 
     try {
@@ -421,21 +614,37 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = AuthService.getErrorMessage(e);
       _isLoading = false;
+      _watchUserDoc();
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> deleteStaffUser(String staffUid) async {
+  /// Removes [uid] from the workspace on screen, and only from it.
+  Future<bool> removeMember({
+    required String uid,
+    String name = '',
+    String email = '',
+  }) async {
     if (_isLoading) return false;
+    if (uid == _currentUser?.uid) {
+      _errorMessage =
+          'You cannot remove yourself. To leave this workspace, use the '
+          'company screen.';
+      notifyListeners();
+      return false;
+    }
     _isLoading = true;
     notifyListeners();
     try {
-      await _authService.deleteStaffUser(
-        staffUid,
+      await _authService.removeMember(
         // The workspace on screen, so removing someone while inspecting revokes
         // them from the tenant being looked at rather than the inspector's own.
         companyId: currentUser?.companyId ?? '',
+        uid: uid,
+        removedByUid: _currentUser?.uid ?? '',
+        name: name,
+        email: email,
       );
       _isLoading = false;
       notifyListeners();
@@ -459,6 +668,7 @@ class AuthProvider extends ChangeNotifier {
         uid: _currentUser!.uid,
         companyName: companyName,
       );
+      _accessNotice = null;
       await refreshCurrentUser();
       _isLoading = false;
       notifyListeners();
@@ -485,12 +695,18 @@ class AuthProvider extends ChangeNotifier {
         role: membership.role,
         roleId: membership.roleId,
       );
+      _accessNotice = null;
       await refreshCurrentUser();
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = friendlyError(e);
+      // AuthService explains a refused switch in its own words (removed from
+      // the workspace, or no member record yet). friendlyError would replace
+      // those with its generic fallback.
+      _errorMessage = e is Exception && e is! FirebaseException
+          ? e.toString().replaceFirst('Exception: ', '')
+          : friendlyError(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -584,6 +800,7 @@ class AuthProvider extends ChangeNotifier {
         uid: _currentUser!.uid,
         inviteCode: inviteCode,
       );
+      _accessNotice = null;
       await refreshCurrentUser();
       _isLoading = false;
       notifyListeners();
@@ -651,6 +868,8 @@ class AuthProvider extends ChangeNotifier {
       if (currentFirebaseUser != null) {
         _currentUser = await _authService.getUserData(currentFirebaseUser.uid);
         _resolveUserPermissions();
+        // Signing in as the new account closed the listener on ours.
+        _watchUserDoc();
       }
 
       _isLoading = false;
@@ -679,6 +898,7 @@ class AuthProvider extends ChangeNotifier {
     final signedIn = _authService.currentUser;
     if (_currentUser == null) return;
     if (signedIn != null && signedIn.uid == _currentUser!.uid) return;
+    _stopWatchingUserDoc();
     try {
       await _authService.logout();
     } catch (_) {}

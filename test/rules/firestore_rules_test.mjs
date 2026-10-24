@@ -2,7 +2,9 @@ import fs from 'fs';
 import {
   initializeTestEnvironment, assertFails, assertSucceeds,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import {
+  doc, setDoc, updateDoc, getDoc, collection, getDocs, deleteDoc, writeBatch, serverTimestamp,
+} from 'firebase/firestore';
 
 const RULES = new URL('../../firestore.rules', import.meta.url).pathname;
 const env = await initializeTestEnvironment({
@@ -16,7 +18,10 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db,'companies/companyA'),{companyName:'A',adminUid:'ownerA'});
+    // ABC123 is companyA's permanent code. The rules accept a code only while
+    // it is live — the company's current permanent code or an unexpired
+    // invite — not merely because joinCodeIndex still maps it.
+    await setDoc(doc(db,'companies/companyA'),{companyName:'A',adminUid:'ownerA',permanentJoinCode:'ABC123'});
     await setDoc(doc(db,'companies/companyB'),{companyName:'B',adminUid:'ownerB'});
     await setDoc(doc(db,'companies/companyC'),{companyName:'C',adminUid:'founder'});
     await setDoc(doc(db,'joinCodeIndex/ABC123'),{companyId:'companyA',companyName:'A'});
@@ -437,6 +442,232 @@ await check('a super admin can read the new collections', async () => {
 await check('a super admin still cannot write the new collections', async () => {
   await assertFails(setDoc(doc(as('root'),'companies/companyA/priceLists/x'),{name:'x'}));
   return assertFails(setDoc(doc(as('root'),'companies/companyA/budgets/x'),{name:'x'}));
+});
+
+console.log('\n--- MEMBER REMOVAL ---');
+// Extra fixtures for removal. ownerA created companyA (adminUid), adminA2 is a
+// second admin, and userMgrA holds canManageUsers through a custom role. roamer
+// belongs to A but is currently active in B.
+const HOUR = 3600 * 1000;
+async function seedRemoval() {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db,'companies/companyA/members/ownerA'),{uid:'ownerA',role:'admin',roleId:'owner'});
+    await setDoc(doc(db,'users/adminA2'),{uid:'adminA2',email:'a2@a.com',role:'admin',roleId:'admin',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA',role:'admin',roleId:'admin'}]});
+    await setDoc(doc(db,'companies/companyA/members/adminA2'),{uid:'adminA2',role:'admin',roleId:'admin'});
+    await setDoc(doc(db,'companies/companyA/roles/userManager'),{name:'User manager',permissions:{canManageUsers:true}});
+    await setDoc(doc(db,'users/userMgrA'),{uid:'userMgrA',email:'um@a.com',role:'staff',roleId:'userManager',companyId:'companyA',permissions:{},companyMemberships:[{companyId:'companyA'}]});
+    await setDoc(doc(db,'companies/companyA/members/userMgrA'),{uid:'userMgrA',role:'staff',roleId:'userManager'});
+    await setDoc(doc(db,'users/roamer'),{uid:'roamer',email:'r@b.com',role:'staff',roleId:'staff',companyId:'companyB',permissions:{},companyMemberships:[{companyId:'companyA'},{companyId:'companyB'}]});
+    await setDoc(doc(db,'companies/companyA/members/roamer'),{uid:'roamer',role:'staff',roleId:'staff'});
+    await setDoc(doc(db,'companies/companyB/members/roamer'),{uid:'roamer',role:'staff',roleId:'staff'});
+    // An invite issued an hour ago that has not expired yet, one that expired
+    // yesterday, and a retired permanent code whose index entry was never
+    // cleaned up.
+    await setDoc(doc(db,'companies/companyA/invites/PRE001'),{code:'PRE001',companyId:'companyA',createdAt:new Date(Date.now()-HOUR),expiresAt:new Date(Date.now()+24*HOUR)});
+    await setDoc(doc(db,'joinCodeIndex/PRE001'),{companyId:'companyA',companyName:'A'});
+    await setDoc(doc(db,'companies/companyA/invites/EXP001'),{code:'EXP001',companyId:'companyA',createdAt:new Date(Date.now()-8*24*HOUR),expiresAt:new Date(Date.now()-24*HOUR)});
+    await setDoc(doc(db,'joinCodeIndex/EXP001'),{companyId:'companyA',companyName:'A'});
+    await setDoc(doc(db,'joinCodeIndex/OLDPRM'),{companyId:'companyA',companyName:'A'});
+    await setDoc(doc(db,'users/drifter'),{uid:'drifter',email:'d@x.com',role:'staff',roleId:'',companyId:'',companyName:'',permissions:{},companyMemberships:[]});
+  });
+}
+// What AuthService.removeMember commits: the member doc goes, a removal record
+// stamped with server time appears, and — when the account is active here —
+// the user doc is detached rather than deleted.
+function removeFromA(remover, uid, { detach = true } = {}) {
+  const db = as(remover);
+  const batch = writeBatch(db);
+  batch.delete(doc(db,`companies/companyA/members/${uid}`));
+  batch.set(doc(db,`companies/companyA/removedMembers/${uid}`),{uid,name:'',email:'',removedBy:remover,removedAt:serverTimestamp()});
+  if (detach) {
+    batch.update(doc(db,`users/${uid}`),{companyId:'',companyName:'',role:'staff',roleId:'',permissions:{},companyMemberships:[]});
+  }
+  return batch.commit();
+}
+const rejoinA = (uid, code) =>
+  setDoc(doc(as(uid),`companies/companyA/members/${uid}`),{uid,role:'staff',roleId:'staff',joinCode:code});
+
+await check('an admin removes a member in one batch, detaching rather than deleting', async () => {
+  await seedRemoval();
+  return assertSucceeds(removeFromA('ownerA','staffA'));
+});
+await check('a removed member cannot read the workspace any more', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  return assertFails(getDoc(doc(as('staffA'),'companies/companyA/products/p1')));
+});
+await check('a removed member keeps their account, detached from every workspace', async () => {
+  await seedRemoval();
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    updateDoc(doc(ctx.firestore(),'users/staffA'),{permissions:{canStockIn:true}}));
+  await removeFromA('ownerA','staffA');
+  const snap = await assertSucceeds(getDoc(doc(as('staffA'),'users/staffA')));
+  if (!snap.exists() || snap.data().companyId !== '') throw new Error('expected a detached user doc');
+  // update() replaces a map value, so the overrides this workspace granted go.
+  if (Object.keys(snap.data().permissions).length !== 0) throw new Error('expected no permission overrides');
+});
+await check('a removed member cannot rejoin with the permanent code', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  return assertFails(rejoinA('staffA','ABC123'));
+});
+await check('a removed member cannot rejoin with an invite issued before the removal', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  return assertFails(rejoinA('staffA','PRE001'));
+});
+await check('an invite issued after the removal lets them back in', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  await assertSucceeds(setDoc(doc(as('ownerA'),'companies/companyA/invites/NEW001'),
+    {code:'NEW001',companyId:'companyA',companyName:'A',createdAt:serverTimestamp(),expiresAt:new Date(Date.now()+7*24*HOUR)}));
+  await assertSucceeds(rejoinA('staffA','NEW001'));
+  return assertSucceeds(updateDoc(doc(as('staffA'),'users/staffA'),
+    {companyId:'companyA',companyName:'A',role:'staff',roleId:'staff',companyMemberships:[{companyId:'companyA'}]}));
+});
+await check('an expired invite cannot mint a member doc', async () => {
+  await seedRemoval();
+  return assertFails(rejoinA('x','EXP001'));
+});
+await check('a retired code that is still indexed cannot mint a member doc', async () => {
+  await seedRemoval();
+  return assertFails(rejoinA('x','OLDPRM'));
+});
+await check('an unexpired invite still admits a newcomer', async () => {
+  await seedRemoval();
+  return assertSucceeds(rejoinA('x','PRE001'));
+});
+await check('a join code must look like a code', async () => {
+  await seedRemoval();
+  return assertFails(rejoinA('x','ABC123/../../x'));
+});
+await check('a removal record must carry the server clock', async () => {
+  await seedRemoval();
+  return assertFails(setDoc(doc(as('ownerA'),'companies/companyA/removedMembers/staffA'),
+    {uid:'staffA',removedAt:new Date(0)}));
+});
+await check('a member cannot write removal records', async () => {
+  await seedRemoval();
+  return assertFails(setDoc(doc(as('viewerA'),'companies/companyA/removedMembers/plainA'),
+    {uid:'plainA',removedAt:serverTimestamp()}));
+});
+await check('nobody can file a removal record against themselves', async () => {
+  await seedRemoval();
+  return assertFails(setDoc(doc(as('adminA2'),'companies/companyA/removedMembers/adminA2'),
+    {uid:'adminA2',removedAt:serverTimestamp()}));
+});
+await check('a removed member can read their own removal record', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  return assertSucceeds(getDoc(doc(as('staffA'),'companies/companyA/removedMembers/staffA')));
+});
+await check('a removed member cannot read anyone elses removal record', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','staffA');
+  await removeFromA('ownerA','viewerA');
+  return assertFails(getDoc(doc(as('staffA'),'companies/companyA/removedMembers/viewerA')));
+});
+await check('a canManageUsers holder can remove a member', async () => {
+  await seedRemoval();
+  return assertSucceeds(removeFromA('userMgrA','staffA'));
+});
+await check('a member active in another workspace can be removed from this one', async () => {
+  await seedRemoval();
+  return assertSucceeds(removeFromA('ownerA','roamer',{detach:false}));
+});
+await check('removing them does not let this workspace touch their account', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('ownerA'),'users/roamer'),{companyId:''}));
+});
+await check('once removed, they cannot switch back into the workspace', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','roamer',{detach:false});
+  return assertFails(updateDoc(doc(as('roamer'),'users/roamer'),{companyId:'companyA',companyName:'A'}));
+});
+await check('a removed account can tidy the stale membership from its own doc', async () => {
+  await seedRemoval();
+  await removeFromA('ownerA','roamer',{detach:false});
+  return assertSucceeds(updateDoc(doc(as('roamer'),'users/roamer'),{companyMemberships:[{companyId:'companyB'}]}));
+});
+await check('an admin can still remove another, non-owner admin', async () => {
+  await seedRemoval();
+  return assertSucceeds(removeFromA('ownerA','adminA2'));
+});
+
+console.log('\n--- THE OWNER CANNOT BE REMOVED ---');
+// The owner's user doc says role 'admin' like any other admin's, so the
+// protection is keyed on the company's adminUid.
+await check('another admin cannot remove the owner', async () => {
+  await seedRemoval();
+  return assertFails(removeFromA('adminA2','ownerA'));
+});
+await check('another admin cannot delete the owners member doc', async () => {
+  await seedRemoval();
+  return assertFails(deleteDoc(doc(as('adminA2'),'companies/companyA/members/ownerA')));
+});
+await check('another admin cannot detach the owner', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('adminA2'),'users/ownerA'),{companyId:'',companyName:'',companyMemberships:[]}));
+});
+await check('another admin cannot demote the owner', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('adminA2'),'users/ownerA'),{role:'staff',roleId:'staff'}));
+});
+await check('another admin cannot delete the owners user doc', async () => {
+  await seedRemoval();
+  return assertFails(deleteDoc(doc(as('adminA2'),'users/ownerA')));
+});
+await check('a canManageUsers holder cannot remove the owner', async () => {
+  await seedRemoval();
+  return assertFails(deleteDoc(doc(as('userMgrA'),'companies/companyA/members/ownerA')));
+});
+await check('no removal record can name the owner', async () => {
+  await seedRemoval();
+  return assertFails(setDoc(doc(as('adminA2'),'companies/companyA/removedMembers/ownerA'),
+    {uid:'ownerA',removedAt:serverTimestamp()}));
+});
+await check('the owner still edits their own user doc', async () => {
+  await seedRemoval();
+  return assertSucceeds(updateDoc(doc(as('ownerA'),'users/ownerA'),{name:'Me'}));
+});
+await check('the owner can still delete their own account', async () => {
+  await seedRemoval();
+  return assertSucceeds(deleteDoc(doc(as('ownerA'),'users/ownerA')));
+});
+
+console.log('\n--- ADMIN WRITES STAY IN THE WORKSPACE ---');
+// The admin branch of `allow update` used to accept any content, and it
+// matches an admin's own doc too. Every signup administers a workspace, so
+// this was a takeover of any tenant whose id you could name.
+await check('an admin cannot point their own doc at a workspace they do not belong to', async () => {
+  await seedRemoval();
+  await assertFails(updateDoc(doc(as('ownerA'),'users/ownerA'),{companyId:'companyB',companyName:'B'}));
+  return assertFails(getDoc(doc(as('ownerA'),'companies/companyB/products/p9')));
+});
+await check('an admin cannot move a member into a workspace the member does not belong to', async () => {
+  await seedRemoval();
+  return assertFails(updateDoc(doc(as('ownerA'),'users/staffA'),{companyId:'companyB',role:'admin'}));
+});
+await check('an admin still switches into a workspace they hold a member doc for', async () => {
+  await seedRemoval();
+  await env.withSecurityRulesDisabled(async (ctx) =>
+    setDoc(doc(ctx.firestore(),'companies/companyB/members/ownerA'),{uid:'ownerA',role:'staff',roleId:'staff'}));
+  return assertSucceeds(updateDoc(doc(as('ownerA'),'users/ownerA'),{companyId:'companyB',companyName:'B',role:'staff',roleId:'staff'}));
+});
+await check('creating another workspace works once its member doc exists', async () => {
+  await seedRemoval();
+  const db = as('staffA');
+  await assertSucceeds(setDoc(doc(db,'companies/cExtra'),{companyName:'Extra',adminUid:'staffA',createdAt:new Date()}));
+  await assertSucceeds(setDoc(doc(db,'companies/cExtra/members/staffA'),{uid:'staffA',role:'admin',roleId:'owner'}));
+  return assertSucceeds(updateDoc(doc(db,'users/staffA'),
+    {companyId:'cExtra',companyName:'Extra',role:'admin',roleId:'owner',companyMemberships:[{companyId:'companyA'},{companyId:'cExtra'}]}));
+});
+await check('a workspace-less account joins with a live code', async () => {
+  await seedRemoval();
+  await assertSucceeds(rejoinA('drifter','ABC123'));
+  return assertSucceeds(updateDoc(doc(as('drifter'),'users/drifter'),
+    {companyId:'companyA',companyName:'A',role:'staff',roleId:'staff',companyMemberships:[{companyId:'companyA',companyName:'A',role:'staff',roleId:'staff'}]}));
 });
 
 await env.cleanup();

@@ -9,7 +9,14 @@ Covers the workspace-takeover paths these rules exist to close:
   admin/owner role docs carry every permission, so a viewer could grant
   themselves everything in one self-write while `role` stayed `'staff'`;
 - delete-then-recreate of your own user doc pointed at someone else's
-  `companyId`, which `create` never constrained — a complete cross-tenant read.
+  `companyId`, which `create` never constrained — a complete cross-tenant read;
+- the admin branch of the user-doc `update` rule, which constrained the written
+  data not at all and also matched an admin's own doc. Every signup administers
+  its own workspace, so anyone could repoint their `companyId` at any tenant;
+- removing a member: the owner (the company's `adminUid`) cannot be removed or
+  demoted by anyone else, a removed account cannot rejoin with a code it already
+  knows (only an invite issued after the removal re-admits it), and expired
+  invites or retired codes no longer mint member docs.
 
 It also pins the legitimate flows (signup, staff provisioning, workspace
 switching, join codes) so tightening the rules cannot silently break sign-in.

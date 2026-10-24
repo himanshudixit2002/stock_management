@@ -56,12 +56,15 @@ import 'providers/service_job_provider.dart';
 import 'providers/job_work_provider.dart';
 import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/company/company_switcher_screen.dart'
+    deferred as company_switch;
 import 'config/firebase_app_options.dart';
 import 'services/firestore_config.dart';
 import 'services/local_notification_service.dart';
 import 'utils/notification_routing.dart';
 import 'utils/html_splash.dart';
 import 'widgets/branded_splash.dart';
+import 'widgets/deferred_screen_loader.dart';
 
 /// App-wide scroll behavior tuned for a soft, "cloudy" feel that is identical
 /// on every platform: iOS-style bouncy overscroll everywhere (mobile, web and
@@ -446,6 +449,53 @@ class _AuthWrapperState extends State<AuthWrapper>
     }
   }
 
+  /// Unbinds the company providers, for a session that no longer has a
+  /// workspace (signed out, or in no workspace).
+  void _releaseProviders() {
+    if (_providersBoundCompanyId == null && _activeCompanyId == null) return;
+    _providersBoundCompanyId = null;
+    _activeCompanyId = null;
+    _providerInitError = null;
+    _onboardingChecked = false;
+    _providersInitializing = false;
+    _companyRebindPending = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resetAllProviders();
+    });
+  }
+
+  /// The [AuthProvider.accessNoticeEpoch] last acted on.
+  int _handledAccessNoticeEpoch = 0;
+
+  /// Reacts once to a new [AuthProvider.accessNotice]: the session just lost
+  /// the workspace it was using.
+  ///
+  /// Whatever was open on top of the shell belonged to that workspace, so it
+  /// is closed, including dialogs and sheets. Unless [clearAfter] is false
+  /// (the workspace-less screen shows the notice itself, until the user acts),
+  /// the notice is shown as a snack bar and then dropped.
+  void _handleAccessNotice(AuthProvider auth, {required bool clearAfter}) {
+    final notice = auth.accessNotice;
+    if (notice == null) return;
+    final isNew = auth.accessNoticeEpoch != _handledAccessNoticeEpoch;
+    _handledAccessNoticeEpoch = auth.accessNoticeEpoch;
+    if (!isNew && !clearAfter) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (isNew) {
+        StockManagementApp.navigatorKey.currentState?.popUntil(
+          (route) => route.isFirst,
+        );
+      }
+      if (!clearAfter) return;
+      auth.clearAccessNotice();
+      if (!isNew) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(notice), duration: const Duration(seconds: 8)),
+      );
+    });
+  }
+
   void _resetAllProviders() {
     _onboardingChecked = false;
     context.read<SettingsProvider>().reset();
@@ -504,6 +554,9 @@ class _AuthWrapperState extends State<AuthWrapper>
   /// Every initialization the previous implementation performed still happens
   /// (same companyId scoping + listeners) — only the *timing* is rescheduled.
   Future<void> _initializeProviders(String companyId) async {
+    // A workspace-less session has nothing company-scoped to load, and every
+    // provider would be pointed at companies/'' (see build).
+    if (companyId.isEmpty) return;
     if (_providersInitializing) return;
     _providersInitializing = true;
     if (mounted) setState(() => _providerInitError = null);
@@ -792,6 +845,26 @@ class _AuthWrapperState extends State<AuthWrapper>
         return const SuperAdminShell();
       }
 
+      // Signed in, but in no workspace. An admin removed them from the one
+      // they were using, they left their last one, or a platform admin purged
+      // it. Nothing company-scoped can load, so this offers the ways forward:
+      // pick another of their workspaces, join one with a code, create one,
+      // or sign out. Home would only have shown permission errors.
+      if (currentCompanyId.isEmpty) {
+        _releaseProviders();
+        _handleAccessNotice(authProvider, clearAfter: false);
+        // Like Home below: this is the root route, and popping it on web
+        // throws the user off the site.
+        return PopScope(
+          canPop: false,
+          child: DeferredScreenLoader(
+            future: company_switch.loadLibrary(),
+            builder: (_) => company_switch.CompanySwitcherScreen(),
+          ),
+        );
+      }
+      _handleAccessNotice(authProvider, clearAfter: true);
+
       // A genuine company SWITCH (already bound to a *different* company) must
       // hard-reset and reload to avoid showing the previous tenant's data. The
       // *initial* startup (never bound yet) instead renders the Home shell with
@@ -952,17 +1025,8 @@ class _AuthWrapperState extends State<AuthWrapper>
         child: HomeScreen(key: HomeScreen.shellKey),
       );
     } else {
-      if (_providersBoundCompanyId != null || _activeCompanyId != null) {
-        _providersBoundCompanyId = null;
-        _activeCompanyId = null;
-        _providerInitError = null;
-        _onboardingChecked = false;
-        _providersInitializing = false;
-        _companyRebindPending = false;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _resetAllProviders();
-        });
-      }
+      _releaseProviders();
+      _handleAccessNotice(authProvider, clearAfter: true);
       if (authProvider.sessionExpired) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;

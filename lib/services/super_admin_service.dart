@@ -550,6 +550,7 @@ class SuperAdminService {
     CompanyCollection('invites', 'Invites'),
     CompanyCollection('feedback', 'Feedback'),
     CompanyCollection('members', 'Members', orderBy: ''),
+    CompanyCollection('removedMembers', 'Removed members', orderBy: 'removedAt'),
 
     // --- Modules, first wave ---
     CompanyCollection('boms', 'Bills of materials', isModule: true),

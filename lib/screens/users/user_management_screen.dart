@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/role_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../models/user_model.dart';
 import '../../models/role_model.dart';
+import '../../models/workspace_member_model.dart';
 import '../../config/theme.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -56,11 +58,61 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }).toList();
   }
 
+  List<WorkspaceMember> _filterMembers(List<WorkspaceMember> members) {
+    if (_searchQuery.isEmpty) return members;
+    return members.where((m) {
+      return m.name.toLowerCase().contains(_searchQuery) ||
+          m.email.toLowerCase().contains(_searchQuery);
+    }).toList();
+  }
+
+  /// The workspace's user docs together with its member docs.
+  ///
+  /// A user doc is only readable here while its active workspace is this one,
+  /// so someone who has switched to another workspace is missing from the
+  /// user list, yet still holds a member doc and can switch back at any time.
+  /// The member docs are the only way to see, and remove, them. Users drive
+  /// the stream (and its errors). Members are best-effort, so a failure there
+  /// only hides that section.
+  Stream<_Roster> _rosterStream(AuthProvider auth) {
+    late final StreamController<_Roster> controller;
+    StreamSubscription<List<UserModel>>? usersSub;
+    StreamSubscription<List<WorkspaceMember>>? membersSub;
+    List<UserModel>? users;
+    var members = const <WorkspaceMember>[];
+    void emit() {
+      final u = users;
+      if (u != null) controller.add(_Roster(u, members));
+    }
+
+    controller = StreamController<_Roster>(
+      onListen: () {
+        usersSub = auth.getAllUsers().listen((u) {
+          users = u;
+          emit();
+        }, onError: controller.addError);
+        membersSub = auth.getWorkspaceMembers().listen((m) {
+          members = m;
+          emit();
+        }, onError: (Object _) {});
+      },
+      onCancel: () async {
+        await usersSub?.cancel();
+        await membersSub?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final companyId = auth.currentUser?.companyId ?? '';
     final companyName = auth.currentUser?.companyName ?? '';
+    // The company doc's adminUid is who actually owns the workspace, and the
+    // security rules refuse anyone else's attempt to remove or change them.
+    // The owner's user doc reads role 'admin' like any other admin's.
+    final ownerUid = context.watch<SettingsProvider>().company?.adminUid ?? '';
 
     return PermissionGate(
       permission: AppPermissions.manageUsers,
@@ -92,11 +144,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
         body: Container(
           decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
-          child: StreamBuilder<List<UserModel>>(
+          child: StreamBuilder<_Roster>(
             key: ValueKey<String>('$companyId-$_usersStreamEpoch'),
             stream: companyId.isEmpty
-                ? Stream.value(<UserModel>[])
-                : auth.getAllUsers(),
+                ? Stream.value(const _Roster([], []))
+                : _rosterStream(auth),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
@@ -139,9 +191,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 );
               }
 
-              final allUsers = snapshot.data ?? [];
+              final allUsers = snapshot.data?.users ?? const <UserModel>[];
+              final elsewhere =
+                  snapshot.data?.elsewhere ?? const <WorkspaceMember>[];
 
-              if (allUsers.isEmpty) {
+              if (allUsers.isEmpty && elsewhere.isEmpty) {
                 return EmptyStateWidget(
                   icon: Icons.people_outline_rounded,
                   title: 'No users yet',
@@ -152,6 +206,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               }
 
               final filteredUsers = _filterUsers(allUsers);
+              final filteredElsewhere = _filterMembers(elsewhere);
+              final elsewhereRows = filteredElsewhere.isEmpty
+                  ? 0
+                  : filteredElsewhere.length + 1;
 
               return Center(
                 child: ConstrainedBox(
@@ -223,7 +281,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              '${filteredUsers.length} of ${allUsers.length} users',
+                              '${filteredUsers.length + filteredElsewhere.length} '
+                              'of ${allUsers.length + elsewhere.length} users',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.textSec(context),
@@ -233,7 +292,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         ),
                       // User list
                       Expanded(
-                        child: filteredUsers.isEmpty
+                        child: filteredUsers.isEmpty &&
+                                filteredElsewhere.isEmpty
                             ? EmptyStateWidget(
                                 icon: Icons.search_off_rounded,
                                 title: 'No matches',
@@ -251,8 +311,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   padding: EdgeInsets.all(
                                     Responsive.horizontalPadding(context),
                                   ),
-                                  itemCount: filteredUsers.length,
+                                  itemCount:
+                                      filteredUsers.length + elsewhereRows,
                                   itemBuilder: (context, index) {
+                                    if (index >= filteredUsers.length) {
+                                      final i = index - filteredUsers.length;
+                                      return i == 0
+                                          ? _buildElsewhereHeader(context)
+                                          : _buildElsewhereMember(
+                                              context,
+                                              filteredElsewhere[i - 1],
+                                              companyName: companyName,
+                                              ownerUid: ownerUid,
+                                            );
+                                    }
                                     final user = filteredUsers[index];
                                     final isCurrentUser =
                                         user.uid ==
@@ -260,6 +332,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                             .read<AuthProvider>()
                                             .currentUser
                                             ?.uid;
+                                    // Nobody can remove or re-role the owner.
+                                    // Until the company doc loads, fall back
+                                    // to whoever holds the Owner role.
+                                    final isWorkspaceOwner = ownerUid.isNotEmpty
+                                        ? user.uid == ownerUid
+                                        : user.isOwner;
 
                                     final card = Padding(
                                       padding: const EdgeInsets.only(
@@ -389,13 +467,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               ],
                                             ),
                                             isThreeLine: true,
-                                            trailing: !isCurrentUser
+                                            trailing:
+                                                !isCurrentUser &&
+                                                    !isWorkspaceOwner
                                                 ? PopupMenuButton<String>(
                                                     onSelected: (value) {
                                                       if (value == 'delete') {
-                                                        _confirmDeleteUser(
+                                                        _confirmRemoveMember(
                                                           context,
-                                                          user,
+                                                          uid: user.uid,
+                                                          name: user.name,
+                                                          email: user.email,
+                                                          companyName:
+                                                              companyName,
+                                                          activeHere: true,
                                                         );
                                                       } else if (value ==
                                                           'assign_role') {
@@ -677,8 +762,121 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  void _confirmDeleteUser(BuildContext context, UserModel user) {
+  /// Header over the members who are not using this workspace right now.
+  Widget _buildElsewhereHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Not using this workspace right now',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSec(context),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'They still hold access here and can switch back at any time.',
+            style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A member whose user doc does not point at this workspace: they are using
+  /// another one, or their account record is gone. Their role and permissions
+  /// cannot be edited from here, only their membership removed, and not even
+  /// that for the owner.
+  Widget _buildElsewhereMember(
+    BuildContext context,
+    WorkspaceMember member, {
+    required String companyName,
+    required String ownerUid,
+  }) {
+    final isWorkspaceOwner = ownerUid.isNotEmpty
+        ? member.uid == ownerUid
+        : member.roleId == RoleModel.ownerRoleId;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        borderRadius: 14,
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: AppTheme.textSec(context).withValues(alpha: 0.1),
+            child: Icon(
+              Icons.swap_horiz_rounded,
+              color: AppTheme.textSec(context),
+            ),
+          ),
+          title: Text(
+            member.displayName,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            member.email.isNotEmpty && member.email != member.displayName
+                ? member.email
+                : 'Not using this workspace right now',
+          ),
+          trailing: isWorkspaceOwner
+              ? null
+              : PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _confirmRemoveMember(
+                        context,
+                        uid: member.uid,
+                        name: member.displayName,
+                        email: member.email,
+                        companyName: companyName,
+                        activeHere: false,
+                      );
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.delete_rounded,
+                            color: AppTheme.dangerColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Remove User',
+                            style: TextStyle(color: AppTheme.dangerColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// Confirms, then removes [uid] from this workspace only.
+  ///
+  /// [activeHere] says whether this is the member's active workspace, which
+  /// changes what removal does to their open session.
+  void _confirmRemoveMember(
+    BuildContext context, {
+    required String uid,
+    required String name,
+    required String email,
+    required String companyName,
+    required bool activeHere,
+  }) {
     bool isDeleting = false;
+    final who = email.isNotEmpty && email != name ? '$name ($email)' : name;
+    final where = companyName.isNotEmpty ? companyName : 'this workspace';
     showModalBottomSheet<void>(
       context: context,
       constraints: Responsive.sheetConstraints(context),
@@ -762,9 +960,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         ),
                       ),
                       child: Text(
-                        'Remove ${user.name} (${user.email}) from your company?\n\n'
-                        'They will immediately lose access to all company data. '
-                        'This action cannot be undone.',
+                        activeHere
+                            ? 'Remove $who from $where?\n\n'
+                                  'They lose access to its data at once. If '
+                                  'they have the app open, it takes them out of '
+                                  'this workspace and tells them why. Their '
+                                  'account and any other workspaces they belong '
+                                  'to are not affected.\n\n'
+                                  'The company code will not let them back in. '
+                                  'To take them back later, send them a new '
+                                  'invite.'
+                            : 'Remove $who from $where?\n\n'
+                                  'They are not using this workspace right now, '
+                                  'so nothing changes on their screen, but they '
+                                  'can no longer switch back into it.\n\n'
+                                  'To take them back later, send them a new '
+                                  'invite.',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppTheme.textPri(context),
@@ -804,8 +1015,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 : () async {
                                     setSheetState(() => isDeleting = true);
                                     final auth = context.read<AuthProvider>();
-                                    final ok = await auth.deleteStaffUser(
-                                      user.uid,
+                                    final ok = await auth.removeMember(
+                                      uid: uid,
+                                      name: name,
+                                      email: email,
                                     );
                                     if (sheetCtx.mounted) {
                                       Navigator.pop(sheetCtx);
@@ -815,8 +1028,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                         setState(() => _usersStreamEpoch++);
                                         showSuccessOverlay(
                                           context,
-                                          message:
-                                              '${user.name} has been removed',
+                                          message: '$name has been removed',
                                           popAfter: false,
                                         );
                                       } else {
@@ -1166,5 +1378,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
       ),
     );
+  }
+}
+
+/// What User Management lists: the workspace's user docs, plus the members
+/// whose user doc is not readable here because they are not using this
+/// workspace right now.
+class _Roster {
+  const _Roster(this.users, List<WorkspaceMember> members)
+    : _members = members;
+
+  final List<UserModel> users;
+  final List<WorkspaceMember> _members;
+
+  List<WorkspaceMember> get elsewhere {
+    final here = {for (final u in users) u.uid};
+    return _members.where((m) => !here.contains(m.uid)).toList();
   }
 }
