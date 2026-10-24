@@ -19,6 +19,11 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _sessionExpired = false;
 
+  /// True while [logout] or [deleteAccount] runs. Firebase may report the
+  /// sign-out before they have cleared the user, and the auth listener then
+  /// took the user's own sign-out for an expired session.
+  bool _signingOut = false;
+
   RoleProvider? _roleProvider;
   StreamSubscription<User?>? _authStateSub;
 
@@ -342,7 +347,7 @@ class AuthProvider extends ChangeNotifier {
     _authStateSub?.cancel();
     _authStateSub = _authService.authStateChanges.listen((firebaseUser) async {
       if (firebaseUser == null && _currentUser != null) {
-        _sessionExpired = true;
+        _sessionExpired = !_signingOut;
         _stopWatchingUserDoc();
         detachRoleProvider();
         _clearInspection();
@@ -489,10 +494,13 @@ class AuthProvider extends ChangeNotifier {
     // Before signing out, so the listener does not report the sign-out itself
     // as a permission error.
     _stopWatchingUserDoc();
+    _signingOut = true;
     try {
       await _authService.logout();
     } catch (e) {
       _errorMessage = e.toString();
+    } finally {
+      _signingOut = false;
     }
     detachRoleProvider();
     _clearInspection();
@@ -622,6 +630,7 @@ class AuthProvider extends ChangeNotifier {
     _stopWatchingUserDoc();
     notifyListeners();
 
+    _signingOut = true;
     try {
       await _authService.deleteAccount(password);
       detachRoleProvider();
@@ -636,6 +645,8 @@ class AuthProvider extends ChangeNotifier {
       _watchUserDoc();
       notifyListeners();
       return false;
+    } finally {
+      _signingOut = false;
     }
   }
 
