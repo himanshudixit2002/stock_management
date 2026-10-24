@@ -549,6 +549,8 @@ class AuthProvider extends ChangeNotifier {
   /// it was saved; [errorMessage] says why not. It returned nothing, so the
   /// screen announced success even when the write was refused.
   Future<bool> updateUserRoleId(String uid, String roleId) async {
+    // The real account's workspace, not the one being inspected.
+    if (_refuseWhileInspecting()) return false;
     final companyId = _currentUser?.companyId ?? '';
     if (companyId.isEmpty) return false;
     _isLoading = true;
@@ -575,6 +577,7 @@ class AuthProvider extends ChangeNotifier {
     Map<String, bool> perms,
   ) async {
     if (_isLoading) return false;
+    if (_refuseWhileInspecting()) return false;
     _isLoading = true;
     notifyListeners();
     try {
@@ -689,6 +692,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<CompanyMembership?> createNewCompany(String companyName) async {
     if (_currentUser == null) return null;
+    if (_refuseWhileInspecting()) return null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -711,8 +715,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Switching, creating, joining and leaving all act on the real account, so
+  /// each is refused mid-inspection: from the inspected workspace's own
+  /// switcher they quietly changed the inspector's workspaces instead.
   Future<bool> switchCompany(CompanyMembership membership) async {
     if (_currentUser == null) return false;
+    if (_refuseWhileInspecting()) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -818,6 +826,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> joinCompany(String inviteCode) async {
     if (_currentUser == null) return false;
+    if (_refuseWhileInspecting()) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -847,6 +856,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> leaveCompany(CompanyMembership membership) async {
     if (_currentUser == null) return false;
+    if (_refuseWhileInspecting()) return false;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

@@ -471,8 +471,9 @@ class _AuthWrapperState extends State<AuthWrapper>
   }
 
   /// Unbinds the company providers, for a session that no longer has a
-  /// workspace (signed out, or in no workspace).
-  void _releaseProviders() {
+  /// workspace (signed out, or in no workspace), or a platform admin back on
+  /// the console from an inspection ([keepPlatformSession]).
+  void _releaseProviders({bool keepPlatformSession = false}) {
     if (_providersBoundCompanyId == null && _activeCompanyId == null) return;
     _providersBoundCompanyId = null;
     _activeCompanyId = null;
@@ -481,7 +482,7 @@ class _AuthWrapperState extends State<AuthWrapper>
     _providersInitializing = false;
     _companyRebindPending = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _resetAllProviders();
+      if (mounted) _resetAllProviders(keepPlatformSession: keepPlatformSession);
     });
   }
 
@@ -517,7 +518,13 @@ class _AuthWrapperState extends State<AuthWrapper>
     });
   }
 
-  void _resetAllProviders() {
+  /// [keepPlatformSession] keeps the platform-admin state, which belongs to the
+  /// signed-in account rather than to a workspace: a company switch, moving
+  /// between inspected workspaces included, keeps it. Clearing it there ended
+  /// the inspection and the admin flag mid-switch, which bounced the admin
+  /// back to the console with the next workspace's data streaming behind it
+  /// and its inspection never logged as ended.
+  void _resetAllProviders({bool keepPlatformSession = false}) {
     _onboardingChecked = false;
     context.read<SettingsProvider>().reset();
     context.read<CategoryProvider>().reset();
@@ -540,7 +547,7 @@ class _AuthWrapperState extends State<AuthWrapper>
     context.read<RoleProvider>().reset();
     context.read<FavoritesProvider>().reset();
     context.read<HomeCustomizationProvider>().reset();
-    context.read<SuperAdminProvider>().reset();
+    if (!keepPlatformSession) context.read<SuperAdminProvider>().reset();
     context.read<BomProvider>().reset();
     context.read<SerialProvider>().reset();
     context.read<TransferOrderProvider>().reset();
@@ -863,6 +870,15 @@ class _AuthWrapperState extends State<AuthWrapper>
       // tenant (currentUser is the synthetic view-only user, so
       // currentCompanyId above is already the inspected workspace).
       if (superAdmin.isSuperAdmin && !superAdmin.isInspecting) {
+        // Back from inspecting a workspace: let go of its data. Its listeners
+        // used to keep streaming behind the console.
+        _releaseProviders(keepPlatformSession: true);
+        if (authProvider.isInspecting) {
+          // The console is not inspecting anything, so the session is not.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.read<AuthProvider>().endInspection();
+          });
+        }
         return const SuperAdminShell();
       }
 
@@ -918,7 +934,8 @@ class _AuthWrapperState extends State<AuthWrapper>
           _companyRebindPending = true;
           WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            _resetAllProviders();
+            // Same account, another workspace.
+            _resetAllProviders(keepPlatformSession: true);
             try {
               await _initializeProviders(currentCompanyId);
             } finally {
