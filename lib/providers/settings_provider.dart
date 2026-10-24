@@ -18,6 +18,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _pricingEnabled = true;
   bool _vendorsEnabled = true;
   bool _barcodeEnabled = true;
+  Set<String> _hiddenFeatures = const {};
   bool _initialized = false;
 
   /// The company doc itself, for its plan and lifecycle status. Null until the
@@ -37,6 +38,10 @@ class SettingsProvider extends ChangeNotifier {
   bool get pricingEnabled => _pricingEnabled;
   bool get vendorsEnabled => _vendorsEnabled;
   bool get barcodeEnabled => _barcodeEnabled;
+
+  /// Feature ids an admin switched off for the whole workspace. Stored as
+  /// `settings.hiddenFeatures`; see [FeatureMap.switchable].
+  Set<String> get hiddenFeatures => _hiddenFeatures;
   bool get isInitialized => _initialized;
   String? get errorMessage => _errorMessage;
 
@@ -91,6 +96,7 @@ class SettingsProvider extends ChangeNotifier {
     _pricingEnabled = true;
     _vendorsEnabled = true;
     _barcodeEnabled = true;
+    _hiddenFeatures = const {};
     _initialized = false;
     _errorMessage = null;
     _warningMessage = null;
@@ -115,6 +121,7 @@ class SettingsProvider extends ChangeNotifier {
     _pricingEnabled = true;
     _vendorsEnabled = true;
     _barcodeEnabled = true;
+    _hiddenFeatures = const {};
     _companies = [];
     _sizes = [];
     _locations = [];
@@ -129,6 +136,7 @@ class SettingsProvider extends ChangeNotifier {
       _pricingEnabled = cachedToggles.pricingEnabled;
       _vendorsEnabled = cachedToggles.vendorsEnabled;
       _barcodeEnabled = cachedToggles.barcodeEnabled;
+      _hiddenFeatures = cachedToggles.hiddenFeatures;
       notifyListeners();
     }
 
@@ -159,6 +167,7 @@ class SettingsProvider extends ChangeNotifier {
           _pricingEnabled = settings['pricingEnabled'] != false;
           _vendorsEnabled = settings['vendorsEnabled'] != false;
           _barcodeEnabled = settings['barcodeEnabled'] != false;
+          _hiddenFeatures = _toStringList(settings['hiddenFeatures']).toSet();
           _companies = _toStringList(settings['companies']);
           _sizes = _toStringList(settings['sizes']);
           _locations = _toStringList(settings['locations']);
@@ -177,6 +186,7 @@ class SettingsProvider extends ChangeNotifier {
         pricingEnabled: _pricingEnabled,
         vendorsEnabled: _vendorsEnabled,
         barcodeEnabled: _barcodeEnabled,
+        hiddenFeatures: _hiddenFeatures,
       ),
     );
   }
@@ -225,6 +235,39 @@ class SettingsProvider extends ChangeNotifier {
     } catch (e) {
       _vendorsEnabled = previous;
       _errorMessage = friendlyError(e, fallback: 'Failed to update settings.');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Switches the module [featureId] on or off for everyone in the workspace.
+  Future<bool> setFeatureHidden(String featureId, bool hidden) async {
+    if (_companyId.isEmpty) {
+      _errorMessage = 'Settings not initialized. Please restart the app.';
+      notifyListeners();
+      return false;
+    }
+    final previous = _hiddenFeatures;
+    final next = {..._hiddenFeatures};
+    hidden ? next.add(featureId) : next.remove(featureId);
+    _hiddenFeatures = next;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _writeSetting('hiddenFeatures', next.toList()..sort());
+      unawaited(
+        _statsCache.saveSettingsToggles(
+          _companyId,
+          pricingEnabled: _pricingEnabled,
+          vendorsEnabled: _vendorsEnabled,
+          barcodeEnabled: _barcodeEnabled,
+          hiddenFeatures: next,
+        ),
+      );
+      return true;
+    } catch (e) {
+      _hiddenFeatures = previous;
+      _errorMessage = friendlyError(e, fallback: 'Failed to update modules.');
       notifyListeners();
       return false;
     }

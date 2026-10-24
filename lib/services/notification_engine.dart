@@ -28,6 +28,21 @@ class AlertType {
     purchaseOrderOverdue,
   ];
 
+  /// The types someone can act on, given whether they can see products,
+  /// batch expiry, invoices (billing on and the permission) and purchase
+  /// orders.
+  static Set<String> relevantFor({
+    required bool products,
+    required bool batches,
+    required bool invoices,
+    required bool purchaseOrders,
+  }) => {
+    if (products) ...[outOfStock, lowStock],
+    if (batches) ...[batchExpiring, batchExpired],
+    if (invoices) invoiceOverdue,
+    if (purchaseOrders) purchaseOrderOverdue,
+  };
+
   static String label(String type) => switch (type) {
     outOfStock => 'Out of stock',
     lowStock => 'Low stock',

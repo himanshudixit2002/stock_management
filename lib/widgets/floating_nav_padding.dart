@@ -14,6 +14,39 @@ const double kFloatingNavBarBottomGap = 16;
 /// Extra breathing room so the last scrollable item clears the pill.
 const double kFloatingNavExtraGap = 32;
 
+/// Height of the shell's Ask-AI button: the round button above the pill on
+/// phones, the labelled pill in the corner on wide layouts (52 px, rounded up).
+const double kAskAiButtonHeight = 56;
+
+/// Gap above and below the Ask-AI button.
+const double kAskAiButtonGap = 12;
+
+/// Tells the tab bodies whether the shell is showing its floating Ask-AI
+/// button, so their bottom inset can clear it as well as the pill.
+///
+/// Without it the last row of every tab ended up under the button: 12 to 36 px
+/// of it on phones, and on wide layouts the button sat on the last row and on
+/// the product list's scroll-to-top button.
+class FloatingNavExtras extends InheritedWidget {
+  const FloatingNavExtras({
+    super.key,
+    required this.askAiVisible,
+    required super.child,
+  });
+
+  final bool askAiVisible;
+
+  static bool askAiVisibleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<FloatingNavExtras>()
+          ?.askAiVisible ??
+      false;
+
+  @override
+  bool updateShouldNotify(FloatingNavExtras oldWidget) =>
+      oldWidget.askAiVisible != askAiVisible;
+}
+
 /// How much bottom inset a scrollable tab body should reserve so its content
 /// can scroll fully into view above the floating pill.
 ///
@@ -23,6 +56,9 @@ const double kFloatingNavExtraGap = 32;
 /// inset here left the last 14-28px of every tab's content underneath the pill
 /// on devices with a gesture bar or a 3-button navigation bar.
 ///
+/// When the shell shows its Ask-AI button (see [FloatingNavExtras]) the inset
+/// clears that too.
+///
 /// Returns `0` on wide screens (>=560) where the [NavigationRail] is used
 /// instead of the floating pill, so those layouts stay flush — and `0` while
 /// the software keyboard is up, because the pill hides then (see
@@ -31,11 +67,18 @@ const double kFloatingNavExtraGap = 32;
 /// product list's search — up by ~112px the moment the field took focus, and
 /// dropped it again on blur.
 double floatingNavContentInset(BuildContext context) {
-  if (Responsive.isWide(context) || floatingNavHidden(context)) return 0;
+  final askAi = FloatingNavExtras.askAiVisibleOf(context);
+  if (Responsive.isWide(context)) {
+    // No pill here; only the Ask-AI button in the corner, 16 px from the edge.
+    return askAi ? 16 + kAskAiButtonHeight + kAskAiButtonGap : 0;
+  }
+  if (floatingNavHidden(context)) return 0;
   return MediaQuery.viewPaddingOf(context).bottom +
       kFloatingNavBarBottomGap +
       kFloatingNavBarHeight +
-      kFloatingNavExtraGap;
+      (askAi
+          ? kAskAiButtonGap + kAskAiButtonHeight + kAskAiButtonGap
+          : kFloatingNavExtraGap);
 }
 
 /// The smallest bottom inset treated as "a keyboard is open".

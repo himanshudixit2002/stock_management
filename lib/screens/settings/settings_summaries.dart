@@ -17,6 +17,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../models/billing_settings_model.dart';
+
 /// Joins the parts of a summary, dropping the empty ones.
 String _join(List<String> parts) =>
     parts.where((p) => p.isNotEmpty).join(' · ');
@@ -28,7 +30,7 @@ String formatRate(double rate) => rate == rate.roundToDouble()
 
 /// `INV-0042`, matching how the number actually prints on an invoice.
 String formatDocumentNumber(String prefix, int next) =>
-    '$prefix-${next.toString().padLeft(4, '0')}';
+    BillingSettings.documentNumber(prefix, next);
 
 String themeModeLabel(ThemeMode mode) => switch (mode) {
   ThemeMode.system => 'System theme',
@@ -69,6 +71,7 @@ String featuresSummary({
   required bool barcode,
   required bool billing,
   required bool loaded,
+  int hiddenModules = 0,
 }) {
   if (!loaded) return 'Pricing, vendors, barcode and billing';
   const names = ['Pricing', 'Vendors', 'Barcode', 'Billing'];
@@ -79,9 +82,18 @@ String featuresSummary({
   for (var i = 0; i < names.length; i++) {
     (states[i] ? on : off).add(names[i]);
   }
-  if (off.isEmpty) return 'All four features on';
-  if (on.isEmpty) return 'All four features off';
-  return '${on.join(', ')} on · ${off.join(', ')} off';
+  final switches = off.isEmpty
+      ? 'All four features on'
+      : on.isEmpty
+      ? 'All four features off'
+      : '${on.join(', ')} on · ${off.join(', ')} off';
+  // Modules switched off for the workspace are the other thing this page
+  // controls; saying how many keeps them from being forgotten.
+  if (hiddenModules == 0) return switches;
+  return _join([
+    switches,
+    hiddenModules == 1 ? '1 module hidden' : '$hiddenModules modules hidden',
+  ]);
 }
 
 String billingSummary({

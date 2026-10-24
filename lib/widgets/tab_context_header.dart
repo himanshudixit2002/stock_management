@@ -40,6 +40,10 @@ class CompactTabHeader extends StatefulWidget {
   /// Optional tap handler for the leading icon (e.g. open a related sheet).
   final VoidCallback? onLeadingTap;
 
+  /// Replaces the leading icon, e.g. with a [BackButton] when the screen is
+  /// opened as a page of its own instead of as a tab.
+  final Widget? leading;
+
   const CompactTabHeader({
     super.key,
     required this.icon,
@@ -52,6 +56,7 @@ class CompactTabHeader extends StatefulWidget {
     this.initiallyExpanded = false,
     this.padding,
     this.onLeadingTap,
+    this.leading,
   });
 
   bool get _canExpand =>
@@ -88,7 +93,9 @@ class _CompactTabHeaderState extends State<CompactTabHeader> {
       height: 52,
       child: Row(
         children: [
-          if (widget.onLeadingTap != null)
+          if (widget.leading != null)
+            widget.leading!
+          else if (widget.onLeadingTap != null)
             Semantics(
               button: true,
               child: InkWell(
@@ -100,37 +107,48 @@ class _CompactTabHeaderState extends State<CompactTabHeader> {
           else
             leadingIcon,
           const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              widget.title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPri(context),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          // The title takes all the room the actions leave. It used to share
+          // that room half and half with a Spacer, so "Reports" was cut to
+          // "Repo…" with space to spare.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPri(context),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (widget.badge != null && widget.badge!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      widget.badge!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: badgeColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (widget.badge != null && widget.badge!.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                widget.badge!,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: badgeColor,
-                ),
-              ),
-            ),
-          ],
-          const Spacer(),
           ...widget.actions,
           if (widget._canExpand)
             IconButton(
@@ -171,7 +189,9 @@ class _CompactTabHeaderState extends State<CompactTabHeader> {
             ),
           if (widget.shortcuts.isNotEmpty)
             SizedBox(
-              height: 34,
+              // Follows the text size: a fixed 34 px clipped the chips' labels
+              // at 1.3x and larger.
+              height: MediaQuery.textScalerOf(context).scale(12.5) * 1.3 + 18,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: Responsive.scrollPhysics(context),

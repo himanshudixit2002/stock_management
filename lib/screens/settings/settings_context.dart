@@ -28,6 +28,7 @@ SettingsVisibilityContext settingsVisibilityContext(BuildContext context) {
       barcode: settings.barcodeEnabled,
       vendors: settings.vendorsEnabled,
       pricing: settings.pricingEnabled,
+      hiddenFeatures: settings.hiddenFeatures,
     ),
     isWeb: kIsWeb,
     // Only once the company document has actually arrived. Before that the

@@ -62,16 +62,28 @@ class StatsCache {
     required bool pricingEnabled,
     required bool vendorsEnabled,
     required bool barcodeEnabled,
+    Set<String> hiddenFeatures = const {},
   }) async {
     if (companyId.isEmpty) return;
     final prefs = await _ensurePrefs();
     await prefs.setBool(_key(companyId, 'pricingEnabled'), pricingEnabled);
     await prefs.setBool(_key(companyId, 'vendorsEnabled'), vendorsEnabled);
     await prefs.setBool(_key(companyId, 'barcodeEnabled'), barcodeEnabled);
+    await prefs.setStringList(
+      _key(companyId, 'hiddenFeatures'),
+      hiddenFeatures.toList()..sort(),
+    );
   }
 
   /// Last-known feature toggles for [companyId], or null if never cached.
-  Future<({bool pricingEnabled, bool vendorsEnabled, bool barcodeEnabled})?>
+  Future<
+    ({
+      bool pricingEnabled,
+      bool vendorsEnabled,
+      bool barcodeEnabled,
+      Set<String> hiddenFeatures,
+    })?
+  >
   readSettingsToggles(String companyId) async {
     if (companyId.isEmpty) return null;
     final prefs = await _ensurePrefs();
@@ -81,6 +93,9 @@ class StatsCache {
       pricingEnabled: pricing,
       vendorsEnabled: prefs.getBool(_key(companyId, 'vendorsEnabled')) ?? true,
       barcodeEnabled: prefs.getBool(_key(companyId, 'barcodeEnabled')) ?? true,
+      hiddenFeatures:
+          (prefs.getStringList(_key(companyId, 'hiddenFeatures')) ?? const [])
+              .toSet(),
     );
   }
 }

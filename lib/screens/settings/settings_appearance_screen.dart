@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/home_actions.dart';
+import '../../config/feature_visibility.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../providers/home_customization_provider.dart';
@@ -39,7 +39,11 @@ class _SettingsAppearanceScreenState extends State<SettingsAppearanceScreen>
     }
 
     final home = context.watch<HomeCustomizationProvider>();
-    final actionCount = home.selectedIds.length;
+    // What Home actually shows, not what was picked: an action the user has
+    // no permission for, or whose module is off, is in the list but hidden.
+    final actionCount = home
+        .visibleActions(FeatureVisibility.watch(context))
+        .length;
 
     return AppScreenScaffold(
       icon: Icons.palette_rounded,
@@ -65,10 +69,12 @@ class _SettingsAppearanceScreenState extends State<SettingsAppearanceScreen>
                 AppListRow(
                   icon: Icons.dashboard_customize_rounded,
                   accent: AppTheme.primaryColor,
-                  title: 'Home quick actions',
+                  title: 'Customize Home',
                   subtitle: home.isLoaded
-                      ? '$actionCount of ${HomeActionsRegistry.maxActions} chosen'
-                      : 'Choose the shortcuts on your home screen',
+                      ? '$actionCount quick '
+                            '${actionCount == 1 ? 'action' : 'actions'} · '
+                            'choose sections and shortcuts'
+                      : 'Choose the sections and shortcuts on Home',
                   highlighted: isFlashing('appearance.home'),
                   onTap: () => Navigator.pushNamed(
                     context,

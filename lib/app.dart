@@ -6,9 +6,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config/feature_visibility.dart';
+import 'config/permissions.dart';
 import 'config/routes.dart';
 import 'config/router.dart' as app_router;
 import 'config/theme.dart';
+import 'services/notification_engine.dart';
 import 'utils/error_helpers.dart';
 import 'providers/auth_provider.dart';
 import 'providers/product_provider.dart';
@@ -277,6 +280,20 @@ class _AuthWrapperState extends State<AuthWrapper>
     if (state != AppLifecycleState.resumed) return;
     if (_providersBoundCompanyId == null) return;
     _runAlertScan();
+  }
+
+  /// Keeps the workspace's shared alert inbox to what this member can act on.
+  /// Applied after the frame: the provider notifies, and this runs in build.
+  void _syncAlertRelevance(FeatureVisibility vis) {
+    final types = AlertType.relevantFor(
+      products: vis.has(AppPermissions.viewProducts),
+      batches: vis.allowsId('batchTracking') || vis.allowsId('expiryAlerts'),
+      invoices: vis.gates.billing && vis.has(AppPermissions.viewInvoices),
+      purchaseOrders: vis.allowsId('purchaseOrders'),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<NotificationProvider>().setRelevantTypes(types);
+    });
   }
 
   /// Derives alerts from data the providers already hold. Cheap when nothing
@@ -987,7 +1004,19 @@ class _AuthWrapperState extends State<AuthWrapper>
         if (!_onboardingChecked) {
           _onboardingChecked = true;
           final categories = context.read<CategoryProvider>().categories;
-          if (settings.locations.isEmpty && categories.isEmpty) {
+          // The wizard saves workspace settings, so it only opens by itself
+          // for someone allowed to save them. A new Staff member used to land
+          // in it and have every step refused.
+          final canSetUp =
+              context
+                  .read<AuthProvider>()
+                  .currentUser
+                  ?.effectivePermissions[AppPermissions
+                  .manageCompanySettings] ==
+              true;
+          if (canSetUp &&
+              settings.locations.isEmpty &&
+              categories.isEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               if (!mounted) return;
               final prefs = await SharedPreferences.getInstance();
@@ -1013,6 +1042,8 @@ class _AuthWrapperState extends State<AuthWrapper>
           onSignOut: () => context.read<AuthProvider>().logout(),
         );
       }
+
+      _syncAlertRelevance(FeatureVisibility.watch(context));
 
       // PopScope must live on the AuthWrapper route (the actual navigator entry).
       // HomeScreen is only a child widget — its PopScope never ran when the

@@ -14,6 +14,9 @@ class OfflineBanner extends StatelessWidget {
     final isOffline = context.select<ConnectivityProvider, bool>(
       (p) => p.isOffline,
     );
+    // Near-black on the amber, as everywhere else that fill is used: white on
+    // it is about 3:1, short of what 13 px text needs.
+    final fg = AppTheme.onWarning(context);
     final banner = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -22,15 +25,15 @@ class OfflineBanner extends StatelessWidget {
         bottom: false,
         child: Row(
           children: [
-            const PulsingDot(color: Colors.white, size: 7),
+            PulsingDot(color: fg, size: 7),
             const SizedBox(width: 8),
-            const Icon(Icons.cloud_off_rounded, size: 16, color: Colors.white),
+            Icon(Icons.cloud_off_rounded, size: 16, color: fg),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
                 'You are offline — some features may be unavailable',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: fg,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),

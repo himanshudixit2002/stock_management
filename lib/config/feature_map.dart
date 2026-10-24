@@ -868,6 +868,10 @@ class FeatureMap {
   /// navigation surface should pass it. Without it the plan was checked in
   /// exactly one place — the Plan & Features screen — so a tier-locked feature
   /// stayed listed and fully usable everywhere it actually mattered.
+  ///
+  /// [hiddenFeatures] are the features an admin switched off for the whole
+  /// workspace (Settings → Workspace features → Modules). They are hidden for
+  /// everyone, exactly like a feature the plan does not include.
   static bool isVisible(
     FeatureEntry entry,
     Map<String, bool> permissions, {
@@ -876,7 +880,9 @@ class FeatureMap {
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
     CompanyPlan? plan,
+    Set<String> hiddenFeatures = const {},
   }) {
+    if (hiddenFeatures.contains(entry.id)) return false;
     if (plan != null && !plan.allowsFeature(entry.id)) return false;
     if (entry.permissionKey != null &&
         permissions[entry.permissionKey] != true) {
@@ -913,6 +919,7 @@ class FeatureMap {
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
     CompanyPlan? plan,
+    Set<String> hiddenFeatures = const {},
   }) {
     return entriesFor(placement)
         .where(
@@ -924,6 +931,7 @@ class FeatureMap {
             vendorsEnabled: vendorsEnabled,
             pricingEnabled: pricingEnabled,
             plan: plan,
+            hiddenFeatures: hiddenFeatures,
           ),
         )
         .toList();
@@ -940,6 +948,7 @@ class FeatureMap {
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
     CompanyPlan? plan,
+    Set<String> hiddenFeatures = const {},
   }) {
     final list = all
         .where(
@@ -954,6 +963,7 @@ class FeatureMap {
                 vendorsEnabled: vendorsEnabled,
                 pricingEnabled: pricingEnabled,
                 plan: plan,
+                hiddenFeatures: hiddenFeatures,
               ),
         )
         .toList();
@@ -970,6 +980,7 @@ class FeatureMap {
     bool vendorsEnabled = true,
     bool pricingEnabled = true,
     CompanyPlan? plan,
+    Set<String> hiddenFeatures = const {},
   }) {
     const order = [
       FeatureCategory.orders,
@@ -988,10 +999,55 @@ class FeatureMap {
             vendorsEnabled: vendorsEnabled,
             pricingEnabled: pricingEnabled,
             plan: plan,
+            hiddenFeatures: hiddenFeatures,
           ).isNotEmpty,
         )
         .toList();
   }
+
+  /// Features an admin may switch off for the whole workspace.
+  ///
+  /// Everything a member reaches from Home, the Quick Actions sheet or a tab's
+  /// shortcuts, except the assistant pseudo-entry (the plan governs that one).
+  /// Settings-only and search-only tools stay: they are already out of the way.
+  static List<FeatureEntry> get switchable => all
+      .where(
+        (e) =>
+            e.id != 'aiAssistant' &&
+            (e.placement == FeaturePlacement.homePrimary ||
+                e.placement == FeaturePlacement.homeSecondary ||
+                e.placement == FeaturePlacement.tabShortcut),
+      )
+      .toList();
+
+  /// Modules a brand-new workspace starts with switched off.
+  ///
+  /// A new workspace is on the top plan with every switch on, so its owner
+  /// used to land on 34 Home tiles, most of them for workflows a small shop
+  /// never uses. These are the specialised modules: anyone who needs one turns
+  /// it on in Workspace features. Existing workspaces keep what they have; this
+  /// only seeds `settings.hiddenFeatures` at signup.
+  static const Set<String> hiddenForNewWorkspaces = {
+    'boms',
+    'serials',
+    'transferOrders',
+    'requisitions',
+    'recurringInvoices',
+    'priceLists',
+    'quotations',
+    'shipments',
+    'serviceJobs',
+    'expenses',
+    'registerSessions',
+    'creditControl',
+    'jobWork',
+    'vendorScorecard',
+    'commissions',
+    'budgets',
+    'stockForecast',
+    'abcAnalysis',
+    'valuationTrends',
+  };
 
   static FeatureEntry? getById(String id) {
     final idx = all.indexWhere((e) => e.id == id);

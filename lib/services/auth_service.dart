@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/feature_map.dart';
 import '../models/company_plan_model.dart';
 import '../models/user_model.dart';
 import '../models/workspace_member_model.dart';
@@ -217,6 +218,16 @@ class AuthService {
     ).toMap();
   }
 
+  /// The settings a workspace starts with. Only the module list: everything
+  /// else falls back to its default when absent.
+  ///
+  /// Specialised modules start hidden so a new owner is not met with every
+  /// feature at once (see [FeatureMap.hiddenForNewWorkspaces]); each can be
+  /// switched on from Workspace features.
+  static Map<String, dynamic> _newWorkspaceSettings() => {
+    'hiddenFeatures': FeatureMap.hiddenForNewWorkspaces.toList()..sort(),
+  };
+
   /// Register a new admin user: creates Firebase Auth account, a company doc,
   /// seeds default roles, and creates a user doc with the Owner role.
   Future<UserModel?> register({
@@ -239,6 +250,7 @@ class AuthService {
           'adminUid': result.user!.uid,
           'createdAt': Timestamp.now(),
           'plan': await _signupPlan(),
+          'settings': _newWorkspaceSettings(),
         });
 
         // Best effort. The code only matters for inviting people, and the
@@ -678,6 +690,7 @@ class AuthService {
       'companyName': companyName,
       'adminUid': uid,
       'createdAt': Timestamp.now(),
+      'settings': _newWorkspaceSettings(),
     });
 
     await _seedDefaultRoles(companyDoc.id);

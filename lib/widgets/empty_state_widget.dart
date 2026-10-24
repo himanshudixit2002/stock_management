@@ -146,11 +146,10 @@ class EmptyStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
+    final content = Padding(
         padding: const EdgeInsets.all(AppTheme.spacingXXL),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             ScaleFadeIn(child: _buildVisual(context)),
             const SizedBox(height: 16),
@@ -192,7 +191,22 @@ class EmptyStateWidget extends StatelessWidget {
             ],
           ],
         ),
-      ),
+      );
+
+    // Centred when there is room, scrollable when there is not. A fixed
+    // column of about 300 px overflowed short boxes: landscape phones, the
+    // lower half of split screens, and larger text sizes.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) return Center(child: content);
+        return SingleChildScrollView(
+          primary: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(child: content),
+          ),
+        );
+      },
     );
   }
 

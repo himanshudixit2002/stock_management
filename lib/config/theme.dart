@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppTheme {
+  /// Every text style names the bundled font. A style without a family
+  /// falls back to the platform default, which on web is Roboto fetched from
+  /// fonts.gstatic.com: button labels, tabs and app-bar titles rendered in a
+  /// second typeface, and rendered blank when that download was blocked or
+  /// the app was opened offline.
+  static const String _fontFamily = fontFamily;
+
+  /// The bundled typeface. Needed by hand only where a widget uses a style it
+  /// is given as-is instead of merging it with the theme (NavigationRail
+  /// labels): without it those fall back to a font fetched from the network.
+  static const String fontFamily = 'Inter';
+
   /// System bar styling for the app's edge-to-edge layout.
   ///
   /// Sets icon brightness only, never bar colours, for two reasons. Android 15
@@ -550,8 +562,11 @@ class AppTheme {
     titleSmall: TextStyle(
       fontSize: 13, fontWeight: FontWeight.w600, color: sec),
     bodyLarge: TextStyle(fontSize: 16, color: ink, height: 1.5),
+    // Secondary, not tertiary, ink: any Text that sets no colour lands here,
+    // and that includes invoice totals, party names and card titles across
+    // the app, which were rendering in the lightest grey.
     bodyMedium: TextStyle(
-      fontSize: 14, color: ter, height: 1.45, letterSpacing: -0.1),
+      fontSize: 14, color: sec, height: 1.45, letterSpacing: -0.1),
     bodySmall: TextStyle(fontSize: 12, color: ter, height: 1.4),
     labelLarge: TextStyle(
       fontSize: 15, fontWeight: FontWeight.w600, color: ink, letterSpacing: 0.1),
@@ -586,6 +601,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.08),
         titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: textPrimary,
@@ -594,7 +610,7 @@ class AppTheme {
         iconTheme: const IconThemeData(color: textPrimary, size: 22),
       ),
 
-      fontFamily: 'Inter',
+      fontFamily: _fontFamily,
       textTheme: _textTheme(
         ink: textPrimary,
         sec: textSecondary,
@@ -615,6 +631,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(radiusSM),
           ),
           textStyle: const TextStyle(
+            fontFamily: _fontFamily,
             fontSize: 15,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.1,
@@ -631,7 +648,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusMD),
           ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -653,6 +670,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusXS),
         ),
         textStyle: const TextStyle(
+          fontFamily: _fontFamily,
           color: Color(0xFFFAFAFA),
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -674,12 +692,13 @@ class AppTheme {
         iconColor: textTertiary,
         textColor: textPrimary,
         titleTextStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: textPrimary,
           letterSpacing: -0.1,
         ),
-        subtitleTextStyle: TextStyle(fontSize: 13, color: textTertiary, height: 1.35),
+        subtitleTextStyle: TextStyle(fontFamily: _fontFamily, fontSize: 13, color: textTertiary, height: 1.35),
         // Deliberately no `shape` or `minVerticalPadding`: several screens set
         // `dense`/`visualDensity` on their own tiles, and a global geometry
         // override fights them and changes row heights app-wide.
@@ -729,11 +748,13 @@ class AppTheme {
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           letterSpacing: -0.1,
         ),
         unselectedLabelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -755,7 +776,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusSM),
           ),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -767,7 +788,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMD),
           side: BorderSide(color: dividerColor),
         ),
-        textStyle: TextStyle(fontSize: 14, color: textPrimary),
+        textStyle: TextStyle(fontFamily: _fontFamily, fontSize: 14, color: textPrimary),
       ),
 
       expansionTileTheme: ExpansionTileThemeData(
@@ -782,7 +803,7 @@ class AppTheme {
       badgeTheme: BadgeThemeData(
         backgroundColor: dangerColor,
         textColor: Colors.white,
-        textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 10, fontWeight: FontWeight.w700),
       ),
 
       navigationRailTheme: NavigationRailThemeData(
@@ -791,11 +812,12 @@ class AppTheme {
         selectedIconTheme: IconThemeData(color: primaryColor, size: 24),
         unselectedIconTheme: IconThemeData(color: textTertiary, size: 24),
         selectedLabelTextStyle: TextStyle(
+          fontFamily: _fontFamily,
           color: primaryColor,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelTextStyle: TextStyle(color: textTertiary, fontSize: 12),
+        unselectedLabelTextStyle: TextStyle(fontFamily: _fontFamily, color: textTertiary, fontSize: 12),
       ),
 
       sliderTheme: SliderThemeData(
@@ -818,6 +840,7 @@ class AppTheme {
           ),
           elevation: 0,
           textStyle: const TextStyle(
+            fontFamily: _fontFamily,
             fontSize: 16,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
@@ -834,7 +857,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(18),
           ),
           side: const BorderSide(color: primaryColor, width: 1.5),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -865,8 +888,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: dangerColor, width: 2),
         ),
-        labelStyle: const TextStyle(fontSize: 15, color: textTertiary),
-        hintStyle: const TextStyle(fontSize: 14, color: textMuted),
+        labelStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 15, color: textTertiary),
+        hintStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 14, color: textMuted),
         prefixIconColor: textTertiary,
       ),
 
@@ -890,10 +913,12 @@ class AppTheme {
         selectedItemColor: primaryColor,
         unselectedItemColor: textTertiary,
         selectedLabelStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
         unselectedLabelStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
@@ -906,6 +931,7 @@ class AppTheme {
       dialogTheme: DialogThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: textPrimary,
@@ -921,11 +947,13 @@ class AppTheme {
         backgroundColor: const Color(0xFFF0F4F8),
         selectedColor: primaryColor,
         labelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 13,
           fontWeight: FontWeight.w500,
           color: textPrimary,
         ),
         secondaryLabelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: textTertiary,
@@ -941,10 +969,14 @@ class AppTheme {
         space: 1,
       ),
 
+      // Thin and only while scrolling. Phones never draw these; on desktop and
+      // web a zero thickness left no cue at all that a page scrolled or where
+      // you were in it.
       scrollbarTheme: const ScrollbarThemeData(
         thumbVisibility: WidgetStatePropertyAll(false),
         trackVisibility: WidgetStatePropertyAll(false),
-        thickness: WidgetStatePropertyAll(0),
+        thickness: WidgetStatePropertyAll(6),
+        radius: Radius.circular(3),
       ),
 
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -1002,6 +1034,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.3),
         titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: darkText,
@@ -1010,7 +1043,7 @@ class AppTheme {
         iconTheme: const IconThemeData(color: darkText, size: 22),
       ),
 
-      fontFamily: 'Inter',
+      fontFamily: _fontFamily,
       textTheme: _textTheme(
         ink: _darkText,
         sec: _darkTextSec,
@@ -1031,6 +1064,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(radiusSM),
           ),
           textStyle: const TextStyle(
+            fontFamily: _fontFamily,
             fontSize: 15,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.1,
@@ -1047,7 +1081,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusMD),
           ),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -1069,6 +1103,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusXS),
         ),
         textStyle: const TextStyle(
+          fontFamily: _fontFamily,
           color: Color(0xFFFAFAFA),
           fontSize: 12,
           fontWeight: FontWeight.w500,
@@ -1089,12 +1124,13 @@ class AppTheme {
         iconColor: darkTextTer,
         textColor: darkText,
         titleTextStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: darkText,
           letterSpacing: -0.1,
         ),
-        subtitleTextStyle: TextStyle(fontSize: 13, color: darkTextTer, height: 1.35),
+        subtitleTextStyle: TextStyle(fontFamily: _fontFamily, fontSize: 13, color: darkTextTer, height: 1.35),
         // Deliberately no `shape` or `minVerticalPadding`: several screens set
         // `dense`/`visualDensity` on their own tiles, and a global geometry
         // override fights them and changes row heights app-wide.
@@ -1144,11 +1180,13 @@ class AppTheme {
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w600,
           letterSpacing: -0.1,
         ),
         unselectedLabelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -1170,7 +1208,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusSM),
           ),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -1182,7 +1220,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMD),
           side: BorderSide(color: darkDivider),
         ),
-        textStyle: TextStyle(fontSize: 14, color: darkText),
+        textStyle: TextStyle(fontFamily: _fontFamily, fontSize: 14, color: darkText),
       ),
 
       expansionTileTheme: ExpansionTileThemeData(
@@ -1197,7 +1235,7 @@ class AppTheme {
       badgeTheme: BadgeThemeData(
         backgroundColor: const Color(0xFFF87171),
         textColor: const Color(0xFF101214),
-        textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 10, fontWeight: FontWeight.w700),
       ),
 
       navigationRailTheme: NavigationRailThemeData(
@@ -1206,11 +1244,12 @@ class AppTheme {
         selectedIconTheme: IconThemeData(color: primaryLight, size: 24),
         unselectedIconTheme: IconThemeData(color: darkTextTer, size: 24),
         selectedLabelTextStyle: TextStyle(
+          fontFamily: _fontFamily,
           color: primaryLight,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelTextStyle: TextStyle(color: darkTextTer, fontSize: 12),
+        unselectedLabelTextStyle: TextStyle(fontFamily: _fontFamily, color: darkTextTer, fontSize: 12),
       ),
 
       sliderTheme: SliderThemeData(
@@ -1225,7 +1264,9 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryLight,
-          foregroundColor: Colors.white,
+          // Dark ink, like the dark FilledButton: white on #2DD4BF is about
+          // 1.9:1, unreadable for every primary button and ShimmerButton.
+          foregroundColor: _darkBg,
           minimumSize: const Size(double.infinity, 52),
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
           shape: RoundedRectangleBorder(
@@ -1233,6 +1274,7 @@ class AppTheme {
           ),
           elevation: 0,
           textStyle: const TextStyle(
+            fontFamily: _fontFamily,
             fontSize: 16,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
@@ -1249,7 +1291,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(18),
           ),
           side: const BorderSide(color: primaryLight, width: 1.5),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -1280,8 +1322,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: dangerColor, width: 2),
         ),
-        labelStyle: const TextStyle(fontSize: 15, color: darkTextSecondary),
-        hintStyle: const TextStyle(fontSize: 14, color: darkHintText),
+        labelStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 15, color: darkTextSecondary),
+        hintStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 14, color: darkHintText),
         prefixIconColor: darkTextSecondary,
       ),
 
@@ -1295,7 +1337,7 @@ class AppTheme {
 
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryLight,
-        foregroundColor: Colors.white,
+        foregroundColor: _darkBg,
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
@@ -1305,10 +1347,12 @@ class AppTheme {
         selectedItemColor: primaryLight,
         unselectedItemColor: darkTextSecondary,
         selectedLabelStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
         unselectedLabelStyle: TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
@@ -1322,6 +1366,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: darkCard,
         titleTextStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: darkText,
@@ -1337,11 +1382,13 @@ class AppTheme {
         backgroundColor: darkCard,
         selectedColor: primaryLight.withValues(alpha: 0.28),
         labelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 13,
           fontWeight: FontWeight.w500,
           color: darkText,
         ),
         secondaryLabelStyle: const TextStyle(
+          fontFamily: _fontFamily,
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: darkTextSecondary,
@@ -1357,10 +1404,14 @@ class AppTheme {
         space: 1,
       ),
 
+      // Thin and only while scrolling. Phones never draw these; on desktop and
+      // web a zero thickness left no cue at all that a page scrolled or where
+      // you were in it.
       scrollbarTheme: const ScrollbarThemeData(
         thumbVisibility: WidgetStatePropertyAll(false),
         trackVisibility: WidgetStatePropertyAll(false),
-        thickness: WidgetStatePropertyAll(0),
+        thickness: WidgetStatePropertyAll(6),
+        radius: Radius.circular(3),
       ),
 
       pageTransitionsTheme: const PageTransitionsTheme(

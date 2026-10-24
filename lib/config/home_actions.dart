@@ -26,16 +26,24 @@ class HomeAction {
     this.permissionKey,
     this.featureGates = const [],
   });
+
+  /// The [FeatureMap] entry this action opens, so the plan and the workspace's
+  /// module switches apply to it too. Ids match except for the hold dashboard.
+  String get featureId => id == 'holds' ? 'stockHolds' : id;
 }
 
 class HomeActionsRegistry {
+  /// The everyday basics. Three of the six used to be stock-hold actions
+  /// (Hold Stock, Release Hold and the Hold Dashboard), a workflow most shops
+  /// never touch, while Billing and Low Stock were not there at all. Each one
+  /// still hides itself for anyone without the permission or the module.
   static const List<String> defaultActionIds = [
     'fastPos',
     'stockIn',
     'stockOut',
-    'holds',
-    'release',
-    'hold',
+    'invoices',
+    'lowStock',
+    'customers',
   ];
 
   static const int maxActions = 6;

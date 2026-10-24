@@ -6,19 +6,23 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../config/feature_visibility.dart';
+import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
+import '../../models/purchase_order_model.dart';
+import '../../models/sales_order_model.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/product_provider.dart';
+import '../../providers/purchase_order_provider.dart';
+import '../../providers/sales_order_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/glass_panel.dart';
 import '../home_screen.dart';
-import '../ai/ask_ai_launcher.dart';
-import '../ai/visual_stock_audit_screen.dart';
 import '../../widgets/floating_bottom_nav.dart';
 
 // ---------------------------------------------------------------------------
@@ -64,7 +68,7 @@ class _HomeActionCardState extends State<HomeActionCard> {
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
             decoration: BoxDecoration(
               gradient: widget.gradient,
               borderRadius: BorderRadius.circular(16),
@@ -87,16 +91,25 @@ class _HomeActionCardState extends State<HomeActionCard> {
                   child: Icon(widget.icon, color: AppTheme.onPrimary(context), size: 24),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  widget.label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppTheme.onPrimary(context),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.2,
+                // Two lines, always the same height. One line cut "Hold
+                // Dashboard" and "Release Hold" to "Hold Dash…" on a 390 px
+                // phone; a fixed two-line box keeps every card in a row the
+                // same height whether its label wraps or not.
+                SizedBox(
+                  height: MediaQuery.textScalerOf(context).scale(13) * 1.2 * 2,
+                  child: Center(
+                    child: Text(
+                      widget.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.onPrimary(context),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        height: 1.2,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -149,6 +162,38 @@ class QuickStats extends StatelessWidget {
           .length;
     });
 
+    final vis = FeatureVisibility.watch(context);
+    final canViewProducts = vis.has(AppPermissions.viewProducts);
+    final canViewSO = vis.has(AppPermissions.viewSalesOrders);
+    final canViewPO = vis.has(AppPermissions.viewPurchaseOrders);
+    // The ledger behind "Today" is a report; Staff have no Reports tab, and
+    // tapping the tile used to try to switch to it and do nothing.
+    final canViewHistory = vis.allowsId('transactionHistory');
+
+    final pendingSales = canViewSO
+        ? context.select<SalesOrderProvider, int>(
+            (p) => p.orders
+                .where(
+                  (o) =>
+                      o.status == SOStatus.draft ||
+                      o.status == SOStatus.confirmed,
+                )
+                .length,
+          )
+        : 0;
+    final pendingPurchase = canViewPO
+        ? context.select<PurchaseOrderProvider, int>(
+            (p) => p.orders
+                .where(
+                  (o) =>
+                      o.status == POStatus.draft ||
+                      o.status == POStatus.sent ||
+                      o.status == POStatus.partial,
+                )
+                .length,
+          )
+        : 0;
+
     // Resolved by tab kind rather than index arithmetic: HomeScreen owns the
     // permission -> visible tab mapping, and re-deriving it here drifted out of
     // sync whenever the tab set changed.
@@ -156,44 +201,61 @@ class QuickStats extends StatelessWidget {
         .findAncestorStateOfType<HomeScreenState>()
         ?.switchToTabKind(kind);
 
-    void goToProducts() => goToTab(FloatingNavTabKind.products);
-
+    // One set of numbers. Home used to show these twice more (a "Today" row
+    // and a rotating insights strip). The fourth tile is whichever of pending
+    // orders and today's activity this user can act on.
     final stats = <_StatData>[
-      _StatData(
-        label: 'Products',
-        value: totalProducts,
-        icon: Icons.inventory_2_rounded,
-        color: AppTheme.primaryColor,
-        isLoading: isInitialLoading,
-        onTap: goToProducts,
-      ),
-      _StatData(
-        label: 'Low Stock',
-        value: lowStock,
-        icon: Icons.warning_amber_rounded,
-        color: lowStock > 0 ? AppTheme.warningColor : AppTheme.successColor,
-        isLoading: isInitialLoading,
-        onTap: () => Navigator.pushNamed(context, AppRoutes.lowStock),
-      ),
-      _StatData(
-        label: 'Out of Stock',
-        value: outOfStock,
-        icon: Icons.remove_shopping_cart_rounded,
-        color: AppTheme.dangerColor,
-        isLoading: isInitialLoading,
-        onTap: () {
-          context.read<ProductProvider>().filterByStockStatus('out_of_stock');
-          goToTab(FloatingNavTabKind.products);
-        },
-      ),
-      _StatData(
-        label: 'Today',
-        value: todayTxns,
-        icon: Icons.receipt_long_rounded,
-        color: AppTheme.infoColor,
-        onTap: () => goToTab(FloatingNavTabKind.reports),
-      ),
+      if (canViewProducts) ...[
+        _StatData(
+          label: 'Products',
+          value: totalProducts,
+          icon: Icons.inventory_2_rounded,
+          color: AppTheme.primaryColor,
+          isLoading: isInitialLoading,
+          onTap: () => goToTab(FloatingNavTabKind.products),
+        ),
+        _StatData(
+          label: 'Low Stock',
+          value: lowStock,
+          icon: Icons.warning_amber_rounded,
+          color: lowStock > 0 ? AppTheme.warningColor : AppTheme.successColor,
+          isLoading: isInitialLoading,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.lowStock),
+        ),
+        _StatData(
+          label: 'Out of Stock',
+          value: outOfStock,
+          icon: Icons.remove_shopping_cart_rounded,
+          color: AppTheme.dangerColor,
+          isLoading: isInitialLoading,
+          onTap: () {
+            context.read<ProductProvider>().filterByStockStatus('out_of_stock');
+            goToTab(FloatingNavTabKind.products);
+          },
+        ),
+      ],
+      if (canViewSO || canViewPO)
+        _StatData(
+          label: 'Pending Orders',
+          value: pendingSales + pendingPurchase,
+          icon: Icons.pending_actions_rounded,
+          color: AppTheme.indigoColor,
+          onTap: () => Navigator.pushNamed(
+            context,
+            canViewSO ? AppRoutes.salesOrders : AppRoutes.purchaseOrders,
+          ),
+        )
+      else if (canViewHistory)
+        _StatData(
+          label: 'Today',
+          value: todayTxns,
+          icon: Icons.receipt_long_rounded,
+          color: AppTheme.infoColor,
+          onTap: () =>
+              Navigator.pushNamed(context, AppRoutes.transactionHistory),
+        ),
     ];
+    if (stats.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,7 +278,12 @@ class QuickStats extends StatelessWidget {
             // strip of pills on mobile, which showed only about 2.5 of the four
             // stats on a 375px screen — Out of Stock and Today were effectively
             // invisible. Two columns fit all four in two compact rows.
-            final cols = constraints.maxWidth >= 560 ? 4 : 2;
+            // Every stat on one row where they fit; two rows of two on a phone.
+            // Three stats (no orders and no history access) sit on one row of
+            // three rather than leaving one stranded on a second row.
+            final cols = stats.length == 4
+                ? (constraints.maxWidth >= 560 ? 4 : 2)
+                : stats.length;
             const spacing = 10.0;
             final cardWidth =
                 (constraints.maxWidth - spacing * (cols - 1)) / cols;
@@ -240,7 +307,7 @@ class QuickStats extends StatelessWidget {
                         // rows of stats stay short on a phone. Tied to the
                         // column count, not the breakpoint: at four columns the
                         // cards are too narrow for a side-by-side label.
-                        dense: cols == 2,
+                        dense: cols == 2 && stats.length == 4,
                       ),
                     ),
                   ),
@@ -405,206 +472,43 @@ class HomeNavTile extends StatelessWidget {
               AnimatedIconBadge(icon: icon, color: accent, size: 34),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
+                // A fixed two-line block, so tiles side by side stay the same
+                // height whether a label like "Inventory Valuation" wraps or
+                // not.
+                child: SizedBox(
+                  height: MediaQuery.textScalerOf(context).scale(13) * 1.25 * 2,
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       label,
                       style: TextStyle(
                         fontSize: 13,
+                        height: 1.25,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPri(context),
                       ),
+                      maxLines: subtitle == null || subtitle!.isEmpty ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (subtitle != null && subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: 1),
+                    if (subtitle != null && subtitle!.isNotEmpty)
                       Text(
                         subtitle!,
                         style: TextStyle(
                           fontSize: 12,
+                          height: 1.25,
                           color: AppTheme.textTer(context),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
                   ],
+                ),
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Insights Card (auto-rotating)
-// ---------------------------------------------------------------------------
-class _InsightItem {
-  final IconData icon;
-  final String text;
-  final String route;
-  const _InsightItem(this.icon, this.text, this.route);
-}
-
-class InsightsCard extends StatefulWidget {
-  const InsightsCard({super.key});
-
-  @override
-  State<InsightsCard> createState() => _InsightsCardState();
-}
-
-class _InsightsCardState extends State<InsightsCard> {
-  int _index = 0;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) setState(() => _index++);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lowStockCount = context.select<ProductProvider, int>(
-      (p) => p.lowStockCount,
-    );
-    final outOfStockCount = context.select<ProductProvider, int>(
-      (p) => p.outOfStockCount,
-    );
-    final todayTxns = context.select<StockProvider, int>((s) {
-      final now = DateTime.now();
-      return s.allTransactions
-          .where(
-            (t) =>
-                t.date.year == now.year &&
-                t.date.month == now.month &&
-                t.date.day == now.day,
-          )
-          .length;
-    });
-
-    final insights = <_InsightItem>[
-      _InsightItem(
-        Icons.auto_awesome_rounded,
-        '⚡ Ask AI Agent: Audit & auto-reorder low stock',
-        'ask_ai_rag',
-      ),
-      _InsightItem(
-        Icons.camera_alt_rounded,
-        '📸 AI Vision Audit: Count shelf stock via camera',
-        'visual_ai_audit',
-      ),
-      _InsightItem(
-        Icons.warning_amber_rounded,
-        'You have $lowStockCount products below reorder level',
-        AppRoutes.lowStock,
-      ),
-      _InsightItem(
-        Icons.receipt_long_rounded,
-        'Total $todayTxns transactions today',
-        AppRoutes.transactionHistory,
-      ),
-      _InsightItem(
-        Icons.remove_shopping_cart_rounded,
-        '$outOfStockCount products out of stock',
-        AppRoutes.lowStock,
-      ),
-    ];
-
-    if (insights.isEmpty) return const SizedBox.shrink();
-
-    final current = insights[_index % insights.length];
-
-    return GestureDetector(
-      onTap: () {
-        if (current.route == 'ask_ai_rag') {
-          openAskAi(context);
-        } else if (current.route == 'visual_ai_audit') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const VisualStockAuditScreen()),
-          );
-        } else {
-          Navigator.pushNamed(context, current.route);
-        }
-      },
-
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppTheme.primaryColor.withValues(alpha: 0.08),
-              AppTheme.warningColor.withValues(alpha: 0.06),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.primaryColor.withValues(alpha: 0.12),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.warningColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.lightbulb_rounded,
-                color: AppTheme.warningColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 500),
-                transitionBuilder: (child, anim) =>
-                    FadeTransition(opacity: anim, child: child),
-                child: Row(
-                  key: ValueKey<int>(_index % insights.length),
-                  children: [
-                    Icon(
-                      current.icon,
-                      size: 16,
-                      color: AppTheme.textSec(context),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        current.text,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPri(context),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 14,
-              color: AppTheme.iconMute(context),
-            ),
-          ],
         ),
       ),
     );
@@ -764,35 +668,64 @@ class FavoritesSection extends StatelessWidget {
 // Tip of the Day
 // ---------------------------------------------------------------------------
 class TipOfTheDay extends StatefulWidget {
-  const TipOfTheDay({super.key});
+  const TipOfTheDay({super.key, this.onDismissed});
+
+  /// Called after the user dismisses today's tip.
+  final VoidCallback? onDismissed;
+
+  /// Each tip names the feature it is about, or null when it applies to
+  /// everyone. Tips used to be shown regardless of access, so a Staff member
+  /// was told to "check the Dashboard" or "set up staff permissions".
+  static const List<(String?, String)> _tips = [
+    ('barcodeScanner', 'Use the barcode scanner to quickly find products by scanning their barcode.'),
+    ('lowStock', 'Set low stock thresholds on each product so you get alerts before running out.'),
+    ('excelExport', 'Export your inventory to Excel for easy sharing with your team.'),
+    ('transfer', 'Use the Stock Transfer feature to move items between warehouse locations.'),
+    ('dashboard', 'Check the Dashboard regularly for visual insights into your inventory health.'),
+    ('damage', 'Use the Damage Report to track and write off damaged goods properly.'),
+    ('purchaseOrders', 'Create purchase orders to streamline your restocking workflow.'),
+    ('batchTracking', 'Use batch tracking to monitor product expiry dates and lot numbers.'),
+    ('abcAnalysis', 'The ABC Analysis report helps you focus on your highest-value products.'),
+    ('userManagement', 'Set up staff permissions to control who can perform stock operations.'),
+    ('auditLog', 'Use the audit log to track every change made in the system.'),
+    (null, 'Pin your most-used products as favorites for quick access from Home.'),
+    ('profitLoss', 'The profit & loss report gives you a clear picture of your margins.'),
+    (null, 'Use search on Home to find any product, customer or feature by name.'),
+  ];
+
+  /// The feature each tip is about (null for everyone), for tests to check
+  /// against the catalog.
+  @visibleForTesting
+  static List<String?> get tipFeatureIds => [for (final (f, _) in _tips) f];
+
+  /// Today's tip among those the user can act on, or null if none apply.
+  static String? tipFor(FeatureVisibility vis) {
+    final tips = [
+      for (final (feature, text) in _tips)
+        if (feature == null || vis.allowsId(feature)) text,
+    ];
+    if (tips.isEmpty) return null;
+    final dayIndex = DateTime.now().difference(DateTime(2024)).inDays;
+    return tips[dayIndex % tips.length];
+  }
+
+  static String get _prefKey =>
+      'tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+
+  static Future<bool> isDismissedToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKey) ?? false;
+  }
 
   @override
   State<TipOfTheDay> createState() => _TipOfTheDayState();
 }
 
 class _TipOfTheDayState extends State<TipOfTheDay> {
-  static const _tips = [
-    'Use the barcode scanner to quickly find products by scanning their barcode.',
-    'Set low stock thresholds on each product so you get alerts before running out.',
-    'Export your inventory to Excel for easy sharing with your team.',
-    'Use the Stock Transfer feature to move items between warehouse locations.',
-    'Check the Dashboard regularly for visual insights into your inventory health.',
-    'Use the Damage Report to track and write off damaged goods properly.',
-    'Create purchase orders to streamline your restocking workflow.',
-    'Use batch tracking to monitor product expiry dates and lot numbers.',
-    'The ABC Analysis report helps you focus on your highest-value products.',
-    'Set up staff permissions to control who can perform stock operations.',
-    'Use the audit log to track every change made in the system.',
-    'Pin your most-used products as favorites for quick access from Home.',
-    'The profit & loss report gives you a clear picture of your margins.',
-    'Use the global search to find any product, vendor, or transaction instantly.',
-  ];
-
   bool _dismissed = false;
   bool _loaded = false;
 
-  String get _prefKey =>
-      'tip_dismissed_${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+  String get _prefKey => TipOfTheDay._prefKey;
 
   @override
   void initState() {
@@ -815,14 +748,15 @@ class _TipOfTheDayState extends State<TipOfTheDay> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, true);
     if (mounted) setState(() => _dismissed = true);
+    widget.onDismissed?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded || _dismissed) return const SizedBox.shrink();
 
-    final dayIndex = DateTime.now().difference(DateTime(2024)).inDays;
-    final tip = _tips[dayIndex % _tips.length];
+    final tip = TipOfTheDay.tipFor(FeatureVisibility.watch(context));
+    if (tip == null) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
@@ -897,7 +831,10 @@ class _TipOfTheDayState extends State<TipOfTheDay> {
 // Recent activity
 // ---------------------------------------------------------------------------
 class RecentActivity extends StatelessWidget {
-  const RecentActivity({super.key});
+  const RecentActivity({super.key, this.showViewAll = true});
+
+  /// Whether to link to the full transaction history, which is a report.
+  final bool showViewAll;
 
   @override
   Widget build(BuildContext context) {
@@ -928,7 +865,7 @@ class RecentActivity extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            if (recent.isNotEmpty)
+            if (recent.isNotEmpty && showViewAll)
               GestureDetector(
                 onTap: () {
                   Navigator.pushNamed(context, AppRoutes.transactionHistory);

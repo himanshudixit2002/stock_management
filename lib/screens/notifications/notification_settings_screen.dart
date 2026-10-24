@@ -103,8 +103,11 @@ class _NotificationSettingsScreenState
             child: FormSection(
               title: 'Alert me about',
               children: [
+                // Only kinds this member can act on: "Overdue invoices" was
+                // listed with billing switched off.
                 for (final type in AlertType.all)
-                  SwitchListTile(
+                  if (provider.isTypeRelevant(type))
+                    SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: prefs.isEnabled(type),
                     onChanged: (v) {

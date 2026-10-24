@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../config/feature_access.dart';
+import '../../config/feature_visibility.dart';
 import '../../config/home_actions.dart';
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
-import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../providers/home_customization_provider.dart';
@@ -30,14 +32,26 @@ class HomeCustomizationScreen extends StatefulWidget {
 
 class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
   late List<String> _selected;
+  late Set<HomeSection> _hiddenSections;
   bool _hasChanges = false;
 
   @override
   void initState() {
     super.initState();
-    _selected = List.from(
-      context.read<HomeCustomizationProvider>().selectedIds,
-    );
+    final layout = context.read<HomeCustomizationProvider>();
+    _selected = List.from(layout.selectedIds);
+    _hiddenSections = {
+      for (final section in HomeSection.values)
+        if (!layout.isSectionVisible(section)) section,
+    };
+  }
+
+  void _setSectionVisible(HomeSection section, bool visible) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      visible ? _hiddenSections.remove(section) : _hiddenSections.add(section);
+      _hasChanges = true;
+    });
   }
 
   void _toggle(String id) {
@@ -63,20 +77,34 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
   }
 
   Future<void> _save() async {
-    if (_selected.isEmpty) {
-      showInfoSnackBar(context, 'Please select at least one action');
+    final layout = context.read<HomeCustomizationProvider>();
+    if (_selected.isEmpty &&
+        !_hiddenSections.contains(HomeSection.quickActions)) {
+      showInfoSnackBar(
+        context,
+        'Pick at least one action, or switch Quick actions off',
+      );
       return;
     }
-    await context.read<HomeCustomizationProvider>().saveActions(_selected);
-    if (mounted) {
-      showSuccessOverlay(context, message: 'Home actions updated');
+    await layout.saveActions(_selected);
+    for (final section in HomeSection.values) {
+      final visible = !_hiddenSections.contains(section);
+      if (layout.isSectionVisible(section) != visible) {
+        await layout.setSectionVisible(section, visible);
+      }
     }
+    if (!mounted) return;
+    setState(() => _hasChanges = false);
+    showSuccessOverlay(context, message: 'Home updated');
   }
 
   void _reset() {
     HapticFeedback.mediumImpact();
     setState(() {
       _selected = List.from(HomeActionsRegistry.defaultActionIds);
+      _hiddenSections = Set.of(
+        HomeCustomizationProvider.defaultHiddenSections,
+      );
       _hasChanges = true;
     });
   }
@@ -142,11 +170,7 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
   @override
   Widget build(BuildContext context) {
     final homeCustomization = context.watch<HomeCustomizationProvider>();
-    final perms =
-        context.watch<AuthProvider>().currentUser?.effectivePermissions ??
-        UserModel.defaultPermissions;
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
-    final settings = context.watch<SettingsProvider>();
+    final vis = FeatureVisibility.watch(context);
     final isAdmin = context.watch<AuthProvider>().currentUser?.isAdmin ?? false;
 
     final maxContentWidth = Responsive.isDesktop(context)
@@ -178,16 +202,18 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
               24,
             ),
             children: [
-              _buildSelectedSection(),
-              const SizedBox(height: 20),
-              _buildAvailableSection(
-                perms,
-                billingEnabled: billingOn,
-                barcodeEnabled: settings.barcodeEnabled,
-                vendorsEnabled: settings.vendorsEnabled,
-                pricingEnabled: settings.pricingEnabled,
-                isAdmin: isAdmin,
-              ),
+              _buildSectionsSection(vis, isAdmin: isAdmin),
+              if (!_hiddenSections.contains(HomeSection.quickActions)) ...[
+                const SizedBox(height: 20),
+                _buildSelectedSection(vis),
+                const SizedBox(height: 20),
+                _buildAvailableSection(
+                  vis,
+                  // The switches are company settings, so whoever may change
+                  // those can turn one on from here, not only admins.
+                  canManage: vis.has(AppPermissions.manageCompanySettings),
+                ),
+              ],
             ],
           ),
         ),
@@ -195,33 +221,92 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
     );
   }
 
-  Widget _buildSelectedSection() {
+  /// Sections this user could see at all. Getting started is an admin
+  /// checklist, and the AI panel needs the plan and the report permission, so
+  /// offering either switch to someone who never gets the section only
+  /// confused them.
+  List<HomeSection> _sectionsFor(
+    FeatureVisibility vis, {
+    required bool isAdmin,
+  }) => [
+    for (final section in HomeSection.values)
+      if (switch (section) {
+        HomeSection.gettingStarted => isAdmin,
+        HomeSection.aiInsights =>
+          vis.allowsId('aiAssistant') && vis.has(AppPermissions.viewReports),
+        _ => true,
+      })
+        section,
+  ];
+
+  Widget _buildSectionsSection(FeatureVisibility vis, {required bool isAdmin}) {
+    final sections = _sectionsFor(vis, isAdmin: isAdmin);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionLabel('HOME SECTIONS', AppTheme.infoColor),
+        GlassPanel(
+          borderRadius: 14,
+          useContentVariant: true,
+          child: Column(
+            children: [
+              for (var i = 0; i < sections.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, color: AppTheme.dividerC(context)),
+                _SectionSwitch(
+                  info: HomeCustomizationProvider.sectionInfo[sections[i]]!,
+                  value: !_hiddenSections.contains(sections[i]),
+                  onChanged: (v) => _setSectionVisible(sections[i], v),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionLabel(String text, Color color, {Widget? trailing}) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textSec(context),
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedSection(FeatureVisibility vis) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'SELECTED ACTIONS',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.iconMute(context),
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const Spacer(),
+        _sectionLabel(
+          'SELECTED ACTIONS',
+          AppTheme.primaryColor,
+          trailing: 
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -241,8 +326,6 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
         ),
         if (_selected.isEmpty)
           GlassPanel(
@@ -302,123 +385,111 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
                     key: ValueKey(action.id),
                     action: action,
                     index: index,
+                    available: HomeCustomizationProvider.isActionAvailable(
+                      action,
+                      vis,
+                    ),
                     onRemove: () => _toggle(action.id),
                   );
                 },
               ),
             ),
           ),
-        if (_selected.isNotEmpty)
+        if (_selected.length > 1)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
             child: Text(
-              'Long press and drag to reorder',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.textMuted.withValues(alpha: 0.7),
-              ),
+              // The handle starts a drag straight away; there is no long press.
+              'Drag the handle to reorder',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             ),
           ),
       ],
     );
   }
 
+  /// Actions worth offering: ones the user can use now, plus — for someone
+  /// who manages company settings — ones held back by a workspace switch,
+  /// which they can turn on from the card. Actions behind a permission, the plan or a hidden module used to
+  /// be listed too, padlocked, for people with no way to unlock them.
   Widget _buildAvailableSection(
-    Map<String, bool> perms, {
-    required bool billingEnabled,
-    required bool barcodeEnabled,
-    required bool vendorsEnabled,
-    required bool pricingEnabled,
-    required bool isAdmin,
+    FeatureVisibility vis, {
+    required bool canManage,
   }) {
+    final offered = <(HomeAction, HomeActionFeatureGate?)>[];
+    for (final action in HomeActionsRegistry.allActions) {
+      if (HomeCustomizationProvider.isActionAvailable(action, vis)) {
+        offered.add((action, null));
+        continue;
+      }
+      if (!canManage) continue;
+      final gate = HomeCustomizationProvider.firstUnsatisfiedFeatureGate(
+        action,
+        billingEnabled: vis.gates.billing,
+        barcodeEnabled: vis.gates.barcode,
+        vendorsEnabled: vis.gates.vendors,
+        pricingEnabled: vis.gates.pricing,
+      );
+      // Only a switch is something the admin can fix from here.
+      if (gate == null) continue;
+      final withGateOn = FeatureVisibility(
+        permissions: vis.permissions,
+        gates: FeatureGateState(
+          billing: true,
+          barcode: true,
+          vendors: true,
+          pricing: true,
+          hiddenFeatures: vis.gates.hiddenFeatures,
+        ),
+        plan: vis.plan,
+      );
+      if (HomeCustomizationProvider.isActionAvailable(action, withGateOn)) {
+        offered.add((action, gate));
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 3,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: AppTheme.accentColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'AVAILABLE ACTIONS',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.iconMute(context),
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-        ),
+        _sectionLabel('AVAILABLE ACTIONS', AppTheme.accentColor),
         LayoutBuilder(
           builder: (context, constraints) {
             final crossCount = constraints.maxWidth > 500 ? 4 : 3;
-            final spacing = 10.0;
+            const spacing = 10.0;
             final itemWidth =
                 (constraints.maxWidth - spacing * (crossCount - 1)) /
                 crossCount;
+            final isFull = _selected.length >= HomeActionsRegistry.maxActions;
             return Wrap(
               spacing: spacing,
               runSpacing: spacing,
-              children: HomeActionsRegistry.allActions.asMap().entries.map((
-                entry,
-              ) {
-                final action = entry.value;
-                final isSelected = _selected.contains(action.id);
-                final hasPermission =
-                    action.permissionKey == null ||
-                    perms[action.permissionKey] == true;
-                final featuresOk =
-                    HomeCustomizationProvider.satisfiesFeatureGates(
-                      action,
-                      billingEnabled: billingEnabled,
-                      barcodeEnabled: barcodeEnabled,
-                      vendorsEnabled: vendorsEnabled,
-                      pricingEnabled: pricingEnabled,
-                    );
-                final blockedGate = hasPermission && !featuresOk
-                    ? HomeCustomizationProvider.firstUnsatisfiedFeatureGate(
-                        action,
-                        billingEnabled: billingEnabled,
-                        barcodeEnabled: barcodeEnabled,
-                        vendorsEnabled: vendorsEnabled,
-                        pricingEnabled: pricingEnabled,
-                      )
-                    : null;
-                final isFull =
-                    _selected.length >= HomeActionsRegistry.maxActions;
-                final canToggle =
-                    isSelected || (hasPermission && featuresOk && !isFull);
-                return SizedBox(
-                  width: itemWidth,
-                  child: FadeSlideIn(
-                    index: entry.key,
-                    child: _AvailableActionCard(
-                      action: action,
-                      isSelected: isSelected,
-                      hasPermission: hasPermission,
-                      featuresOk: featuresOk,
-                      blockedGate: blockedGate,
-                      isAdmin: isAdmin,
-                      isDisabled: !isSelected && isFull,
-                      gateDisplayName: _gateDisplayName,
-                      onTap: canToggle ? () => _toggle(action.id) : null,
-                      onEnableFeature: blockedGate != null && isAdmin
-                          ? () => _enableFeature(blockedGate)
-                          : null,
+              children: [
+                for (final (i, (action, blockedGate)) in offered.indexed)
+                  SizedBox(
+                    width: itemWidth,
+                    child: FadeSlideIn(
+                      index: i,
+                      child: _AvailableActionCard(
+                        action: action,
+                        isSelected: _selected.contains(action.id),
+                        hasPermission: true,
+                        featuresOk: blockedGate == null,
+                        blockedGate: blockedGate,
+                        isAdmin: canManage,
+                        isDisabled: !_selected.contains(action.id) && isFull,
+                        gateDisplayName: _gateDisplayName,
+                        onTap:
+                            _selected.contains(action.id) ||
+                                (blockedGate == null && !isFull)
+                            ? () => _toggle(action.id)
+                            : null,
+                        onEnableFeature: blockedGate != null
+                            ? () => _enableFeature(blockedGate)
+                            : null,
+                      ),
                     ),
                   ),
-                );
-              }).toList(),
+              ],
             );
           },
         ),
@@ -442,10 +513,22 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: ShimmerButton(
-          label: 'Save Changes',
-          icon: Icons.check_rounded,
-          onPressed: _hasChanges ? _save : null,
+        child: Center(
+          // Only as tall as the button: a bottom bar is offered the whole
+          // screen's height, and an unbounded Center took all of it.
+          heightFactor: 1,
+          // The body is capped at a form width; a save button spanning a
+          // 1440 px window sat far from everything it saved.
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
+            child: ShimmerButton(
+              label: 'Save Changes',
+              icon: Icons.check_rounded,
+              onPressed: _hasChanges ? _save : null,
+            ),
+          ),
         ),
       ),
     );
@@ -455,12 +538,16 @@ class _HomeCustomizationScreenState extends State<HomeCustomizationScreen> {
 class _SelectedTile extends StatelessWidget {
   final HomeAction action;
   final int index;
+
+  /// False when Home will skip this action for the current user.
+  final bool available;
   final VoidCallback onRemove;
 
   const _SelectedTile({
     super.key,
     required this.action,
     required this.index,
+    required this.available,
     required this.onRemove,
   });
 
@@ -493,12 +580,31 @@ class _SelectedTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                action.label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    action.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPri(context),
+                    ),
+                  ),
+                  if (!available)
+                    Text(
+                      'Not shown on Home: not available to you right now',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSec(context),
+                      ),
+                    ),
+                ],
               ),
             ),
             IconButton(
@@ -727,7 +833,8 @@ class _FeatureGateFooter extends StatelessWidget {
         Text(
           isAdmin
               ? '${gateDisplayName(gate)} is off'
-              : 'Ask an admin to enable ${gateDisplayName(gate)} in Settings → Features.',
+              : 'Ask an admin to turn on ${gateDisplayName(gate)} in '
+                    'Workspace features.',
           textAlign: TextAlign.center,
           maxLines: isAdmin ? 1 : 3,
           overflow: TextOverflow.ellipsis,
@@ -764,6 +871,40 @@ class _FeatureGateFooter extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// One row of the Home sections list.
+class _SectionSwitch extends StatelessWidget {
+  const _SectionSwitch({
+    required this.info,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final HomeSectionInfo info;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile.adaptive(
+      value: value,
+      onChanged: onChanged,
+      secondary: Icon(info.icon, color: AppTheme.primary(context)),
+      title: Text(
+        info.title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPri(context),
+        ),
+      ),
+      subtitle: Text(
+        info.subtitle,
+        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+      ),
     );
   }
 }

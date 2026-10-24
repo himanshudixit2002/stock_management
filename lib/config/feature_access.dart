@@ -33,12 +33,16 @@ class FeatureGateState {
     this.barcode = true,
     this.vendors = true,
     this.pricing = true,
+    this.hiddenFeatures = const {},
   });
 
   final bool billing;
   final bool barcode;
   final bool vendors;
   final bool pricing;
+
+  /// Modules an admin switched off for the workspace, by feature id.
+  final Set<String> hiddenFeatures;
 
   bool isOn(HomeActionFeatureGate gate) => switch (gate) {
     HomeActionFeatureGate.billing => billing,
@@ -78,7 +82,10 @@ FeatureAccess resolveFeatureAccess(
   if (plan != null && !plan.allowsFeature(entry.id)) {
     return FeatureAccess.needsPlan;
   }
-  if (gates.blockedGatesFor(entry).isNotEmpty) return FeatureAccess.featureOff;
+  if (gates.hiddenFeatures.contains(entry.id) ||
+      gates.blockedGatesFor(entry).isNotEmpty) {
+    return FeatureAccess.featureOff;
+  }
   if (entry.permissionKey != null && permissions[entry.permissionKey] != true) {
     return FeatureAccess.needsPermission;
   }

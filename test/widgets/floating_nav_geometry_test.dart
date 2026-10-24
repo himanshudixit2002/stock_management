@@ -84,6 +84,55 @@ void main() {
       }
     });
 
+    testWidgets('with the Ask-AI button shown, content clears it too',
+        (tester) async {
+      for (final inset in <double>[0, 34, 48]) {
+        late double contentInset;
+        late double fabTop;
+        await pumpPhone(
+          tester,
+          FloatingNavExtras(
+            askAiVisible: true,
+            child: Builder(
+              builder: (context) {
+                contentInset = floatingNavContentInset(context);
+                fabTop =
+                    floatingNavTopOffset(context) +
+                    kAskAiButtonGap +
+                    kAskAiButtonHeight;
+                return const SizedBox();
+              },
+            ),
+          ),
+          bottomInset: inset,
+        );
+        expect(
+          contentInset,
+          greaterThan(fabTop),
+          reason: 'the last row would sit under the Ask-AI button',
+        );
+      }
+    });
+
+    testWidgets('wide layouts with the Ask-AI pill reserve room for it',
+        (tester) async {
+      late double contentInset;
+      await pumpPhone(
+        tester,
+        FloatingNavExtras(
+          askAiVisible: true,
+          child: Builder(
+            builder: (context) {
+              contentInset = floatingNavContentInset(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+        size: const Size(1200, 900),
+      );
+      expect(contentInset, greaterThan(16 + 52));
+    });
+
     testWidgets('wide layouts reserve nothing (NavigationRail, no pill)',
         (tester) async {
       late double contentInset;

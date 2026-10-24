@@ -29,19 +29,43 @@ class NotificationProvider extends ChangeNotifier {
   /// dependency — the provider stays testable and web-safe.
   Future<void> Function(List<NotificationCandidate>)? onNewAlerts;
 
-  List<AppNotificationModel> get notifications => _notifications;
+  /// Alert types this member can act on, or null for all of them. The inbox is
+  /// shared by the workspace, so without this a Staff member was shown — and
+  /// badged for — overdue invoices and late purchase orders they cannot open.
+  Set<String>? _relevantTypes;
+
+  /// Narrows the inbox and future scans to [types] (see [AlertType.relevantFor]).
+  void setRelevantTypes(Set<String> types) {
+    if (_relevantTypes != null && setEquals(_relevantTypes, types)) return;
+    _relevantTypes = Set.unmodifiable(types);
+    notifyListeners();
+  }
+
+  /// Whether alerts of [type] concern this member at all.
+  bool isTypeRelevant(String type) =>
+      _relevantTypes == null || _relevantTypes!.contains(type);
+
+  bool _isRelevant(AppNotificationModel n) =>
+      _relevantTypes == null ||
+      // Rows that are not engine alerts (no or unknown type) stay visible.
+      !AlertType.all.contains(n.type) ||
+      _relevantTypes!.contains(n.type);
+
+  List<AppNotificationModel> get notifications =>
+      _notifications.where(_isRelevant).toList();
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   NotificationPrefs get prefs => _prefs;
   bool get isScanning => _isScanning;
   DateTime? get lastScanAt => _lastScanAt;
 
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get unreadCount =>
+      _notifications.where((n) => !n.isRead && _isRelevant(n)).length;
 
   /// Unread count per alert type, for the filter chips.
   Map<String, int> get unreadByType {
     final counts = <String, int>{};
-    for (final n in _notifications) {
+    for (final n in _notifications.where(_isRelevant)) {
       if (n.isRead) continue;
       counts[n.type] = (counts[n.type] ?? 0) + 1;
     }
@@ -54,7 +78,7 @@ class NotificationProvider extends ChangeNotifier {
   /// nothing.
   List<String> get presentTypes {
     final seen = <String>{};
-    for (final n in _notifications) {
+    for (final n in _notifications.where(_isRelevant)) {
       if (n.type.isNotEmpty) seen.add(n.type);
     }
     return seen.toList();
@@ -62,6 +86,7 @@ class NotificationProvider extends ChangeNotifier {
 
   List<AppNotificationModel> filtered({String? type, bool unreadOnly = false}) {
     return _notifications.where((n) {
+      if (!_isRelevant(n)) return false;
       if (unreadOnly && n.isRead) return false;
       if (type != null && type.isNotEmpty && n.type != type) return false;
       return true;
@@ -116,6 +141,7 @@ class NotificationProvider extends ChangeNotifier {
     _subscription?.cancel();
     _subscription = null;
     _notifications = [];
+    _relevantTypes = null;
     _isLoading = false;
     _errorMessage = null;
     _isScanning = false;
@@ -147,7 +173,15 @@ class NotificationProvider extends ChangeNotifier {
     if (!force && _lastScanAt != null && at.difference(_lastScanAt!) < minInterval) {
       return 0;
     }
-    if (_prefs.enabledTypes.isEmpty) return 0;
+    var config = _prefs.toScanConfig();
+    if (_relevantTypes != null) {
+      // A member does not raise alerts nobody in their role can act on, and
+      // whose data their role may not even have loaded.
+      config = config.copyWith(
+        enabledTypes: config.enabledTypes.intersection(_relevantTypes!),
+      );
+    }
+    if (config.enabledTypes.isEmpty) return 0;
 
     _isScanning = true;
     notifyListeners();
@@ -158,7 +192,7 @@ class NotificationProvider extends ChangeNotifier {
         batches: batches,
         invoices: invoices,
         purchaseOrders: purchaseOrders,
-        config: _prefs.toScanConfig(),
+        config: config,
       );
 
       // The live list is the cheap dedupe filter; only what survives it costs a

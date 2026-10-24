@@ -239,6 +239,7 @@ bool isSettingVisible(SettingsLeaf leaf, SettingsVisibilityContext ctx) {
       vendorsEnabled: ctx.gates.vendors,
       pricingEnabled: ctx.gates.pricing,
       plan: ctx.plan,
+      hiddenFeatures: ctx.gates.hiddenFeatures,
     );
     if (!visible) return false;
   }
@@ -469,9 +470,17 @@ class SettingsCatalog {
       id: 'appearance.quickActions',
       category: SettingsCategoryId.appearance,
       group: 'Home screen',
-      title: 'Home quick actions',
-      subtitle: 'Choose the shortcuts on your home screen',
-      keywords: ['home', 'shortcut', 'quick action', 'customize', 'dashboard'],
+      title: 'Customize Home',
+      subtitle: 'Choose the sections and shortcuts on Home',
+      keywords: [
+        'home',
+        'shortcut',
+        'quick action',
+        'customize',
+        'dashboard',
+        'section',
+        'hide',
+      ],
       icon: Icons.dashboard_customize_rounded,
       accent: AppTheme.primaryColor,
       destination: RouteTarget(AppRoutes.homeCustomization),
@@ -592,8 +601,35 @@ class SettingsCatalog {
       ),
       sortOrder: 3,
     ),
+    SettingsLeaf(
+      id: 'features.modules',
+      category: SettingsCategoryId.features,
+      group: 'Modules',
+      title: 'Modules',
+      subtitle: 'Choose which features appear for everyone',
+      keywords: [
+        'module',
+        'hide',
+        'show',
+        'declutter',
+        'quotation',
+        'expenses',
+        'serial',
+        'bill of materials',
+      ],
+      icon: Icons.widgets_rounded,
+      accent: AppTheme.accentColor,
+      destination: InlineTarget(AppRoutes.settingsFeatures, 'features.modules'),
+      visibility: SettingsVisibility(
+        permissionAll: [AppPermissions.manageCompanySettings],
+      ),
+      sortOrder: 4,
+    ),
 
     // ------------------------------------------------------------------- billing
+    // Every billing setting is saved on the company document, which only
+    // admins and holders of Manage company settings may write. Gating these on
+    // View invoices showed Staff a form whose Save was always refused.
     SettingsLeaf(
       id: 'billing.businessProfile',
       category: SettingsCategoryId.billing,
@@ -608,7 +644,7 @@ class SettingsCatalog {
         anchor: 'billing.business',
       ),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
     ),
@@ -626,7 +662,7 @@ class SettingsCatalog {
       accent: AppTheme.infoColor,
       destination: RouteTarget(AppRoutes.billingSettings, anchor: 'billing.tax'),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
       sortOrder: 1,
@@ -642,7 +678,7 @@ class SettingsCatalog {
       accent: AppTheme.warningColor,
       destination: RouteTarget(AppRoutes.billingSettings, anchor: 'billing.tax'),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
       sortOrder: 2,
@@ -661,7 +697,7 @@ class SettingsCatalog {
         anchor: 'billing.numbering',
       ),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
       sortOrder: 3,
@@ -680,7 +716,7 @@ class SettingsCatalog {
         anchor: 'billing.numbering',
       ),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
       sortOrder: 4,
@@ -699,7 +735,7 @@ class SettingsCatalog {
         anchor: 'billing.terms',
       ),
       visibility: SettingsVisibility(
-        permissionAny: [AppPermissions.viewInvoices],
+        permissionAll: [AppPermissions.manageCompanySettings],
         gates: [HomeActionFeatureGate.billing],
       ),
       sortOrder: 5,
@@ -944,6 +980,10 @@ class SettingsCatalog {
       icon: Icons.rocket_launch_rounded,
       accent: AppTheme.accentColor,
       destination: RouteTarget(AppRoutes.onboarding),
+      // The wizard saves workspace settings.
+      visibility: SettingsVisibility(
+        permissionAll: [AppPermissions.manageCompanySettings],
+      ),
       sortOrder: 7,
     ),
 
@@ -958,6 +998,11 @@ class SettingsCatalog {
       icon: Icons.workspace_premium_rounded,
       accent: AppTheme.infoColor,
       destination: RouteTarget(AppRoutes.planFeatures),
+      // The plan is the owner's business; a member cannot change it, and the
+      // page's sixty-odd rows only told Staff what they could not have.
+      visibility: SettingsVisibility(
+        permissionAll: [AppPermissions.manageCompanySettings],
+      ),
     ),
 
     // ---------------------------------------------------------------------- help

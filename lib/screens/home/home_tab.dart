@@ -4,29 +4,33 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/feature_map.dart';
+import '../../config/feature_visibility.dart';
 import '../../config/motion.dart';
+import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/billing_settings_provider.dart';
+import '../../providers/favorites_provider.dart';
 import '../../providers/home_customization_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/product_provider.dart';
-import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/floating_nav_padding.dart';
 import '../../widgets/ai/autonomous_dashboard_widget.dart';
 import 'getting_started_card.dart';
 import 'home_sections.dart';
-import 'today_card.dart';
 
-/// The Home tab body. Discovery is organized into a clear hierarchy:
-/// a single compact top bar (avatar + greeting + search), a horizontal strip of
-/// customizable Quick Actions (daily use), a row of mini stat pills, then a
-/// categorized grid (Orders, Billing, Smart Inventory) sourced from
-/// [FeatureMap], so every feature has a single, predictable home.
+/// The Home tab body, built from [HomeSection]s the user can switch on and off
+/// in Home customization.
+///
+/// It shows only what the signed-in user can use: every block, card and tile is
+/// filtered through [FeatureVisibility] (permissions, workspace switches and
+/// hidden modules, plan). It used to stack nine blocks for everyone, including a
+/// rotating insights strip and a second "Today" row that repeated the stat
+/// cards, so a phone showed the same low-stock number three times before the
+/// first feature tile.
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -36,8 +40,8 @@ class HomeTab extends StatelessWidget {
     final user = auth.currentUser;
     if (user == null) return const SizedBox.shrink();
 
-    final perms = user.effectivePermissions;
-    final isWide = Responsive.isWide(context);
+    final vis = FeatureVisibility.watch(context);
+    final layout = context.watch<HomeCustomizationProvider>();
 
     final initials = user.name.trim().isNotEmpty
         ? user.name
@@ -49,6 +53,65 @@ class HomeTab extends StatelessWidget {
               .join()
               .toUpperCase()
         : '?';
+
+    final actions = layout.isSectionVisible(HomeSection.quickActions)
+        ? layout.visibleActions(vis)
+        : const [];
+
+    // The AI panel sends cost and selling prices to the assistant backend, so
+    // it needs the report permission as well as a plan that includes it.
+    final showAi =
+        layout.isSectionVisible(HomeSection.aiInsights) &&
+        vis.allowsId('aiAssistant') &&
+        vis.has(AppPermissions.viewReports);
+
+    // Each section with whether it spaces itself. Those that may turn out to
+    // have nothing to show (the checklist once it is done, "Show more" with
+    // no favorites or tip) put the gap above themselves only when they do; a
+    // fixed gap left an empty band where they rendered nothing.
+    const gap = 16.0;
+    final sections = <(Widget, bool)>[
+      if (actions.isNotEmpty)
+        (
+          _QuickActionsSection(
+            actions: [
+              for (final a in actions)
+                HomeActionCard(
+                  icon: a.icon,
+                  label: a.label,
+                  gradient: a.gradient,
+                  onTap: () => Navigator.pushNamed(context, a.route),
+                ),
+            ],
+          ),
+          false,
+        ),
+      if (layout.isSectionVisible(HomeSection.stats)) (const QuickStats(), false),
+      // The checklist is an admin's setup list.
+      if (user.isAdmin && layout.isSectionVisible(HomeSection.gettingStarted))
+        (const GettingStartedCard(topGap: gap), true),
+      if (showAi) (const AutonomousDashboardWidget(), false),
+      if (layout.isSectionVisible(HomeSection.favoritesAndTips))
+        (const _HomeMoreSection(topGap: gap), true),
+      if (layout.isSectionVisible(HomeSection.featureShortcuts))
+        for (final grid in _buildCategoryGrids(
+          context,
+          vis,
+          // A feature already pinned as a quick action is not repeated as a
+          // tile further down.
+          quickActionRoutes: {for (final a in actions) a.route},
+        ))
+          (grid, false),
+      if (layout.isSectionVisible(HomeSection.recentActivity))
+        (
+          RecentActivity(
+            showViewAll:
+                vis.allowsId('transactionHistory') ||
+                vis.has(AppPermissions.viewReports),
+          ),
+          false,
+        ),
+    ];
 
     return SafeArea(
       // The bottom inset is owned by [floatingNavContentInset] (via the
@@ -77,22 +140,13 @@ class HomeTab extends StatelessWidget {
                 _buildTopBar(context, user.name, initials, user),
                 _buildUpdatedLabel(context),
                 const SizedBox(height: 10),
-                _buildQuickActionsSection(context, perms, isWide),
-                const SizedBox(height: 14),
-                const QuickStats(),
-                const SizedBox(height: 10),
-                const TodayCard(),
-                const GettingStartedCard(),
-                const SizedBox(height: 14),
-                const AutonomousDashboardWidget(),
-                const SizedBox(height: 14),
-                const FadeSlideIn(index: 3, child: InsightsCard()),
-                const SizedBox(height: 12),
-                const _HomeMoreSection(),
-                const SizedBox(height: 4),
-                ..._buildCategoryGrids(context, perms),
-                const SizedBox(height: 16),
-                const RecentActivity(),
+                // One gap between sections, whichever are switched on. Fixed
+                // spacers around each block left double gaps where a block was
+                // hidden or rendered nothing.
+                for (var i = 0; i < sections.length; i++) ...[
+                  if (i > 0 && !sections[i].$2) const SizedBox(height: gap),
+                  sections[i].$1,
+                ],
                 const FloatingNavPadding(),
               ],
             ),
@@ -101,7 +155,6 @@ class HomeTab extends StatelessWidget {
       ),
     );
   }
-
 
   // ---------------------------------------------------------------------------
   // Merged top bar: avatar + greeting + search + notifications (single header)
@@ -243,69 +296,98 @@ class HomeTab extends StatelessWidget {
   }
 
   // ---------------------------------------------------------------------------
-  // Quick Actions (customizable cards) + section header
+  // Categorized discovery grid (single source of truth via FeatureMap)
   // ---------------------------------------------------------------------------
-  Widget _buildQuickActionsSection(
+  List<Widget> _buildCategoryGrids(
     BuildContext context,
-    Map<String, bool> perms,
-    bool isWide,
-  ) {
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
-    final settings = context.watch<SettingsProvider>();
-    final actions = context
-        .watch<HomeCustomizationProvider>()
-        .getVisibleActions(
-          perms,
-          billingEnabled: billingOn,
-          barcodeEnabled: settings.barcodeEnabled,
-          vendorsEnabled: settings.vendorsEnabled,
-          pricingEnabled: settings.pricingEnabled,
-        );
+    FeatureVisibility vis, {
+    required Set<String> quickActionRoutes,
+  }) {
+    final widgets = <Widget>[];
+    for (final category in FeatureMap.homeGridCategories(
+      vis.permissions,
+      billingEnabled: vis.gates.billing,
+      barcodeEnabled: vis.gates.barcode,
+      vendorsEnabled: vis.gates.vendors,
+      pricingEnabled: vis.gates.pricing,
+      plan: vis.plan,
+      hiddenFeatures: vis.gates.hiddenFeatures,
+    )) {
+      final entries =
+          FeatureMap.entriesByCategory(
+                category,
+                vis.permissions,
+                placement: FeaturePlacement.homeSecondary,
+                billingEnabled: vis.gates.billing,
+                barcodeEnabled: vis.gates.barcode,
+                vendorsEnabled: vis.gates.vendors,
+                pricingEnabled: vis.gates.pricing,
+                plan: vis.plan,
+                hiddenFeatures: vis.gates.hiddenFeatures,
+              )
+              .where((e) => !quickActionRoutes.contains(e.route))
+              .toList();
+      if (entries.isEmpty) continue;
+      final meta = FeatureMap.categoryMeta[category]!;
+      final accent = FeatureMap.categoryColor(category);
 
-    if (actions.isEmpty) return const SizedBox.shrink();
-
-    final cards = actions
-        .map(
-          (action) => HomeActionCard(
-            icon: action.icon,
-            label: action.label,
-            gradient: action.gradient,
-            onTap: () => Navigator.pushNamed(context, action.route),
-          ),
-        )
-        .toList();
-
-    Widget grid;
-    if (isWide) {
-      final spaced =
-          cards
-              .expand((b) => [Expanded(child: b), const SizedBox(width: 12)])
-              .toList()
-            ..removeLast();
-      grid = Row(children: spaced);
-    } else {
-      // A wrapping grid, not a horizontal strip. The strip showed roughly three
-      // of N fixed-width cards on a 375px screen, so the rest of the user's own
-      // customized actions were only reachable by a sideways swipe most people
-      // never discovered.
-      grid = LayoutBuilder(
-        builder: (context, constraints) {
-          final cols = constraints.maxWidth >= 400 ? 4 : 3;
-          const spacing = 10.0;
-          final cardWidth =
-              (constraints.maxWidth - spacing * (cols - 1)) / cols;
-          return Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: [
-              for (final card in cards)
-                SizedBox(width: cardWidth, child: card),
-            ],
-          );
-        },
+      widgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionHeader(title: meta.title, subtitle: meta.subtitle),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final cols = width >= 1000
+                    ? 4
+                    : width >= 640
+                    ? 3
+                    : 2;
+                const spacing = 10.0;
+                final cardWidth = (width - spacing * (cols - 1)) / cols;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final e in entries)
+                      SizedBox(
+                        width: cardWidth,
+                        child: HomeNavTile(
+                          icon: e.icon,
+                          label: e.label,
+                          // A two-column phone tile has room for the name and
+                          // nothing else; the description only cut it short.
+                          subtitle: cardWidth >= 220 ? e.subtitle : null,
+                          color: accent,
+                          onTap: () => Navigator.pushNamed(context, e.route),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       );
     }
+    return widgets;
+  }
+}
 
+/// The user's quick action cards, in a grid whose columns follow the width.
+///
+/// Cards keep one width at every size. On wide screens they used to share a
+/// single row, so a 600 px window squeezed six cards to 60 px each and a
+/// 1440 px window stretched one or two of them across half the screen.
+class _QuickActionsSection extends StatelessWidget {
+  const _QuickActionsSection({required this.actions});
+
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -314,89 +396,45 @@ class HomeTab extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: 4),
         ),
         const SizedBox(height: 8),
-        FadeSlideIn(index: 1, child: grid),
+        FadeSlideIn(
+          index: 1,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final cols = width >= 900
+                  ? 6
+                  : width >= 480
+                  ? 4
+                  : 3;
+              const spacing = 10.0;
+              final cardWidth = (width - spacing * (cols - 1)) / cols;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final card in actions)
+                    SizedBox(width: cardWidth, child: card),
+                ],
+              );
+            },
+          ),
+        ),
       ],
     );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Categorized discovery grid (single source of truth via FeatureMap)
-  // ---------------------------------------------------------------------------
-  List<Widget> _buildCategoryGrids(
-    BuildContext context,
-    Map<String, bool> perms,
-  ) {
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
-    final settings = context.watch<SettingsProvider>();
-
-    final categories = FeatureMap.homeGridCategories(
-      perms,
-      billingEnabled: billingOn,
-      barcodeEnabled: settings.barcodeEnabled,
-      vendorsEnabled: settings.vendorsEnabled,
-      pricingEnabled: settings.pricingEnabled,
-      plan: settings.plan,
-    );
-
-    final widgets = <Widget>[];
-    for (final category in categories) {
-      final entries = FeatureMap.entriesByCategory(
-        category,
-        perms,
-        placement: FeaturePlacement.homeSecondary,
-        billingEnabled: billingOn,
-        barcodeEnabled: settings.barcodeEnabled,
-        vendorsEnabled: settings.vendorsEnabled,
-        pricingEnabled: settings.pricingEnabled,
-        plan: settings.plan,
-      );
-      if (entries.isEmpty) continue;
-      final meta = FeatureMap.categoryMeta[category]!;
-      final accent = FeatureMap.categoryColor(category);
-
-      widgets.add(const SizedBox(height: 16));
-      widgets.add(
-        SectionHeader(title: meta.title, subtitle: meta.subtitle),
-      );
-      widgets.add(const SizedBox(height: 12));
-      widgets.add(
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cols = Responsive.isDesktop(context) ? 4 : 2;
-            const spacing = 10.0;
-            final cardWidth =
-                (constraints.maxWidth - spacing * (cols - 1)) / cols;
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: entries
-                  .map(
-                    (e) => SizedBox(
-                      width: cardWidth,
-                      child: HomeNavTile(
-                        icon: e.icon,
-                        label: e.label,
-                        subtitle: e.subtitle,
-                        color: accent,
-                        onTap: () => Navigator.pushNamed(context, e.route),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            );
-          },
-        ),
-      );
-    }
-    return widgets;
   }
 }
 
 /// Tucks the secondary Favorites + Tip-of-the-Day surfaces behind a single
 /// "Show more" expander so they don't push primary content below the fold.
 /// Honors reduce-motion via the zero-duration [AnimatedCrossFade].
+///
+/// Renders nothing at all when there are no favorites and today's tip has been
+/// dismissed: the expander used to stay on screen and open onto nothing.
 class _HomeMoreSection extends StatefulWidget {
-  const _HomeMoreSection();
+  const _HomeMoreSection({this.topGap = 0});
+
+  /// Space above the section, applied only when it shows something.
+  final double topGap;
 
   @override
   State<_HomeMoreSection> createState() => _HomeMoreSectionState();
@@ -405,6 +443,17 @@ class _HomeMoreSection extends StatefulWidget {
 class _HomeMoreSectionState extends State<_HomeMoreSection> {
   bool _expanded = false;
 
+  /// Null until the saved dismissal has been read.
+  bool? _tipDismissed;
+
+  @override
+  void initState() {
+    super.initState();
+    TipOfTheDay.isDismissedToday().then((dismissed) {
+      if (mounted) setState(() => _tipDismissed = dismissed);
+    });
+  }
+
   void _toggle() {
     HapticFeedback.selectionClick();
     setState(() => _expanded = !_expanded);
@@ -412,8 +461,18 @@ class _HomeMoreSectionState extends State<_HomeMoreSection> {
 
   @override
   Widget build(BuildContext context) {
+    final hasFavorites = context.select<FavoritesProvider, bool>(
+      (f) => f.ids.isNotEmpty,
+    );
+    final tipPending =
+        _tipDismissed == false &&
+        TipOfTheDay.tipFor(FeatureVisibility.watch(context)) != null;
+    if (!hasFavorites && !tipPending) return const SizedBox.shrink();
+
     final reduce = reduceMotion(context);
-    return Column(
+    return Padding(
+      padding: EdgeInsets.only(top: widget.topGap),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -457,15 +516,20 @@ class _HomeMoreSectionState extends State<_HomeMoreSection> {
         ),
         AnimatedCrossFade(
           firstChild: const SizedBox(width: double.infinity, height: 0),
-          secondChild: const Padding(
-            padding: EdgeInsets.only(top: 4),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                FadeSlideIn(child: FavoritesSection()),
-                SizedBox(height: 16),
-                FadeSlideIn(child: TipOfTheDay()),
+                if (hasFavorites) const FadeSlideIn(child: FavoritesSection()),
+                if (hasFavorites && tipPending) const SizedBox(height: 16),
+                if (tipPending)
+                  FadeSlideIn(
+                    child: TipOfTheDay(
+                      onDismissed: () => setState(() => _tipDismissed = true),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -476,6 +540,7 @@ class _HomeMoreSectionState extends State<_HomeMoreSection> {
           sizeCurve: Curves.easeOutCubic,
         ),
       ],
+      ),
     );
   }
 }

@@ -7,7 +7,10 @@ import '../providers/product_provider.dart';
 import '../providers/stock_provider.dart';
 import '../providers/billing_settings_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/connectivity_provider.dart';
+import '../providers/home_customization_provider.dart';
 import '../config/feature_map.dart';
+import '../config/feature_visibility.dart';
 import '../config/theme.dart';
 import '../config/motion.dart';
 import '../models/user_model.dart';
@@ -245,13 +248,17 @@ class HomeScreenState extends State<HomeScreen>
     // Narrow subscriptions: only these four flags matter here, and watching the
     // whole providers rebuilt the entire shell (every mounted tab body) on any
     // unrelated settings change.
-    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan) = context
-        .select<SettingsProvider, (bool, bool, bool, CompanyPlan)>(
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan, hidden) =
+        context.select<
+          SettingsProvider,
+          (bool, bool, bool, CompanyPlan, Set<String>)
+        >(
           (s) => (
             s.barcodeEnabled,
             s.vendorsEnabled,
             s.pricingEnabled,
             s.plan,
+            s.hiddenFeatures,
           ),
         );
     final billingOn = context.select<BillingSettingsProvider, bool>(
@@ -266,6 +273,7 @@ class HomeScreenState extends State<HomeScreen>
       vendorsEnabled: vendorsEnabled,
       pricingEnabled: pricingEnabled,
       plan: plan,
+      hiddenFeatures: hidden,
     );
 
     // The assistant is the one plan-locked feature in the catalog (Starter and
@@ -292,10 +300,13 @@ class HomeScreenState extends State<HomeScreen>
             children: [
               _buildNavigationRail(context, tabs, safeIndex, quickActions),
               Expanded(
-                child: _tabTransition(
-                  IndexedStack(
-                    index: safeIndex,
-                    children: _buildTabBodies(tabs),
+                child: FloatingNavExtras(
+                  askAiVisible: aiAvailable,
+                  child: _tabTransition(
+                    IndexedStack(
+                      index: safeIndex,
+                      children: _buildTabBodies(tabs),
+                    ),
                   ),
                 ),
               ),
@@ -316,10 +327,13 @@ class HomeScreenState extends State<HomeScreen>
           child: Stack(
             children: [
               Positioned.fill(
-                child: _tabTransition(
-                  IndexedStack(
-                    index: safeIndex,
-                    children: _buildTabBodies(tabs),
+                child: FloatingNavExtras(
+                  askAiVisible: aiAvailable,
+                  child: _tabTransition(
+                    IndexedStack(
+                      index: safeIndex,
+                      children: _buildTabBodies(tabs),
+                    ),
                   ),
                 ),
               ),
@@ -345,7 +359,7 @@ class HomeScreenState extends State<HomeScreen>
                   // pill positions itself with. The old hardcoded 100 overlapped
                   // it by 14-28px once the device's gesture/navigation inset was
                   // taken into account.
-                  bottom: floatingNavTopOffset(context) + 12,
+                  bottom: floatingNavTopOffset(context) + kAskAiButtonGap,
                   child: _buildAskAIFab(context, isWide: false),
                 ),
             ],
@@ -365,18 +379,45 @@ class HomeScreenState extends State<HomeScreen>
         children: [
           const OfflineBanner(),
           Expanded(
-            child: Stack(
+            // The banner already sits under the status bar and pads for it, so
+            // the tabs below must not pad for it a second time.
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: context.select<ConnectivityProvider, bool>(
+                (c) => c.isOffline,
+              ),
+              child: Stack(
               children: [
                 scaffold,
                 if (_showTour)
                   FeatureTour(
+                    navigation: _tourNavigation(context, tabs, isWide),
                     onComplete: () => setState(() => _showTour = false),
                   ),
               ],
+              ),
             ),
           ),
         ],
       ),
+      ),
+    );
+  }
+
+  FeatureTourNavigation _tourNavigation(
+    BuildContext context,
+    List<_ShellTab> tabs,
+    bool isWide,
+  ) {
+    final layout = context.read<HomeCustomizationProvider>();
+    return FeatureTourNavigation(
+      tabLabels: [for (final t in tabs) t.label],
+      isWide: isWide,
+      hasQuickActions:
+          layout.isSectionVisible(HomeSection.quickActions) &&
+          layout.visibleActions(FeatureVisibility.read(context)).isNotEmpty,
+      hasFeatureShortcuts: layout.isSectionVisible(
+        HomeSection.featureShortcuts,
       ),
     );
   }
@@ -523,11 +564,13 @@ class HomeScreenState extends State<HomeScreen>
           size: 24,
         ),
         selectedLabelTextStyle: const TextStyle(
+          fontFamily: AppTheme.fontFamily,
           color: AppTheme.primaryColor,
           fontWeight: FontWeight.w700,
           fontSize: 13,
         ),
         unselectedLabelTextStyle: TextStyle(
+          fontFamily: AppTheme.fontFamily,
           color: AppTheme.iconMute(context),
           fontSize: 12,
         ),
@@ -548,16 +591,16 @@ class HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
+        // Pinned to the bottom, with the destinations scrolling between it and
+        // the logo. The rail used to be one fixed column, so a landscape phone
+        // or a short window overflowed it.
+        scrollable: true,
+        trailingAtBottom: true,
         trailing: quickActions.isNotEmpty
-            ? Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: _RailQuickActionsButton(
-                      onTap: () => _openQuickActionsSheet(quickActions),
-                    ),
-                  ),
+            ? Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 24),
+                child: _RailQuickActionsButton(
+                  onTap: () => _openQuickActionsSheet(quickActions),
                 ),
               )
             : null,

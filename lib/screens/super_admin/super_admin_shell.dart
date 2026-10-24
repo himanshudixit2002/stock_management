@@ -264,11 +264,13 @@ class _ConsoleRail extends StatelessWidget {
                   color: AppTheme.infoColor,
                 ),
                 selectedLabelTextStyle: const TextStyle(
+                  fontFamily: AppTheme.fontFamily,
                   color: AppTheme.infoColor,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
                 unselectedLabelTextStyle: TextStyle(
+                  fontFamily: AppTheme.fontFamily,
                   color: AppTheme.textSec(context),
                   fontSize: 12,
                 ),

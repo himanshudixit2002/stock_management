@@ -18,6 +18,10 @@ void main() {
       expect(formatDocumentNumber('INV', 42), 'INV-0042');
       expect(formatDocumentNumber('INV', 1), 'INV-0001');
       expect(formatDocumentNumber('BILL', 12345), 'BILL-12345');
+      // A prefix that already ends in a separator is not given a second one.
+      expect(formatDocumentNumber('INV-', 7), 'INV-0007');
+      expect(formatDocumentNumber('INV/', 7), 'INV/0007');
+      expect(formatDocumentNumber('', 7), '0007');
     });
   });
 
@@ -389,5 +393,30 @@ void main() {
         'No custom roles · users & overrides',
       );
     });
+  });
+
+  test('the features summary counts hidden modules', () {
+    expect(
+      featuresSummary(
+        pricing: true,
+        vendors: true,
+        barcode: true,
+        billing: true,
+        loaded: true,
+        hiddenModules: 19,
+      ),
+      'All four features on · 19 modules hidden',
+    );
+    expect(
+      featuresSummary(
+        pricing: true,
+        vendors: true,
+        barcode: true,
+        billing: true,
+        loaded: true,
+        hiddenModules: 1,
+      ),
+      'All four features on · 1 module hidden',
+    );
   });
 }

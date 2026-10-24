@@ -200,7 +200,9 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Autonomous Inventory Engine',
+                        'AI insights',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: AppTheme.textPri(context),
@@ -208,7 +210,9 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Self-operating predictive scans & stock balance active',
+                        'Anomalies, reorder ideas and demand projections',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: AppTheme.textSec(context),
                         ),
@@ -225,7 +229,7 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
                         )
                       : Icon(Icons.refresh, color: AppTheme.textSec(context)),
                   onPressed: _isLoading ? null : _loadAgentData,
-                  tooltip: 'Re-run Autonomous AI Audit',
+                  tooltip: 'Refresh insights',
                 ),
               ],
             ),
@@ -350,12 +354,18 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
       children: [
         Icon(icon, color: color, size: 18),
         const SizedBox(width: 6),
-        Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: color,
+        // Flexible: "Stock Anomalies & Shrinkage" overflowed a 320 px phone
+        // at larger text sizes.
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -387,56 +397,48 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: isCritical ? AppTheme.dangerColor.withValues(alpha: 0.3) : AppTheme.warningColor.withValues(alpha: 0.3)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(
-                  isCritical ? Icons.error_outline : Icons.warning_amber,
-                  color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        anomaly['product_name'] ?? 'Product Anomaly',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        anomaly['description'] ?? '',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    anomaly['severity'] ?? 'ALERT',
-                    style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              isCritical ? Icons.error_outline : Icons.warning_amber,
+              color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
+              size: 22,
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    anomaly['product_name'] ?? 'Product Anomaly',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    anomaly['description'] ?? '',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isCritical ? AppTheme.dangerColor : AppTheme.warningColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                anomaly['severity'] ?? 'ALERT',
+                style: TextStyle(color: AppTheme.onPrimary(context), fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -450,62 +452,54 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const Icon(Icons.add_shopping_cart, color: AppTheme.primaryColor, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        rec['product_name'] ?? 'Item',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        'Stock: ${rec['current_stock']} | Velocity: ${rec['weekly_sales_velocity']} units/wk',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.add_shopping_cart, color: AppTheme.primaryColor, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    rec['product_name'] ?? 'Item',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  flex: 0,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '+${rec['suggested_reorder_qty']} units',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryColor,
-                          fontSize: 13,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        'AI Draft PO',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textMute(context)),
-                      ),
-                    ],
+                  Text(
+                    'Stock: ${rec['current_stock']} | Velocity: ${rec['weekly_sales_velocity']} units/wk',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Flexible(
+              flex: 0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '+${rec['suggested_reorder_qty']} units',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'AI Draft PO',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textMute(context)),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -519,40 +513,32 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.2)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const Icon(Icons.swap_horiz_rounded, color: AppTheme.accentColor, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t['product_name'] ?? 'Product',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.swap_horiz_rounded, color: AppTheme.accentColor, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t['product_name'] ?? 'Product',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  Text(
+                    'Move ${t['suggested_transfer_qty']} units: ${t['from_location']} → ${t['to_location']}',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -568,60 +554,52 @@ class _AutonomousDashboardWidgetState extends State<AutonomousDashboardWidget> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.indigoColor.withValues(alpha: 0.2)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.access_time_filled_rounded,
-                  color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        f['product_name'] ?? 'Item',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '30D Demand: ~${f['projected_30d_demand']} units (${f['daily_sales_rate']} units/day)',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isUrgent ? AppTheme.warningColor.withValues(alpha: 0.15) : AppTheme.indigoColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    days >= 999 ? 'Stable' : '$days Days',
-                    style: TextStyle(
-                      color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.access_time_filled_rounded,
+              color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
+              size: 20,
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    f['product_name'] ?? 'Item',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPri(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '30D Demand: ~${f['projected_30d_demand']} units (${f['daily_sales_rate']} units/day)',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isUrgent ? AppTheme.warningColor.withValues(alpha: 0.15) : AppTheme.indigoColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                days >= 999 ? 'Stable' : '$days Days',
+                style: TextStyle(
+                  color: isUrgent ? AppTheme.warningColor : AppTheme.indigoColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -669,3 +647,4 @@ class _Notice extends StatelessWidget {
     );
   }
 }
+

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/feature_map.dart';
+import '../../config/feature_visibility.dart';
 import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
@@ -11,12 +13,10 @@ import '../../utils/product_search.dart';
 import '../../models/vendor_model.dart';
 import '../../models/customer_model.dart';
 import '../../models/invoice_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../providers/customer_provider.dart';
 import '../../providers/billing_provider.dart';
-import '../../providers/billing_settings_provider.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/animations.dart';
@@ -24,7 +24,44 @@ import '../../utils/currency.dart';
 import '../../utils/debouncer.dart';
 import '../../utils/date_formats.dart';
 
-enum _SearchCategory { all, products, vendors, customers, invoices }
+enum _SearchCategory { all, products, customers, vendors, invoices, features }
+
+/// What the signed-in user may search. Vendors and customers used to be listed
+/// to everyone, including people whose role cannot open either list, and
+/// vendors showed with the Vendors switch off.
+class _SearchAccess {
+  _SearchAccess(FeatureVisibility vis)
+    : products = vis.has(AppPermissions.viewProducts),
+      customers = vis.has(AppPermissions.viewCustomers),
+      vendors = vis.gates.vendors && vis.has(AppPermissions.viewVendors),
+      invoices = vis.gates.billing && vis.has(AppPermissions.viewInvoices);
+
+  final bool products;
+  final bool customers;
+  final bool vendors;
+  final bool invoices;
+
+  bool allows(_SearchCategory c) => switch (c) {
+    _SearchCategory.all || _SearchCategory.features => true,
+    _SearchCategory.products => products,
+    _SearchCategory.customers => customers,
+    _SearchCategory.vendors => vendors,
+    _SearchCategory.invoices => invoices,
+  };
+
+  /// "products, customers and features", for the hint and empty state.
+  String describe() {
+    final parts = [
+      if (products) 'products',
+      if (customers) 'customers',
+      if (vendors) 'vendors',
+      if (invoices) 'invoices',
+      'features',
+    ];
+    if (parts.length == 1) return parts.first;
+    return '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
+  }
+}
 
 class GlobalSearchScreen extends StatefulWidget {
   const GlobalSearchScreen({super.key});
@@ -46,17 +83,19 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   List<VendorModel> _vendorResults = [];
   List<CustomerModel> _customerResults = [];
   List<InvoiceModel> _invoiceResults = [];
+  List<FeatureEntry> _featureResults = [];
 
   static const String _recentSearchesKey = 'recent_searches';
   static const int _maxRecentSearches = 10;
 
-  bool _hasFilteredResults(bool showInvoiceCategory) {
+  bool _hasFilteredResults() {
     switch (_selectedCategory) {
       case _SearchCategory.all:
         return _productResults.isNotEmpty ||
             _vendorResults.isNotEmpty ||
             _customerResults.isNotEmpty ||
-            (showInvoiceCategory && _invoiceResults.isNotEmpty);
+            _invoiceResults.isNotEmpty ||
+            _featureResults.isNotEmpty;
       case _SearchCategory.products:
         return _productResults.isNotEmpty;
       case _SearchCategory.vendors:
@@ -65,6 +104,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         return _customerResults.isNotEmpty;
       case _SearchCategory.invoices:
         return _invoiceResults.isNotEmpty;
+      case _SearchCategory.features:
+        return _featureResults.isNotEmpty;
     }
   }
 
@@ -99,12 +140,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final billingOn = context.read<BillingSettingsProvider>().billingEnabled;
-    final user = context.read<AuthProvider>().currentUser;
-    final showInvoices =
-        billingOn &&
-        (user?.hasPermission(AppPermissions.viewInvoices) ?? false);
-    if (!showInvoices && _selectedCategory == _SearchCategory.invoices) {
+    final access = _SearchAccess(FeatureVisibility.read(context));
+    if (!access.allows(_selectedCategory)) {
       setState(() => _selectedCategory = _SearchCategory.all);
     }
   }
@@ -147,11 +184,14 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         _vendorResults = [];
         _customerResults = [];
         _invoiceResults = [];
+        _featureResults = [];
       });
       return;
     }
 
     final lower = query.toLowerCase();
+    final vis = FeatureVisibility.read(context);
+    final access = _SearchAccess(vis);
     final productProvider = context.read<ProductProvider>();
     final catalog = productProvider.isAnalyticsLoaded
         ? productProvider.analyticsProducts
@@ -161,34 +201,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         : 24;
     final vendors = context.read<VendorProvider>().vendors;
     final customers = context.read<CustomerProvider>().customers;
-    final user = context.read<AuthProvider>().currentUser;
-    final billingOn = context.read<BillingSettingsProvider>().billingEnabled;
-    final canViewInvoices =
-        user?.hasPermission(AppPermissions.viewInvoices) ?? false;
 
     setState(() {
-      _productResults = searchProductsRanked(
-        catalog,
-        query,
-        limit: productLimit,
-      );
+      _productResults = access.products
+          ? searchProductsRanked(catalog, query, limit: productLimit)
+          : [];
 
-      _vendorResults = vendors
-          .where((v) => v.name.toLowerCase().contains(lower))
-          .take(10)
-          .toList();
+      _vendorResults = access.vendors
+          ? vendors
+                .where((v) => v.name.toLowerCase().contains(lower))
+                .take(10)
+                .toList()
+          : [];
 
-      _customerResults = customers
-          .where(
-            (c) =>
-                c.name.toLowerCase().contains(lower) ||
-                c.email.toLowerCase().contains(lower) ||
-                c.phone.toLowerCase().contains(lower),
-          )
-          .take(10)
-          .toList();
+      _customerResults = access.customers
+          ? customers
+                .where(
+                  (c) =>
+                      c.name.toLowerCase().contains(lower) ||
+                      c.email.toLowerCase().contains(lower) ||
+                      c.phone.toLowerCase().contains(lower),
+                )
+                .take(10)
+                .toList()
+          : [];
 
-      if (billingOn && canViewInvoices) {
+      if (access.invoices) {
         final billing = context.read<BillingProvider>();
         _invoiceResults = billing.invoices
             .where((i) => invoiceMatchesSearch(i, query))
@@ -197,6 +235,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       } else {
         _invoiceResults = [];
       }
+
+      _featureResults = vis.searchFeatures(
+        query,
+        limit: _selectedCategory == _SearchCategory.features ? 30 : 4,
+      );
     });
   }
 
@@ -222,15 +265,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final billingOn = context.watch<BillingSettingsProvider>().billingEnabled;
-    final user = context.watch<AuthProvider>().currentUser;
     final productProvider = context.watch<ProductProvider>();
-    final showInvoiceCategory =
-        billingOn &&
-        (user?.hasPermission(AppPermissions.viewInvoices) ?? false);
-    final searchHint = showInvoiceCategory
-        ? 'Search products, vendors, customers, invoices…'
-        : 'Search products, vendors, customers…';
+    final access = _SearchAccess(FeatureVisibility.watch(context));
+    final searchHint = 'Search ${access.describe()}…';
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
@@ -272,8 +309,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_query.isNotEmpty) ...[
-                  _buildCategoryTabs(showInvoiceCategory),
-                  if (!productProvider.isAnalyticsLoaded)
+                  _buildCategoryTabs(access),
+                  if (access.products && !productProvider.isAnalyticsLoaded)
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         Responsive.horizontalPadding(context),
@@ -292,8 +329,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                 ],
                 Expanded(
                   child: _query.isEmpty
-                      ? _buildRecentSearches(showInvoiceCategory)
-                      : _buildResults(showInvoiceCategory),
+                      ? _buildRecentSearches(access)
+                      : _buildResults(access),
                 ),
               ],
             ),
@@ -303,14 +340,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildRecentSearches(bool showInvoiceCategory) {
+  Widget _buildRecentSearches(_SearchAccess access) {
     if (_recentSearches.isEmpty) {
+      final what = access.describe();
       return EmptyStateWidget(
         icon: Icons.search_rounded,
         title: 'Search Everything',
-        subtitle: showInvoiceCategory
-            ? 'Products: name, barcode, location, filters like stock:low or cat:snacks. Plus vendors, customers, invoices.'
-            : 'Products: name, barcode, location, filters like stock:low or cat:snacks. Plus vendors and customers.',
+        subtitle: access.products
+            ? 'Find $what. For products, try a name, barcode or location, '
+                  'or filters like stock:low or cat:snacks.'
+            : 'Find $what by name.',
       );
     }
 
@@ -366,10 +405,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildCategoryTabs(bool showInvoiceCategory) {
-    final categories = _SearchCategory.values
-        .where((c) => c != _SearchCategory.invoices || showInvoiceCategory)
-        .toList();
+  Widget _buildCategoryTabs(_SearchAccess access) {
+    final categories = _SearchCategory.values.where(access.allows).toList();
+    // The selected chip's label sat in light teal on a pale teal fill, about
+    // 1.4:1; the darker shade reads in light mode and the lighter in dark.
+    final selectedFg = AppTheme.isDark(context)
+        ? AppTheme.primaryLight
+        : AppTheme.primaryDark;
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.horizontalPadding(context),
@@ -386,6 +428,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               _SearchCategory.vendors => 'Vendors',
               _SearchCategory.customers => 'Customers',
               _SearchCategory.invoices => 'Invoices',
+              _SearchCategory.features => 'Features',
             };
             return Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -396,14 +439,14 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: isSelected
-                        ? AppTheme.primaryLight
+                        ? selectedFg
                         : AppTheme.textPri(context),
                   ),
                 ),
                 selected: isSelected,
-                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.22),
+                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.16),
                 backgroundColor: AppTheme.card(context),
-                checkmarkColor: AppTheme.primaryLight,
+                checkmarkColor: selectedFg,
                 side: BorderSide(
                   color: isSelected
                       ? Colors.transparent
@@ -421,16 +464,22 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildResults(bool showInvoiceCategory) {
-    if (!_hasFilteredResults(showInvoiceCategory)) {
+  Widget _buildResults(_SearchAccess access) {
+    if (!_hasFilteredResults()) {
       return EmptyStateWidget(
         icon: Icons.search_off_rounded,
         title: 'No Results',
-        subtitle:
-            'No matches for "$_query". Try other words, or filters: stock:out, stock:low, cat:name, company:name, loc:name, vendor:name.',
+        subtitle: access.products
+            ? 'No matches for "$_query". Try other words, or filters: '
+                  'stock:out, stock:low, cat:name, company:name, loc:name, '
+                  'vendor:name.'
+            : 'No matches for "$_query". Try other words.',
       );
     }
 
+    final showFeatures =
+        _selectedCategory == _SearchCategory.all ||
+        _selectedCategory == _SearchCategory.features;
     final showProducts =
         _selectedCategory == _SearchCategory.all ||
         _selectedCategory == _SearchCategory.products;
@@ -441,9 +490,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         _selectedCategory == _SearchCategory.all ||
         _selectedCategory == _SearchCategory.customers;
     final showInvoices =
-        showInvoiceCategory &&
-        (_selectedCategory == _SearchCategory.all ||
-            _selectedCategory == _SearchCategory.invoices);
+        _selectedCategory == _SearchCategory.all ||
+        _selectedCategory == _SearchCategory.invoices;
 
     // Build results with a running stagger index so every tile (across all
     // sections) fades + slides in sequentially.
@@ -452,6 +500,24 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         FadeSlideIn(index: staggerIndex++, child: child);
 
     final children = <Widget>[];
+    // Features first: there are only a few, and someone typing "ledger" or
+    // "ageing" is looking for the screen, not a product.
+    if (showFeatures && _featureResults.isNotEmpty) {
+      children.add(
+        staggered(
+          _sectionHeader(
+            Icons.apps_rounded,
+            'Features',
+            _featureResults.length,
+          ),
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.addAll(
+        _featureResults.map((e) => staggered(_buildFeatureTile(e))),
+      );
+      children.add(const SizedBox(height: 16));
+    }
     if (showProducts && _productResults.isNotEmpty) {
       children.add(
         staggered(
@@ -629,6 +695,52 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           ),
           subtitle: _highlightedText(
             subtitle,
+            _query,
+            baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: AppTheme.textSec(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureTile(FeatureEntry entry) {
+    final color = FeatureMap.categoryColor(entry.category);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: GlassPanel(
+        useContentVariant: true,
+        borderRadius: 14,
+        child: ListTile(
+          onTap: () {
+            _addToRecentSearches(_query);
+            Navigator.pushNamed(context, entry.route);
+          },
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(entry.icon, color: color, size: 20),
+          ),
+          title: _highlightedText(
+            entry.label,
+            _query,
+            baseStyle: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: AppTheme.textPri(context),
+            ),
+          ),
+          subtitle: _highlightedText(
+            entry.subtitle,
             _query,
             baseStyle: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
             maxLines: 2,

@@ -23,14 +23,20 @@ import '../../widgets/glass_panel.dart';
 ///   * Add your first product  → product count > 0
 ///   * Record a stock-in       → any stock-in transaction exists
 ///   * Invite a team member     → company user count > 1
-///   * Enable billing           → billing toggle on
+///   * Set up billing           → business name saved (only while billing is
+///                                on; it is on by default, so "Enable billing"
+///                                used to be ticked off on day one)
 ///
 /// Only the *dismissed* flag is persisted (per company, via
 /// [GettingStartedCache] — the Phase-1 shared_preferences pattern). The card
 /// auto-hides once every step is complete, and is collapsible so it never
 /// pushes the daily actions below the fold.
 class GettingStartedCard extends StatefulWidget {
-  const GettingStartedCard({super.key});
+  const GettingStartedCard({super.key, this.topGap = 0});
+
+  /// Space above the card, applied only when it shows; once every step is
+  /// done it renders nothing, and a fixed gap left an empty band on Home.
+  final double topGap;
 
   @override
   State<GettingStartedCard> createState() => _GettingStartedCardState();
@@ -96,9 +102,13 @@ class _GettingStartedCardState extends State<GettingStartedCard> {
     final hasStockIn = context.select<StockProvider, bool>(
       (s) => s.allTransactions.any((t) => t.type == TransactionType.stockIn),
     );
-    final billingEnabled = context.select<BillingSettingsProvider, bool>(
-      (b) => b.billingEnabled,
-    );
+    final (billingEnabled, billingProfileDone) = context
+        .select<BillingSettingsProvider, (bool, bool)>(
+          (b) => (
+            b.billingEnabled,
+            b.settings.businessName.trim().isNotEmpty,
+          ),
+        );
 
     _usersStream ??= context.read<AuthProvider>().getAllUsers();
 
@@ -126,12 +136,13 @@ class _GettingStartedCardState extends State<GettingStartedCard> {
             done: hasTeam,
             route: AppRoutes.userManagement,
           ),
-          _ChecklistStep(
-            label: 'Enable billing',
-            icon: Icons.point_of_sale_outlined,
-            done: billingEnabled,
-            route: AppRoutes.billingSettings,
-          ),
+          if (billingEnabled)
+            _ChecklistStep(
+              label: 'Add your business details for invoices',
+              icon: Icons.point_of_sale_outlined,
+              done: billingProfileDone,
+              route: AppRoutes.billingSettings,
+            ),
         ];
 
         final completed = steps.where((s) => s.done).length;
@@ -139,7 +150,7 @@ class _GettingStartedCardState extends State<GettingStartedCard> {
         if (completed == steps.length) return const SizedBox.shrink();
 
         return Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: EdgeInsets.only(top: widget.topGap),
           child: FadeSlideIn(
           child: GlassPanel(
             borderRadius: 16,

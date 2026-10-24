@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +13,7 @@ import '../../providers/vendor_provider.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
+import '../../models/user_model.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -52,43 +54,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          // A stock warning icon, not a bell: it opens the low-stock list, and
+          // a bell read as the notification inbox. The count is capped like
+          // every other badge, and white in both themes (it took the surface
+          // colour, dark on red in dark mode).
           Selector<ProductProvider, int>(
             selector: (_, p) => p.lowStockCount,
-            builder: (context, lowStockCount, _) => Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined),
-                  onPressed: () {
-                    _StatsRow._showLowStockSheet(context);
-                  },
-                  tooltip: 'Low Stock Alerts',
-                ),
-                if (lowStockCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: AppTheme.dangerColor,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 18,
-                        minHeight: 18,
-                      ),
-                      child: Text(
-                        '$lowStockCount',
-                        style: TextStyle(
-                          color: AppTheme.surface(context),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
+            builder: (context, lowStockCount, _) => IconButton(
+              icon: Badge(
+                isLabelVisible: lowStockCount > 0,
+                backgroundColor: AppTheme.dangerColor,
+                textColor: Colors.white,
+                label: Text(lowStockCount > 99 ? '99+' : '$lowStockCount'),
+                child: const Icon(Icons.warning_amber_rounded),
+              ),
+              onPressed: () {
+                _StatsRow._showLowStockSheet(context);
+              },
+              tooltip: 'Low Stock Alerts',
             ),
           ),
         ],
@@ -323,21 +306,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Quick Actions
-                      FadeSlideIn(
-                        index: 2,
-                        child: Text(
-                          'Quick Actions',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Selector<AuthProvider, bool>(
-                        selector: (_, auth) => auth.isAdmin,
-                        builder: (context, isAdmin, _) {
+                      // Quick Actions, each behind the permission its screen
+                      // needs. Stock moves used to show for everyone, and the
+                      // admin-only trio ignored roles that grant them.
+                      Selector<AuthProvider, Map<String, bool>>(
+                        selector: (_, auth) =>
+                            auth.currentUser?.effectivePermissions ??
+                            UserModel.defaultPermissions,
+                        shouldRebuild: (a, b) => !mapEquals(a, b),
+                        builder: (context, perms, _) {
+                          bool can(String key) => perms[key] == true;
                           return LayoutBuilder(
                             builder: (context, constraints) {
                               final actions = <Widget>[
+                                if (can(AppPermissions.stockIn))
                                 _QuickActionCard(
                                   icon: Icons.add_box_rounded,
                                   label: 'Stock In',
@@ -348,6 +330,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     AppRoutes.stockIn,
                                   ),
                                 ),
+                                if (can(AppPermissions.stockOut))
                                 _QuickActionCard(
                                   icon: Icons.outbox_rounded,
                                   label: 'Stock Out',
@@ -358,6 +341,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     AppRoutes.stockOut,
                                   ),
                                 ),
+                                if (can(AppPermissions.transfer))
                                 _QuickActionCard(
                                   icon: Icons.swap_horiz_rounded,
                                   label: 'Transfer',
@@ -368,6 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     AppRoutes.stockTransfer,
                                   ),
                                 ),
+                                if (can(AppPermissions.damage))
                                 _QuickActionCard(
                                   icon: Icons.report_problem_rounded,
                                   label: 'Damage',
@@ -378,7 +363,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     AppRoutes.damageReport,
                                   ),
                                 ),
-                                if (isAdmin) ...[
+                                if (can(AppPermissions.addProducts))
                                   _QuickActionCard(
                                     icon: Icons.add_circle_rounded,
                                     label: 'Add Item',
@@ -389,6 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       AppRoutes.addProduct,
                                     ),
                                   ),
+                                if (can(AppPermissions.importData))
                                   _QuickActionCard(
                                     icon: Icons.upload_file_rounded,
                                     label: 'Import',
@@ -399,6 +385,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       AppRoutes.excelImport,
                                     ),
                                   ),
+                                if (can(AppPermissions.exportData))
                                   _QuickActionCard(
                                     icon: Icons.download_rounded,
                                     label: 'Export',
@@ -409,35 +396,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       AppRoutes.excelExport,
                                     ),
                                   ),
-                                ],
                               ];
+                              if (actions.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
 
+                              // Three on a phone, like Home's quick actions:
+                              // two made seven half-screen-wide cards.
                               final crossAxisCount =
                                   Responsive.isDesktop(context)
                                   ? 6
-                                  : (Responsive.isMobile(context) ? 2 : 4);
+                                  : (Responsive.isMobile(context) ? 3 : 4);
                               const spacing = 10.0;
                               final itemWidth =
                                   (constraints.maxWidth -
                                       spacing * (crossAxisCount - 1)) /
                                   crossAxisCount;
 
-                              return Wrap(
-                                spacing: spacing,
-                                runSpacing: spacing,
-                                children: actions
-                                    .map(
-                                      (a) =>
-                                          SizedBox(width: itemWidth, child: a),
-                                    )
-                                    .toList(),
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  FadeSlideIn(
+                                    index: 2,
+                                    child: Text(
+                                      'Quick Actions',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: spacing,
+                                    runSpacing: spacing,
+                                    children: actions
+                                        .map(
+                                          (a) => SizedBox(
+                                            width: itemWidth,
+                                            child: a,
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 28),
+                                ],
                               );
                             },
                           );
                         },
                       ),
-
-                      const SizedBox(height: 28),
 
                       // Charts & Insights
                       FadeSlideIn(
@@ -460,14 +467,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               'Recent Activity',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
-                            TextButton.icon(
-                              onPressed: () => Navigator.pushNamed(
-                                context,
-                                AppRoutes.reports,
+                            // "View all" recent activity is the transaction
+                            // history (a report). It opened the whole Reports
+                            // screen, which never shows the list itself.
+                            if (context.select<AuthProvider, bool>(
+                              (a) =>
+                                  a.currentUser?.hasPermission(
+                                    AppPermissions.viewReports,
+                                  ) ??
+                                  false,
+                            ))
+                              TextButton.icon(
+                                onPressed: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.transactionHistory,
+                                ),
+                                icon: const Icon(Icons.arrow_forward, size: 16),
+                                label: const Text('View All'),
                               ),
-                              icon: const Icon(Icons.arrow_forward, size: 16),
-                              label: const Text('View All'),
-                            ),
                           ],
                         ),
                       ),
@@ -596,21 +613,15 @@ class _StatsRow extends StatelessWidget {
                             title: 'All Stocked Up',
                             subtitle: 'All products are well stocked!',
                           )
-                        : GridView.builder(
+                        // One column: the sheet is at most a phone's width
+                        // even on a desktop, where three 80 px-tall columns
+                        // cut every product name short.
+                        : ListView.builder(
                             controller: scrollController,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
                             ),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: Responsive.isDesktop(context)
-                                      ? 3
-                                      : 1,
-                                  mainAxisExtent: 80,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                ),
                             itemCount: lowStock.length,
                             itemBuilder: (ctx3, index) {
                               final product = lowStock[index];
@@ -642,12 +653,16 @@ class _StatsRow extends StatelessWidget {
                                 ),
                                 title: Text(
                                   product.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 subtitle: Text(
                                   '${product.categoryName}${product.locations.isNotEmpty ? ' \u2022 ${product.locations.join(", ")}' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(fontSize: 12),
                                 ),
                                 trailing: Text(
@@ -962,6 +977,8 @@ class _QuickActionCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: AppTheme.textPri(context),
                   fontWeight: FontWeight.w600,
@@ -972,9 +989,11 @@ class _QuickActionCard extends StatelessWidget {
               const SizedBox(height: 1),
               Text(
                 subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: AppTheme.textSec(context),
-                  fontSize: 11.5,
+                  fontSize: 12,
                 ),
                 textAlign: TextAlign.center,
               ),
