@@ -10,6 +10,7 @@ import '../../../widgets/charts/category_pie_chart.dart';
 import '../../../widgets/charts/stock_bar_chart.dart';
 import '../../../widgets/charts/top_products_chart.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../../utils/responsive.dart';
 
 class AnalyticsChartsTab extends StatefulWidget {
   const AnalyticsChartsTab({super.key});
@@ -47,7 +48,11 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
     return FadeSlideIn(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 16 + floatingNavContentInset(context)),
+          Responsive.horizontalPadding(context),
+          16,
+          Responsive.horizontalPadding(context),
+          16 + floatingNavContentInset(context),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -104,13 +109,12 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    height: 200,
-                    child: TransactionLineChart(
-                      dataByDay: stockProvider.transactionsByDay,
-                      days: _chartDays,
-                      granularity: _chartGranularity,
-                    ),
+                  // Sized by the chart itself (180-300 px from the width, plus
+                  // its legend). A fixed 200 px box was smaller than that.
+                  TransactionLineChart(
+                    dataByDay: stockProvider.transactionsByDay,
+                    days: _chartDays,
+                    granularity: _chartGranularity,
                   ),
                 ],
               ),
@@ -137,10 +141,7 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        height: 190,
-                        child: CategoryPieChart(data: categoryData),
-                      ),
+                      CategoryPieChart(data: categoryData),
                     ],
                   ),
                 );
@@ -160,10 +161,7 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        height: 190,
-                        child: StockBarChart(data: stockInOutData),
-                      ),
+                      StockBarChart(data: stockInOutData),
                     ],
                   ),
                 );
@@ -206,10 +204,8 @@ class _AnalyticsChartsTabState extends State<AnalyticsChartsTab> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    height: 220,
-                    child: TopProductsChart(data: topProducts),
-                  ),
+                  // Ten 24 px rows do not fit the 220 px box this used to be in.
+                  TopProductsChart(data: topProducts),
                 ],
               ),
             ),

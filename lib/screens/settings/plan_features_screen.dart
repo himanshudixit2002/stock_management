@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../utils/responsive.dart';
 import '../../utils/currency.dart';
 import '../../config/feature_access.dart';
 import '../../config/feature_map.dart';
@@ -56,6 +57,7 @@ class PlanFeaturesScreen extends StatelessWidget {
       barcode: settings.barcodeEnabled,
       vendors: settings.vendorsEnabled,
       pricing: settings.pricingEnabled,
+      hiddenFeatures: settings.hiddenFeatures,
     );
 
     // Every catalogued feature, grouped by category in the app's own order.
@@ -80,8 +82,18 @@ class PlanFeaturesScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        // Settings-page width and padding, like the other settings pages.
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.formMaxWidth(context),
+            ),
+            child: ListView(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.horizontalPadding(context),
+            vertical: 16,
+          ),
           children: [
             _PlanCard(
               plan: plan,
@@ -113,6 +125,8 @@ class PlanFeaturesScreen extends StatelessWidget {
                 ),
             const SizedBox(height: 32),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -441,7 +455,9 @@ class _FeatureRow extends StatelessWidget {
     final reason = switch (access) {
       FeatureAccess.available => null,
       FeatureAccess.needsPermission => 'Ask an admin for access',
-      FeatureAccess.featureOff => '$offGate is switched off for this workspace',
+      FeatureAccess.featureOff => offGate.isEmpty
+          ? 'Switched off in Workspace features'
+          : '$offGate is switched off for this workspace',
       FeatureAccess.needsPlan =>
         'Not included in your plan — ask your platform administrator to '
             'upgrade this workspace',

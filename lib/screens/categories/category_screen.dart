@@ -337,6 +337,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
                 onPressed: isSaving
                     ? null
                     : () async {
@@ -509,6 +510,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       }
                     },
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size(88, 44),
                 backgroundColor: AppTheme.dangerColor,
               ),
               child: isDeleting

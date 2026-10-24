@@ -252,7 +252,10 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
   Widget _buildDateRangeBar() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.horizontalPadding(context),
+        vertical: 8,
+      ),
       child: Row(
         children: [
           _RangeChip(
@@ -421,6 +424,9 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
   }
 
   Widget _buildProductTable(List<_AbcItem> items) {
+    // Column widths follow the text size. Fixed 28-44 px columns broke
+    // "Class" over two lines and wrapped the percentages at larger text.
+    final ts = MediaQuery.textScalerOf(context).scale(10) / 10;
     return GlassSectionCard(
       title: 'Product Breakdown',
       child: Column(
@@ -454,7 +460,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                 ),
                 SizedBox(width: 8),
                 SizedBox(
-                  width: 40,
+                  width: 50 * ts,
                   child: Text(
                     '%',
                     textAlign: TextAlign.right,
@@ -467,7 +473,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                 ),
                 SizedBox(width: 8),
                 SizedBox(
-                  width: 44,
+                  width: 56 * ts,
                   child: Text(
                     'Cum %',
                     textAlign: TextAlign.right,
@@ -480,7 +486,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                 ),
                 SizedBox(width: 8),
                 SizedBox(
-                  width: 28,
+                  width: 40 * ts,
                   child: Text(
                     'Class',
                     textAlign: TextAlign.center,
@@ -522,7 +528,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 40,
+                    width: 50 * ts,
                     child: Text(
                       '${item.pctOfTotal.toStringAsFixed(1)}%',
                       textAlign: TextAlign.right,
@@ -534,7 +540,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 44,
+                    width: 56 * ts,
                     child: Text(
                       '${item.cumulativePct.toStringAsFixed(1)}%',
                       textAlign: TextAlign.right,
@@ -545,7 +551,7 @@ class _AbcAnalysisScreenState extends State<AbcAnalysisScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SizedBox(width: 28, child: _classBadge(item.abcClass)),
+                  SizedBox(width: 40 * ts, child: _classBadge(item.abcClass)),
                 ],
               ),
             ),

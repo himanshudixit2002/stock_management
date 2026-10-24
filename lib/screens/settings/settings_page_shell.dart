@@ -20,9 +20,22 @@ class SettingsPageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final horizontal = Responsive.horizontalPadding(context);
-    return ListView(
-      padding: EdgeInsets.fromLTRB(horizontal, AppTheme.spacingMD, horizontal, 40),
-      children: children,
+    // The same form width as Billing settings. Sub-pages ran to 1600 px on a
+    // desktop, so moving between settings pages changed the width each time.
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            AppTheme.spacingMD,
+            horizontal,
+            40,
+          ),
+          children: children,
+        ),
+      ),
     );
   }
 }

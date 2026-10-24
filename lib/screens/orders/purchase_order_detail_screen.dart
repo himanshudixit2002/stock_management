@@ -625,6 +625,7 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
               onPressed: selectedLocation == null
                   ? null
                   : () {

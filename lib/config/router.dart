@@ -424,7 +424,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
     AppRoutes.reports => _slideRoute(settings, 
       DeferredScreenLoader(
         future: reports.loadLibrary(),
-        builder: (_) => reports.ReportsScreen(),
+        builder: (_) => reports.ReportsScreen(isTab: false),
       ),
     ),
     AppRoutes.dashboard => _slideRoute(settings, 

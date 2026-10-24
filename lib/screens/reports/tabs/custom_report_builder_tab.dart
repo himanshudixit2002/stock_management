@@ -10,6 +10,7 @@ import '../../../widgets/glass_panel.dart';
 import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../../utils/responsive.dart';
 import '../../../utils/currency.dart';
 
 class CustomReportBuilderTab extends StatefulWidget {
@@ -168,7 +169,10 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
-            16, 16, 16, 16 + floatingNavContentInset(context),
+            Responsive.horizontalPadding(context),
+            16,
+            Responsive.horizontalPadding(context),
+            16 + floatingNavContentInset(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,12 +194,16 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                           children: [
                             Icon(Icons.tune_rounded, color: AppTheme.primaryColor, size: 20),
                             const SizedBox(width: 8),
-                            Text(
-                              'Dimension & Grouping Selector',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPri(context),
+                            // Flexible, so at larger text it wraps inside the
+                            // card instead of running off it.
+                            Flexible(
+                              child: Text(
+                                'Group and compare',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPri(context),
+                                ),
                               ),
                             ),
                           ],
@@ -339,21 +347,29 @@ class _CustomReportBuilderTabState extends State<CustomReportBuilderTab> {
                                               ? ((row.salesRevenue - prevRevenue) / prevRevenue) * 100
                                               : (row.salesRevenue > 0 ? 100.0 : 0.0);
                                           final isPositive = revChangePct >= 0;
+                                          final trend = isPositive
+                                              ? AppTheme.success(context)
+                                              : AppTheme.danger(context);
                                           return Row(
-                                            mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Icon(
                                                 isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
                                                 size: 11,
-                                                color: isPositive ? Colors.green : Colors.red,
+                                                color: trend,
                                               ),
                                               const SizedBox(width: 2),
-                                              Text(
-                                                'PoP Rev: ${isPositive ? "+" : ""}${revChangePct.toStringAsFixed(1)}% vs prev period',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isPositive ? Colors.green : Colors.red,
+                                              // Shrinks instead of running past
+                                              // the tile's trailing badge.
+                                              Expanded(
+                                                child: Text(
+                                                  '${isPositive ? "+" : ""}${revChangePct.toStringAsFixed(1)}% revenue vs previous period',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: trend,
+                                                  ),
                                                 ),
                                               ),
                                             ],

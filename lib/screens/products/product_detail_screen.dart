@@ -1022,6 +1022,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       }
                     },
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size(88, 44),
                 backgroundColor: AppTheme.dangerColor,
               ),
               child: isDeleting

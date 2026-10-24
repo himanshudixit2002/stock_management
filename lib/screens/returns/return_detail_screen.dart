@@ -431,6 +431,7 @@ class ReturnDetailScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
               onPressed: selectedLocation != null
                   ? () => Navigator.pop(ctx, selectedLocation)
                   : null,

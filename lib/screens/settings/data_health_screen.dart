@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../utils/responsive.dart';
 import '../../config/permissions.dart';
 import '../../config/theme.dart';
 
@@ -98,8 +99,14 @@ class _Results extends StatelessWidget {
         .where((f) => f.severity == DataHealthSeverity.critical)
         .length;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final horizontal = Responsive.horizontalPadding(context);
+    // Settings-page width and padding, not edge to edge at a fixed 16 px.
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: Responsive.formMaxWidth(context)),
+        child: ListView(
+      padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 16),
       children: [
         _Summary(
           total: findings.length,
@@ -121,6 +128,8 @@ class _Results extends StatelessWidget {
         ...checks.map((c) => _CheckRow(check: c)),
         const SizedBox(height: 32),
       ],
+        ),
+      ),
     );
   }
 }

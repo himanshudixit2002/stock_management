@@ -21,7 +21,13 @@ import 'widgets/reports_export_sheet.dart';
 import '../../models/company_plan_model.dart';
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key});
+  const ReportsScreen({super.key, this.isTab = true});
+
+  /// False when opened as a page of its own (the /reports route) rather than
+  /// as a tab of the home shell. The tab borrows the shell's Scaffold; on its
+  /// own it had none, so it rendered with no background, no back button, and
+  /// every label in Flutter's yellow "no Material" underline.
+  final bool isTab;
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
@@ -52,15 +58,17 @@ class _ReportsScreenState extends State<ReportsScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => SafeArea(
-        child: Padding(
+      // Scrolls: a bottom sheet is capped at 9/16 of the screen, which on a
+      // landscape phone is shorter than these seven rows.
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Select Date Filter',
-                  style: Theme.of(context).textTheme.titleLarge),
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.today_rounded),
@@ -68,7 +76,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 onTap: () {
                   final now = DateTime.now();
                   stockProvider.setDateRangeFilter(now, now);
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                 },
               ),
               ListTile(
@@ -79,7 +87,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                     DateTime.now().subtract(const Duration(days: 7)),
                     DateTime.now(),
                   );
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                 },
               ),
               ListTile(
@@ -90,7 +98,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                     DateTime.now().subtract(const Duration(days: 30)),
                     DateTime.now(),
                   );
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                 },
               ),
               ListTile(
@@ -101,14 +109,15 @@ class _ReportsScreenState extends State<ReportsScreen>
                     DateTime.now().subtract(const Duration(days: 90)),
                     DateTime.now(),
                   );
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.edit_calendar_rounded),
                 title: const Text('Custom Range...'),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
+                  // The page's context, not that of the sheet being closed.
                   final picked = await showDateRangePicker(
                     context: context,
                     firstDate: DateTime(2020),
@@ -136,7 +145,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 title: const Text('All Time'),
                 onTap: () {
                   stockProvider.setDateRangeFilter(null, null);
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                 },
               ),
             ],
@@ -150,6 +159,9 @@ class _ReportsScreenState extends State<ReportsScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      // Centred at a sheet's width on wide screens, like every other sheet;
+      // it spread across the window with its content pinned to the left.
+      constraints: Responsive.sheetConstraints(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -162,13 +174,17 @@ class _ReportsScreenState extends State<ReportsScreen>
     final perms = context.select<AuthProvider, Map<String, bool>>(
       (a) => a.currentUser?.effectivePermissions ?? UserModel.defaultPermissions,
     );
-    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan) = context
-        .select<SettingsProvider, (bool, bool, bool, CompanyPlan)>(
+    final (barcodeEnabled, vendorsEnabled, pricingEnabled, plan, hidden) =
+        context.select<
+          SettingsProvider,
+          (bool, bool, bool, CompanyPlan, Set<String>)
+        >(
           (s) => (
             s.barcodeEnabled,
             s.vendorsEnabled,
             s.pricingEnabled,
             s.plan,
+            s.hiddenFeatures,
           ),
         );
     final billingOn = context.select<BillingSettingsProvider, bool>(
@@ -186,13 +202,14 @@ class _ReportsScreenState extends State<ReportsScreen>
       vendorsEnabled: vendorsEnabled,
       pricingEnabled: pricingEnabled,
       plan: plan,
+      hiddenFeatures: hidden,
     );
 
     final dateLabel = start != null && end != null
         ? '${_dateFormat.format(start)}–${_dateFormat.format(end)}'
         : 'All Time';
 
-    return PermissionGate(
+    final body = PermissionGate(
       permission: AppPermissions.viewReports,
       child: Column(
         children: [
@@ -201,6 +218,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
           CompactTabHeader(
             icon: Icons.analytics_rounded,
+            leading: widget.isTab ? null : const BackButton(),
             title: 'Reports',
             subtitle: 'Select a tab below or choose a deep report shortcut.',
             shortcuts: reportShortcuts,
@@ -260,7 +278,14 @@ class _ReportsScreenState extends State<ReportsScreen>
             controller: _tabController,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            // The first label starts on the page's content edge, in line with
+            // the header above and the cards below (it sat at 18 px).
+            padding: EdgeInsets.symmetric(
+              horizontal: (Responsive.horizontalPadding(context) - 10).clamp(
+                0.0,
+                double.infinity,
+              ),
+            ),
             labelPadding: const EdgeInsets.symmetric(horizontal: 10),
             indicatorSize: TabBarIndicatorSize.label,
             indicatorColor: AppTheme.primaryColor,
@@ -329,6 +354,14 @@ class _ReportsScreenState extends State<ReportsScreen>
             ),
           ),
         ],
+      ),
+    );
+    if (widget.isTab) return body;
+    return Scaffold(
+      backgroundColor: AppTheme.bg(context),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.scaffoldGrad(context)),
+        child: body,
       ),
     );
   }

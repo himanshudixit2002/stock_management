@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../../config/theme.dart';
 import '../../../providers/stock_provider.dart';
 import '../../../providers/product_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../utils/responsive.dart';
 import '../../../models/stock_transaction_model.dart';
 import '../../../models/product_model.dart';
 import '../../../widgets/glass_panel.dart';
@@ -184,11 +186,25 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
     final totalRevenue = data.totalRevenue;
     final totalAssetValuation = data.totalAssetValuation;
 
+    // The Pricing switch hides cost and selling prices across the app; these
+    // two cards and the sales values below are exactly that.
+    final showMoney = context.select<SettingsProvider, bool>(
+      (s) => s.pricingEnabled,
+    );
+    final hPad = Responsive.horizontalPadding(context);
+
     return FadeSlideIn(
       child: SingleChildScrollView(
+        // The page's own side padding, as the header and tabs above use; a
+        // fixed 16 left the cards out of line with them on wider screens.
         padding: EdgeInsets.fromLTRB(
-          16, 16, 16, 16 + floatingNavContentInset(context)),
-        child: Column(
+          hPad, 16, hPad, 16 + floatingNavContentInset(context)),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: Responsive.contentMaxWidth(context),
+            ),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AiInsightsCard(
@@ -211,6 +227,7 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
             ),
             const SizedBox(height: 12),
 
+            if (showMoney) ...[
             Row(
               children: [
                 Expanded(
@@ -219,7 +236,10 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                     title: 'Total Asset Valuation',
                     value: currency.format(totalAssetValuation),
                     icon: Icons.account_balance_wallet_rounded,
-                    gradientColors: [Colors.blue.shade700, Colors.indigo.shade800],
+                    gradientColors: const [
+                      AppTheme.indigoColor,
+                      AppTheme.violetColor,
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -229,12 +249,16 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                     title: 'Est. Outbound Sales',
                     value: currency.format(totalRevenue),
                     icon: Icons.trending_up_rounded,
-                    gradientColors: [Colors.teal.shade700, Colors.teal.shade900],
+                    gradientColors: const [
+                      AppTheme.primaryColor,
+                      AppTheme.primaryDark,
+                    ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            ],
 
             Row(
               children: [
@@ -244,7 +268,7 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                     title: 'Stock In Units',
                     value: '$totalIn',
                     icon: Icons.download_rounded,
-                    color: Colors.green,
+                    color: AppTheme.successColor,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -254,7 +278,7 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                     title: 'Stock Out Units',
                     value: '$totalOut',
                     icon: Icons.upload_rounded,
-                    color: Colors.orange,
+                    color: AppTheme.warningColor,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -264,7 +288,7 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                     title: 'Damaged Units',
                     value: '$totalDamage',
                     icon: Icons.warning_rounded,
-                    color: Colors.redAccent,
+                    color: AppTheme.dangerColor,
                   ),
                 ),
               ],
@@ -278,14 +302,19 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Top Moving Products',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPri(context),
+                      // Expanded: with the button beside it, the title ran
+                      // 24 px past a 360 px screen.
+                      Expanded(
+                        child: Text(
+                          'Top Moving Products',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPri(context),
+                          ),
                         ),
                       ),
                       TextButton.icon(
@@ -307,12 +336,19 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
                       ),
                     )
                   else
-                    ..._buildTopProductsList(context, transactions, pMap),
+                    ..._buildTopProductsList(
+                      context,
+                      transactions,
+                      pMap,
+                      showMoney: showMoney,
+                    ),
                 ],
               ),
             ),
             const SizedBox(height: 40),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -351,7 +387,9 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
               Expanded(
                 child: Text(
                   title.toUpperCase(),
-                  maxLines: 1,
+                  // Two lines: on a phone one cut both titles to "TOTAL
+                  // ASSET V…" and "EST. OUTBOUND…".
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
@@ -420,8 +458,9 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
   List<Widget> _buildTopProductsList(
     BuildContext context,
     List<StockTransactionModel> txs,
-    Map<String, ProductModel> pMap,
-  ) {
+    Map<String, ProductModel> pMap, {
+    required bool showMoney,
+  }) {
     final Map<String, int> qtyMap = {};
     for (final tx in txs) {
       if (tx.type == TransactionType.stockOut) {
@@ -459,7 +498,12 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
             style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
           ),
         ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+        title: Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+        ),
         subtitle: Text(category, style: TextStyle(fontSize: 12, color: AppTheme.textSec(context))),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -469,9 +513,10 @@ class _ExecutiveSummaryTabState extends State<ExecutiveSummaryTab> {
               '${e.value} sold',
               style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
             ),
-            if (price > 0)
+            // The workspace's currency, not a hard-coded rupee sign.
+            if (showMoney && price > 0)
               Text(
-                '₹${totalPrice.toStringAsFixed(0)}',
+                '${Money.symbolOf(context)}${totalPrice.toStringAsFixed(0)}',
                 style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
               ),
           ],

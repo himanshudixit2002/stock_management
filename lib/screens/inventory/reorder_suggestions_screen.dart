@@ -155,6 +155,7 @@ class _ReorderSuggestionsScreenState extends State<ReorderSuggestionsScreen> {
             child: const Text('Reset'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
             onPressed: () {
               final val = int.tryParse(controller.text.trim());
               if (val != null && val > 0) {

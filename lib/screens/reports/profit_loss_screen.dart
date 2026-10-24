@@ -254,7 +254,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen>
   Widget _buildDateRangeBar() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // In line with the page body, which uses the responsive padding.
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.horizontalPadding(context),
+        vertical: 8,
+      ),
       child: Row(
         children: [
           _RangeChip(

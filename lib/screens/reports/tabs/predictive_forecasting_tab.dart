@@ -8,7 +8,9 @@ import '../../../providers/product_provider.dart';
 import '../../../widgets/glass_panel.dart';
 import '../../../widgets/animations.dart';
 import '../../../services/report_analytics_service.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../widgets/floating_nav_padding.dart';
+import '../../../utils/responsive.dart';
 import '../../ai/ask_ai_launcher.dart';
 
 class PredictiveForecastingTab extends StatefulWidget {
@@ -97,7 +99,12 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: EdgeInsets.fromLTRB(
+                Responsive.horizontalPadding(context),
+                12,
+                Responsive.horizontalPadding(context),
+                0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -116,7 +123,12 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                   ),
                   const SizedBox(height: 10),
 
-                  if (_showAiBanner) ...[
+                  // Only where the plan includes the assistant, as on Home:
+                  // this banner opened it on every tier.
+                  if (_showAiBanner &&
+                      context.select<SettingsProvider, bool>(
+                        (s) => s.plan.allowsFeature('aiAssistant'),
+                      )) ...[
                     GestureDetector(
                       onTap: () => openAskAi(context),
                       child: Container(
@@ -249,9 +261,12 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
           SliverPersistentHeader(
             pinned: true,
             delegate: _SearchHeaderDelegate(
-              height: 48,
+              // Grows with the text size; a fixed 48 px clipped the field.
+              height: MediaQuery.textScalerOf(context).scale(13) * 1.4 + 30,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.horizontalPadding(context),
+                ),
                 child: TextField(
                   onChanged: (val) => setState(() => _searchQuery = val),
                   style: const TextStyle(fontSize: 13),
@@ -296,9 +311,9 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
           else
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
-                16,
+                Responsive.horizontalPadding(context),
                 8,
-                16,
+                Responsive.horizontalPadding(context),
                 floatingNavContentInset(context) + 16,
               ),
               sliver: SliverList.builder(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/feature_visibility.dart';
 import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/settings_catalog.dart';
@@ -121,15 +122,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final home = context.watch<HomeCustomizationProvider>();
         return appearanceSummary(
           mode: context.watch<ThemeProvider>().themeMode,
-          quickActionCount: home.selectedIds.length,
+          // Counted as Home shows them: a staff member whose role lacks one of
+          // the defaults sees five cards, and this used to say six.
+          quickActionCount: home
+              .visibleActions(FeatureVisibility.watch(context))
+              .length,
           loaded: home.isLoaded,
         );
 
       case SettingsCategoryId.notifications:
-        final prefs = context.watch<NotificationProvider>().prefs;
+        final notifications = context.watch<NotificationProvider>();
+        final prefs = notifications.prefs;
+        // Counted over the kinds this member can act on, as the
+        // notification settings page now lists them.
+        final relevant = AlertType.all.where(notifications.isTypeRelevant);
         return notificationsSummary(
-          enabled: prefs.enabledTypes.length,
-          total: AlertType.all.length,
+          enabled: relevant.where(prefs.enabledTypes.contains).length,
+          total: relevant.length,
           expiryDays: prefs.expiryWarningDays,
           trayAvailable: LocalNotificationService.instance.isSupported,
         );
@@ -141,6 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           barcode: settings.barcodeEnabled,
           billing: context.watch<BillingSettingsProvider>().billingEnabled,
           loaded: settings.isInitialized,
+          hiddenModules: settings.hiddenFeatures.length,
         );
 
       case SettingsCategoryId.billing:
@@ -476,7 +486,12 @@ class _ProfileCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppTheme.spacingSM),
-                  _RoleBadge(user: user),
+                  // Capped: a long custom role name squeezed the user's own
+                  // name down to an ellipsis.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: _RoleBadge(user: user),
+                  ),
                   const SizedBox(width: AppTheme.spacingXS),
                   Icon(
                     Icons.chevron_right_rounded,
@@ -514,6 +529,8 @@ class _RoleBadge extends StatelessWidget {
       ),
       child: Text(
         user.isAdmin ? 'ADMIN' : user.role.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -548,7 +565,9 @@ class _LogoutButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          foregroundColor: AppTheme.surface(context),
+          // White in both themes: the surface colour is near-black in dark
+          // mode, about 2:1 on the red.
+          foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 48),
         ),
       ),

@@ -76,7 +76,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     return AppScreenScaffold(
       icon: Icons.person_rounded,
       title: 'Profile',
-      body: ListView(
+      // A form's width, like the settings pages. At the shared 1600 px cap
+      // the sign-out button ran 1312 px wide on a desktop.
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: Responsive.formMaxWidth(context),
+          ),
+          child: ListView(
         padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 40),
         children: [
           KeyedSubtree(
@@ -107,6 +115,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ],
         ],
+          ),
+        ),
       ),
     );
   }

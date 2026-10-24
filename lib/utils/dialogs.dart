@@ -109,6 +109,7 @@ Future<bool> showConfirmDialog(
             Navigator.pop(ctx, true);
           },
           style: ElevatedButton.styleFrom(
+            minimumSize: const Size(88, 44),
             backgroundColor: confirmColor ?? iconColor,
           ),
           child: Text(confirmLabel),
@@ -418,6 +419,7 @@ Future<String?> showAddNameDialog(
               child: const Text('Cancel'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(minimumSize: const Size(88, 44)),
               onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isEmpty) {

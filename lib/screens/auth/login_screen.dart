@@ -551,13 +551,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 16),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          // Wraps onto two lines when it has to; as a Row it
+                          // overflowed a phone at 1.26x text.
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Text(
                                 "Don't have an account? ",
                                 style: TextStyle(
-                                  color: AppTheme.textTer(context),
+                                  color: AppTheme.textSec(context),
                                   fontSize: 14,
                                 ),
                               ),
@@ -570,8 +573,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   );
                                 },
                                 style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: const Size(0, 36),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minimumSize: const Size(0, 44),
                                 ),
                                 child: const Text(
                                   'Create Account',
