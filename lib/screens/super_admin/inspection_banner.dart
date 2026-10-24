@@ -31,69 +31,92 @@ void exitWorkspaceInspection(BuildContext context) {
 /// Sits in the MaterialApp builder so it cannot be navigated away from — a
 /// platform admin must never lose track of whose data they are looking at.
 class InspectionBanner extends StatelessWidget {
-  const InspectionBanner({super.key, required this.child});
+  const InspectionBanner({
+    super.key,
+    required this.child,
+    required this.navigatorKey,
+  });
 
   final Widget child;
+
+  /// The app's navigator, which [child] is. The banner sits above it, so
+  /// `Navigator.of(context)` finds nothing here: it threw, and "Return to
+  /// console" never got as far as ending the inspection.
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   Widget build(BuildContext context) {
     final superAdmin = context.watch<SuperAdminProvider>();
-    if (!superAdmin.isSuperAdmin || !superAdmin.isInspecting) return child;
+    final inspecting = superAdmin.isSuperAdmin && superAdmin.isInspecting;
 
     return Column(
       children: [
-        Material(
-          color: AppTheme.warningColor,
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.visibility_rounded,
-                    size: 16,
-                    color: AppTheme.onWarning(context),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Inspecting ${superAdmin.inspectCompanyName ?? ''} — '
-                      'read-only',
-                      style: TextStyle(
-                        color: AppTheme.onWarning(context),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+        if (inspecting)
+          Material(
+            color: AppTheme.warningColor,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_rounded,
+                      size: 16,
+                      color: AppTheme.onWarning(context),
                     ),
-                  ),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTheme.onWarning(context),
-                      // Not `compact`: that shrank the only way out of
-                      // inspection mode below the 44px minimum touch target.
-                      minimumSize: const Size(
-                        Responsive.minTouchTargetSize,
-                        Responsive.minTouchTargetSize,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Inspecting ${superAdmin.inspectCompanyName ?? ''} — '
+                        'read-only',
+                        style: TextStyle(
+                          color: AppTheme.onWarning(context),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    onPressed: () {
-                      // Pop back to the root so the console is not rendered
-                      // underneath a stack of the tenant's routes.
-                      Navigator.of(
-                        context,
-                      ).popUntil((route) => route.isFirst);
-                      exitWorkspaceInspection(context);
-                    },
-                    child: const Text('Return to console'),
-                  ),
-                ],
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.onWarning(context),
+                        // Not `compact`: that shrank the only way out of
+                        // inspection mode below the 44px minimum touch target.
+                        minimumSize: const Size(
+                          Responsive.minTouchTargetSize,
+                          Responsive.minTouchTargetSize,
+                        ),
+                      ),
+                      onPressed: () {
+                        // Pop back to the root so the console is not rendered
+                        // underneath a stack of the tenant's routes.
+                        navigatorKey.currentState?.popUntil(
+                          (route) => route.isFirst,
+                        );
+                        exitWorkspaceInspection(context);
+                      },
+                      child: const Text('Return to console'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+        // The app keeps this one place in the tree whether or not the banner
+        // shows, so starting or ending an inspection never moves it.
+        //
+        // A semantics container of its own: every page route blocks the
+        // semantics of whatever was painted before it in its container, which
+        // took the banner, "Return to console" included, out of the
+        // accessibility tree.
+        Expanded(
+          key: const ValueKey('inspected-app'),
+          child: Semantics(container: true, child: child),
         ),
-        Expanded(child: child),
       ],
     );
   }

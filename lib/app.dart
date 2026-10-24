@@ -187,7 +187,10 @@ class StockManagementApp extends StatelessWidget {
               data: mediaQuery.copyWith(textScaler: clampedTextScaler),
               // Wraps every route: while a platform admin is inspecting a
               // workspace read-only, the banner must not be navigable away.
-              child: InspectionBanner(child: child ?? const SizedBox()),
+              child: InspectionBanner(
+                navigatorKey: navigatorKey,
+                child: child ?? const SizedBox(),
+              ),
             );
           },
         ),
