@@ -1,0 +1,14 @@
+{
+  "name": "smartshelf-ui-harness",
+  "private": true,
+  "type": "module",
+  "description": "Runs the web build against local Firebase emulators with demo data, and screenshots key screens at phone and desktop sizes.",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "shoot": "node shoot.mjs"
+  },
+  "dependencies": {
+    "firebase": "11.9.1",
+    "firebase-admin": "^13.6.1"
+  }
+}

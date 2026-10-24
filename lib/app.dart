@@ -58,6 +58,7 @@ import 'screens/landing_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/company/company_switcher_screen.dart'
     deferred as company_switch;
+import 'config/dev_emulators.dart';
 import 'config/firebase_app_options.dart';
 import 'services/firestore_config.dart';
 import 'services/local_notification_service.dart';
@@ -335,7 +336,9 @@ class _AuthWrapperState extends State<AuthWrapper>
         // error screen below, which at least says what happened and offers a
         // retry.
         await Firebase.initializeApp(
-          options: FlavoredFirebaseOptions.currentPlatform,
+          options: DevEmulators.enabled
+              ? DevEmulators.options
+              : FlavoredFirebaseOptions.currentPlatform,
         ).timeout(
           const Duration(seconds: 20),
           onTimeout: () => throw Exception(
@@ -346,6 +349,7 @@ class _AuthWrapperState extends State<AuthWrapper>
       }
       // Before [_initializeApp] reaches Firestore through PlanCatalogProvider.
       FirestoreConfig.apply();
+      if (DevEmulators.enabled) await DevEmulators.connect();
     } catch (e) {
       debugPrint('Firebase web bootstrap failed: $e');
       if (mounted) {

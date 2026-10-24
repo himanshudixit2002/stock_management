@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'config/dev_emulators.dart';
 import 'config/firebase_app_options.dart';
 import 'services/firestore_config.dart';
 import 'app.dart';
@@ -37,11 +38,14 @@ void main() async {
   if (!kIsWeb) {
     try {
       await Firebase.initializeApp(
-        options: FlavoredFirebaseOptions.currentPlatform,
+        options: DevEmulators.enabled
+            ? DevEmulators.options
+            : FlavoredFirebaseOptions.currentPlatform,
       );
       // Before anything can reach FirebaseFirestore.instance — settings are
       // read once, when the client is first started, and ignored after.
       FirestoreConfig.apply();
+      if (DevEmulators.enabled) await DevEmulators.connect();
     } catch (e, stack) {
       debugPrint('Firebase init failed: $e\n$stack');
       // Still launch the app — AuthWrapper will show an error/retry screen.
