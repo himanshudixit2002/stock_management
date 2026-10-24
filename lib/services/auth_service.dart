@@ -1,6 +1,9 @@
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../config/dev_emulators.dart';
 import '../config/feature_map.dart';
 import '../models/company_plan_model.dart';
 import '../models/user_model.dart';
@@ -334,87 +337,136 @@ class AuthService {
   }
 
   /// Register a staff user under an existing company.
+  ///
+  /// The account is created on a separate Auth instance ([_provisioningAuth]),
+  /// so the admin's session never changes. Creating it on the app's own
+  /// instance signed the session in as the new account until the admin was
+  /// signed back in, and every Firestore listener open at that moment was
+  /// re-sent as an account with no user doc, refused, and closed for good:
+  /// stock, orders, invoices and notifications stopped updating until a
+  /// restart.
+  ///
+  /// [adminPassword] confirms it is the admin at the keyboard. It is checked
+  /// by reauthenticating, which leaves the session as it is.
   Future<UserModel?> registerStaff({
     required String name,
     required String email,
     required String password,
     required String companyId,
     required String companyName,
-    required String adminEmail,
     required String adminPassword,
     String roleId = '',
   }) async {
+    final admin = _auth.currentUser;
+    final adminEmail = admin?.email ?? '';
+    if (admin == null || adminEmail.isEmpty) {
+      throw Exception('Sign in again to add staff.');
+    }
     try {
-      final effectiveRoleId = roleId.isEmpty ? RoleModel.staffRoleId : roleId;
-
-      final UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      UserModel? staffUser;
-      if (result.user != null) {
-        final roleField = RoleModel.userRoleFieldForRoleId(effectiveRoleId);
-        final membership = CompanyMembership(
-          companyId: companyId,
-          companyName: companyName,
-          role: roleField,
-          roleId: effectiveRoleId,
-        );
-
-        final userModel = UserModel(
-          uid: result.user!.uid,
-          name: name,
-          email: email,
-          role: roleField,
-          roleId: effectiveRoleId,
-          companyId: companyId,
-          companyName: companyName,
-          createdAt: DateTime.now(),
-          permissions: const {},
-          companyMemberships: [membership],
-        );
-
-        staffUser = userModel;
-      }
-
-      // Sign back in as the admin BEFORE writing the new user's doc.
-      //
-      // createUserWithEmailAndPassword leaves the *new* user signed in, so
-      // writing here would be a self-create — and a self-create may not claim
-      // a privileged role (that is the escalation the rules close). The admin
-      // provisioning the account is the one entitled to set any role, so the
-      // write has to happen under their session.
-      await _auth.signInWithEmailAndPassword(
-        email: adminEmail,
-        password: adminPassword,
-      );
-
-      if (staffUser != null) {
-        await _firestore
-            .collection('users')
-            .doc(staffUser.uid)
-            .set(staffUser.toMap());
-        await _ensureMemberDoc(
-          companyId: companyId,
-          uid: staffUser.uid,
-          role: staffUser.role,
-          roleId: staffUser.roleId,
-          email: staffUser.email,
-          name: staffUser.name,
-        );
-      }
-
-      return staffUser;
-    } catch (e) {
-      try {
-        await _auth.signInWithEmailAndPassword(
+      await admin.reauthenticateWithCredential(
+        EmailAuthProvider.credential(
           email: adminEmail,
           password: adminPassword,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (const {
+        'wrong-password',
+        'invalid-credential',
+        'invalid-login-credentials',
+        'user-mismatch',
+      }.contains(e.code)) {
+        throw Exception(
+          'Your password was not accepted. No account was created.',
         );
-      } catch (_) {}
+      }
       rethrow;
     }
+
+    final effectiveRoleId = roleId.isEmpty ? RoleModel.staffRoleId : roleId;
+    final provisioning = await _provisioningAuth();
+    final result = await provisioning.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final newUser = result.user;
+    if (newUser == null) return null;
+
+    try {
+      final roleField = RoleModel.userRoleFieldForRoleId(effectiveRoleId);
+      final staffUser = UserModel(
+        uid: newUser.uid,
+        name: name,
+        email: email,
+        role: roleField,
+        roleId: effectiveRoleId,
+        companyId: companyId,
+        companyName: companyName,
+        createdAt: DateTime.now(),
+        permissions: const {},
+        companyMemberships: [
+          CompanyMembership(
+            companyId: companyId,
+            companyName: companyName,
+            role: roleField,
+            roleId: effectiveRoleId,
+          ),
+        ],
+      );
+
+      // Written by the admin, on the app's own instance: a self-create may not
+      // claim a privileged role (that is the escalation the rules close), and
+      // the admin provisioning the account is the one entitled to set it.
+      await _firestore
+          .collection('users')
+          .doc(staffUser.uid)
+          .set(staffUser.toMap());
+      await _ensureMemberDoc(
+        companyId: companyId,
+        uid: staffUser.uid,
+        role: staffUser.role,
+        roleId: staffUser.roleId,
+        email: staffUser.email,
+        name: staffUser.name,
+      );
+      return staffUser;
+    } catch (_) {
+      // Not left behind as a login that belongs to no workspace, which would
+      // also keep the email from being used again.
+      try {
+        await newUser.delete();
+      } catch (_) {}
+      rethrow;
+    } finally {
+      try {
+        await provisioning.signOut();
+      } catch (_) {}
+    }
+  }
+
+  static const _provisioningAppName = 'staff-provisioning';
+
+  /// An Auth instance of its own, for creating other people's accounts.
+  ///
+  /// Created once and kept: Auth instances are cached by app name, so an app
+  /// deleted and re-created under the same name would get the old instance
+  /// back. On web it keeps no session in browser storage.
+  Future<FirebaseAuth> _provisioningAuth() async {
+    for (final app in Firebase.apps) {
+      if (app.name == _provisioningAppName) {
+        return FirebaseAuth.instanceFor(app: app);
+      }
+    }
+    final app = await Firebase.initializeApp(
+      name: _provisioningAppName,
+      options: Firebase.app().options,
+    );
+    final auth = FirebaseAuth.instanceFor(app: app);
+    if (DevEmulators.enabled) {
+      await auth.useAuthEmulator(DevEmulators.host, DevEmulators.authPort);
+    }
+    if (kIsWeb) await auth.setPersistence(Persistence.NONE);
+    return auth;
   }
 
   Future<UserModel?> login({

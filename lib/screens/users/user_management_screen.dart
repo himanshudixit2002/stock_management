@@ -1094,6 +1094,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final adminPasswordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String selectedRoleId = RoleModel.staffRoleId;
+    // Why the last attempt failed, shown inside the sheet. The sheet used to
+    // close on any failure, so a mistyped password threw away the whole form.
+    final submitError = ValueNotifier<String?>(null);
 
     showModalBottomSheet<void>(
       context: context,
@@ -1278,6 +1281,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             return null;
                           },
                         ),
+                        ValueListenableBuilder<String?>(
+                          valueListenable: submitError,
+                          builder: (_, error, _) => error == null
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(
+                                        Icons.error_outline_rounded,
+                                        size: 18,
+                                        color: AppTheme.dangerColor,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          error,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: AppTheme.dangerColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
                         const SizedBox(height: 20),
                         Row(
                           children: [
@@ -1315,6 +1347,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                               .validate()) {
                                             return;
                                           }
+                                          submitError.value = null;
                                           final success = await auth
                                               .addStaffUser(
                                                 name: nameController.text
@@ -1329,25 +1362,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                 roleId: selectedRoleId,
                                               );
 
-                                          if (sheetCtx.mounted) {
-                                            Navigator.pop(sheetCtx);
-                                            if (success) {
-                                              setState(
-                                                () => _usersStreamEpoch++,
-                                              );
-                                              showSuccessOverlay(
-                                                context,
-                                                message: 'Staff user created!',
-                                                popAfter: false,
-                                              );
-                                            } else {
-                                              showErrorSnackBar(
-                                                context,
+                                          if (!sheetCtx.mounted) return;
+                                          if (!success) {
+                                            submitError.value =
                                                 auth.errorMessage ??
-                                                    'Failed to create user',
-                                              );
-                                            }
+                                                'Failed to create user';
+                                            return;
                                           }
+                                          Navigator.pop(sheetCtx);
+                                          setState(() => _usersStreamEpoch++);
+                                          showSuccessOverlay(
+                                            context,
+                                            message: 'Staff user created!',
+                                            popAfter: false,
+                                          );
                                         },
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(

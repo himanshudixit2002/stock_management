@@ -363,7 +363,7 @@ class AuthProvider extends ChangeNotifier {
       } else if (firebaseUser != null &&
           firebaseUser.uid == _currentUser?.uid) {
         // Back on this account after the session briefly belonged to another
-        // one (adding staff does that), which closed the doc listener.
+        // one, which closed the doc listener.
         _watchUserDoc();
       }
     });
@@ -891,66 +891,29 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final companyId = _currentUser?.companyId ?? '';
-      final companyName = _currentUser?.companyName ?? '';
-      final adminEmail = _currentUser?.email ?? '';
-
+      // The admin's own session is left alone (registerStaff creates the
+      // account on an Auth instance of its own), so there is nothing to
+      // restore afterwards, and a mistyped password ends nothing.
       final newUser = await _authService.registerStaff(
         name: name,
         email: email,
         password: password,
-        companyId: companyId,
-        companyName: companyName,
-        adminEmail: adminEmail,
+        companyId: _currentUser?.companyId ?? '',
+        companyName: _currentUser?.companyName ?? '',
         adminPassword: adminPassword,
         roleId: roleId,
       );
-
-      final currentFirebaseUser = _authService.currentUser;
-      if (currentFirebaseUser != null) {
-        _currentUser = await _authService.getUserData(currentFirebaseUser.uid);
-        _resolveUserPermissions();
-        // Signing in as the new account closed the listener on ours.
-        _watchUserDoc();
-      }
-
       _isLoading = false;
       notifyListeners();
       return newUser != null;
     } catch (e) {
-      _errorMessage = AuthService.getErrorMessage(e);
+      _errorMessage = e is FirebaseAuthException
+          ? AuthService.getErrorMessage(e)
+          : friendlyError(e, fallback: 'Could not create the staff account.');
       _isLoading = false;
-      await _abandonSessionIfNotAdmin();
       notifyListeners();
       return false;
     }
-  }
-
-  /// Signs out when the Firebase session no longer matches [_currentUser].
-  ///
-  /// createUserWithEmailAndPassword leaves the *new* account signed in, and
-  /// registerStaff signs back in as the admin to undo that. If the admin
-  /// mistyped their password both attempts fail and we land here still
-  /// authenticated as the freshly created staff user while [_currentUser] holds
-  /// the admin. The auth listener does not correct it (it only fires when
-  /// _currentUser is null), so the UI kept rendering admin identity and
-  /// permissions over a session that had neither — and every Firestore read
-  /// silently denied, because that account has no user doc yet.
-  Future<void> _abandonSessionIfNotAdmin() async {
-    final signedIn = _authService.currentUser;
-    if (_currentUser == null) return;
-    if (signedIn != null && signedIn.uid == _currentUser!.uid) return;
-    _stopWatchingUserDoc();
-    try {
-      await _authService.logout();
-    } catch (_) {}
-    detachRoleProvider();
-    _clearInspection();
-    _currentUser = null;
-    _sessionExpired = true;
-    _errorMessage =
-        'Your admin password was not accepted, so the session was ended for '
-        'safety. Sign in again — the new staff account may need to be removed.';
   }
 
   /// Ensure roles exist and migrate legacy user if needed.
