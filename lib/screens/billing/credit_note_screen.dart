@@ -9,6 +9,7 @@ import '../../providers/billing_settings_provider.dart';
 import '../../utils/currency.dart';
 import '../../utils/date_formats.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -140,8 +141,18 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
+          // Capped like the invoice it is raised against; it ran edge to edge
+          // on a desktop.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: Responsive.formMaxWidth(context),
+              ),
+              child: ListView(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.horizontalPadding(context),
+              vertical: 16,
+            ),
             children: [
               GlassPanel(
                 child: Padding(
@@ -231,6 +242,8 @@ class _CreditNoteScreenState extends State<CreditNoteScreen> {
                 ),
               ],
             ],
+          ),
+            ),
           ),
         ),
       ),

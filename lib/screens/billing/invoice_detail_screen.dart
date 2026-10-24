@@ -126,10 +126,16 @@ class InvoiceDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(invoice.invoiceNumber),
+            Text(
+              invoice.invoiceNumber,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             if (invoice.partyName.isNotEmpty)
               Text(
                 invoice.partyName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
@@ -204,14 +210,16 @@ class InvoiceDetailScreen extends StatelessWidget {
             maxWidth: Responsive.formMaxWidth(context),
           ),
           child: ListView(
+            // The payment bar is a bottomNavigationBar, so the body already
+            // ends above it; the extra 80 px only left an empty band.
             padding: EdgeInsets.fromLTRB(
               Responsive.horizontalPadding(context),
               12,
               Responsive.horizontalPadding(context),
-              80,
+              24,
             ),
             children: [
-              _buildStatusBanner(context, invoice),
+              _buildStatusBanner(context, invoice, sym),
               const SizedBox(height: 16),
               invoice.isPurchase
                   ? _buildVendorCard(context, invoice)
@@ -259,11 +267,20 @@ class InvoiceDetailScreen extends StatelessWidget {
                   Responsive.horizontalPadding(context),
                   8,
                 ),
-                child: ShimmerButton(
-                  label:
-                      'Record Payment ($sym${_numFormat.format(invoice.amountDue)} due)',
-                  icon: Icons.payment_rounded,
-                  onPressed: () => _showPaymentSheet(context, invoice),
+                // As wide as the invoice above it, not the whole window.
+                child: Center(
+                  heightFactor: 1,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: Responsive.formMaxWidth(context),
+                    ),
+                    child: ShimmerButton(
+                      label:
+                          'Record Payment ($sym${_numFormat.format(invoice.amountDue)} due)',
+                      icon: Icons.payment_rounded,
+                      onPressed: () => _showPaymentSheet(context, invoice),
+                    ),
+                  ),
                 ),
               ),
             )
@@ -272,7 +289,11 @@ class InvoiceDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBanner(BuildContext context, InvoiceModel invoice) {
+  Widget _buildStatusBanner(
+    BuildContext context,
+    InvoiceModel invoice,
+    String sym,
+  ) {
     final color = _statusColor(context, invoice.status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -291,6 +312,8 @@ class InvoiceDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   invoice.statusLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     color: color,
@@ -300,17 +323,28 @@ class InvoiceDetailScreen extends StatelessWidget {
                 if (invoice.overdueDays > 0)
                   Text(
                     '${invoice.overdueDays} days overdue',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: color),
                   ),
               ],
             ),
           ),
-          Text(
-            _numFormat.format(invoice.grandTotal),
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: color,
+          const SizedBox(width: 12),
+          // With the currency, and allowed to scale down rather than squeeze
+          // the status to nothing at larger text sizes.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                '$sym${_numFormat.format(invoice.grandTotal)}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
             ),
           ),
         ],
@@ -344,9 +378,12 @@ class InvoiceDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   invoice.customerName,
-                  style: const TextStyle(
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
+                    color: AppTheme.textPri(context),
                   ),
                 ),
                 if (invoice.customerPhone.isNotEmpty)
@@ -362,7 +399,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                     invoice.customerAddress,
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.textTer(context),
+                      color: AppTheme.textSec(context),
                     ),
                   ),
               ],
@@ -399,11 +436,17 @@ class InvoiceDetailScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      invoice.vendorName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                    // Flexible: a long vendor name pushed the pill off the card.
+                    Flexible(
+                      child: Text(
+                        invoice.vendorName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AppTheme.textPri(context),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -522,16 +565,24 @@ class InvoiceDetailScreen extends StatelessWidget {
       children: [
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 12,
-            color: AppTheme.textTer(context),
+            color: AppTheme.textSec(context),
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPri(context),
+          ),
         ),
       ],
     );
@@ -703,21 +754,28 @@ class InvoiceDetailScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: size,
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: size,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                color: bold
+                    ? AppTheme.textPri(context)
+                    : AppTheme.textSec(context),
+              ),
             ),
           ),
+          const SizedBox(width: 12),
           Text(
             value,
             style: TextStyle(
               fontSize: size,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-              color: color,
+              color: color ?? AppTheme.textPri(context),
             ),
           ),
         ],

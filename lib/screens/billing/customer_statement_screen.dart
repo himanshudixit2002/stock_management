@@ -380,12 +380,22 @@ class _MiniStat extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: AppTheme.textTer(context)),
+            // Scaled down rather than wrapped: "Outstanding" broke across two
+            // lines in a quarter of a phone's width.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSec(context),
+                ),
+              ),
             ),
             const SizedBox(height: 2),
             FittedBox(
+              fit: BoxFit.scaleDown,
               child: Text(
                 value,
                 style: TextStyle(

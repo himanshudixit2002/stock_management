@@ -208,7 +208,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              Row(
+              // Stretched to one height: the date box was a few pixels shorter
+              // than the reference field beside it.
+              IntrinsicHeight(
+                child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
                     child: TextFormField(
@@ -258,13 +262,17 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
                           const SizedBox(width: 6),
                           Text(
                             DateFormat('dd MMM').format(_date),
-                            style: const TextStyle(fontSize: 13),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textPri(context),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ],
+              ),
               ),
               const SizedBox(height: 16),
               TextFormField(

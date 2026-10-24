@@ -17,11 +17,10 @@ import '../../config/permissions.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../config/feature_map.dart';
-import '../../models/user_model.dart';
+import '../../config/feature_visibility.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/permission_gate.dart';
 import '../../utils/debouncer.dart';
-import '../../models/company_plan_model.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -161,12 +160,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final canManageProducts =
         user?.hasPermission(AppPermissions.addProducts) ?? false;
     final isMobile = Responsive.isMobile(context);
-    final shortcuts = FeatureMap.entriesByCategory(
-      FeatureCategory.inventory,
-      user?.effectivePermissions ?? UserModel.defaultPermissions,
-      placement: FeaturePlacement.tabShortcut,
-      plan: context.select<SettingsProvider, CompanyPlan>((s) => s.plan),
-    );
+    // Through FeatureVisibility so the workspace switches apply too: Label
+    // Printing stayed in this strip with the barcode switch off.
+    final shortcuts = FeatureVisibility.watch(
+      context,
+    ).entriesIn(FeatureCategory.inventory, placement: FeaturePlacement.tabShortcut);
 
     return PermissionGate(
       permission: AppPermissions.viewProducts,

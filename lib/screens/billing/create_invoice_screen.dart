@@ -469,11 +469,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enable billing in Settings to create invoices.',
+                  'An admin can turn it on in Settings → Workspace features.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppTheme.textTer(context),
+                    color: AppTheme.textSec(context),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -481,6 +481,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                   onPressed: () => Navigator.of(context).maybePop(),
                   icon: const Icon(Icons.arrow_back_rounded),
                   label: const Text('Go Back'),
+                  // The theme makes buttons full width; a lone back button
+                  // stretched across a desktop window.
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(160, 48),
+                  ),
                 ),
               ],
             ),
@@ -542,8 +547,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                       24,
                     ),
                     children: [
+                      // A purchase bill needs a vendor, so the choice is only
+                      // offered while vendors are switched on and visible.
                       if (widget.salesOrderId == null &&
-                          widget.purchaseOrderId == null) ...[
+                          widget.purchaseOrderId == null &&
+                          _canBillPurchases(context)) ...[
                         _buildTypeToggle(),
                         const SizedBox(height: 16),
                       ],
@@ -560,9 +568,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      _buildDateSection(),
-                      const SizedBox(height: 16),
-                      _buildNextNumberPreview(bs),
+                      _buildDateSection(bs),
                       const SizedBox(height: 16),
                       KeyedSubtree(
                         key: _itemsSectionKey,
@@ -587,6 +593,43 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ),
         ),
       ),
+      ),
+    );
+  }
+
+  bool _canBillPurchases(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    return context.watch<SettingsProvider>().vendorsEnabled &&
+        (user?.hasPermission(AppPermissions.viewVendors) ?? false);
+  }
+
+  /// "+ Add new customer" as a real button: it was 12 px text with a tap
+  /// target no taller than its line, and showed to people who may not add one.
+  Widget _addPartyLink({
+    required String label,
+    required String permission,
+    required VoidCallback onTap,
+  }) {
+    final user = context.watch<AuthProvider>().currentUser;
+    if (!(user?.hasPermission(permission) ?? false)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.add_rounded, size: 18),
+        label: Text(label),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          alignment: Alignment.centerLeft,
+          textStyle: const TextStyle(
+            fontFamily: AppTheme.fontFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -704,17 +747,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          GestureDetector(
+          _addPartyLink(
+            label: 'Add new vendor',
+            permission: AppPermissions.addVendors,
             onTap: () => Navigator.pushNamed(context, AppRoutes.addVendor),
-            child: Text(
-              '+ Add new vendor',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ),
         ],
       ),
@@ -792,60 +828,55 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () async {
-              await Navigator.pushNamed(context, AppRoutes.addCustomer);
-            },
-            child: Text(
-              '+ Add new customer',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          _addPartyLink(
+            label: 'Add new customer',
+            permission: AppPermissions.addCustomers,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.addCustomer),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNextNumberPreview(BillingSettings bs) {
+  /// One line inside Invoice details. It used to be a card of its own, a
+  /// screen's height away from the dates it belongs with.
+  Widget _buildNextNumberLine(BillingSettings bs) {
     final preview = _invoiceType == InvoiceType.purchase
         ? bs.formatPurchaseNumber(bs.nextPurchaseNumber)
         : bs.formatInvoiceNumber(bs.nextInvoiceNumber);
-    return GlassPanel(
-      borderRadius: 14,
-      useContentVariant: true,
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Tooltip(
+      message:
+          'The final number is assigned when you save. If someone else saves '
+          'first, yours takes the next one.',
+      child: Row(
         children: [
-          Text(
-            'Next number (preview)',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textTer(context),
+          Icon(Icons.tag_rounded, size: 16, color: AppTheme.textSec(context)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: preview,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPri(context),
+                    ),
+                  ),
+                  const TextSpan(text: '  ·  assigned when you save'),
+                ],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            preview,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'The final number is assigned when you save. If someone else saves first, yours will use the next sequence.',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSec(context)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDateSection() {
+  Widget _buildDateSection(BillingSettings bs) {
     final termOptions = [0, 15, 30, 60, 90];
     return GlassPanel(
       borderRadius: 14,
@@ -863,6 +894,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          _buildNextNumberLine(bs),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -885,20 +918,28 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           DropdownButtonFormField<int>(
             initialValue: termOptions.contains(_paymentTermDays)
                 ? _paymentTermDays
                 : null,
+            // Outlined and unfilled like the date boxes above it; the theme's
+            // filled grey made it look like a different kind of control.
             decoration: InputDecoration(
               labelText: 'Payment Terms',
               isDense: true,
+              filled: false,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppTheme.dividerC(context)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppTheme.dividerC(context)),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
-                vertical: 10,
+                vertical: 12,
               ),
             ),
             items: termOptions
@@ -933,34 +974,33 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'Line Items',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textTer(context),
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => setState(
-                  () => _items.add(
-                    _LineItem()..taxCtrl.text = bs.defaultTaxRate.toString(),
-                  ),
-                ),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add Item', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ],
+          Text(
+            'Line Items',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textTer(context),
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ...List.generate(_items.length, (i) => _buildItemRow(i, bs)),
+          // Under the lines it adds to, full width. As a small text button in
+          // the header its label sat inset from every edge below it.
+          OutlinedButton.icon(
+            onPressed: () => setState(
+              () => _items.add(
+                _LineItem()..taxCtrl.text = bs.defaultTaxRate.toString(),
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add item'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -994,6 +1034,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                             : result.baseUnit;
                         item.baseUnit = result.baseUnit;
                         item.unitsPerPack = result.unitsPerPack;
+                        // A single-unit product has no loose-pieces field, so
+                        // none may linger from the product picked before.
+                        if (result.unitsPerPack <= 1) item.pieceCtrl.text = '0';
                         // Sales lines price through the customer's price
                         // list when they are on one, so a wholesale customer
                         // is not quoted the retail price and corrected by
@@ -1034,8 +1077,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              if (_items.length > 1)
+              if (_items.length > 1) ...[
+                const SizedBox(width: 4),
                 IconButton(
                   icon: Icon(
                     Icons.remove_circle_outline,
@@ -1047,80 +1090,77 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                     _items[index].dispose();
                     _items.removeAt(index);
                   }),
-                  padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                    minWidth: 40,
+                    minHeight: 40,
                   ),
                 ),
+              ],
             ],
           ),
           if (item.productId != null) ...[
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: item.qtyCtrl,
-                    decoration: _fieldDeco(item.packUnit),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: item.pieceCtrl,
-                    decoration: _fieldDeco(item.baseUnit),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: item.priceCtrl,
-                    decoration: _fieldDeco('Price'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                if (bs.enableDiscounts) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: item.discCtrl,
-                      decoration: _fieldDeco('Disc%'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                ],
-                if (bs.enableTax) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: item.taxCtrl,
-                      decoration: _fieldDeco('Tax%'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            _buildItemFields(item, bs),
           ],
         ],
       ),
+    );
+  }
+
+  /// Quantity, price, discount and tax for one line.
+  ///
+  /// Five fields used to share one row at every width, about 45 px each on a
+  /// phone. Narrow screens now put quantities on one row and money on the
+  /// next. A product sold in single units gets one quantity field: it used to
+  /// get two, both labelled "pcs".
+  Widget _buildItemFields(_LineItem item, dynamic bs) {
+    Widget field(
+      TextEditingController controller,
+      String label, {
+      bool decimal = false,
+    }) => TextFormField(
+      controller: controller,
+      decoration: _fieldDeco(label),
+      keyboardType: decimal
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.number,
+      inputFormatters: decimal
+          ? null
+          : [FilteringTextInputFormatter.digitsOnly],
+      onChanged: (_) => setState(() {}),
+    );
+
+    final quantities = <Widget>[
+      if (item.unitsPerPack > 1) ...[
+        field(item.qtyCtrl, 'Qty (${item.packUnit})'),
+        field(item.pieceCtrl, '+ ${item.baseUnit}'),
+      ] else
+        field(item.qtyCtrl, 'Qty (${item.baseUnit})'),
+    ];
+    final money = <(Widget, int)>[
+      (field(item.priceCtrl, 'Price', decimal: true), 2),
+      if (bs.enableDiscounts) (field(item.discCtrl, 'Disc %', decimal: true), 1),
+      if (bs.enableTax) (field(item.taxCtrl, 'Tax %', decimal: true), 1),
+    ];
+
+    Widget row(List<(Widget, int)> cells) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < cells.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(flex: cells[i].$2, child: cells[i].$1),
+        ],
+      ],
+    );
+
+    final qtyCells = [for (final w in quantities) (w, 1)];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 520) return row([...qtyCells, ...money]);
+        return Column(
+          children: [row(qtyCells), const SizedBox(height: 8), row(money)],
+        );
+      },
     );
   }
 
@@ -1330,27 +1370,36 @@ class _DateField extends StatelessWidget {
             Icon(
               Icons.calendar_today,
               size: 16,
-              color: AppTheme.textTer(context),
+              color: AppTheme.textSec(context),
             ),
             const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textTer(context),
+            // Expanded so the label and date shorten rather than overflow on
+            // a narrow phone or at larger text sizes.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSec(context),
+                    ),
                   ),
-                ),
-                Text(
-                  DateFormat('dd MMM yyyy').format(date),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    DateFormat('dd MMM yyyy').format(date),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPri(context),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -1378,21 +1427,30 @@ class _TotalRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: size,
-              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+          // The label gives way to the amount; neither could shrink before,
+          // and both inherited the theme's grey body text.
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: size,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                color: bold
+                    ? AppTheme.textPri(context)
+                    : AppTheme.textSec(context),
+              ),
             ),
           ),
+          const SizedBox(width: 12),
           Text(
             value,
             style: TextStyle(
               fontSize: size,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-              color: color,
+              color: color ?? AppTheme.textPri(context),
             ),
           ),
         ],

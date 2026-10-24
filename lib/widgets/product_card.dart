@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/product_model.dart';
+import '../config/permissions.dart';
+import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../config/motion.dart';
@@ -20,6 +22,11 @@ class ProductCard extends StatefulWidget {
   final VoidCallback? onStockOut;
   final bool useGridPadding;
 
+  /// Swipe for Stock In / Stock Out and the long-press menu. Off where a tap
+  /// already means something else: in the POS grid a swipe opened the Stock
+  /// Out screen in the middle of a sale.
+  final bool stockShortcuts;
+
   /// When non-null, the card fades + slides in with a stagger based on this
   /// list index. Leave null (default) to render with no entrance animation,
   /// preserving the existing behavior for screens that don't opt in.
@@ -33,6 +40,7 @@ class ProductCard extends StatefulWidget {
     this.onStockOut,
     this.useGridPadding = false,
     this.animationIndex,
+    this.stockShortcuts = true,
   });
 
   @override
@@ -47,8 +55,17 @@ class _ProductCardState extends State<ProductCard> {
   void _onTapUp(_) => setState(() => _scale = 1.0);
   void _onTapCancel() => setState(() => _scale = 1.0);
 
+  bool _can(String permission) =>
+      context.read<AuthProvider>().currentUser?.hasPermission(permission) ??
+      false;
+
   Future<void> _onLongPress() async {
     if (_longPressPosition == null) return;
+    // Only what this role can do: the menu offered Edit, Stock In and Stock
+    // Out to everyone, and each led to a screen that refused them.
+    final canEdit = _can(AppPermissions.editProducts);
+    final canIn = _can(AppPermissions.stockIn);
+    final canOut = _can(AppPermissions.stockOut);
     final overlay =
         Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
@@ -61,6 +78,7 @@ class _ProductCardState extends State<ProductCard> {
       context: context,
       position: position,
       items: [
+        if (canEdit)
         PopupMenuItem<int>(
           value: 0,
           child: Row(
@@ -71,6 +89,7 @@ class _ProductCardState extends State<ProductCard> {
             ],
           ),
         ),
+        if (canIn)
         PopupMenuItem<int>(
           value: 1,
           child: Row(
@@ -81,6 +100,7 @@ class _ProductCardState extends State<ProductCard> {
             ],
           ),
         ),
+        if (canOut)
         PopupMenuItem<int>(
           value: 2,
           child: Row(
@@ -141,9 +161,27 @@ class _ProductCardState extends State<ProductCard> {
       threshold: product.lowStockThreshold,
     );
 
+    final canIn =
+        widget.stockShortcuts &&
+        context.select<AuthProvider, bool>(
+          (a) => a.currentUser?.hasPermission(AppPermissions.stockIn) ?? false,
+        );
+    final canOut =
+        widget.stockShortcuts &&
+        context.select<AuthProvider, bool>(
+          (a) => a.currentUser?.hasPermission(AppPermissions.stockOut) ?? false,
+        );
+
     final Widget card = Dismissible(
       key: ValueKey(product.id),
-      direction: DismissDirection.horizontal,
+      // Each swipe only where the role allows that movement.
+      direction: canIn && canOut
+          ? DismissDirection.horizontal
+          : canIn
+          ? DismissDirection.startToEnd
+          : canOut
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
       background: Container(
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: 20),
@@ -207,9 +245,10 @@ class _ProductCardState extends State<ProductCard> {
           onTapDown: widget.onTap != null ? _onTapDown : null,
           onTapUp: widget.onTap != null ? _onTapUp : null,
           onTapCancel: widget.onTap != null ? _onTapCancel : null,
-          onLongPressDown: (details) =>
-              _longPressPosition = details.globalPosition,
-          onLongPress: _onLongPress,
+          onLongPressDown: widget.stockShortcuts
+              ? (details) => _longPressPosition = details.globalPosition
+              : null,
+          onLongPress: widget.stockShortcuts ? _onLongPress : null,
           child: AnimatedScale(
             scale: _scale,
             duration: kPressDuration,

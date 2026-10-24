@@ -7,6 +7,7 @@ import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/stock_transaction_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../providers/stock_provider.dart';
 import '../../providers/product_provider.dart';
@@ -20,6 +21,7 @@ import '../../widgets/animated_list_item.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/provider_error_banner.dart';
 import '../../utils/debouncer.dart';
+import '../../utils/dialogs.dart';
 import '../../widgets/scroll_to_top_button.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
@@ -488,10 +490,24 @@ class _TransactionTile extends StatelessWidget {
                               ),
                             ),
                             onPressed: () {
+                              // The movement records the invoice *number*; the
+                              // detail route takes the document id, so passing
+                              // the number always opened "invoice not found".
+                              final invoice = context
+                                  .read<BillingProvider>()
+                                  .getInvoiceByInvoiceNumber(invNum);
+                              if (invoice == null) {
+                                showInfoSnackBar(
+                                  context,
+                                  'Invoice $invNum is not loaded yet. '
+                                  'Find it under Billing.',
+                                );
+                                return;
+                              }
                               Navigator.pushNamed(
                                 context,
                                 AppRoutes.invoiceDetail,
-                                arguments: invNum,
+                                arguments: invoice.id,
                               );
                             },
                           ),

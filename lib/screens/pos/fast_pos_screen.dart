@@ -1044,17 +1044,15 @@ class _FastPosScreenState extends State<FastPosScreen> {
           color: AppTheme.primaryColor,
           title: 'Fast POS',
         ),
+        // The search card is on screen in both layouts, and on phones so is
+        // a Scan button; repeating both here gave two of each control.
         actions: [
-          IconButton(
-            tooltip: 'Scan barcode',
-            onPressed: _scanAndAdd,
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-          ),
-          IconButton(
-            tooltip: 'Search product',
-            onPressed: _pickProduct,
-            icon: const Icon(Icons.search_rounded),
-          ),
+          if (isWide)
+            IconButton(
+              tooltip: 'Scan barcode',
+              onPressed: _scanAndAdd,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+            ),
         ],
       ),
       body: Container(
@@ -1106,9 +1104,9 @@ class _FastPosScreenState extends State<FastPosScreen> {
     BuildContext context,
     List<ProductModel> favoriteProducts,
   ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Container(
+    // No horizontal padding of its own: the layouts around it already pad,
+    // and doubling it set the strip 12 px in from the search card above.
+    return Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
         decoration: BoxDecoration(
@@ -1128,7 +1126,8 @@ class _FastPosScreenState extends State<FastPosScreen> {
             ),
             const SizedBox(height: 6),
             SizedBox(
-              height: 40,
+              // Follows the text size; a fixed 40 px clipped the chips at 1.4x.
+              height: MediaQuery.textScalerOf(context).scale(14) * 1.3 + 22,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
@@ -1146,7 +1145,6 @@ class _FastPosScreenState extends State<FastPosScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -1169,7 +1167,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
     }
     return GridView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+      padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 300,
         mainAxisExtent: 86,
@@ -1182,6 +1180,8 @@ class _FastPosScreenState extends State<FastPosScreen> {
         final card = ProductCard(
           product: product,
           useGridPadding: true,
+          // A tap adds to the cart here; a swipe must not open Stock Out.
+          stockShortcuts: false,
           onTap: () => _addProduct(product),
         );
         return index < 15 ? FadeSlideIn(index: index, child: card) : card;
@@ -1383,7 +1383,20 @@ class _FastPosScreenState extends State<FastPosScreen> {
                 borderRadius: 20,
                 padding: const EdgeInsets.all(14),
                 useContentVariant: true,
-                child: Column(
+                // On a short window the fixed parts of the panel left the cart
+                // list no height at all and the totals overflowed, so below
+                // that the whole panel scrolls around a fixed-height list.
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final tight = constraints.maxHeight < 560;
+                    final cartArea = _cart.isEmpty
+                        ? _emptyCart(context)
+                        : _cartListView(
+                            context,
+                            symbol: symbol,
+                            compact: true,
+                          );
+                    final panel = Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
@@ -1422,15 +1435,10 @@ class _FastPosScreenState extends State<FastPosScreen> {
                         ),
                       ),
                     const Divider(height: 20),
-                    Expanded(
-                      child: _cart.isEmpty
-                          ? _emptyCart(context)
-                          : _cartListView(
-                              context,
-                              symbol: symbol,
-                              compact: true,
-                            ),
-                    ),
+                    if (tight)
+                      SizedBox(height: 240, child: cartArea)
+                    else
+                      Expanded(child: cartArea),
                     const Divider(height: 20),
                     _totalsBlock(
                       context,
@@ -1447,6 +1455,11 @@ class _FastPosScreenState extends State<FastPosScreen> {
                       grandTotal: grandTotal,
                     ),
                   ],
+                );
+                    return tight
+                        ? SingleChildScrollView(child: panel)
+                        : panel;
+                  },
                 ),
               ),
             ),
@@ -1486,6 +1499,10 @@ class _FastPosScreenState extends State<FastPosScreen> {
                   const SizedBox(width: 8),
                   FilledButton.tonalIcon(
                     onPressed: _scanAndAdd,
+                    // Same height as the customer button beside it (52 vs 48).
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 52),
+                    ),
                     icon: const Icon(Icons.qr_code_scanner_rounded),
                     label: Text(isMobile ? 'Scan' : 'Scan Barcode'),
                   ),
@@ -1539,7 +1556,10 @@ class _FastPosScreenState extends State<FastPosScreen> {
           ),
         ),
         if (favoriteProducts.isNotEmpty && !(isMobile && isKeyboardOpen))
-          _quickPicks(context, favoriteProducts),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: _quickPicks(context, favoriteProducts),
+          ),
         const SizedBox(height: 8),
         Expanded(
           child: _cart.isEmpty
@@ -1680,28 +1700,39 @@ class _CartBar extends StatelessWidget {
                   child: const Icon(Icons.shopping_cart_rounded, size: 22),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$itemCount item${itemCount == 1 ? '' : 's'}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSec(context),
+                // Expanded, so a large total scales down instead of pushing
+                // the Checkout button off the bar.
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$itemCount item${itemCount == 1 ? '' : 's'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSec(context),
+                        ),
                       ),
-                    ),
-                    CountUpText(
-                      grandTotal,
-                      formatter: (v) => '$symbol${numFmt.format(v)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: CountUpText(
+                          grandTotal,
+                          formatter: (v) => '$symbol${numFmt.format(v)}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPri(context),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
                 FilledButton.icon(
                   onPressed: onCheckout,
                   icon: const Icon(Icons.point_of_sale_rounded),
@@ -1821,7 +1852,12 @@ class _CartItemCard extends StatelessWidget {
                 children: [
                   Text(
                     line.product.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPri(context),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -1833,6 +1869,9 @@ class _CartItemCard extends StatelessWidget {
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           visualDensity: VisualDensity.compact,
+                          // The theme's full-width minimum pushed this onto a
+                          // row of its own.
+                          minimumSize: const Size(0, 40),
                         ),
                         onPressed: onEditPrice,
                         icon: const Icon(Icons.sell_rounded, size: 16),
@@ -1847,7 +1886,10 @@ class _CartItemCard extends StatelessWidget {
                       _qtyControls(context),
                       Text(
                         '$symbol${numFmt.format(line.lineTotal)}',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPri(context),
+                        ),
                       ),
                     ],
                   ),
@@ -1964,6 +2006,11 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
           decoration: BoxDecoration(
             color: AppTheme.surface(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          // Results end above the keyboard; they used to run on underneath it
+          // while the search field had focus.
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: Column(
             children: [

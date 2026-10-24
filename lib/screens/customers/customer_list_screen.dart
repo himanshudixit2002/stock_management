@@ -416,8 +416,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           child: Responsive.listGridColumns(context) > 1
                               ? GridView.builder(
                                   controller: _scrollController,
-                                  padding: EdgeInsets.all(
+                                  padding: EdgeInsets.fromLTRB(
                                     Responsive.horizontalPadding(context),
+                                    Responsive.horizontalPadding(context),
+                                    Responsive.horizontalPadding(context),
+                                    96,
                                   ),
                                   gridDelegate:
                                       SliverGridDelegateWithFixedCrossAxisCount(
@@ -425,13 +428,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                             Responsive.listGridColumns(context),
                                         crossAxisSpacing: 12,
                                         mainAxisSpacing: 0,
+                                        // Taller with larger text, which the
+                                        // fixed height used to clip.
                                         mainAxisExtent:
-                                            Responsive.listGridColumns(
-                                                  context,
-                                                ) >=
-                                                3
-                                            ? 110
-                                            : 100,
+                                            (Responsive.listGridColumns(
+                                                      context,
+                                                    ) >=
+                                                    3
+                                                ? 110
+                                                : 100) *
+                                            (MediaQuery.textScalerOf(
+                                                      context,
+                                                    ).scale(10) /
+                                                    10)
+                                                .clamp(1.0, 2.0),
                                       ),
                                   itemCount: filtered.length,
                                   itemBuilder: (context, index) {
@@ -448,11 +458,16 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                 )
                               : ListView.separated(
                                   controller: _scrollController,
-                                  padding: EdgeInsets.all(
+                                  // Bottom room for the Add Customer button,
+                                  // which otherwise covered the last card.
+                                  padding: EdgeInsets.fromLTRB(
                                     Responsive.horizontalPadding(context),
+                                    Responsive.horizontalPadding(context),
+                                    Responsive.horizontalPadding(context),
+                                    96,
                                   ),
                                   itemCount: filtered.length,
-                                  separatorBuilder: (_, __) =>
+                                  separatorBuilder: (_, _) =>
                                       const SizedBox(height: 10),
                                   itemBuilder: (context, index) {
                                     final customer = filtered[index];
@@ -544,36 +559,50 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     ),
                   ],
                   const SizedBox(height: 6),
-                  Row(
+                  // A Wrap: phone number and order count overflowed a narrow
+                  // card when they shared one unbreakable row.
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 2,
                     children: [
-                      if (customer.phone.isNotEmpty) ...[
-                        Icon(
-                          Icons.phone_rounded,
-                          size: 13,
-                          color: AppTheme.textTer(context),
+                      if (customer.phone.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.phone_rounded,
+                              size: 13,
+                              color: AppTheme.textSec(context),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              customer.phone,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSec(context),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          customer.phone,
-                          style: TextStyle(
-                            fontSize: 12,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.receipt_rounded,
+                            size: 13,
                             color: AppTheme.textSec(context),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Icon(
-                        Icons.receipt_rounded,
-                        size: 13,
-                        color: AppTheme.textTer(context),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${customer.totalOrders} orders',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSec(context),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            customer.totalOrders == 1
+                                ? '1 order'
+                                : '${customer.totalOrders} orders',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSec(context),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

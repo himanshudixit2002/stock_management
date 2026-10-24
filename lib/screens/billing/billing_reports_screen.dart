@@ -8,6 +8,8 @@ import '../../providers/billing_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/provider_error_banner.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../../widgets/chart_empty_state.dart';
 import '../../widgets/animations.dart';
 import '../../utils/currency.dart';
@@ -69,8 +71,17 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
               40,
             ),
             children: [
+              // The report used to render zeros while invoices were still
+              // loading, or had failed to, which read as a real result.
+              if (billing.errorMessage != null) ...[
+                ProviderErrorBanner(message: billing.errorMessage!),
+                const SizedBox(height: 12),
+              ],
               _buildTypeToggle(context),
               const SizedBox(height: 12),
+              if (billing.isLoading && billing.invoices.isEmpty)
+                const ShimmerLoading(itemCount: 4)
+              else ...[
               FadeSlideIn(
                 index: 0,
                 child: _buildRevenueSection(
@@ -102,6 +113,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
                 index: 4,
                 child: _buildTopParties(context, invoices, sym),
               ),
+              ],
             ],
           ),
         ),
@@ -190,15 +202,19 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
     final endOfWeek = startOfWeek.add(const Duration(days: 7));
     final endOfMonth = DateTime(startOfMonth.year, startOfMonth.month + 1, 1);
 
+    // [start, end): `end` is already the first moment of the next period.
+    // It used to be pushed out another day, so "This Month" took in invoices
+    // dated the 1st of next month; and drafts and cancelled invoices counted
+    // as revenue.
     double periodRevenue(DateTime start, DateTime end) {
       return _filterByType(billing.invoices)
           .where(
             (i) =>
                 i.invoiceType == InvoiceType.sales &&
-                i.invoiceDate.isAfter(
-                  start.subtract(const Duration(seconds: 1)),
-                ) &&
-                i.invoiceDate.isBefore(end.add(const Duration(days: 1))),
+                !i.isDraft &&
+                !i.isCancelled &&
+                !i.invoiceDate.isBefore(start) &&
+                i.invoiceDate.isBefore(end),
           )
           .fold(0.0, (s, i) => s + i.grandTotal);
     }
@@ -208,7 +224,7 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
     // "invoiced" inflates the figure. They still reduce the balance below, via
     // InvoiceModel.outstanding on the invoice they were raised against.
     final totalInvoiced = filtered
-        .where((i) => !i.isCreditNote)
+        .where((i) => !i.isCreditNote && !i.isDraft && !i.isCancelled)
         .fold(0.0, (s, i) => s + i.grandTotal);
 
     // Receivables and payables are kept apart. Summing them — which "All" did,
@@ -235,60 +251,52 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeader('Revenue Summary', AppTheme.primaryColor, context),
-        Row(
-          children: [
+        // One grid whose columns follow the width. Two fixed rows of four and
+        // three squeezed each card to ~80 px on a phone, breaking labels
+        // mid-word and shrinking amounts to 7-9 px, and stretched them across
+        // 1344 px on a desktop.
+        _CardGrid(
+          cards: [
             _RevenueCard(
               label: 'Today',
               value:
                   '$sym${_numFmt.format(periodRevenue(startOfDay, endOfDay))}',
               color: AppTheme.successColor,
             ),
-            const SizedBox(width: 8),
             _RevenueCard(
               label: 'This Week',
               value:
                   '$sym${_numFmt.format(periodRevenue(startOfWeek, endOfWeek))}',
               color: AppTheme.primaryColor,
             ),
-            const SizedBox(width: 8),
             _RevenueCard(
               label: 'This Month',
               value:
                   '$sym${_numFmt.format(periodRevenue(startOfMonth, endOfMonth))}',
               color: AppTheme.indigoColor,
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
             _RevenueCard(
               label: 'Total Invoiced',
               value: '$sym${_numFmt.format(totalInvoiced)}',
               color: AppTheme.primaryColor,
             ),
-            const SizedBox(width: 8),
             // Under "All" both sides are shown separately, because their sum
             // means nothing. With a type selected only that side is relevant.
-            if (_typeFilter != InvoiceType.purchase) ...[
+            if (_typeFilter != InvoiceType.purchase)
               _RevenueCard(
                 label: 'Receivable',
                 value: '$sym${_numFmt.format(receivable)}',
                 color: AppTheme.dangerColor,
               ),
-              const SizedBox(width: 8),
-            ],
-            if (_typeFilter != InvoiceType.sales) ...[
+            if (_typeFilter != InvoiceType.sales)
               _RevenueCard(
                 label: 'Payable',
                 value: '$sym${_numFmt.format(payable)}',
                 color: AppTheme.warningColor,
               ),
-              const SizedBox(width: 8),
-            ],
             _RevenueCard(
               label: 'Overdue',
-              value: '$overdueCount invoices',
+              value: overdueCount == 1 ? '1 invoice' : '$overdueCount invoices',
               color: AppTheme.warningColor,
             ),
           ],
@@ -709,6 +717,35 @@ class _BillingReportsScreenState extends State<BillingReportsScreen> {
   }
 }
 
+class _CardGrid extends StatelessWidget {
+  const _CardGrid({required this.cards});
+
+  final List<Widget> cards;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final cols = width >= 720
+            ? 4
+            : width >= 420
+            ? 3
+            : 2;
+        const gap = 8.0;
+        final cardWidth = (width - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final card in cards) SizedBox(width: cardWidth, child: card),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _RevenueCard extends StatelessWidget {
   final String label;
   final String value;
@@ -721,34 +758,37 @@ class _RevenueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GlassPanel(
-        borderRadius: 12,
-        useContentVariant: true,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Column(
-          children: [
-            Text(
-              label,
+    return GlassPanel(
+      borderRadius: 12,
+      useContentVariant: true,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textSec(context),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
               style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.textTer(context),
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
-            const SizedBox(height: 4),
-            FittedBox(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -178,49 +178,60 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     final canCreate =
         user?.hasPermission(AppPermissions.createInvoices) ?? false;
 
+    // Room under the last card for the New Invoice button, which otherwise
+    // sat on top of it.
+    final bottomPad = canCreate ? 96.0 : 16.0;
+
     if (billing.isLoading && billing.invoices.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
-        children: [
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.45,
-            child: const ShimmerLoading(itemCount: 5),
-          ),
-        ],
+        children: const [ShimmerLoading(itemCount: 5)],
       );
     }
 
     if (invoices.isEmpty) {
+      final filtered = _statusFilter != null || _searchQuery.isNotEmpty;
+      // Sized by the empty state itself rather than a fraction of the screen
+      // height, which overflowed short phones, landscape and large text.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
+        padding: EdgeInsets.fromLTRB(hPad, 8, hPad, bottomPad),
         children: [
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.42,
-            child: EmptyStateWidget(
-              icon: Icons.receipt_long_rounded,
-              title: 'No invoices yet',
-              subtitle: 'Create your first invoice to get started',
-              buttonText: canCreate ? 'New invoice' : null,
-              onButtonPressed: canCreate
-                  ? () => Navigator.pushNamed(context, AppRoutes.createInvoice)
-                  : null,
-            ),
-          ),
+          filtered
+              ? const EmptyStateWidget(
+                  icon: Icons.search_off_rounded,
+                  title: 'No matching invoices',
+                  subtitle: 'Try another search or status filter',
+                )
+              : EmptyStateWidget(
+                  icon: Icons.receipt_long_rounded,
+                  title: 'No invoices yet',
+                  subtitle: 'Create your first invoice to get started',
+                  buttonText: canCreate ? 'New invoice' : null,
+                  onButtonPressed: canCreate
+                      ? () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.createInvoice,
+                        )
+                      : null,
+                ),
         ],
       );
     }
 
     if (Responsive.listGridColumns(context) > 1) {
+      // Grid cells have a fixed height, so it follows the text size: the old
+      // fixed 130/140 px clipped cards at larger text.
+      final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
       return GridView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
+        padding: EdgeInsets.fromLTRB(hPad, 8, hPad, bottomPad),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: Responsive.listGridColumns(context),
           crossAxisSpacing: 12,
           mainAxisSpacing: 0,
-          mainAxisExtent: Responsive.listGridColumns(context) >= 3 ? 140 : 130,
+          mainAxisExtent: 44 + 64 * textScale,
         ),
         itemCount: invoices.length,
         itemBuilder: (context, index) {
@@ -240,7 +251,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
+      padding: EdgeInsets.fromLTRB(hPad, 8, hPad, bottomPad),
       itemCount: invoices.length,
       itemBuilder: (context, index) {
         return AnimatedListItem(
@@ -411,20 +422,25 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 36,
+          // Follows the text size; a fixed 36 px clipped the chips at 1.3x.
+          height: MediaQuery.textScalerOf(context).scale(12) * 1.3 + 22,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(
               horizontal: Responsive.horizontalPadding(context),
             ),
             itemCount: statuses.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
             itemBuilder: (context, index) {
               final s = statuses[index];
               final isSelected = _statusFilter == s;
-              final label = s == null
-                  ? 'All'
-                  : s.name[0].toUpperCase() + s.name.substring(1);
+              // The status's own label ("Partially paid"), not its enum name,
+              // which read "PartiallyPaid".
+              final label = s == null ? 'All' : InvoiceModel.labelFor(s);
+              // Light teal on a pale teal fill was about 1.4:1.
+              final selectedFg = AppTheme.isDark(context)
+                  ? AppTheme.primaryLight
+                  : AppTheme.primaryDark;
               return FilterChip(
                 label: Text(
                   label,
@@ -432,15 +448,15 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected
-                        ? AppTheme.primaryLight
+                        ? selectedFg
                         : AppTheme.textPri(context),
                   ),
                 ),
                 selected: isSelected,
                 onSelected: (_) => setState(() => _statusFilter = s),
-                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.22),
+                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.16),
                 backgroundColor: AppTheme.card(context),
-                checkmarkColor: AppTheme.primaryLight,
+                checkmarkColor: selectedFg,
                 side: BorderSide(
                   color: isSelected
                       ? Colors.transparent
@@ -537,6 +553,7 @@ class _InvoiceCard extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: 44,
@@ -554,131 +571,139 @@ class _InvoiceCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
+                  // Number and amount share the first line; the pills wrap on
+                  // their own line. They used to share one unshrinkable row
+                  // with the number, which overflowed every phone width.
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Text(
-                              invoice.invoiceNumber,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                            Expanded(
+                              child: Text(
+                                invoice.invoiceNumber,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: AppTheme.textPri(context),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                            Text(
+                              '$symbol${numFormat.format(invoice.grandTotal)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: AppTheme.textPri(context),
                               ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.textTer(
-                                  context,
-                                ).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                invoice.isPurchase ? 'Purchase' : 'Sales',
+                                invoice.partyName.isNotEmpty
+                                    ? invoice.partyName
+                                    : '—',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w600,
                                   color: AppTheme.textSec(context),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                invoice.statusLabel,
-                                style: TextStyle(
+                            if (invoice.amountDue > 0) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                'Due $symbol${numFormat.format(invoice.amountDue)}',
+                                style: const TextStyle(
                                   fontSize: 12,
+                                  color: AppTheme.dangerColor,
                                   fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                            if (invoice.overdueDays > 0) ...[
-                              const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 1,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.dangerColor.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '${invoice.overdueDays}d',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.dangerColor,
-                                  ),
                                 ),
                               ),
                             ],
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          invoice.partyName,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSec(context),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          dateFormat.format(invoice.invoiceDate),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textTer(context),
-                          ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _Pill(
+                              label: invoice.isPurchase ? 'Purchase' : 'Sales',
+                              color: AppTheme.textSec(context),
+                              fill: AppTheme.textTer(
+                                context,
+                              ).withValues(alpha: 0.12),
+                            ),
+                            _Pill(
+                              label: invoice.statusLabel,
+                              color: statusColor,
+                              fill: statusColor.withValues(alpha: 0.12),
+                            ),
+                            if (invoice.overdueDays > 0)
+                              _Pill(
+                                label: '${invoice.overdueDays}d overdue',
+                                color: AppTheme.dangerColor,
+                                fill: AppTheme.dangerColor.withValues(
+                                  alpha: 0.1,
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 2),
+                              child: Text(
+                                dateFormat.format(invoice.invoiceDate),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSec(context),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '$symbol${numFormat.format(invoice.grandTotal)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
-                      if (invoice.amountDue > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            'Due: $symbol${numFormat.format(invoice.amountDue)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.dangerColor,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                    ],
                   ),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color, required this.fill});
+
+  final String label;
+  final Color color;
+  final Color fill;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );

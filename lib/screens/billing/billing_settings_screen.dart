@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/permissions.dart';
 import '../../config/theme.dart';
 import '../../models/billing_settings_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/billing_settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
@@ -210,6 +212,8 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
       );
     }
 
+    final canEdit = _canEdit(context);
+
     return Scaffold(
       appBar: AppBar(
         // Was a bare text title, the one settings destination that did not
@@ -240,6 +244,10 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                     24,
                   ),
                   children: [
+                    if (!canEdit) ...[
+                      _readOnlyNote(context),
+                      const SizedBox(height: 12),
+                    ],
                     _section('Company Profile', AppTheme.primaryColor, [
                       _field(
                         _businessNameCtrl,
@@ -252,24 +260,21 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                         Icons.location_on_rounded,
                         maxLines: 2,
                       ),
-                      Row(
+                      // Stacked on phones: side by side, each field was about
+                      // 86 px wide and its label was cut off.
+                      ResponsiveFormRow(
                         children: [
-                          Expanded(
-                            child: _field(
-                              _businessPhoneCtrl,
-                              'Phone',
-                              Icons.phone_rounded,
-                              keyboard: TextInputType.phone,
-                            ),
+                          _field(
+                            _businessPhoneCtrl,
+                            'Phone',
+                            Icons.phone_rounded,
+                            keyboard: TextInputType.phone,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _field(
-                              _businessEmailCtrl,
-                              'Email',
-                              Icons.email_rounded,
-                              keyboard: TextInputType.emailAddress,
-                            ),
+                          _field(
+                            _businessEmailCtrl,
+                            'Email',
+                            Icons.email_rounded,
+                            keyboard: TextInputType.emailAddress,
                           ),
                         ],
                       ),
@@ -277,24 +282,19 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                     ], anchor: 'billing.business'),
                     const SizedBox(height: 16),
                     _section('Tax Configuration', AppTheme.warningColor, [
-                      Row(
+                      ResponsiveFormRow(
                         children: [
-                          Expanded(
-                            child: _field(
-                              _taxLabelCtrl,
-                              'Tax Label (e.g. GST)',
-                              Icons.label_rounded,
-                            ),
+                          _field(
+                            _taxLabelCtrl,
+                            'Tax Label (e.g. GST)',
+                            Icons.label_rounded,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _field(
-                              _taxRateCtrl,
-                              'Default Tax %',
-                              Icons.percent_rounded,
-                              keyboard: const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
+                          _field(
+                            _taxRateCtrl,
+                            'Default Tax %',
+                            Icons.percent_rounded,
+                            keyboard: const TextInputType.numberWithOptions(
+                              decimal: true,
                             ),
                           ),
                         ],
@@ -309,94 +309,80 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _taxInclusive,
-                        onChanged: (v) => setState(() => _taxInclusive = v),
+                        onChanged: canEdit ? (v) => setState(() => _taxInclusive = v) : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
                     ], anchor: 'billing.tax'),
                     const SizedBox(height: 16),
                     _section('Invoice Numbering', AppTheme.indigoColor, [
-                      Row(
+                      ResponsiveFormRow(
                         children: [
-                          Expanded(
-                            child: _field(
-                              _prefixCtrl,
-                              'Prefix (e.g. INV)',
-                              Icons.tag_rounded,
-                            ),
+                          _field(
+                            _prefixCtrl,
+                            'Prefix (e.g. INV)',
+                            Icons.tag_rounded,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _field(
-                              _nextNumCtrl,
-                              'Next Number',
-                              Icons.numbers_rounded,
-                              keyboard: TextInputType.number,
-                            ),
+                          _field(
+                            _nextNumCtrl,
+                            'Next Number',
+                            Icons.numbers_rounded,
+                            keyboard: TextInputType.number,
                           ),
                         ],
                       ),
-                      Row(
+                      ResponsiveFormRow(
                         children: [
-                          Expanded(
-                            child: _field(
-                              _currencyCtrl,
-                              'Currency Symbol',
-                              Icons.currency_rupee_rounded,
-                            ),
+                          _field(
+                            _currencyCtrl,
+                            'Currency Symbol',
+                            Icons.currency_rupee_rounded,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<int>(
-                              initialValue: _paymentTermDays,
-                              decoration: InputDecoration(
-                                labelText: 'Default Terms',
-                                isDense: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
+                          DropdownButtonFormField<int>(
+                            initialValue: _paymentTermDays,
+                            decoration: InputDecoration(
+                              labelText: 'Default Terms',
+                              isDense: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              items: [0, 15, 30, 60, 90]
-                                  .map(
-                                    (d) => DropdownMenuItem(
-                                      value: d,
-                                      child: Text(
-                                        d == 0 ? 'Due on Receipt' : 'Net $d',
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _paymentTermDays = v ?? 0),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
                             ),
+                            items: [0, 15, 30, 60, 90]
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(
+                                      d == 0 ? 'Due on Receipt' : 'Net $d',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: canEdit
+                                ? (v) => setState(() => _paymentTermDays = v ?? 0)
+                                : null,
                           ),
                         ],
                       ),
                     ], anchor: 'billing.numbering'),
                     const SizedBox(height: 16),
                     _section('Purchase Bill Numbering', AppTheme.warningColor, [
-                      Row(
+                      ResponsiveFormRow(
                         children: [
-                          Expanded(
-                            child: _field(
-                              _purchasePrefixCtrl,
-                              'Purchase Prefix (e.g. BILL)',
-                              Icons.tag_rounded,
-                            ),
+                          _field(
+                            _purchasePrefixCtrl,
+                            'Purchase Prefix (e.g. BILL)',
+                            Icons.tag_rounded,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _field(
-                              _nextPurchaseNumCtrl,
-                              'Next Purchase Number',
-                              Icons.numbers_rounded,
-                              keyboard: TextInputType.number,
-                            ),
+                          _field(
+                            _nextPurchaseNumCtrl,
+                            'Next Purchase Number',
+                            Icons.numbers_rounded,
+                            keyboard: TextInputType.number,
                           ),
                         ],
                       ),
@@ -431,7 +417,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _enableTax,
-                        onChanged: (v) => setState(() => _enableTax = v),
+                        onChanged: canEdit ? (v) => setState(() => _enableTax = v) : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -445,7 +431,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _enableDiscounts,
-                        onChanged: (v) => setState(() => _enableDiscounts = v),
+                        onChanged: canEdit ? (v) => setState(() => _enableDiscounts = v) : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -459,8 +445,9 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _enablePaymentTracking,
-                        onChanged: (v) =>
-                            setState(() => _enablePaymentTracking = v),
+                        onChanged: canEdit
+                            ? (v) => setState(() => _enablePaymentTracking = v)
+                            : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -474,8 +461,9 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _autoCreateSoForStandaloneSales,
-                        onChanged: (v) =>
-                            setState(() => _autoCreateSoForStandaloneSales = v),
+                        onChanged: canEdit
+                            ? (v) => setState(() => _autoCreateSoForStandaloneSales = v)
+                            : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -489,8 +477,9 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                           style: TextStyle(fontSize: 12),
                         ),
                         value: _autoCreatePoForStandaloneBills,
-                        onChanged: (v) =>
-                            setState(() => _autoCreatePoForStandaloneBills = v),
+                        onChanged: canEdit
+                            ? (v) => setState(() => _autoCreatePoForStandaloneBills = v)
+                            : null,
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
@@ -498,11 +487,48 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
                   ],
                 ),
               ),
-              _buildBottomBar(),
+              if (canEdit) _buildBottomBar(),
             ],
           ),
         ),
         ),
+      ),
+    );
+  }
+
+  /// These settings live on the company document, which only admins and
+  /// people who may manage company settings can write. Everyone else used to
+  /// get an editable form whose Save was always refused.
+  bool _canEdit(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return !auth.isInspecting &&
+        (auth.currentUser?.hasPermission(
+              AppPermissions.manageCompanySettings,
+            ) ??
+            false);
+  }
+
+  Widget _readOnlyNote(BuildContext context) {
+    final color = AppTheme.info(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline_rounded, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Only an admin, or someone who can manage company settings, can '
+              'change these.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSec(context)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -549,22 +575,22 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
         ),
       ],
     );
-    if (anchor == null) return body;
-    return KeyedSubtree(
-      key: keyFor(anchor),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: isFlashing(anchor)
-              ? AppTheme.tint(context, color)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        ),
-        child: body,
+    // Every section gets the same 4 px inset the search highlight needs; only
+    // the anchored ones had it, so the cards' edges did not line up.
+    final framed = AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: anchor != null && isFlashing(anchor)
+            ? AppTheme.tint(context, color)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMD),
       ),
+      child: body,
     );
+    if (anchor == null) return framed;
+    return KeyedSubtree(key: keyFor(anchor), child: framed);
   }
 
   Widget _field(
@@ -578,6 +604,7 @@ class _BillingSettingsScreenState extends State<BillingSettingsScreen>
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: ctrl,
+        readOnly: !_canEdit(context),
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, size: 18),

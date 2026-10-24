@@ -7,9 +7,12 @@ import '../../models/invoice_model.dart';
 import '../../providers/billing_provider.dart';
 import '../../utils/currency.dart';
 import '../../utils/date_formats.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/provider_error_banner.dart';
+import '../../widgets/shimmer_loading.dart';
 
 /// One payment, lifted out of the invoice it is embedded in.
 class _LedgerEntry {
@@ -39,7 +42,9 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final invoices = context.watch<BillingProvider>().invoices;
+    final billing = context.watch<BillingProvider>();
+    final invoices = billing.invoices;
+    final hPad = Responsive.horizontalPadding(context);
 
     final entries = <_LedgerEntry>[];
     for (final inv in invoices) {
@@ -101,11 +106,20 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
             ),
         ],
       ),
+      // Capped and padded like the other billing screens: it ran edge to edge
+      // at a fixed 16 px on every width.
       body: SafeArea(
-        child: Column(
+        child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: Responsive.formMaxWidth(context),
+          ),
+          child: Column(
           children: [
+            if (billing.errorMessage != null)
+              ProviderErrorBanner(message: billing.errorMessage!),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 0),
               child: GlassPanel(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
@@ -132,7 +146,7 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
             ),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 10),
               child: Row(
                 children: [
                   _Chip(
@@ -164,7 +178,9 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
               ),
             ),
             Expanded(
-              child: filtered.isEmpty
+              child: billing.isLoading && invoices.isEmpty
+                  ? const ShimmerLoading(itemCount: 6)
+                  : filtered.isEmpty
                   ? const EmptyStateWidget(
                       icon: Icons.payments_rounded,
                       title: 'No payments',
@@ -173,13 +189,15 @@ class _PaymentsLedgerScreenState extends State<PaymentsLedgerScreen> {
                           'appear here as soon as they are recorded.',
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                      padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 32),
                       itemCount: filtered.length,
                       itemBuilder: (context, i) =>
                           _PaymentTile(entry: filtered[i]),
                     ),
             ),
           ],
+        ),
+        ),
         ),
       ),
     );
@@ -250,7 +268,11 @@ class _PaymentTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GlassPanel(
-        child: ListTile(
+        // ListTile draws its ink on the nearest Material, which sat behind
+        // the panel's fill, so taps showed no feedback.
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListTile(
           leading: Icon(
             inbound
                 ? Icons.arrow_downward_rounded
@@ -280,11 +302,14 @@ class _PaymentTile extends StatelessWidget {
               color: inbound ? AppTheme.successColor : AppTheme.warningColor,
             ),
           ),
+          // The route takes the invoice id. Passing the model made the route
+          // builder's `as String?` cast throw, so tapping a payment failed.
           onTap: () => Navigator.pushNamed(
             context,
             AppRoutes.invoiceDetail,
-            arguments: entry.invoice,
+            arguments: entry.invoice.id,
           ),
+        ),
         ),
       ),
     );

@@ -254,7 +254,10 @@ class InvoiceModel {
     return due <= 0.01 ? 0 : due;
   }
 
-  String get statusLabel => switch (status) {
+  String get statusLabel => labelFor(status);
+
+  /// The display name of [status], shared by the cards and the filter chips.
+  static String labelFor(InvoiceStatus status) => switch (status) {
     InvoiceStatus.draft => 'Draft',
     InvoiceStatus.sent => 'Sent',
     InvoiceStatus.partiallyPaid => 'Partial',
