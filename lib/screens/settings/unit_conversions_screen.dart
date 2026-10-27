@@ -686,14 +686,15 @@ class _RuleSheetState extends State<_RuleSheet> {
                 ),
                 const _Glyph('='),
                 SizedBox(
-                  width: 76,
+                  width: 84,
                   child: TextField(
                     controller: _countController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     textAlign: TextAlign.center,
                     decoration: const InputDecoration(
-                      labelText: 'How many',
+                      // Short enough to fit: "How many" was cut to "Ho…".
+                      labelText: 'Count',
                       hintText: '10',
                     ),
                   ),
