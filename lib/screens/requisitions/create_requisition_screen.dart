@@ -17,6 +17,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/entity_picker_field.dart';
 import '../../widgets/form_section.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/permission_gate.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
@@ -441,6 +442,14 @@ class _RequisitionLineEditorState extends State<_RequisitionLineEditor> {
 
   @override
   Widget build(BuildContext context) {
+    // Asked for by the box when the product comes in boxes; the line holds
+    // pieces, which is what the estimated cost is per.
+    final product = context
+        .watch<ProductProvider>()
+        .analyticsProducts
+        .where((p) => p.id == widget.line.productId)
+        .firstOrNull;
+    final packed = product != null && product.hasPackUnit;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassPanel(
@@ -468,23 +477,41 @@ class _RequisitionLineEditorState extends State<_RequisitionLineEditor> {
                 ),
               ],
             ),
+            if (packed)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 8),
+                child: PackQuantityField(
+                  controller: _quantity,
+                  unitsPerPack: product.unitsPerPack,
+                  packUnit: product.packUnit,
+                  baseUnit: product.baseUnit,
+                  label: 'Qty',
+                  dense: true,
+                  onChanged: (total) =>
+                      widget.onChanged(widget.line.copyWith(quantity: total)),
+                ),
+              ),
             Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _quantity,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: 'Qty (${widget.line.unit})',
-                      isDense: true,
-                    ),
-                    onChanged: (value) => widget.onChanged(
-                      widget.line.copyWith(quantity: int.tryParse(value) ?? 0),
+                if (!packed) ...[
+                  Expanded(
+                    child: TextField(
+                      controller: _quantity,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText: 'Qty (${widget.line.unit})',
+                        isDense: true,
+                      ),
+                      onChanged: (value) => widget.onChanged(
+                        widget.line.copyWith(
+                          quantity: int.tryParse(value) ?? 0,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: TextField(
                     controller: _cost,

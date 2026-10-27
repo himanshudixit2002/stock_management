@@ -834,6 +834,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               typeColor = AppTheme.successColor;
                               typeIcon = Icons.play_circle_rounded;
                               break;
+                            case TransactionType.unitConversion:
+                              typeColor = AppTheme.violetColor;
+                              typeIcon = Icons.autorenew_rounded;
+                              break;
                           }
 
                           return FadeSlideIn(
@@ -913,7 +917,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       ),
                                     ),
                                     Text(
-                                      t.type == TransactionType.stockIn
+                                      t.type == TransactionType.unitConversion
+                                          ? t.conversionSummary
+                                          : t.type == TransactionType.stockIn
                                           ? '+${t.quantity}'
                                           : t.type ==
                                                     TransactionType.transfer ||

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../services/excel_service.dart';
 import '../../services/database_service.dart';
+import '../../services/unit_conversion_planner.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -234,7 +235,12 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       // page, so in a workspace past its first page an existing product simply
       // was not found and the row was inserted as new — an import that should
       // have updated silently duplicated the catalog.
-      final existingProducts = await productProvider.fullCatalog();
+      //
+      // Forced fresh: a merge writes matched products whole, stock and units
+      // included, so a cached copy from before a stock movement or a unit
+      // conversion would put the old figures back.
+      await productProvider.loadAnalytics(force: true);
+      final existingProducts = productProvider.analyticsProducts;
       if (!mounted) return;
       final mergeResult = _excelService.matchExistingProducts(
         importedProducts: products,
@@ -290,8 +296,14 @@ class _ExcelImportScreenState extends State<ExcelImportScreen> {
       // Create new products
       if (mergeResult.newProducts.isNotEmpty) {
         try {
+          // A new row that named no pack takes it from Settings › Unit
+          // conversions, as the product form does.
+          final rules = settingsProvider.unitConversions;
           createdCount = await productProvider.bulkAddProducts(
-            mergeResult.newProducts,
+            [
+              for (final p in mergeResult.newProducts)
+                p.hasPackUnit ? p : withRulePack(p, rules),
+            ],
             userId: user.uid,
             userName: user.name,
           );

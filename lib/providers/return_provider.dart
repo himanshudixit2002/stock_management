@@ -5,6 +5,8 @@ import '../models/return_model.dart';
 import '../utils/error_helpers.dart';
 import '../utils/order_return_sync.dart';
 import '../services/database_service.dart';
+import '../services/unit_conversion_service.dart'
+    show UnitConversionException;
 
 class ReturnProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -75,6 +77,7 @@ class ReturnProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
+      await _refuseIfConvertedSinceOrder(returnModel);
       final id = await _databaseService.addReturn(returnModel);
       _isMutating = false;
       notifyListeners();
@@ -84,6 +87,30 @@ class ReturnProvider extends ChangeNotifier {
       _isMutating = false;
       notifyListeners();
       return null;
+    }
+  }
+
+  /// A return against an order checks its quantities against that order's
+  /// lines and refunds by their unit price, both in the units the products had
+  /// when it was raised. If a product has been converted since, both would be
+  /// read in the wrong unit, so the return has to be handled by hand.
+  Future<void> _refuseIfConvertedSinceOrder(ReturnModel returnModel) async {
+    if (returnModel.relatedOrderId.isEmpty) return;
+    final DateTime? orderDate =
+        returnModel.type == ReturnType.customerReturn
+            ? (await _databaseService.getSalesOrderById(
+                returnModel.relatedOrderId,
+              ))?.createdAt
+            : (await _databaseService.getPurchaseOrderById(
+                returnModel.relatedOrderId,
+              ))?.createdAt;
+    if (orderDate == null) return;
+    final converted = await _databaseService.productsConvertedSince(
+      returnModel.items.map((i) => i.productId),
+      orderDate,
+    );
+    if (converted.isNotEmpty) {
+      throw UnitConversionException.convertedSince(converted);
     }
   }
 

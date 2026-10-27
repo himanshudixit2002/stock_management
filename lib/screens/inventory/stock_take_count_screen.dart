@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../models/product_model.dart';
 import '../../models/stock_take_model.dart';
+import '../../providers/product_provider.dart';
 import '../../providers/stock_take_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/dialogs.dart';
@@ -26,6 +29,10 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
     with SingleTickerProviderStateMixin {
   late List<StockTakeItem> _items;
   late List<TextEditingController> _controllers;
+
+  /// Products by id, for counting by the box: items carry pieces, products
+  /// know the pack.
+  late Map<String, ProductModel> _productsById;
   bool _isSubmitting = false;
   late AnimationController _pulseController;
   final ScrollController _scrollController = ScrollController();
@@ -34,6 +41,10 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
   void initState() {
     super.initState();
     _items = List.from(widget.stockTake.items);
+    _productsById = {
+      for (final p in context.read<ProductProvider>().analyticsProducts)
+        p.id: p,
+    };
     _controllers = _items.map((item) {
       return TextEditingController(
         text: item.countedQty > 0 ? item.countedQty.toString() : '',
@@ -463,57 +474,83 @@ class _StockTakeCountScreenState extends State<StockTakeCountScreen>
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
-                                              TextField(
-                                                controller: _controllers[index],
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                inputFormatters: [
-                                                  FilteringTextInputFormatter
-                                                      .digitsOnly,
-                                                ],
-                                                readOnly: isCompleted,
-                                                decoration: InputDecoration(
-                                                  isDense: true,
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 10,
-                                                      ),
-                                                  hintText: '0',
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
+                                              if (!isCompleted &&
+                                                  (_productsById[item.productId]
+                                                          ?.hasPackUnit ??
+                                                      false))
+                                                PackQuantityField(
+                                                  controller:
+                                                      _controllers[index],
+                                                  unitsPerPack:
+                                                      _productsById[item
+                                                              .productId]!
+                                                          .unitsPerPack,
+                                                  packUnit:
+                                                      _productsById[item
+                                                              .productId]!
+                                                          .packUnit,
+                                                  baseUnit:
+                                                      _productsById[item
+                                                              .productId]!
+                                                          .baseUnit,
+                                                  label: 'Count',
+                                                  dense: true,
+                                                  onChanged: (_) =>
+                                                      setState(() {}),
+                                                )
+                                              else
+                                                TextField(
+                                                  controller:
+                                                      _controllers[index],
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  inputFormatters: [
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly,
+                                                  ],
+                                                  readOnly: isCompleted,
+                                                  decoration: InputDecoration(
+                                                    isDense: true,
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 10,
                                                         ),
-                                                    borderSide: BorderSide(
-                                                      color: hasVariance
-                                                          ? AppTheme.dangerColor
-                                                          : AppTheme.inputBorder(
-                                                              context,
-                                                            ),
+                                                    hintText: '0',
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      borderSide: BorderSide(
+                                                        color: hasVariance
+                                                            ? AppTheme
+                                                                  .dangerColor
+                                                            : AppTheme.inputBorder(
+                                                                context,
+                                                              ),
+                                                      ),
+                                                    ),
+                                                    focusedBorder: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                            color: AppTheme
+                                                                .primaryColor,
+                                                            width: 2,
+                                                          ),
                                                     ),
                                                   ),
-                                                  focusedBorder:
-                                                      OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
-                                                        borderSide:
-                                                            const BorderSide(
-                                                              color: AppTheme
-                                                                  .primaryColor,
-                                                              width: 2,
-                                                            ),
-                                                      ),
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  onChanged: (_) =>
+                                                      setState(() {}),
                                                 ),
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                                onChanged: (_) =>
-                                                    setState(() {}),
-                                              ),
                                             ],
                                           ),
                                         ),

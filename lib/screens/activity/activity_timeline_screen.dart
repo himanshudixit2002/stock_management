@@ -108,6 +108,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.adjustment => Icons.tune_rounded,
       TransactionType.hold => Icons.pause_circle_rounded,
       TransactionType.holdRelease => Icons.play_circle_rounded,
+      TransactionType.unitConversion => Icons.autorenew_rounded,
     };
   }
 
@@ -120,6 +121,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.adjustment => AppTheme.warningColor,
       TransactionType.hold => AppTheme.warningColor,
       TransactionType.holdRelease => AppTheme.successColor,
+      TransactionType.unitConversion => AppTheme.violetColor,
     };
   }
 
@@ -132,6 +134,7 @@ class _ActivityTimelineScreenState extends State<ActivityTimelineScreen> {
       TransactionType.adjustment => '',
       TransactionType.hold => '',
       TransactionType.holdRelease => '',
+      TransactionType.unitConversion => '',
     };
   }
 
@@ -386,7 +389,9 @@ class _TransactionTileState extends State<_TransactionTile> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '${widget.qtyPrefix}${tx.quantity}',
+                          tx.type == TransactionType.unitConversion
+                              ? tx.conversionSummary
+                              : '${widget.qtyPrefix}${tx.quantity}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,

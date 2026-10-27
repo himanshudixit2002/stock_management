@@ -45,6 +45,18 @@ class ProductModel {
   final Map<String, double> vendorPrices;
   final String barcode;
 
+  /// The pack conversion was set by hand for this product, so the rules in
+  /// Settings › Unit conversions leave it alone.
+  final bool customConversion;
+
+  /// When this product's stock was last re-counted from its pack unit into a
+  /// smaller base unit ("50 box" became "500 pcs").
+  ///
+  /// Documents written before then hold quantities in the old unit, so paths
+  /// that put a document's quantities back into stock — cancelling an invoice,
+  /// processing a return — check this first. See [unitsConvertedAfter].
+  final DateTime? unitsConvertedAt;
+
   ProductModel({
     required this.id,
     required this.name,
@@ -76,7 +88,14 @@ class ProductModel {
     this.lastVendorName = '',
     this.vendorPrices = const {},
     this.barcode = '',
+    this.customConversion = false,
+    this.unitsConvertedAt,
   });
+
+  /// Whether a document dated [documentDate] predates this product's last
+  /// stock conversion, and so counts it in a unit it no longer uses.
+  bool unitsConvertedAfter(DateTime documentDate) =>
+      unitsConvertedAt != null && documentDate.isBefore(unitsConvertedAt!);
 
   int get availableQuantity =>
       quantity - heldQuantity < 0 ? 0 : quantity - heldQuantity;
@@ -194,6 +213,10 @@ class ProductModel {
       lastVendorName: safeString(map['lastVendorName']),
       vendorPrices: vPrices,
       barcode: safeString(map['barcode']),
+      customConversion: safeBool(map['customConversion']),
+      unitsConvertedAt: map['unitsConvertedAt'] == null
+          ? null
+          : safeTimestamp(map['unitsConvertedAt']),
     );
   }
 
@@ -228,6 +251,10 @@ class ProductModel {
       'lastVendorName': lastVendorName,
       'vendorPrices': vendorPrices,
       'barcode': barcode,
+      'customConversion': customConversion,
+      'unitsConvertedAt': unitsConvertedAt == null
+          ? null
+          : Timestamp.fromDate(unitsConvertedAt!),
     };
   }
 
@@ -239,6 +266,10 @@ class ProductModel {
   /// owns none of these, and rewriting them from a form's in-memory model is
   /// how reservations got silently zeroed: the edit screen never populated the
   /// held fields, so they serialised as 0 and `{}` and overwrote live holds.
+  ///
+  /// `unitsConvertedAt` is moved only by a stock conversion: a form holding a
+  /// copy from before one would otherwise erase the date the reversal guards
+  /// rely on.
   static const Set<String> stockOwnedFields = {
     'quantity',
     'locationQuantities',
@@ -247,6 +278,7 @@ class ProductModel {
     'createdAt',
     'createdBy',
     'createdByName',
+    'unitsConvertedAt',
   };
 
   /// [toMap] without the fields an edit must never touch.
@@ -291,6 +323,8 @@ class ProductModel {
     String? lastVendorName,
     Map<String, double>? vendorPrices,
     String? barcode,
+    bool? customConversion,
+    DateTime? unitsConvertedAt,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -324,6 +358,8 @@ class ProductModel {
       lastVendorName: lastVendorName ?? this.lastVendorName,
       vendorPrices: vendorPrices ?? this.vendorPrices,
       barcode: barcode ?? this.barcode,
+      customConversion: customConversion ?? this.customConversion,
+      unitsConvertedAt: unitsConvertedAt ?? this.unitsConvertedAt,
     );
   }
 }

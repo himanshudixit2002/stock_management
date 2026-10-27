@@ -9,6 +9,8 @@ import '../utils/invoice_totals.dart';
 import '../utils/purchase_order_bill_sync.dart';
 import '../utils/sales_order_invoice_sync.dart';
 import '../services/database_service.dart';
+import '../services/unit_conversion_service.dart'
+    show UnitConversionException;
 
 class BillingProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -650,6 +652,23 @@ class BillingProvider extends ChangeNotifier {
       return false;
     }
     
+    // Its lines are in the units the products had when it was raised. Checked
+    // before cancelling, because cancelling first left an invoice marked
+    // cancelled whose stock could never be put back.
+    if (inv.stockDeducted) {
+      final converted = await _databaseService.productsConvertedSince(
+        inv.items.map((item) => item.productId),
+        inv.createdAt,
+      );
+      if (converted.isNotEmpty) {
+        _errorMessage = UnitConversionException.convertedSince(
+          converted,
+        ).message;
+        notifyListeners();
+        return false;
+      }
+    }
+
     final operationLocation = defaultLocation.trim().isEmpty
         ? 'Main'
         : defaultLocation.trim();
@@ -676,6 +695,7 @@ class BillingProvider extends ChangeNotifier {
             userId: userId,
             userName: userName,
             reason: 'Cancelled INV #${inv.invoiceNumber}',
+            documentDate: inv.createdAt,
           );
         }
         await _databaseService.setInvoiceStockDeducted(id, false);
@@ -702,6 +722,7 @@ class BillingProvider extends ChangeNotifier {
             userId: userId,
             userName: userName,
             reason: 'Cancelled BILL #${inv.invoiceNumber}',
+            documentDate: inv.createdAt,
           );
         }
         await _databaseService.setInvoiceStockDeducted(id, false);

@@ -394,6 +394,10 @@ class _TransactionTile extends StatelessWidget {
         Icons.play_circle_rounded,
         AppTheme.successColor,
       ),
+      TransactionType.unitConversion => (
+        Icons.autorenew_rounded,
+        AppTheme.violetColor,
+      ),
     };
 
     final dateStr = DateFormat(
@@ -537,10 +541,12 @@ class _TransactionTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${switch (transaction.type) {
+                      transaction.type == TransactionType.unitConversion
+                          ? transaction.conversionSummary
+                          : '${switch (transaction.type) {
                         TransactionType.stockIn => '+',
                         TransactionType.stockOut || TransactionType.damage => '-',
-                        TransactionType.transfer || TransactionType.adjustment || TransactionType.hold || TransactionType.holdRelease => '',
+                        TransactionType.transfer || TransactionType.adjustment || TransactionType.hold || TransactionType.holdRelease || TransactionType.unitConversion => '',
                       }}${transaction.quantity}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,

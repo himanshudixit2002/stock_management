@@ -188,6 +188,45 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     });
   }
 
+  /// A line for an order's [baseQuantity], set up as if the product had been
+  /// picked by hand: its units, and the quantity split into packs and loose
+  /// pieces. Prefilled lines used to keep the defaults — one-per-pack, 'pcs' —
+  /// so the box was labelled "box" while holding pieces, and the invoice
+  /// saved 'pcs' as the unit of a product counted in anything else.
+  _LineItem _prefilledLine(
+    String productId,
+    String productName,
+    int baseQuantity,
+  ) {
+    final li = _LineItem()
+      ..productId = productId
+      ..productName = productName;
+    final product = context
+        .read<ProductProvider>()
+        .analyticsProducts
+        .where((p) => p.id == productId)
+        .firstOrNull;
+    if (product != null) {
+      li
+        ..unit = product.hasPackUnit ? product.packUnit : product.baseUnit
+        ..packUnit = product.hasPackUnit ? product.packUnit : product.baseUnit
+        ..baseUnit = product.baseUnit
+        ..unitsPerPack = product.unitsPerPack;
+    }
+    if (li.unitsPerPack > 1) {
+      final split = splitBaseQuantity(
+        baseQuantity: baseQuantity,
+        unitsPerPack: li.unitsPerPack,
+      );
+      li.qtyCtrl.text = '${split.packs}';
+      li.pieceCtrl.text = '${split.pieces}';
+    } else {
+      li.qtyCtrl.text = '$baseQuantity';
+      li.pieceCtrl.text = '0';
+    }
+    return li;
+  }
+
   void _prefillFromSalesOrder() {
     final so = context.read<SalesOrderProvider>().getOrderById(
       widget.salesOrderId!,
@@ -203,11 +242,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       _items.clear();
       final bs = context.read<BillingSettingsProvider>().settings;
       for (final soItem in so.items) {
-        final li = _LineItem()
-          ..productId = soItem.productId
-          ..productName = soItem.productName;
-        li.qtyCtrl.text = soItem.quantity.toString();
-        li.pieceCtrl.text = '0';
+        final li = _prefilledLine(
+          soItem.productId,
+          soItem.productName,
+          soItem.quantity,
+        );
         li.priceCtrl.text = soItem.unitPrice.toString();
         li.taxCtrl.text = bs.defaultTaxRate.toString();
         _items.add(li);
@@ -228,11 +267,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       _items.clear();
       final bs = context.read<BillingSettingsProvider>().settings;
       for (final poItem in po.items) {
-        final li = _LineItem()
-          ..productId = poItem.productId
-          ..productName = poItem.productName;
-        li.qtyCtrl.text = poItem.quantity.toString();
-        li.pieceCtrl.text = '0';
+        final li = _prefilledLine(
+          poItem.productId,
+          poItem.productName,
+          poItem.quantity,
+        );
         li.priceCtrl.text = poItem.unitPrice.toString();
         li.taxCtrl.text = bs.defaultTaxRate.toString();
         _items.add(li);
@@ -1554,7 +1593,7 @@ class _ProductSearchDelegate extends SearchDelegate {
         final p = filtered[i];
         return ListTile(
           title: Text(p.name),
-          subtitle: Text('Stock: ${p.quantity} ${p.unit}'),
+          subtitle: Text('Stock: ${p.formatQuantity(p.quantity)}'),
           trailing: Text(
             '${p.sellingPrice}',
             style: const TextStyle(fontWeight: FontWeight.w600),

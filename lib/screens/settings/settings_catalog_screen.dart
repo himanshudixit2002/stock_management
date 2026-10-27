@@ -129,6 +129,29 @@ class _SettingsCatalogScreenState extends State<SettingsCatalogScreen>
         ),
     ];
 
+    final conversions = settings.unitConversions.length;
+    final units = <Widget>[
+      if (canSee('catalog.units', ctx))
+        row(
+          'catalog.units',
+          writes: true,
+          subtitle: count(settings.units.length, 'unit', 'units'),
+          onTap: () => showManageUnitsSheet(context),
+        ),
+      if (canSee('catalog.unitConversions', ctx))
+        row(
+          'catalog.unitConversions',
+          index: 1,
+          subtitle: conversions == 0
+              ? 'Set 1 box = 10 pcs for a category, brand or size'
+              : count(conversions, 'conversion', 'conversions'),
+          onTap: () => openSetting(
+            context,
+            SettingsCatalog.leafById('catalog.unitConversions')!,
+          ),
+        ),
+    ];
+
     return AppScreenScaffold(
       icon: Icons.sell_rounded,
       title: 'Catalog & lists',
@@ -147,6 +170,12 @@ class _SettingsCatalogScreenState extends State<SettingsCatalogScreen>
             subtitle: 'Renaming one updates every product that uses it',
             children: attributes,
           ),
+          if (units.isNotEmpty)
+            SettingsGroup(
+              title: 'Units',
+              subtitle: 'Count stock in pieces, sell it by the box',
+              children: units,
+            ),
           if (canSee('catalog.zones', ctx))
             SettingsGroup(
               title: 'Warehouse',

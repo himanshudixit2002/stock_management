@@ -22,6 +22,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/not_found_state.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
@@ -608,6 +609,12 @@ class SalesOrderDetailScreen extends StatelessWidget {
     };
     String? selectedLocation = locations.length == 1 ? locations.first : null;
 
+    // For dispatching by the box: lines carry pieces, products know the pack.
+    final productsById = {
+      for (final p in context.read<ProductProvider>().analyticsProducts)
+        p.id: p,
+    };
+
     final result = await showDialog<(String, Map<int, int>)>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -671,6 +678,43 @@ class SalesOrderDetailScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         for (final i in pending)
+                          if (productsById[order.items[i].productId]
+                              case final product? when product.hasPackUnit)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    order.items[i].productName.isEmpty
+                                        ? order.items[i].productId
+                                        : order.items[i].productName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'of ${product.formatQuantity(order.items[i].remainingToDispatch)} left',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textSec(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  PackQuantityField(
+                                    controller: controllers[i]!,
+                                    unitsPerPack: product.unitsPerPack,
+                                    packUnit: product.packUnit,
+                                    baseUnit: product.baseUnit,
+                                    label: 'Qty',
+                                    dense: true,
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(

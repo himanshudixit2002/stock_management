@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/constants.dart';
 import '../models/product_model.dart';
+import '../models/unit_conversion_rule.dart';
 import '../services/company_settings_writer.dart';
 import '../services/database_service.dart';
 import '../services/stats_cache.dart';
 import '../utils/error_helpers.dart';
+import '../utils/unit_conversion.dart';
 
 class SettingsProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -34,6 +36,11 @@ class SettingsProvider extends ChangeNotifier {
   List<String> _companies = [];
   List<String> _sizes = [];
   List<String> _locations = [];
+
+  /// Unit names offered wherever a unit is picked. [kDefaultUnits] until the
+  /// workspace edits its own list.
+  List<String> _units = List.of(kDefaultUnits);
+  List<UnitConversionRule> _unitConversions = [];
 
   bool get pricingEnabled => _pricingEnabled;
   bool get vendorsEnabled => _vendorsEnabled;
@@ -68,6 +75,9 @@ class SettingsProvider extends ChangeNotifier {
   List<String> get companies => List.unmodifiable(_companies);
   List<String> get sizes => List.unmodifiable(_sizes);
   List<String> get locations => List.unmodifiable(_locations);
+  List<String> get units => List.unmodifiable(_units);
+  List<UnitConversionRule> get unitConversions =>
+      List.unmodifiable(_unitConversions);
 
   DocumentReference get _companyDoc =>
       _firestore.collection('companies').doc(_companyId);
@@ -103,6 +113,8 @@ class SettingsProvider extends ChangeNotifier {
     _companies = [];
     _sizes = [];
     _locations = [];
+    _units = List.of(kDefaultUnits);
+    _unitConversions = [];
     notifyListeners();
   }
 
@@ -125,6 +137,8 @@ class SettingsProvider extends ChangeNotifier {
     _companies = [];
     _sizes = [];
     _locations = [];
+    _units = List.of(kDefaultUnits);
+    _unitConversions = [];
     _errorMessage = null;
     _rawSettings = null;
 
@@ -171,6 +185,10 @@ class SettingsProvider extends ChangeNotifier {
           _companies = _toStringList(settings['companies']);
           _sizes = _toStringList(settings['sizes']);
           _locations = _toStringList(settings['locations']);
+          _units = _unitsFrom(settings['units']);
+          _unitConversions = UnitConversionRule.listFromSettings(
+            settings['unitConversions'],
+          );
         }
       }
     } catch (e) {
@@ -194,6 +212,13 @@ class SettingsProvider extends ChangeNotifier {
   static List<String> _toStringList(dynamic value) {
     if (value is List) return value.map((e) => e.toString()).toList();
     return [];
+  }
+
+  static List<String> _unitsFrom(dynamic value) {
+    final stored = _toStringList(
+      value,
+    ).where((u) => u.trim().isNotEmpty).toList();
+    return stored.isEmpty ? List.of(kDefaultUnits) : stored;
   }
 
   // --- Toggle helpers ---
@@ -357,8 +382,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     try {
       // One write: arrayRemove then arrayUnion were two round-trips, and a
-      // failure between them dropped the company from settings entirely.
-      await _writeSetting('companies', List<String>.from(_companies));
+      // failure between them dropped the company from settings entirely. The
+      // unit conversions naming it ride along, or they would stop matching.
+      final rules = renameBrandInRules(_unitConversions, actual, newTrimmed);
+      await _settingsWriter.writeAll({
+        'companies': List<String>.from(_companies),
+        if (rules != null) 'unitConversions': [for (final r in rules) r.toMap()],
+      });
+      if (rules != null) _unitConversions = rules;
       var page = await _products
           .where('company', isEqualTo: actual)
           .limit(kFirestoreBatchLimit)
@@ -479,8 +510,13 @@ class SettingsProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      // One write — see renameCompany.
-      await _writeSetting('sizes', List<String>.from(_sizes));
+      // One write, conversions included — see renameCompany.
+      final rules = renameSizeInRules(_unitConversions, actual, newTrimmed);
+      await _settingsWriter.writeAll({
+        'sizes': List<String>.from(_sizes),
+        if (rules != null) 'unitConversions': [for (final r in rules) r.toMap()],
+      });
+      if (rules != null) _unitConversions = rules;
       var page = await _products
           .where('size', isEqualTo: actual)
           .limit(kFirestoreBatchLimit)
@@ -534,6 +570,231 @@ class SettingsProvider extends ChangeNotifier {
       }
       _sizes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
       _errorMessage = friendlyError(e, fallback: 'Failed to add sizes.');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // --- Unit list CRUD ---
+
+  /// Writes the whole list rather than arrayUnion/arrayRemove: a workspace
+  /// that never edited its units has no stored list, and a union with nothing
+  /// would store the new unit alone and lose every default.
+  Future<bool> _writeUnits(List<String> previous, String fallback) async {
+    try {
+      await _writeSetting('units', List<String>.from(_units));
+      return true;
+    } catch (e) {
+      _units = previous;
+      _errorMessage = friendlyError(e, fallback: fallback);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> addUnit(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || _units.any((u) => sameLabel(u, trimmed))) {
+      return false;
+    }
+    final previous = List<String>.from(_units);
+    _units = [..._units, trimmed];
+    notifyListeners();
+    return _writeUnits(previous, 'Failed to add unit.');
+  }
+
+  /// Takes a unit off the list offered in pickers. Products and conversions
+  /// already using it keep it: removing a name from a list relabels nothing.
+  Future<bool> removeUnit(String name) async {
+    final idx = _units.indexWhere((u) => sameLabel(u, name));
+    if (idx == -1) return false;
+    final previous = List<String>.from(_units);
+    _units = [..._units]..removeAt(idx);
+    notifyListeners();
+    return _writeUnits(previous, 'Failed to remove unit.');
+  }
+
+  /// Rename a unit everywhere: the list, the conversions and every product
+  /// counted or packed in it.
+  ///
+  /// A rename says the same thing has a new name ("pcs" → "nos"), so no
+  /// quantity moves. Changing what stock is counted in is a conversion, in
+  /// Settings › Unit conversions.
+  Future<bool> renameUnit(String oldName, String newName) async {
+    if (_companyId.isEmpty) return false;
+    final newTrimmed = newName.trim();
+    if (newTrimmed.isEmpty) return false;
+    final idx = _units.indexWhere((u) => sameLabel(u, oldName));
+    if (idx == -1) return false;
+    if (_units.any((u) => sameLabel(u, newTrimmed))) {
+      _errorMessage = 'A unit with that name already exists.';
+      notifyListeners();
+      return false;
+    }
+    final actual = _units[idx];
+    final previous = List<String>.from(_units);
+    _units = [..._units]..[idx] = newTrimmed;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final rules = renameUnitInRules(_unitConversions, actual, newTrimmed);
+      await _settingsWriter.writeAll({
+        'units': List<String>.from(_units),
+        if (rules != null) 'unitConversions': [for (final r in rules) r.toMap()],
+      });
+      if (rules != null) {
+        _unitConversions = rules;
+        notifyListeners();
+      }
+      await _renameProductField(
+        'baseUnit',
+        actual,
+        (_) => {'baseUnit': newTrimmed, 'unit': newTrimmed},
+      );
+      // Older products carry only the legacy `unit`, which baseUnit falls
+      // back to when it is missing.
+      await _renameProductField(
+        'unit',
+        actual,
+        (data) => {
+          'unit': newTrimmed,
+          if (data['baseUnit'] == null) 'baseUnit': newTrimmed,
+        },
+      );
+      await _renameProductField(
+        'packUnit',
+        actual,
+        (_) => {'packUnit': newTrimmed},
+      );
+      return true;
+    } catch (e) {
+      _units = previous;
+      _errorMessage = friendlyError(e, fallback: 'Failed to rename unit.');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Rewrites every product whose [field] is exactly [from], a page at a time.
+  ///
+  /// No cursor, for the reason given in [renameCompany]: each update moves the
+  /// document out of the filter, so re-running the query returns the rest.
+  Future<void> _renameProductField(
+    String field,
+    String from,
+    Map<String, Object?> Function(Map<String, dynamic> data) update,
+  ) async {
+    Future<QuerySnapshot<Map<String, dynamic>>> nextPage() => _products
+        .where(field, isEqualTo: from)
+        .limit(kFirestoreBatchLimit)
+        .get();
+
+    var page = await nextPage();
+    while (page.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in page.docs) {
+        batch.update(doc.reference, update(doc.data()));
+      }
+      await batch.commit();
+      if (page.docs.length < kFirestoreBatchLimit) break;
+      page = await nextPage();
+    }
+  }
+
+  // --- Unit conversion rules ---
+
+  /// Re-reads units and conversions from the company document.
+  ///
+  /// Settings are read once at startup, so another admin's edit since then is
+  /// invisible here. Planning product changes against that stale copy would
+  /// apply a conversion that no longer exists, so the conversions page calls
+  /// this before it plans anything.
+  Future<void> reloadUnitSettings() async {
+    if (_companyId.isEmpty) return;
+    try {
+      final doc = await _companyDoc.get();
+      final data = doc.data() as Map<String, dynamic>?;
+      final settings = data?['settings'] as Map<String, dynamic>? ?? const {};
+      _units = _unitsFrom(settings['units']);
+      _unitConversions = UnitConversionRule.listFromSettings(
+        settings['unitConversions'],
+      );
+      notifyListeners();
+    } catch (_) {
+      // Offline or unreadable: keep the copy from startup rather than blank
+      // the page.
+    }
+  }
+
+  /// Adds [rule], or replaces the rule with its id.
+  ///
+  /// Refuses a rule covering exactly the products another one covers: a
+  /// product would then have two answers, and which one won would depend on
+  /// list order.
+  Future<bool> saveUnitConversion(
+    UnitConversionRule rule, {
+    required String userId,
+    required String userName,
+  }) async {
+    final duplicate = _unitConversions.any(
+      (r) => r.id != rule.id && r.sameScopeAs(rule),
+    );
+    final problem =
+        rule.validationError ??
+        (duplicate
+            ? 'A conversion for exactly these products already exists. '
+                  'Edit that one instead.'
+            : null);
+    if (problem != null) {
+      _errorMessage = problem;
+      notifyListeners();
+      return false;
+    }
+    final stamped = rule.copyWith(
+      updatedAt: DateTime.now(),
+      updatedBy: userId,
+      updatedByName: userName,
+    );
+    final previous = _unitConversions;
+    final idx = previous.indexWhere((r) => r.id == rule.id);
+    final next = List<UnitConversionRule>.from(previous);
+    if (idx == -1) {
+      next.add(stamped);
+    } else {
+      next[idx] = stamped;
+    }
+    return _writeUnitConversions(
+      next,
+      previous,
+      'Failed to save the conversion.',
+    );
+  }
+
+  Future<bool> deleteUnitConversion(String id) async {
+    final previous = _unitConversions;
+    final next = previous.where((r) => r.id != id).toList();
+    if (next.length == previous.length) return false;
+    return _writeUnitConversions(
+      next,
+      previous,
+      'Failed to delete the conversion.',
+    );
+  }
+
+  Future<bool> _writeUnitConversions(
+    List<UnitConversionRule> next,
+    List<UnitConversionRule> previous,
+    String fallback,
+  ) async {
+    _unitConversions = next;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _writeSetting('unitConversions', [for (final r in next) r.toMap()]);
+      return true;
+    } catch (e) {
+      _unitConversions = previous;
+      _errorMessage = friendlyError(e, fallback: fallback);
       notifyListeners();
       return false;
     }

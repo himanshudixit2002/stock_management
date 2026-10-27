@@ -853,10 +853,15 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateProduct(ProductModel product) async {
+  /// Saves an edit. With [original], only the fields changed since it are
+  /// written — see [DatabaseService.updateProduct].
+  Future<bool> updateProduct(
+    ProductModel product, {
+    ProductModel? original,
+  }) async {
     try {
       _errorMessage = null;
-      await _databaseService.updateProduct(product);
+      await _databaseService.updateProduct(product, original: original);
       await refreshProductsByIds([product.id]);
       return true;
     } catch (e) {
@@ -929,6 +934,34 @@ class ProductProvider extends ChangeNotifier {
         productsWithAudit,
         includeStock: includeStock,
       );
+      await refreshProducts();
+      return count;
+    } catch (e) {
+      _errorMessage = friendlyError(e, fallback: 'Failed to update products.');
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Writes only the named fields of each product — see
+  /// [DatabaseService.patchProducts] — stamping who changed them and when.
+  Future<int> patchProducts(
+    Map<String, Map<String, Object?>> patches, {
+    required String userId,
+    required String userName,
+  }) async {
+    _errorMessage = null;
+    try {
+      final now = Timestamp.now();
+      final count = await _databaseService.patchProducts({
+        for (final entry in patches.entries)
+          entry.key: {
+            ...entry.value,
+            'updatedAt': now,
+            'updatedBy': userId,
+            'updatedByName': userName,
+          },
+      });
       await refreshProducts();
       return count;
     } catch (e) {

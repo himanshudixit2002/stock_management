@@ -12,10 +12,15 @@ class StockHoldBatchItem {
   final String productName;
   final int quantity;
 
+  /// The unit [quantity] was typed in, when known. The hold is refused if the
+  /// product has since been converted to count in another one.
+  final String? expectedBaseUnit;
+
   const StockHoldBatchItem({
     required this.productId,
     required this.productName,
     required this.quantity,
+    this.expectedBaseUnit,
   });
 }
 

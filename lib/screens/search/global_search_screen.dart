@@ -657,7 +657,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       threshold: product.lowStockThreshold,
     );
     final baseLine =
-        '${product.categoryName.isNotEmpty ? product.categoryName : "—"} • ${product.quantity} ${product.unit}';
+        '${product.categoryName.isNotEmpty ? product.categoryName : "—"} • ${product.formatQuantity(product.quantity)}';
     final subtitle = item.matchHint != null
         ? '$baseLine · ${item.matchHint}'
         : baseLine;

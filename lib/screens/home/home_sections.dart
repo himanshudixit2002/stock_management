@@ -944,6 +944,10 @@ class _TransactionTile extends StatelessWidget {
         Icons.play_circle_rounded,
         AppTheme.successColor,
       ),
+      TransactionType.unitConversion => (
+        Icons.autorenew_rounded,
+        AppTheme.violetColor,
+      ),
     };
 
     final typeLabel = switch (txn.type) {
@@ -954,6 +958,7 @@ class _TransactionTile extends StatelessWidget {
       TransactionType.adjustment => 'ADJ',
       TransactionType.hold => 'HLD',
       TransactionType.holdRelease => 'REL',
+      TransactionType.unitConversion => 'UNIT',
     };
 
     final now = DateTime.now();
@@ -1041,7 +1046,9 @@ class _TransactionTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '$typeLabel ${txn.quantity}',
+                      txn.type == TransactionType.unitConversion
+                          ? '$typeLabel ${txn.conversionSummary}'
+                          : '$typeLabel ${txn.quantity}',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,

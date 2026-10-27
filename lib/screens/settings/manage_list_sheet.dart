@@ -761,8 +761,9 @@ class ManageListAction {
   static const String companies = 'companies';
   static const String sizes = 'sizes';
   static const String locations = 'locations';
+  static const String units = 'units';
 
-  static const List<String> all = [companies, sizes, locations];
+  static const List<String> all = [companies, sizes, locations, units];
 }
 
 /// Opens the editor named by [action], or does nothing for an unknown one.
@@ -781,6 +782,8 @@ void showManageListAction(BuildContext context, String action) {
       showManageSizesSheet(context);
     case ManageListAction.locations:
       showManageLocationsSheet(context);
+    case ManageListAction.units:
+      showManageUnitsSheet(context);
   }
 }
 
@@ -818,6 +821,18 @@ void showManageLocationsSheet(BuildContext context) => showManageListSheet(
   onRename: (oldName, newName) =>
       _renameThenRefresh(context, (s) => s.renameLocation(oldName, newName)),
   addLabel: 'location',
+);
+
+void showManageUnitsSheet(BuildContext context) => showManageListSheet(
+  context,
+  title: 'Units',
+  icon: Icons.straighten_rounded,
+  getItems: () => context.read<SettingsProvider>().units,
+  onAdd: (name) => context.read<SettingsProvider>().addUnit(name),
+  onRemove: (name) => context.read<SettingsProvider>().removeUnit(name),
+  onRename: (oldName, newName) =>
+      _renameThenRefresh(context, (s) => s.renameUnit(oldName, newName)),
+  addLabel: 'unit',
 );
 
 /// A rename rewrites the value on every matching product, so the in-memory

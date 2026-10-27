@@ -124,6 +124,7 @@ class _StockHoldScreenState extends State<StockHoldScreen> {
           productId: line.product.id,
           productName: line.product.name,
           quantity: qty,
+          expectedBaseUnit: line.product.baseUnit,
         ),
       );
     }
@@ -447,7 +448,7 @@ class _StockHoldScreenState extends State<StockHoldScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Available $available ${product.unit}',
+                          'Available ${product.formatQuantity(available)}',
                           style: TextStyle(
                             fontSize: 12,
                             color: available <= 0

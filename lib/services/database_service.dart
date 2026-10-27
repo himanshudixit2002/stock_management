@@ -37,6 +37,8 @@ import '../models/service_job_model.dart';
 import '../models/job_work_model.dart';
 import 'landed_cost_allocator.dart';
 import 'notification_engine.dart';
+import 'unit_conversion_service.dart' show UnitConversionException;
+import '../utils/unit_conversion.dart' show sameLabel;
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -335,8 +337,81 @@ class DatabaseService {
   /// reserved stock for anyone to sell twice.
   ///
   /// Use [addProduct] to create, where those fields are legitimately being set.
-  Future<void> updateProduct(ProductModel product) async {
-    await _products.doc(product.id).update(product.toEditableMap());
+  ///
+  /// Pass [original] — the copy an edit form opened with — and only the fields
+  /// that differ from it are written. The form's copy can be minutes old, and
+  /// rewriting every field put back whatever another device had changed since;
+  /// after a stock conversion it would put back the old unit and per-pack
+  /// prices over stock now counted in pieces. That case is refused outright.
+  /// A plain read rather than a transaction, so an edit still saves offline.
+  Future<void> updateProduct(
+    ProductModel product, {
+    ProductModel? original,
+  }) async {
+    final ref = _products.doc(product.id);
+    if (original == null) {
+      await ref.update(product.toEditableMap());
+      return;
+    }
+    final stored = (await ref.get()).data();
+    final convertedAt = stored?['unitsConvertedAt'];
+    final storedMillis = convertedAt is Timestamp
+        ? convertedAt.millisecondsSinceEpoch
+        : null;
+    if (storedMillis != original.unitsConvertedAt?.millisecondsSinceEpoch) {
+      throw const UnitConversionException(
+        'This product\'s stock was converted to new units while you were '
+        'editing. Reopen it to see the new units and prices.',
+      );
+    }
+    final before = original.toEditableMap();
+    final changed = <String, Object?>{
+      for (final entry in product.toEditableMap().entries)
+        if (!_sameFieldValue(entry.value, before[entry.key]))
+          entry.key: entry.value,
+    };
+    if (changed.isNotEmpty) await ref.update(changed);
+  }
+
+  static bool _sameFieldValue(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      return a.length == b.length &&
+          a.entries.every(
+            (e) => b.containsKey(e.key) && _sameFieldValue(e.value, b[e.key]),
+          );
+    }
+    return a == b;
+  }
+
+  /// Writes each map in [patches] to the product with that id, and nothing
+  /// else, [kFirestoreBatchLimit] at a time.
+  ///
+  /// For bulk edits, which know exactly which fields they change. Writing a
+  /// whole model ([bulkUpdateProducts]) from a cache that can be minutes old
+  /// put back every other field as the cache had it.
+  Future<int> patchProducts(Map<String, Map<String, Object?>> patches) async {
+    _ensureCompanyId();
+    var batch = _firestore.batch();
+    int count = 0;
+    int committed = 0;
+
+    for (final entry in patches.entries) {
+      if (entry.key.isEmpty || entry.value.isEmpty) continue;
+      batch.update(_products.doc(entry.key), entry.value);
+      count++;
+
+      if (count % kFirestoreBatchLimit == 0) {
+        await _commitBulkBatch(batch, committed, patches.length);
+        committed = count;
+        batch = _firestore.batch();
+      }
+    }
+
+    if (count % kFirestoreBatchLimit != 0) {
+      await _commitBulkBatch(batch, committed, patches.length);
+      committed = count;
+    }
+    return committed;
   }
 
   Future<void> deleteProduct(String productId) async {
@@ -430,7 +505,12 @@ class DatabaseService {
       final docRef = _products.doc(product.id);
       batch.update(
         docRef,
-        includeStock ? product.toMap() : product.toEditableMap(),
+        // Never the conversion date, even with stock: a sheet merged from a
+        // copy made before a conversion would otherwise erase it, and with it
+        // the guards on reversing older documents.
+        includeStock
+            ? (product.toMap()..remove('unitsConvertedAt'))
+            : product.toEditableMap(),
       );
       count++;
 
@@ -450,6 +530,59 @@ class DatabaseService {
 
   // ==================== STOCK TRANSACTIONS ====================
 
+  /// Refuses a stock write whose quantity was worked out in a unit the product
+  /// no longer counts in.
+  ///
+  /// [expectedBaseUnit] is the unit a screen showed when the quantity was
+  /// typed: if the product was converted from "box" to "pcs" in between, "5"
+  /// meant five boxes and would be recorded as five pieces. [documentDate]
+  /// dates a document whose stored quantities are being put back, which are
+  /// in the old unit if the product was converted after it.
+  static void _assertUnitsUnchanged(
+    Map<String, dynamic>? data, {
+    String? expectedBaseUnit,
+    DateTime? documentDate,
+  }) {
+    if (data == null) return;
+    final countedIn = safeString(
+      data['baseUnit'],
+      safeString(data['unit'], 'pcs'),
+    );
+    if (expectedBaseUnit != null && !sameLabel(countedIn, expectedBaseUnit)) {
+      throw UnitConversionException(
+        '${safeString(data['name'], 'This product')} is now counted in '
+        '$countedIn, not $expectedBaseUnit. Check the quantity and try again.',
+      );
+    }
+    final convertedAt = data['unitsConvertedAt'];
+    if (documentDate != null &&
+        convertedAt is Timestamp &&
+        documentDate.isBefore(convertedAt.toDate())) {
+      throw UnitConversionException.convertedSince([
+        safeString(data['name'], 'This product'),
+      ]);
+    }
+  }
+
+  /// Names of the products in [productIds] whose stock was re-counted in a new
+  /// unit after [documentDate], so that document holds their quantities in a
+  /// unit they no longer use. Checked before a document's stock is put back.
+  Future<List<String>> productsConvertedSince(
+    Iterable<String> productIds,
+    DateTime documentDate,
+  ) async {
+    final names = <String>[];
+    for (final id in productIds.where((id) => id.isNotEmpty).toSet()) {
+      final data = (await _products.doc(id).get()).data();
+      final convertedAt = data?['unitsConvertedAt'];
+      if (convertedAt is Timestamp &&
+          documentDate.isBefore(convertedAt.toDate())) {
+        names.add(safeString(data!['name'], id));
+      }
+    }
+    return names;
+  }
+
   Future<void> addStock({
     required String productId,
     required String productName,
@@ -460,6 +593,8 @@ class DatabaseService {
     String reason = '',
     String vendorId = '',
     String vendorName = '',
+    String? expectedBaseUnit,
+    DateTime? documentDate,
   }) async {
     if (quantity <= 0) throw ArgumentError('quantity must be > 0');
     location = location.trim();
@@ -482,6 +617,11 @@ class DatabaseService {
       final productRef = _products.doc(productId);
       final snapshot = await txn.get(productRef);
       if (!snapshot.exists) throw Exception('Product not found');
+      _assertUnitsUnchanged(
+        snapshot.data(),
+        expectedBaseUnit: expectedBaseUnit,
+        documentDate: documentDate,
+      );
 
       final txnRef = _transactions.doc();
       txn.set(txnRef, stockTransaction.toMap());
@@ -539,6 +679,8 @@ class DatabaseService {
     String reason = '',
     String vendorId = '',
     String vendorName = '',
+    String? expectedBaseUnit,
+    DateTime? documentDate,
   }) async {
     // Matches addStock. Without it a negative quantity sailed through: the
     // availability check below reads `availableLocQty < quantity`, which is
@@ -553,6 +695,11 @@ class DatabaseService {
       final snapshot = await txn.get(docRef);
 
       if (!snapshot.exists) throw Exception('Product not found');
+      _assertUnitsUnchanged(
+        snapshot.data(),
+        expectedBaseUnit: expectedBaseUnit,
+        documentDate: documentDate,
+      );
 
       final data = snapshot.data()!;
       final allLocQty = _toIntMap(
@@ -858,6 +1005,12 @@ class DatabaseService {
         }
         productRefs[productId] = ref;
         productData[productId] = snap.data()!;
+      }
+      for (final item in filtered) {
+        _assertUnitsUnchanged(
+          productData[item.productId],
+          expectedBaseUnit: item.expectedBaseUnit,
+        );
       }
 
       // Validate availability per product against total reservation.
@@ -1870,6 +2023,8 @@ class DatabaseService {
     required String userId,
     required String userName,
     required String reason,
+    String? expectedBaseUnit,
+    DateTime? documentDate,
   }) async {
     location = location.trim();
     await _firestore.runTransaction((txn) async {
@@ -1877,6 +2032,11 @@ class DatabaseService {
       final snapshot = await txn.get(docRef);
 
       if (!snapshot.exists) throw Exception('Product not found');
+      _assertUnitsUnchanged(
+        snapshot.data(),
+        expectedBaseUnit: expectedBaseUnit,
+        documentDate: documentDate,
+      );
 
       final data = snapshot.data()!;
       final locQty =
@@ -1954,6 +2114,8 @@ class DatabaseService {
     required String userId,
     required String userName,
     String reason = '',
+    String? expectedBaseUnit,
+    DateTime? documentDate,
   }) async {
     // A negative quantity would increase the source (`locQty - (-5)`) and drive
     // the destination negative, while writing a transfer row that says the
@@ -1972,6 +2134,11 @@ class DatabaseService {
       final snapshot = await txn.get(docRef);
 
       if (!snapshot.exists) throw Exception('Product not found');
+      _assertUnitsUnchanged(
+        snapshot.data(),
+        expectedBaseUnit: expectedBaseUnit,
+        documentDate: documentDate,
+      );
 
       final data = snapshot.data()!;
       final locQty =
@@ -2062,6 +2229,8 @@ class DatabaseService {
     required String userId,
     required String userName,
     String reason = '',
+    String? expectedBaseUnit,
+    DateTime? documentDate,
   }) async {
     assert(
       (adjustmentDelta == null) != (countedQuantity == null),
@@ -2077,6 +2246,11 @@ class DatabaseService {
       final snapshot = await txn.get(docRef);
 
       if (!snapshot.exists) throw Exception('Product not found');
+      _assertUnitsUnchanged(
+        snapshot.data(),
+        expectedBaseUnit: expectedBaseUnit,
+        documentDate: documentDate,
+      );
 
       final data = snapshot.data()!;
       final locMap = Map<String, dynamic>.from(
@@ -2200,6 +2374,17 @@ class DatabaseService {
         // An adjustment's stored quantity is an absolute value, so its
         // direction cannot be recovered from the ledger row alone. Correcting
         // one by moving it would have to guess the sign, so refuse instead.
+        // A conversion is not a movement anywhere, and a row from before one
+        // is in a unit the product no longer counts in.
+        if (typeStr == 'unit_conversion') {
+          throw const UnitConversionException(
+            'A unit conversion has no location to change.',
+          );
+        }
+        _assertUnitsUnchanged(
+          productData,
+          documentDate: safeTimestamp(txData['date']),
+        );
         if (typeStr == 'adjustment') {
           throw Exception('Cannot update location for an adjustment.');
         }
@@ -2339,6 +2524,9 @@ class DatabaseService {
         break;
       case TransactionType.holdRelease:
         typeStr = 'hold_release';
+        break;
+      case TransactionType.unitConversion:
+        typeStr = 'unit_conversion';
         break;
     }
 

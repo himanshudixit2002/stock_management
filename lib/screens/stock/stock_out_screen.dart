@@ -11,6 +11,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/unit_conversion.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -108,7 +109,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
       context,
       title: 'Confirm Stock Out',
       message:
-          'Remove $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" from $_selectedLocation?\n\n'
+          'Remove ${_selectedProduct?.formatQuantity(qty) ?? "$qty pcs"} of "${_selectedProduct?.name}" from $_selectedLocation?\n\n'
           'This action cannot be undone.',
       confirmLabel: 'Confirm',
       icon: Icons.outbox_rounded,
@@ -191,6 +192,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
       );
     } else {
       success = await stockProvider.removeStock(
+        expectedBaseUnit: _selectedProduct!.baseUnit,
         productId: _selectedProduct!.id,
         productName: _selectedProduct!.name,
         quantity: qty,
@@ -369,6 +371,21 @@ class _StockOutScreenState extends State<StockOutScreen> {
     });
   }
 
+  /// The product was converted to count in another unit while this form was
+  /// open, so a quantity typed against the old unit no longer means what it
+  /// did. Clear it rather than save it in the new one.
+  void _unitsChanged(ProductModel fresh) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _quantityController.clear();
+      showInfoSnackBar(
+        context,
+        '${fresh.name} is now counted in ${fresh.baseUnit}. '
+        'Enter the quantity again.',
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PermissionGate(
@@ -404,6 +421,9 @@ class _StockOutScreenState extends State<StockOutScreen> {
         orElse: () => null,
       );
       if (fresh != null && fresh != _selectedProduct) {
+        if (!sameLabel(fresh.baseUnit, _selectedProduct!.baseUnit)) {
+          _unitsChanged(fresh);
+        }
         _selectedProduct = fresh;
       }
     }
@@ -544,8 +564,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                           placeholder: 'Tap to select a product',
                           detail: _selectedProduct == null
                               ? null
-                              : '${_selectedProduct!.availableQuantity} '
-                                    '${_selectedProduct!.baseUnit} available',
+                              : '${_selectedProduct!.formatQuantity(_selectedProduct!.availableQuantity)} '
+                                    'available',
                           errorText: _submitted && _selectedProduct == null
                               ? 'Choose the product being removed'
                               : null,
@@ -652,7 +672,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                     ),
                                     const Spacer(),
                                     Text(
-                                      'On Hand: ${_selectedProduct!.quantity} ${_selectedProduct!.unit} • Available: ${_selectedProduct!.availableQuantity}',
+                                      'On Hand: ${_selectedProduct!.formatQuantity(_selectedProduct!.quantity)} • Available: ${_selectedProduct!.formatQuantity(_selectedProduct!.availableQuantity)}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -685,8 +705,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                           ),
                                         ),
                                         Text(
-                                          '${e.value} ${_selectedProduct!.unit}'
-                                          '${(_selectedProduct!.heldLocationQuantities[e.key] ?? 0) > 0 ? ' (${_selectedProduct!.availableAtLocation(e.key)} available)' : ''}',
+                                          '${_selectedProduct!.formatQuantity(e.value)}'
+                                          '${(_selectedProduct!.heldLocationQuantities[e.key] ?? 0) > 0 ? ' (${_selectedProduct!.formatQuantity(_selectedProduct!.availableAtLocation(e.key))} available)' : ''}',
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
@@ -738,8 +758,8 @@ class _StockOutScreenState extends State<StockOutScreen> {
                                       value: loc,
                                       label: loc,
                                       subtitle: holdMode
-                                          ? '$onHand on hand ${_selectedProduct!.unit}'
-                                          : '$available available • $onHand on hand ${_selectedProduct!.unit}',
+                                          ? '${_selectedProduct!.formatQuantity(onHand)} on hand'
+                                          : '${_selectedProduct!.formatQuantity(available)} available • ${_selectedProduct!.formatQuantity(onHand)} on hand',
                                       icon: Icons.location_on_rounded,
                                       iconColor: AppTheme.primaryColor,
                                     );
@@ -822,7 +842,7 @@ class _StockOutScreenState extends State<StockOutScreen> {
                             child: Text(
                               _fromHold != null
                                   ? 'Despatching up to $_maxQty of ${_fromHold!.remainingQuantity} held from $_selectedLocation'
-                                  : 'Available at $_selectedLocation: $_availableAtLocation ${_selectedProduct?.unit ?? "pcs"}',
+                                  : 'Available at $_selectedLocation: ${_selectedProduct?.formatQuantity(_availableAtLocation) ?? "$_availableAtLocation pcs"}',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: AppTheme.textSec(context),

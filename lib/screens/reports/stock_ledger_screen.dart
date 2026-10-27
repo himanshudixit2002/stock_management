@@ -168,6 +168,15 @@ class _Ledger extends StatelessWidget {
         final opening = rows.isEmpty
             ? current.quantity
             : rows.first.balanceAfter - (rows.first.effect ?? 0);
+        // Rows before a unit conversion are counted in the unit it converted
+        // from, the opening balance included.
+        final openingUnit =
+            rows
+                .map((r) => r.transaction)
+                .where((t) => t.type == TransactionType.unitConversion)
+                .firstOrNull
+                ?.fromUnit ??
+            current.baseUnit;
 
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -178,7 +187,7 @@ class _Ledger extends StatelessWidget {
               return _BalanceCard(
                 label: 'Opening balance',
                 value: opening,
-                unit: current.baseUnit,
+                unit: openingUnit,
                 incomplete: incomplete,
               );
             }
@@ -276,7 +285,10 @@ class _LedgerRowTile extends StatelessWidget {
         : (effect > 0
               ? AppTheme.successColor
               : (effect < 0 ? AppTheme.dangerColor : AppTheme.textSec(context)));
-    final effectLabel = effect == null
+    final conversion = row.transaction.conversionSummary;
+    final effectLabel = conversion.isNotEmpty
+        ? '×${row.transaction.factor}'
+        : effect == null
         ? '?'
         : (effect > 0 ? '+$effect' : '$effect');
 
@@ -307,7 +319,12 @@ class _LedgerRowTile extends StatelessWidget {
                   ].join(' • '),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                if (row.transaction.reason.isNotEmpty)
+                if (conversion.isNotEmpty)
+                  Text(
+                    '$conversion (${row.transaction.reason})',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  )
+                else if (row.transaction.reason.isNotEmpty)
                   Text(
                     row.transaction.reason,
                     style: Theme.of(context).textTheme.bodySmall,

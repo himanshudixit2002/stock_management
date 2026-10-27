@@ -19,6 +19,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/entity_picker_field.dart';
 import '../../widgets/form_section.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/permission_gate.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/searchable_picker.dart';
@@ -524,6 +525,14 @@ class _QuotationLineEditorState extends State<_QuotationLineEditor> {
 
   @override
   Widget build(BuildContext context) {
+    // Quoted by the box when the product comes in boxes; the line still holds
+    // pieces, which is what the price is per.
+    final product = context
+        .watch<ProductProvider>()
+        .analyticsProducts
+        .where((p) => p.id == widget.line.productId)
+        .firstOrNull;
+    final packed = product != null && product.hasPackUnit;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassPanel(
@@ -558,25 +567,43 @@ class _QuotationLineEditorState extends State<_QuotationLineEditor> {
                 ),
               ],
             ),
+            if (packed)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 8),
+                child: PackQuantityField(
+                  controller: _quantity,
+                  unitsPerPack: product.unitsPerPack,
+                  packUnit: product.packUnit,
+                  baseUnit: product.baseUnit,
+                  label: 'Qty',
+                  dense: true,
+                  onChanged: (total) =>
+                      widget.onChanged(widget.line.copyWith(quantity: total)),
+                ),
+              ),
             Row(
               children: [
-                SizedBox(
-                  width: 74,
-                  child: TextField(
-                    controller: _quantity,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    textAlign: TextAlign.center,
-                    decoration: const InputDecoration(
-                      labelText: 'Qty',
-                      isDense: true,
-                    ),
-                    onChanged: (value) => widget.onChanged(
-                      widget.line.copyWith(quantity: int.tryParse(value) ?? 0),
+                if (!packed) ...[
+                  SizedBox(
+                    width: 74,
+                    child: TextField(
+                      controller: _quantity,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                        labelText: 'Qty',
+                        isDense: true,
+                      ),
+                      onChanged: (value) => widget.onChanged(
+                        widget.line.copyWith(
+                          quantity: int.tryParse(value) ?? 0,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: TextField(
                     controller: _price,

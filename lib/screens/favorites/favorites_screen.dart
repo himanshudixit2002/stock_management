@@ -130,7 +130,7 @@ class _FavoriteProductCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  '$stockLabel • ${product.quantity} ${product.unit}',
+                  '$stockLabel • ${product.formatQuantity(product.quantity)}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

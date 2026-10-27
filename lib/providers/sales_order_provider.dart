@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/sales_order_model.dart';
 import '../utils/error_helpers.dart';
 import '../services/database_service.dart';
+import '../services/unit_conversion_service.dart'
+    show UnitConversionException;
 
 class SalesOrderProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -398,6 +400,18 @@ class SalesOrderProvider extends ChangeNotifier {
     }
 
     try {
+      // Dispatched lines are in the units the products had when it was raised.
+      if (order.status == SOStatus.dispatched ||
+          order.status == SOStatus.delivered) {
+        final converted = await _databaseService.productsConvertedSince(
+          order.items.map((i) => i.productId),
+          order.createdAt,
+        );
+        if (converted.isNotEmpty) {
+          throw UnitConversionException.convertedSince(converted);
+        }
+      }
+
       // Reverse stock if order was dispatched or delivered.
       //
       // Each line is zeroed as its stock goes back, so a failure partway leaves
@@ -423,6 +437,7 @@ class SalesOrderProvider extends ChangeNotifier {
             userId: userId,
             userName: userName,
             reason: 'Cancelled SO #${order.id.substring(0, 6)}',
+            documentDate: order.createdAt,
           );
 
           final lines = List.of(working.items);

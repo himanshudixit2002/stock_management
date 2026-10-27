@@ -111,6 +111,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
         : _reasonCtrl.text.trim();
 
     final success = await stockProvider.recordAdjustment(
+      expectedBaseUnit: _selectedProduct!.baseUnit,
       productId: _selectedProduct!.id,
       productName: _selectedProduct!.name,
       // The counted figure, not the delta this screen computed from a cached
@@ -133,7 +134,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
         showSuccessOverlay(
           context,
           message:
-              'Counted $_actualQuantity ${_selectedProduct?.unit ?? 'units'} '
+              'Counted ${_selectedProduct?.formatQuantity(_actualQuantity) ?? '$_actualQuantity units'} '
               'at $_selectedLocation',
         );
       }
@@ -155,7 +156,26 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
     setState(() {
       _selectedProduct = p;
       _selectedLocation = null;
+      // Both boxes: a packs figure left from the last product still counted
+      // (hidden, ×1) when the new one has no pack.
+      _actualPackCtrl.clear();
       _actualCountCtrl.clear();
+    });
+  }
+
+  /// The product was converted to count in another unit while this form was
+  /// open, so a count typed against the old unit no longer means what it did.
+  /// Clear it rather than save it in the new one.
+  void _unitsChanged(ProductModel fresh) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _actualPackCtrl.clear();
+      _actualCountCtrl.clear();
+      showInfoSnackBar(
+        context,
+        '${fresh.name} is now counted in ${fresh.baseUnit}. '
+        'Enter the count again.',
+      );
     });
   }
 
@@ -199,6 +219,9 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
           .where((p) => p.id == _selectedProduct!.id)
           .firstOrNull;
       if (fresh != null) {
+        if (!sameLabel(fresh.baseUnit, _selectedProduct!.baseUnit)) {
+          _unitsChanged(fresh);
+        }
         _selectedProduct = fresh;
       } else {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -357,7 +380,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                                 value: l,
                                                 label: l,
                                                 subtitle: qty != null
-                                                    ? '$qty ${_selectedProduct!.unit}'
+                                                    ? _selectedProduct!.formatQuantity(qty)
                                                     : null,
                                                 icon: Icons.place_rounded,
                                                 iconColor:
@@ -368,6 +391,7 @@ class _StockAdjustmentScreenState extends State<StockAdjustmentScreen> {
                                           if (result != null) {
                                             setState(() {
                                               _selectedLocation = result;
+                                              _actualPackCtrl.clear();
                                               _actualCountCtrl.clear();
                                             });
                                             field.didChange(result);
@@ -714,7 +738,7 @@ class _StockSummary extends StatelessWidget {
                     child: Text(e.key, style: const TextStyle(fontSize: 13)),
                   ),
                   Text(
-                    '${e.value} ${product.unit}',
+                    product.formatQuantity(e.value),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -745,7 +769,7 @@ class _StockSummary extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${product.quantity} ${product.unit}',
+                  product.formatQuantity(product.quantity),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

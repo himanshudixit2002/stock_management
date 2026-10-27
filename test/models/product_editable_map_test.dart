@@ -77,6 +77,18 @@ void main() {
     expect(map['lowStockThreshold'], 25, reason: 'the intended edit still lands');
   });
 
+  test('an edit cannot erase when the units were converted', () {
+    // A form opened before a conversion holds a null here; writing it back
+    // would switch off the guards on reversing older documents.
+    final converted = product().copyWith(
+      unitsConvertedAt: DateTime(2026, 3, 1),
+      customConversion: true,
+    );
+    final map = converted.toEditableMap();
+    expect(map.containsKey('unitsConvertedAt'), isFalse);
+    expect(map['customConversion'], isTrue, reason: 'the form owns this one');
+  });
+
   test('createdAt and createdBy are not rewritten by an edit', () {
     final map = product().toEditableMap();
     expect(map.containsKey('createdAt'), isFalse);

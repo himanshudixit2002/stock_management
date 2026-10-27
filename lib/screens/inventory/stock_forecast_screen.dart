@@ -117,6 +117,9 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
       final delta = switch (t.type) {
         TransactionType.stockIn || TransactionType.adjustment => t.quantity,
         TransactionType.stockOut || TransactionType.damage => -t.quantity,
+        // The jump from re-counting in a smaller unit; unwinding it keeps the
+        // earlier days on the same scale as today's quantity.
+        TransactionType.unitConversion => t.quantityDelta ?? 0,
         TransactionType.transfer ||
         TransactionType.hold ||
         TransactionType.holdRelease => 0,
@@ -408,7 +411,7 @@ class _StockForecastScreenState extends State<StockForecastScreen> {
                                       dense: true,
                                       title: Text(p.name),
                                       subtitle: Text(
-                                        'Qty: ${p.quantity} ${p.unit}',
+                                        'Qty: ${p.formatQuantity(p.quantity)}',
                                       ),
                                       onTap: () => setState(() {
                                         _selectedProduct = p;

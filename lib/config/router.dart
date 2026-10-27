@@ -74,6 +74,8 @@ import '../screens/settings/settings_features_screen.dart'
     deferred as settings_features;
 import '../screens/settings/settings_catalog_screen.dart'
     deferred as settings_catalog_scr;
+import '../screens/settings/unit_conversions_screen.dart'
+    deferred as unit_conversions;
 import '../screens/settings/settings_leaf_page.dart' deferred as settings_leaf;
 import '../screens/notifications/notification_settings_screen.dart'
     deferred as notification_settings;
@@ -728,6 +730,13 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings, BuildContext context) {
         builder: (_) => settings_catalog_scr.SettingsCatalogScreen(
           focusId: settings.arguments as String?,
         ),
+      ),
+    ),
+    AppRoutes.unitConversions => _slideRoute(
+      settings,
+      DeferredScreenLoader(
+        future: unit_conversions.loadLibrary(),
+        builder: (_) => unit_conversions.UnitConversionsScreen(),
       ),
     ),
     AppRoutes.settingsTeam => _slideRoute(

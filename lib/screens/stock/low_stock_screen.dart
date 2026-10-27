@@ -177,7 +177,7 @@ class _LowStockTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          '${product.quantity} / ${product.lowStockThreshold} ${product.unit}',
+                          '${product.formatQuantity(product.quantity)} / ${product.formatQuantity(product.lowStockThreshold)}',
                           style: TextStyle(
                             color: color,
                             fontWeight: FontWeight.w600,

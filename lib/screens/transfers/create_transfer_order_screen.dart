@@ -14,6 +14,7 @@ import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/form_section.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/permission_gate.dart';
 import '../../widgets/product_picker.dart';
 
@@ -408,12 +409,21 @@ class _LineEditorState extends State<_LineEditor> {
   Widget build(BuildContext context) {
     final available = widget.available;
     final over = available != null && widget.line.quantity > available;
+    // Moved by the box when the product comes in boxes; the line holds pieces.
+    final product = context
+        .watch<ProductProvider>()
+        .analyticsProducts
+        .where((p) => p.id == widget.line.productId)
+        .firstOrNull;
+    final packed = product != null && product.hasPackUnit;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassPanel(
         padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        child: Row(
+        child: Column(
+          children: [
+        Row(
           children: [
             Expanded(
               child: Column(
@@ -431,7 +441,8 @@ class _LineEditorState extends State<_LineEditor> {
                   Text(
                     available == null
                         ? 'Availability unknown'
-                        : '$available available at source',
+                        : '${product?.formatQuantity(available) ?? available} '
+                              'available at source',
                     style: TextStyle(
                       fontSize: 11.5,
                       color: over
@@ -442,6 +453,7 @@ class _LineEditorState extends State<_LineEditor> {
                 ],
               ),
             ),
+            if (!packed)
             SizedBox(
               width: 88,
               child: TextField(
@@ -463,6 +475,22 @@ class _LineEditorState extends State<_LineEditor> {
               icon: const Icon(Icons.close_rounded, size: 18),
               tooltip: 'Remove',
             ),
+          ],
+        ),
+            if (packed)
+              Padding(
+                padding: const EdgeInsets.only(right: 8, top: 6),
+                child: PackQuantityField(
+                  controller: _quantity,
+                  unitsPerPack: product.unitsPerPack,
+                  packUnit: product.packUnit,
+                  baseUnit: product.baseUnit,
+                  label: 'Qty',
+                  dense: true,
+                  onChanged: (total) =>
+                      widget.onChanged(widget.line.copyWith(quantity: total)),
+                ),
+              ),
           ],
         ),
       ),

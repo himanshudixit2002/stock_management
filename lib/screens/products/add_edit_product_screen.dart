@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/product_model.dart';
 import '../../models/category_model.dart';
+import '../../models/unit_conversion_rule.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -24,6 +25,8 @@ import '../../widgets/searchable_picker.dart';
 import '../../config/permissions.dart';
 import '../../widgets/permission_gate.dart';
 import '../../config/app_navigation.dart';
+import '../../services/unit_conversion_planner.dart';
+import '../../utils/unit_conversion.dart';
 
 class AddEditProductScreen extends StatefulWidget {
   final ProductModel? product;
@@ -57,6 +60,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   String _selectedPackUnit = 'box';
   String? _selectedVendorId;
   String? _selectedVendorName;
+
+  /// Whether the product follows the conversion from Settings › Unit
+  /// conversions that covers it. Off is a conversion set by hand, which those
+  /// rules then leave alone.
+  bool _useRule = true;
   bool _isLoading = false;
   CategoryModel? _pendingNewCategory;
 
@@ -83,7 +91,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
           _lowStockController.text.trim() != p.lowStockThreshold.toString() ||
           _costPriceController.text.trim() != origCost ||
           _sellingPriceController.text.trim() != origSelling ||
-          _selectedVendorId != origVendor;
+          _selectedVendorId != origVendor ||
+          _useRule == p.customConversion;
     }
     return _nameController.text.trim().isNotEmpty ||
         _barcodeController.text.trim().isNotEmpty ||
@@ -107,18 +116,43 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     }
   }
 
-  final List<String> _units = [
-    'pcs',
-    'kg',
-    'ltr',
-    'box',
-    'pack',
-    'dozen',
-    'meter',
-    'set',
-    'sqft',
-    'bundle',
-  ];
+  /// The conversion from Settings covering the product as the form has it now.
+  UnitConversionRule? _ruleFor(SettingsProvider settings) =>
+      resolveUnitConversion(
+        settings.unitConversions,
+        categoryId: _selectedCategoryId ?? '',
+        company: _selectedCompany ?? '',
+        size: _selectedSize ?? '',
+      );
+
+  /// How [rule] fits this product. A new one has no stock yet, so it simply
+  /// takes the rule's units. An existing one keeps the unit its stock is
+  /// counted in; only a conversion in Settings re-counts it.
+  UnitChangeKind _fitOf(UnitConversionRule rule) {
+    if (!isEditing) return UnitChangeKind.repack;
+    final countedIn = widget.product!.baseUnit;
+    if (sameLabel(countedIn, rule.baseUnit)) return UnitChangeKind.repack;
+    if (sameLabel(countedIn, rule.packUnit)) return UnitChangeKind.convertStock;
+    return UnitChangeKind.unitMismatch;
+  }
+
+  /// Stock already counted in the base unit would be re-labelled, not
+  /// re-counted, by changing it here — "50 box" silently becoming "50 pcs".
+  /// Renaming a unit and converting stock both live in Settings instead.
+  bool get _baseUnitLocked =>
+      isEditing &&
+      (widget.product!.quantity > 0 || widget.product!.heldQuantity > 0);
+
+  bool _showsRuleUnits(UnitConversionRule rule) =>
+      sameLabel(_selectedBaseUnit, rule.baseUnit) &&
+      sameLabel(_selectedPackUnit, rule.packUnit) &&
+      _unitsPerPackController.text.trim() == '${rule.unitsPerPack}';
+
+  void _takeRuleUnits(UnitConversionRule rule) {
+    if (!isEditing) _selectedBaseUnit = rule.baseUnit;
+    _selectedPackUnit = rule.packUnit;
+    _unitsPerPackController.text = '${rule.unitsPerPack}';
+  }
 
   @override
   void initState() {
@@ -145,6 +179,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       _selectedVendorName = p.preferredVendorName.isEmpty
           ? null
           : p.preferredVendorName;
+      _useRule = !p.customConversion;
     } else {
       _lowStockController.text = '10';
       _barcodeController.text = _generateBarcode();
@@ -417,6 +452,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     }
 
     final categoryProvider = context.read<CategoryProvider>();
+    final rule = _ruleFor(context.read<SettingsProvider>());
+    final ruleFits =
+        rule != null && _fitOf(rule) != UnitChangeKind.unitMismatch;
     final category =
         categoryProvider.getCategoryById(_selectedCategoryId!) ??
         (_pendingNewCategory?.id == _selectedCategoryId
@@ -463,6 +501,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       lastVendorName: isEditing ? widget.product!.lastVendorName : '',
       vendorPrices: isEditing ? widget.product!.vendorPrices : const {},
       barcode: _barcodeController.text.trim(),
+      customConversion: ruleFits
+          ? !_useRule
+          : widget.product?.customConversion ?? false,
+      unitsConvertedAt: isEditing ? widget.product!.unitsConvertedAt : null,
     );
 
     final productProvider = context.read<ProductProvider>();
@@ -478,7 +520,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
     bool success;
     if (isEditing) {
-      success = await productProvider.updateProduct(product);
+      success = await productProvider.updateProduct(
+        product,
+        original: widget.product,
+      );
     } else {
       success = await productProvider.addProduct(product);
     }
@@ -507,6 +552,23 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   Widget build(BuildContext context) {
     final categoryProvider = context.watch<CategoryProvider>();
     final settingsProvider = context.watch<SettingsProvider>();
+    final rule = _ruleFor(settingsProvider);
+    final ruleFit = rule == null ? null : _fitOf(rule);
+    final ruleLocksUnits =
+        rule != null && _useRule && ruleFit == UnitChangeKind.repack;
+    if (ruleLocksUnits && !_showsRuleUnits(rule)) {
+      // After the category, brand or sub-category changed. A frame late so the
+      // controller is never written mid-build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _takeRuleUnits(rule));
+      });
+    }
+    // Exact matches only: a dropdown asserts when its value is not one of its
+    // items, and a product imported as "Box" would otherwise crash the form.
+    final unitOptions = <String>[...settingsProvider.units];
+    for (final current in [_selectedBaseUnit, _selectedPackUnit]) {
+      if (!unitOptions.contains(current)) unitOptions.add(current);
+    }
     final requiredPerm = isEditing
         ? AppPermissions.editProducts
         : AppPermissions.addProducts;
@@ -939,6 +1001,21 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (rule != null && ruleFit != null)
+                                _ConversionRuleTile(
+                                  rule: rule,
+                                  fit: ruleFit,
+                                  useRule: _useRule,
+                                  countedIn: isEditing
+                                      ? widget.product!.baseUnit
+                                      : _selectedBaseUnit,
+                                  onChanged: (value) =>
+                                      setState(() => _useRule = value),
+                                  onOpenSettings: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.unitConversions,
+                                  ),
+                                ),
                               Row(
                                 children: [
                                   Expanded(
@@ -947,24 +1024,39 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         bottom: 16,
                                       ),
                                       child: DropdownButtonFormField<String>(
+                                        // Keyed on the value: initialValue is
+                                        // read once, and a conversion from
+                                        // Settings changes it from outside.
+                                        key: ValueKey(
+                                          'baseUnit-$_selectedBaseUnit',
+                                        ),
                                         initialValue: _selectedBaseUnit,
-                                        decoration: const InputDecoration(
+                                        decoration: InputDecoration(
                                           labelText: 'Base Unit',
-                                          prefixIcon: Icon(
+                                          prefixIcon: const Icon(
                                             Icons.straighten_rounded,
                                           ),
+                                          helperText: _baseUnitLocked
+                                              ? 'Holds stock: rename or '
+                                                    'convert it in Settings'
+                                              : null,
+                                          helperMaxLines: 2,
                                         ),
-                                        items: _units.map((unit) {
+                                        items: unitOptions.map((unit) {
                                           return DropdownMenuItem(
                                             value: unit,
                                             child: Text(unit),
                                           );
                                         }).toList(),
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedBaseUnit = value ?? 'pcs';
-                                          });
-                                        },
+                                        onChanged:
+                                            _baseUnitLocked || ruleLocksUnits
+                                            ? null
+                                            : (value) {
+                                                setState(() {
+                                                  _selectedBaseUnit =
+                                                      value ?? 'pcs';
+                                                });
+                                              },
                                       ),
                                     ),
                                   ),
@@ -975,6 +1067,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                         bottom: 16,
                                       ),
                                       child: DropdownButtonFormField<String>(
+                                        key: ValueKey(
+                                          'packUnit-$_selectedPackUnit',
+                                        ),
                                         initialValue: _selectedPackUnit,
                                         decoration: const InputDecoration(
                                           labelText: 'Pack Unit',
@@ -982,17 +1077,20 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                             Icons.inventory_rounded,
                                           ),
                                         ),
-                                        items: _units.map((unit) {
+                                        items: unitOptions.map((unit) {
                                           return DropdownMenuItem(
                                             value: unit,
                                             child: Text(unit),
                                           );
                                         }).toList(),
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _selectedPackUnit = value ?? 'box';
-                                          });
-                                        },
+                                        onChanged: ruleLocksUnits
+                                            ? null
+                                            : (value) {
+                                                setState(() {
+                                                  _selectedPackUnit =
+                                                      value ?? 'box';
+                                                });
+                                              },
                                       ),
                                     ),
                                   ),
@@ -1005,7 +1103,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                                       controller: _unitsPerPackController,
                                       label: 'Units per Pack',
                                       hint: 'e.g., 10',
-                                      helperText: '1 box = N base units',
+                                      enabled: !ruleLocksUnits,
+                                      helperText:
+                                          '1 $_selectedPackUnit = N '
+                                          '$_selectedBaseUnit',
                                       prefixIcon: Icons.calculate_rounded,
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
@@ -1377,6 +1478,94 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The conversion from Settings › Unit conversions covering this product, and
+/// whether the product follows it.
+class _ConversionRuleTile extends StatelessWidget {
+  const _ConversionRuleTile({
+    required this.rule,
+    required this.fit,
+    required this.useRule,
+    required this.countedIn,
+    required this.onChanged,
+    required this.onOpenSettings,
+  });
+
+  final UnitConversionRule rule;
+  final UnitChangeKind fit;
+  final bool useRule;
+  final String countedIn;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final applies = fit != UnitChangeKind.unitMismatch;
+    final String detail;
+    if (!applies) {
+      detail =
+          'Doesn\'t apply: this product is counted in $countedIn, not '
+          '${rule.baseUnit} or ${rule.packUnit}.';
+    } else if (!useRule) {
+      detail =
+          'Set by hand for this product. Changes in Settings won\'t touch '
+          'it.';
+    } else if (fit == UnitChangeKind.convertStock) {
+      detail =
+          'Counted in ${rule.packUnit} today. Its stock is converted to '
+          '${rule.baseUnit} in Settings › Unit conversions.';
+    } else {
+      detail = 'Changing this conversion in Settings updates this product.';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: AppTheme.violetColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.violetColor.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.autorenew_rounded, color: AppTheme.violetColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'From Settings: ${rule.label}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSec(context),
+                  ),
+                ),
+                if (applies && useRule && fit == UnitChangeKind.convertStock)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: onOpenSettings,
+                    child: const Text('Open Unit conversions'),
+                  ),
+              ],
+            ),
+          ),
+          if (applies) Switch(value: useRule, onChanged: onChanged),
+        ],
       ),
     );
   }

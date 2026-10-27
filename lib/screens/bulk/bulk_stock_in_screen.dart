@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_panel.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/product_picker.dart';
@@ -110,6 +111,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
       if (qty <= 0 || row.product == null || row.location == null) continue;
 
       final success = await stockProvider.addStock(
+        expectedBaseUnit: row.product!.baseUnit,
         productId: row.product!.id,
         productName: row.product!.name,
         quantity: qty,
@@ -308,8 +310,24 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
+                                if (row.product?.hasPackUnit ?? false) ...[
+                                  PackQuantityField(
+                                    controller: row.qtyController,
+                                    unitsPerPack: row.product!.unitsPerPack,
+                                    packUnit: row.product!.packUnit,
+                                    baseUnit: row.product!.baseUnit,
+                                    label: 'Qty *',
+                                    dense: true,
+                                    validator: (v) =>
+                                        (int.tryParse(v ?? '') ?? 0) <= 0
+                                        ? 'Required'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 Row(
                                   children: [
+                                    if (!(row.product?.hasPackUnit ?? false))
                                     Expanded(
                                       child: TextFormField(
                                         controller: row.qtyController,
@@ -335,6 +353,7 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
                                         },
                                       ),
                                     ),
+                                    if (!(row.product?.hasPackUnit ?? false))
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: DropdownButtonFormField<String>(

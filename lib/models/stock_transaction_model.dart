@@ -9,6 +9,11 @@ enum TransactionType {
   adjustment,
   hold,
   holdRelease,
+
+  /// The product's stock was re-counted in a smaller unit ("50 box" became
+  /// "500 pcs"). Carries [StockTransactionModel.quantityDelta] so a ledger
+  /// rebuilt from today's balance stays continuous across the change.
+  unitConversion,
 }
 
 class StockTransactionModel {
@@ -34,6 +39,13 @@ class StockTransactionModel {
   /// rather than as zero.
   final int? quantityDelta;
 
+  /// For [TransactionType.unitConversion] rows: the unit stock was counted in
+  /// before, the unit it is counted in after, and how many of the new one make
+  /// one of the old. Empty / null on every other row.
+  final String fromUnit;
+  final String toUnit;
+  final int? factor;
+
   StockTransactionModel({
     required this.id,
     required this.productId,
@@ -48,6 +60,9 @@ class StockTransactionModel {
     this.vendorId = '',
     this.vendorName = '',
     this.quantityDelta,
+    this.fromUnit = '',
+    this.toUnit = '',
+    this.factor,
   });
 
   /// Signed effect of this row on stock, or null when it cannot be determined
@@ -55,13 +70,24 @@ class StockTransactionModel {
   int? get signedEffect => switch (type) {
     TransactionType.stockIn => quantity,
     TransactionType.stockOut || TransactionType.damage => -quantity,
-    TransactionType.adjustment => quantityDelta,
+    TransactionType.adjustment ||
+    TransactionType.unitConversion => quantityDelta,
     // Transfers move stock between locations; net product stock is unchanged.
     // Holds only reserve, they do not move anything.
     TransactionType.transfer ||
     TransactionType.hold ||
     TransactionType.holdRelease => 0,
   };
+
+  /// "50 box → 500 pcs" for a [TransactionType.unitConversion] row, empty for
+  /// any other. Stock goes from n to n × factor, so the delta is n × (factor −
+  /// 1) and n falls out of it without storing a third number.
+  String get conversionSummary {
+    final f = factor ?? 0;
+    if (type != TransactionType.unitConversion || f < 2) return '';
+    final before = (quantityDelta ?? 0) ~/ (f - 1);
+    return '$before $fromUnit → ${before * f} $toUnit';
+  }
 
   String get typeLabel {
     return switch (type) {
@@ -72,6 +98,7 @@ class StockTransactionModel {
       TransactionType.adjustment => 'Adjustment',
       TransactionType.hold => 'Hold',
       TransactionType.holdRelease => 'Hold Release',
+      TransactionType.unitConversion => 'Unit Conversion',
     };
   }
 
@@ -84,6 +111,7 @@ class StockTransactionModel {
       TransactionType.adjustment => '📋',
       TransactionType.hold => '⏸️',
       TransactionType.holdRelease => '▶️',
+      TransactionType.unitConversion => '🔁',
     };
   }
 
@@ -96,6 +124,7 @@ class StockTransactionModel {
       'adjustment' => TransactionType.adjustment,
       'hold' => TransactionType.hold,
       'hold_release' => TransactionType.holdRelease,
+      'unit_conversion' => TransactionType.unitConversion,
       _ => TransactionType.adjustment,
     };
   }
@@ -109,6 +138,7 @@ class StockTransactionModel {
       TransactionType.adjustment => 'adjustment',
       TransactionType.hold => 'hold',
       TransactionType.holdRelease => 'hold_release',
+      TransactionType.unitConversion => 'unit_conversion',
     };
   }
 
@@ -133,6 +163,9 @@ class StockTransactionModel {
       quantityDelta: map['quantityDelta'] == null
           ? null
           : safeInt(map['quantityDelta']),
+      fromUnit: safeString(map['fromUnit']),
+      toUnit: safeString(map['toUnit']),
+      factor: map['factor'] == null ? null : safeInt(map['factor']),
     );
   }
 
@@ -150,6 +183,9 @@ class StockTransactionModel {
       'vendorId': vendorId,
       'vendorName': vendorName,
       if (quantityDelta != null) 'quantityDelta': quantityDelta,
+      if (fromUnit.isNotEmpty) 'fromUnit': fromUnit,
+      if (toUnit.isNotEmpty) 'toUnit': toUnit,
+      if (factor != null) 'factor': factor,
     };
   }
 
@@ -167,6 +203,9 @@ class StockTransactionModel {
     String? vendorId,
     String? vendorName,
     int? quantityDelta,
+    String? fromUnit,
+    String? toUnit,
+    int? factor,
   }) {
     return StockTransactionModel(
       id: id ?? this.id,
@@ -182,6 +221,9 @@ class StockTransactionModel {
       vendorId: vendorId ?? this.vendorId,
       vendorName: vendorName ?? this.vendorName,
       quantityDelta: quantityDelta ?? this.quantityDelta,
+      fromUnit: fromUnit ?? this.fromUnit,
+      toUnit: toUnit ?? this.toUnit,
+      factor: factor ?? this.factor,
     );
   }
 }

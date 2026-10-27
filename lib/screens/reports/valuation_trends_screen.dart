@@ -556,7 +556,7 @@ class ValuationTrendsScreen extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${p.quantity} ${p.unit} @ ${_fmtCurrency(context, p.costPrice)}',
+                        '${p.formatQuantity(p.quantity)} @ ${_fmtCurrency(context, p.costPrice)}/${p.baseUnit}',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.textSec(context),

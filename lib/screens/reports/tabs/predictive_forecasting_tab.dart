@@ -377,7 +377,7 @@ class _PredictiveForecastingTabState extends State<PredictiveForecastingTab> {
                                 ),
                                 const SizedBox(height: 1.5),
                                 Text(
-                                  'Qty: ${p.quantity} ${p.unit}  •  Burn: ${forecast.dailyBurnRate.toStringAsFixed(1)}/d',
+                                  'Qty: ${p.formatQuantity(p.quantity)}  •  Burn: ${forecast.dailyBurnRate.toStringAsFixed(1)}/d',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: AppTheme.textSec(context),

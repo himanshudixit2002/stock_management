@@ -527,8 +527,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                         Expanded(
                                           child: TextFormField(
                                             controller: item.qtyController,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Packs *',
+                                            decoration: InputDecoration(
+                                              labelText: '${item.packUnit} *',
                                               isDense: true,
                                               contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                             ),
@@ -590,8 +590,8 @@ class _CreatePurchaseOrderScreenState extends State<CreatePurchaseOrderScreen> {
                                         Expanded(
                                           child: TextFormField(
                                             controller: item.qtyController,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Packs *',
+                                            decoration: InputDecoration(
+                                              labelText: '${item.packUnit} *',
                                               isDense: true,
                                             ),
                                             keyboardType: TextInputType.number,

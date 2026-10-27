@@ -774,6 +774,14 @@ class ExcelService {
         columnMap['unit'],
         defaultValue: 'pcs',
       );
+      // Recognised in the header loop above but never read, so a sheet's
+      // pack columns were silently replaced by 'box' and 1.
+      productData['baseUnit'] = _getCellString(row, columnMap['baseUnit']);
+      productData['packUnit'] = _getCellString(row, columnMap['packUnit']);
+      productData['unitsPerPack'] = _getCellInt(
+        row,
+        columnMap['unitsPerPack'],
+      );
       productData['description'] = _getCellString(
         row,
         columnMap['description'],
@@ -1974,6 +1982,14 @@ class ExcelService {
           cellValue.contains('qty') ||
           cellValue == 'stock') {
         columnMap['quantity'] = i;
+      } else if (cellValue.contains('base unit')) {
+        // Before the plain 'unit' test, which every one of these contains:
+        // all three used to land on `unit`, the last column winning.
+        columnMap['baseUnit'] = i;
+      } else if (cellValue.contains('pack unit')) {
+        columnMap['packUnit'] = i;
+      } else if (cellValue.contains('units per pack')) {
+        columnMap['unitsPerPack'] = i;
       } else if (cellValue.contains('unit')) {
         columnMap['unit'] = i;
       } else if (cellValue.contains('description') ||

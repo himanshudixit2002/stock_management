@@ -274,7 +274,7 @@ class NotificationEngine {
             type: AlertType.lowStock,
             title: '${p.name} is running low',
             message:
-                '${p.availableQuantity} ${p.unit} left · reorder point '
+                '${p.formatQuantity(p.availableQuantity)} left · reorder point '
                 '${p.lowStockThreshold}',
             severity: AlertSeverity.warning,
             entityType: 'product',

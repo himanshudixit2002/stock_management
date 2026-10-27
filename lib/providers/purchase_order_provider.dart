@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/purchase_order_model.dart';
 import '../utils/error_helpers.dart';
 import '../services/database_service.dart';
+import '../services/unit_conversion_service.dart' show UnitConversionException;
 
 class PurchaseOrderProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -183,6 +184,16 @@ class PurchaseOrderProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
+      // Received lines are in the units the products had when it was raised.
+      final received = order.items.where((i) => i.receivedQuantity > 0);
+      final converted = await _databaseService.productsConvertedSince(
+        received.map((i) => i.productId),
+        order.createdAt,
+      );
+      if (converted.isNotEmpty) {
+        throw UnitConversionException.convertedSince(converted);
+      }
+
       // Reverse stock if items were received.
       //
       // Each line is zeroed on the order as its stock comes back out, so a
@@ -216,6 +227,7 @@ class PurchaseOrderProvider extends ChangeNotifier {
             userId: userId,
             userName: userName,
             reason: 'Cancelled PO #${order.id.substring(0, 6)}',
+            documentDate: order.createdAt,
           );
 
           final lines = List.of(working.items);

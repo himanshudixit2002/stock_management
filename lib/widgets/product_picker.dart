@@ -22,7 +22,7 @@ Future<ProductModel?> showProductPicker({
         label: p.name,
         subtitle: [
           if (p.categoryName.isNotEmpty) p.categoryName,
-          '${p.quantity} ${p.unit}',
+          p.formatQuantity(p.quantity),
           if (p.company.isNotEmpty) p.company,
         ].join(' · '),
         icon: Icons.inventory_2_rounded,

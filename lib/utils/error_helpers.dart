@@ -2,6 +2,12 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 
 import '../config/plan_limits.dart';
 
+/// An error whose message is already written for the person using the app,
+/// so [friendlyError] shows it as it is instead of a generic fallback.
+abstract class UserFacingException implements Exception {
+  String get message;
+}
+
 /// A message fit to show a person for [error].
 ///
 /// Messages the app wrote for people are shown as written: a plan cap, an
@@ -16,6 +22,7 @@ String friendlyError(
   String fallback = 'Something went wrong. Please try again.',
 }) {
   if (error is PlanLimitException) return error.message;
+  if (error is UserFacingException) return error.message;
   if (error is! FirebaseException) {
     final own = _ownMessage(error);
     if (own != null) return own;

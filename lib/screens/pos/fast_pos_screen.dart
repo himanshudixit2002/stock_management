@@ -23,6 +23,7 @@ import '../../utils/dialogs.dart';
 import '../../utils/fast_pos_checkout.dart';
 import '../../utils/product_search.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
@@ -180,8 +181,9 @@ class _FastPosScreenState extends State<FastPosScreen> {
                 value: p.id,
                 label: p.name,
                 subtitle: p.barcode.isEmpty
-                    ? 'Stock ${p.availableQuantity} ${p.baseUnit}'
-                    : '${p.barcode} • Stock ${p.availableQuantity} ${p.baseUnit}',
+                    ? 'Stock ${p.formatQuantity(p.availableQuantity)}'
+                    : '${p.barcode} • Stock '
+                          '${p.formatQuantity(p.availableQuantity)}',
               ),
             )
             .toList(),
@@ -234,7 +236,8 @@ class _FastPosScreenState extends State<FastPosScreen> {
       return '${product.name} is out of stock at $location.';
     }
     if (nextQty > available) {
-      return 'Only $available ${product.baseUnit} available at $location.';
+      return 'Only ${product.formatQuantity(available)} available at '
+          '$location.';
     }
     // A line's price comes from the customer's price list when they are on
     // one. Existing lines keep the price they were added at until the cart is
@@ -345,7 +348,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
                       ),
                       title: Text(loc),
                       subtitle: Text(
-                        '${product.availableAtLocation(loc)} ${product.baseUnit} available',
+                        '${product.formatQuantity(product.availableAtLocation(loc))} available',
                       ),
                       trailing: isCurrent
                           ? const Icon(Icons.check_circle_rounded)
@@ -372,7 +375,8 @@ class _FastPosScreenState extends State<FastPosScreen> {
     if (next > available) {
       showInfoSnackBar(
         context,
-        'Only $available ${line.product.baseUnit} available at ${line.location}.',
+        'Only ${line.product.formatQuantity(available)} available at '
+        '${line.location}.',
       );
       return;
     }
@@ -438,16 +442,18 @@ class _FastPosScreenState extends State<FastPosScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Available at ${line.location}: $maxQty ${line.product.baseUnit}'),
+              Text(
+                'Available at ${line.location}: '
+                '${line.product.formatQuantity(maxQty)}',
+              ),
               const SizedBox(height: 10),
-              TextField(
+              PackQuantityField(
                 controller: controller,
-                keyboardType: TextInputType.number,
+                unitsPerPack: line.product.unitsPerPack,
+                packUnit: line.product.packUnit,
+                baseUnit: line.product.baseUnit,
+                hint: '0 to remove',
                 autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Quantity',
-                  hintText: '0 to remove',
-                ),
               ),
             ],
           ),
@@ -470,7 +476,7 @@ class _FastPosScreenState extends State<FastPosScreen> {
                 if (parsed > maxQty) {
                   showInfoSnackBar(
                     context,
-                    'Only $maxQty ${line.product.baseUnit} available.',
+                    'Only ${line.product.formatQuantity(maxQty)} available.',
                   );
                   return;
                 }
@@ -1211,6 +1217,9 @@ class _FastPosScreenState extends State<FastPosScreen> {
             isMobile: compact,
             onDecrement: () => _changeQty(line, -1),
             onIncrement: () => _changeQty(line, 1),
+            onAddPack: line.product.hasPackUnit
+                ? () => _changeQty(line, line.product.unitsPerPack)
+                : null,
             onEditQty: () => _openQtyEditor(line),
             onEditPrice: () => _openPriceEditor(line),
             onChangeLocation: () => _changeLineLocation(line),
@@ -1754,6 +1763,9 @@ class _CartItemCard extends StatelessWidget {
   final bool isMobile;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+
+  /// A whole pack at once, for products sold by the box. Null without one.
+  final VoidCallback? onAddPack;
   final VoidCallback onEditQty;
   final VoidCallback onEditPrice;
   final VoidCallback onChangeLocation;
@@ -1766,6 +1778,7 @@ class _CartItemCard extends StatelessWidget {
     required this.isMobile,
     required this.onDecrement,
     required this.onIncrement,
+    this.onAddPack,
     required this.onEditQty,
     required this.onEditPrice,
     required this.onChangeLocation,
@@ -1790,7 +1803,8 @@ class _CartItemCard extends StatelessWidget {
             const SizedBox(width: 5),
             Flexible(
               child: Text(
-                '${line.location.isEmpty ? 'Default' : line.location} • $available',
+                '${line.location.isEmpty ? 'Default' : line.location} • '
+                '${line.product.formatQuantity(available)}',
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 12,
@@ -1827,7 +1841,9 @@ class _CartItemCard extends StatelessWidget {
               border: Border.all(color: AppTheme.dividerC(context)),
             ),
             child: Text(
-              '${line.quantity}',
+              line.product.hasPackUnit
+                  ? line.product.formatQuantity(line.quantity)
+                  : '${line.quantity}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
@@ -1836,6 +1852,14 @@ class _CartItemCard extends StatelessWidget {
           onPressed: onIncrement,
           icon: const Icon(Icons.add_rounded),
         ),
+        if (onAddPack != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: OutlinedButton(
+              onPressed: onAddPack,
+              child: Text('+1 ${line.product.packUnit}'),
+            ),
+          ),
       ],
     );
   }
@@ -2152,7 +2176,7 @@ class _PickerProductCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$symbol${numFmt.format(product.sellingPrice)} • ${product.availableQuantity} ${product.baseUnit} total',
+                          '$symbol${numFmt.format(product.sellingPrice)} • ${product.formatQuantity(product.availableQuantity)} total',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.textSec(context),

@@ -666,7 +666,7 @@ class _StatsRow extends StatelessWidget {
                                   style: const TextStyle(fontSize: 12),
                                 ),
                                 trailing: Text(
-                                  '${product.quantity} ${product.unit}',
+                                  product.formatQuantity(product.quantity),
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
@@ -1045,6 +1045,10 @@ class _ActivityTile extends StatelessWidget {
         typeColor = AppTheme.successColor;
         typeIcon = Icons.play_circle_rounded;
         break;
+      case TransactionType.unitConversion:
+        typeColor = AppTheme.violetColor;
+        typeIcon = Icons.autorenew_rounded;
+        break;
     }
 
     return Container(
@@ -1102,6 +1106,8 @@ class _ActivityTile extends StatelessWidget {
                 ? '+${transaction.quantity}'
                 : transaction.type == TransactionType.transfer
                 ? '${transaction.quantity}'
+                : transaction.type == TransactionType.unitConversion
+                ? transaction.conversionSummary
                 : '-${transaction.quantity}',
             style: TextStyle(
               fontWeight: FontWeight.w700,

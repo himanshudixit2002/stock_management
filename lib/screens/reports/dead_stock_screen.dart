@@ -323,7 +323,7 @@ class _DeadStockRow extends StatelessWidget {
                 children: [
                   _Stat(
                     label: 'On hand',
-                    value: '${product.quantity} ${product.unit}',
+                    value: product.formatQuantity(product.quantity),
                   ),
                   _Stat(
                     label: 'At rest',

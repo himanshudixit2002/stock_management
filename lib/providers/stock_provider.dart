@@ -566,6 +566,7 @@ class StockProvider extends ChangeNotifier {
         case TransactionType.adjustment:
         case TransactionType.hold:
         case TransactionType.holdRelease:
+        case TransactionType.unitConversion:
           break;
       }
     }
@@ -781,6 +782,7 @@ class StockProvider extends ChangeNotifier {
     String reason = '',
     String vendorId = '',
     String vendorName = '',
+    String? expectedBaseUnit,
   }) async {
     if (_operationInFlight) {
       _errorMessage =
@@ -805,6 +807,7 @@ class StockProvider extends ChangeNotifier {
 
     try {
       await _databaseService.addStock(
+        expectedBaseUnit: expectedBaseUnit,
         productId: productId,
         productName: productName,
         quantity: quantity,
@@ -838,6 +841,7 @@ class StockProvider extends ChangeNotifier {
     String reason = '',
     String vendorId = '',
     String vendorName = '',
+    String? expectedBaseUnit,
   }) async {
     if (_operationInFlight) {
       _errorMessage =
@@ -862,6 +866,7 @@ class StockProvider extends ChangeNotifier {
 
     try {
       await _databaseService.removeStock(
+        expectedBaseUnit: expectedBaseUnit,
         productId: productId,
         productName: productName,
         quantity: quantity,
@@ -893,6 +898,7 @@ class StockProvider extends ChangeNotifier {
     required String userId,
     required String userName,
     required String reason,
+    String? expectedBaseUnit,
   }) async {
     if (_operationInFlight) {
       _errorMessage =
@@ -912,6 +918,7 @@ class StockProvider extends ChangeNotifier {
 
     try {
       await _databaseService.recordDamage(
+        expectedBaseUnit: expectedBaseUnit,
         productId: productId,
         productName: productName,
         quantity: quantity,
@@ -942,6 +949,7 @@ class StockProvider extends ChangeNotifier {
     required String userId,
     required String userName,
     String reason = '',
+    String? expectedBaseUnit,
   }) async {
     if (_operationInFlight) {
       _errorMessage =
@@ -966,6 +974,7 @@ class StockProvider extends ChangeNotifier {
 
     try {
       await _databaseService.transferStock(
+        expectedBaseUnit: expectedBaseUnit,
         productId: productId,
         productName: productName,
         quantity: quantity,
@@ -1003,6 +1012,7 @@ class StockProvider extends ChangeNotifier {
     required String userId,
     required String userName,
     String reason = '',
+    String? expectedBaseUnit,
   }) async {
     if ((adjustmentDelta == null) == (countedQuantity == null)) {
       _errorMessage = 'Adjustment is missing its quantity.';
@@ -1032,6 +1042,7 @@ class StockProvider extends ChangeNotifier {
 
     try {
       await _databaseService.recordAdjustment(
+        expectedBaseUnit: expectedBaseUnit,
         productId: productId,
         productName: productName,
         adjustmentDelta: adjustmentDelta,

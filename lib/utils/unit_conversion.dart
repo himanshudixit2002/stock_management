@@ -52,3 +52,9 @@ String formatQuantityWithUnits({
   if (split.pieces == 0) return '${split.packs} $packUnit';
   return '${split.packs} $packUnit ${split.pieces} $baseUnit';
 }
+
+/// Whether two hand-typed labels — units, brands, sub-categories — name the
+/// same thing. "Box", "box" and "box " are one unit to the person who typed
+/// them, so comparisons go through here rather than `==`.
+bool sameLabel(String a, String b) =>
+    a.trim().toLowerCase() == b.trim().toLowerCase();

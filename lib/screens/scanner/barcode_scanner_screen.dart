@@ -686,7 +686,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                                       product.categoryName,
                                     if (product.barcode.isNotEmpty)
                                       'Barcode: ${product.barcode}',
-                                    'Qty: ${product.quantity} ${product.unit}',
+                                    'Qty: ${product.formatQuantity(product.quantity)}',
                                   ].join(' \u2022 '),
                                   style: TextStyle(
                                     fontSize: 12,

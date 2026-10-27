@@ -106,6 +106,7 @@ class AppRoutes {
   static const String settingsAppearance = '/settings/appearance';
   static const String settingsFeatures = '/settings/features';
   static const String settingsCatalog = '/settings/catalog';
+  static const String unitConversions = '/settings/unit-conversions';
   static const String settingsTeam = '/settings/team';
   static const String settingsData = '/settings/data';
   static const String settingsHelp = '/settings/help';

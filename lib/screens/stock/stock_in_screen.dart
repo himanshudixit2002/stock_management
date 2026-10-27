@@ -12,6 +12,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/vendor_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/unit_conversion.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/animations.dart';
@@ -118,6 +119,7 @@ class _StockInScreenState extends State<StockInScreen> {
       return;
     }
     final success = await context.read<StockProvider>().addStock(
+      expectedBaseUnit: _selectedProduct!.baseUnit,
       productId: _selectedProduct!.id,
       productName: _selectedProduct!.name,
       quantity: qty,
@@ -223,6 +225,21 @@ class _StockInScreenState extends State<StockInScreen> {
     });
   }
 
+  /// The product was converted to count in another unit while this form was
+  /// open, so a quantity typed against the old unit no longer means what it
+  /// did. Clear it rather than save it in the new one.
+  void _unitsChanged(ProductModel fresh) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _quantityController.clear();
+      showInfoSnackBar(
+        context,
+        '${fresh.name} is now counted in ${fresh.baseUnit}. '
+        'Enter the quantity again.',
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PermissionGate(
@@ -244,6 +261,9 @@ class _StockInScreenState extends State<StockInScreen> {
         orElse: () => null,
       );
       if (fresh != null && fresh != _selectedProduct) {
+        if (!sameLabel(fresh.baseUnit, _selectedProduct!.baseUnit)) {
+          _unitsChanged(fresh);
+        }
         _selectedProduct = fresh;
       }
     }
@@ -363,8 +383,8 @@ class _StockInScreenState extends State<StockInScreen> {
                               placeholder: 'Tap to select a product',
                               detail: _selectedProduct == null
                                   ? null
-                                  : '${_selectedProduct!.quantity} '
-                                        '${_selectedProduct!.baseUnit} on hand',
+                                  : '${_selectedProduct!.formatQuantity(_selectedProduct!.quantity)} '
+                                        'on hand',
                               errorText: _submitted && _selectedProduct == null
                                   ? 'Choose the product being received'
                                   : null,

@@ -494,7 +494,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                           ),
                         ),
                         Text(
-                          '${p.quantity} ${p.unit}',
+                          p.formatQuantity(p.quantity),
                           style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.textTer(context),
@@ -1109,7 +1109,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen> {
                               [
                                 p.categoryName,
                                 if (p.company.isNotEmpty) p.company,
-                                '${p.quantity} ${p.unit}',
+                                p.formatQuantity(p.quantity),
                               ].join(' | '),
                               style: TextStyle(
                                 fontSize: 12,

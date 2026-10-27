@@ -78,7 +78,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       context,
       title: 'Confirm Transfer',
       message:
-          'Transfer $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}"\n\n'
+          'Transfer ${_selectedProduct?.formatQuantity(qty) ?? "$qty pcs"} of "${_selectedProduct?.name}"\n\n'
           'From: $_fromLocation\nTo: $toLocation',
       confirmLabel: 'Transfer',
       icon: Icons.swap_horiz_rounded,
@@ -127,6 +127,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     }
 
     final success = await context.read<StockProvider>().transferStock(
+      expectedBaseUnit: _selectedProduct!.baseUnit,
       productId: _selectedProduct!.id,
       productName: _selectedProduct!.name,
       quantity: qty,
@@ -313,8 +314,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                             placeholder: 'Tap to select a product',
                             detail: _selectedProduct == null
                                 ? null
-                                : '${_selectedProduct!.quantity} '
-                                      '${_selectedProduct!.baseUnit} on hand',
+                                : '${_selectedProduct!.formatQuantity(_selectedProduct!.quantity)} '
+                                      'on hand',
                             errorText: _submitted && _selectedProduct == null
                                 ? 'Choose the product being transferred'
                                 : null,
@@ -347,7 +348,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                         value: loc,
                                         label: loc,
                                         subtitle:
-                                            '$qty ${_selectedProduct!.unit}',
+                                            _selectedProduct!.formatQuantity(qty),
                                         icon: Icons.location_on_rounded,
                                         iconColor: AppTheme.primaryColor,
                                       );
@@ -511,7 +512,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
                               child: Text(
-                                'Available at $_fromLocation: $_availableAtFrom ${_selectedProduct?.unit ?? "pcs"}',
+                                'Available at $_fromLocation: ${_selectedProduct?.formatQuantity(_availableAtFrom) ?? "$_availableAtFrom pcs"}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: AppTheme.textSec(context),

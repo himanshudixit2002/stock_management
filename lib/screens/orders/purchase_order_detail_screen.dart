@@ -20,6 +20,7 @@ import '../../widgets/animations.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/not_found_state.dart';
+import '../../widgets/pack_quantity_field.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../utils/currency.dart';
@@ -512,6 +513,11 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
     };
 
     String? selectedLocation = locations.length == 1 ? locations.first : null;
+    // For receiving by the box: lines carry pieces, products know the pack.
+    final productsById = {
+      for (final p in context.read<ProductProvider>().analyticsProducts)
+        p.id: p,
+    };
 
     final result = await showDialog<(String, Map<int, int>)>(
       context: context,
@@ -575,6 +581,37 @@ class PurchaseOrderDetailScreen extends StatelessWidget {
                   ...pending.map((i) {
                     final item = order.items[i];
                     final outstanding = item.quantity - item.receivedQuantity;
+                    final product = productsById[item.productId];
+                    if (product != null && product.hasPackUnit) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'of ${product.formatQuantity(outstanding)} '
+                              'outstanding',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 6),
+                            PackQuantityField(
+                              controller: controllers[i]!,
+                              unitsPerPack: product.unitsPerPack,
+                              packUnit: product.packUnit,
+                              baseUnit: product.baseUnit,
+                              label: 'Received',
+                              dense: true,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(

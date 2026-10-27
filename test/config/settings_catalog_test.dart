@@ -39,6 +39,7 @@ const _knownRoutes = <String>{
   AppRoutes.staffPermissions,
   AppRoutes.support,
   AppRoutes.terms,
+  AppRoutes.unitConversions,
   AppRoutes.userManagement,
   AppRoutes.vendors,
   AppRoutes.warehouseZones,

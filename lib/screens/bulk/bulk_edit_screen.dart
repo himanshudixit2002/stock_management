@@ -20,6 +20,7 @@ import '../../widgets/app_screen_scaffold.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../config/app_navigation.dart';
+import '../../services/unit_conversion_planner.dart';
 import 'bulk_edit_validation.dart';
 
 class BulkEditScreen extends StatefulWidget {
@@ -116,46 +117,67 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
     }
 
     final categories = context.read<CategoryProvider>().categories;
-    final now = DateTime.now();
+    final rules = context.read<SettingsProvider>().unitConversions;
 
-    // Every branch below is conditional, so a run where the category lookup
-    // missed or the threshold would not parse produced products differing from
-    // the originals only by updatedAt — and still reported "N products
-    // updated". Track whether any field actually resolved, and say so when
-    // none did rather than claiming a change that did not happen.
-    var appliedAnything = false;
+    // Only the fields being edited are written. The models here come from a
+    // cache that can be minutes old, and writing them whole put back every
+    // other field as the cache had it — after a unit conversion, the old unit
+    // and per-pack prices over stock now counted in pieces.
+    final fields = <String, Object?>{};
+    if (_selectedFields.contains('category') && _newCategory != null) {
+      final cat = categories.where((c) => c.name == _newCategory).firstOrNull;
+      if (cat != null) {
+        fields['categoryId'] = cat.id;
+        fields['categoryName'] = cat.name;
+      }
+    }
+    if (_selectedFields.contains('company') && _newCompany != null) {
+      fields['company'] = _newCompany;
+    }
+    if (_selectedFields.contains('size') && _newSize != null) {
+      fields['size'] = _newSize;
+    }
+    if (_selectedFields.contains('threshold')) {
+      final threshold = int.tryParse(_thresholdController.text);
+      if (threshold != null && threshold >= 0) {
+        fields['lowStockThreshold'] = threshold;
+      }
+    }
+    final regrouped =
+        fields.containsKey('categoryId') ||
+        fields.containsKey('company') ||
+        fields.containsKey('size');
 
-    final updatedProducts = _selectedProducts.map((p) {
-      var updated = p.copyWith(updatedAt: now);
-      if (_selectedFields.contains('category') && _newCategory != null) {
-        final cat = categories.where((c) => c.name == _newCategory).firstOrNull;
-        if (cat != null) {
-          updated = updated.copyWith(
-            categoryId: cat.id,
-            categoryName: cat.name,
-          );
-          appliedAnything = true;
+    // A product moved into another group follows that group's conversion.
+    // Where that would mean re-counting its stock, it is left for the review in
+    // Settings › Unit conversions, which checks open documents first.
+    var awaitingConversion = 0;
+    final patches = <String, Map<String, Object?>>{};
+    for (final p in _selectedProducts) {
+      final patch = {...fields};
+      if (regrouped) {
+        final moved = p.copyWith(
+          categoryId: fields['categoryId'] as String?,
+          company: fields['company'] as String?,
+          size: fields['size'] as String?,
+        );
+        final change = planUnitChange(
+          moved,
+          resolveUnitConversionFor(rules, moved),
+        );
+        if (change.kind == UnitChangeKind.repack) {
+          patch.addAll(repackFields(change.rule!));
+        } else if (change.kind == UnitChangeKind.convertStock) {
+          awaitingConversion++;
         }
       }
-      if (_selectedFields.contains('company') && _newCompany != null) {
-        updated = updated.copyWith(company: _newCompany);
-        appliedAnything = true;
-      }
-      if (_selectedFields.contains('size') && _newSize != null) {
-        updated = updated.copyWith(size: _newSize);
-        appliedAnything = true;
-      }
-      if (_selectedFields.contains('threshold')) {
-        final threshold = int.tryParse(_thresholdController.text);
-        if (threshold != null && threshold >= 0) {
-          updated = updated.copyWith(lowStockThreshold: threshold);
-          appliedAnything = true;
-        }
-      }
-      return updated;
-    }).toList();
+      patches[p.id] = patch;
+    }
 
-    if (!appliedAnything) {
+    // Every field above is conditional, so a run where the category lookup
+    // missed or the threshold would not parse used to write nothing but
+    // updatedAt — and still report "N products updated". Say so instead.
+    if (fields.isEmpty) {
       setState(() => _isApplying = false);
       showErrorSnackBar(
         context,
@@ -166,17 +188,23 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
 
     try {
       final productProvider = context.read<ProductProvider>();
-      // The committed count, not the requested one: bulkUpdateProducts skips
-      // any product without an id, so the two can differ.
-      final written = await productProvider.bulkUpdateProducts(
-        updatedProducts,
+      // The committed count, not the requested one: patchProducts skips any
+      // product without an id, so the two can differ.
+      final written = await productProvider.patchProducts(
+        patches,
         userId: user.uid,
         userName: user.name,
       );
       if (!mounted) return;
+      final updated = written == 1
+          ? '1 product updated'
+          : '$written products updated';
       showSuccessOverlay(
         context,
-        message: written == 1 ? '1 product updated' : '$written products updated',
+        message: awaitingConversion == 0
+            ? updated
+            : '$updated · $awaitingConversion to convert in Settings › '
+                  'Unit conversions',
       );
     } catch (e) {
       if (!mounted) return;
@@ -392,7 +420,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  '${p.categoryName} • ${p.quantity} ${p.unit}',
+                  '${p.categoryName} • ${p.formatQuantity(p.quantity)}',
                   style: const TextStyle(fontSize: 12),
                 ),
                 activeColor: AppTheme.primaryColor,
@@ -635,7 +663,7 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
             leading: const Icon(Icons.inventory_2_rounded, size: 18),
             title: Text(product.name, style: const TextStyle(fontSize: 13)),
             subtitle: Text(
-              '${product.categoryName} • ${product.quantity} ${product.unit}',
+              '${product.categoryName} • ${product.formatQuantity(product.quantity)}',
               style: const TextStyle(fontSize: 12),
             ),
             shape: RoundedRectangleBorder(

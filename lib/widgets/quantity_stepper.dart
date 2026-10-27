@@ -70,6 +70,10 @@ class _QuantityStepperState extends State<QuantityStepper> {
       oldWidget.controller.removeListener(_syncFromTotal);
       widget.controller.addListener(_syncFromTotal);
       _syncFromTotal();
+    } else if (oldWidget.unitsPerPack != widget.unitsPerPack) {
+      // Another product picked, or a conversion in Settings: the total stands
+      // and only the pack/piece split was stale.
+      _syncFromTotal();
     }
   }
 

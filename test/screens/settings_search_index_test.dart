@@ -59,6 +59,13 @@ void main() {
       expect(_topHit('spreadsheet'), 'data.import');
       expect(_topHit('rbac'), 'team.roles');
     });
+
+    test('unit words find units and their conversions', () {
+      expect(_topHit('conversion'), 'catalog.unitConversions');
+      expect(_topHit('units per pack'), 'catalog.unitConversions');
+      expect(_topHit('carton'), 'catalog.unitConversions');
+      expect(_topHit('uom'), 'catalog.units');
+    });
   });
 
   group('breadcrumbs', () {

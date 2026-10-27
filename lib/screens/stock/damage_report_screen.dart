@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../config/theme.dart';
 import '../../utils/dialogs.dart';
+import '../../utils/unit_conversion.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/app_bar_title_row.dart';
 import '../../widgets/glass_panel.dart';
@@ -99,7 +100,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       context,
       title: 'Confirm Damage Report',
       message:
-          'Report $qty ${_selectedProduct?.unit ?? "pcs"} of "${_selectedProduct?.name}" at $_selectedLocation as damaged?\n\n'
+          'Report ${_selectedProduct?.formatQuantity(qty) ?? "$qty pcs"} of "${_selectedProduct?.name}" at $_selectedLocation as damaged?\n\n'
           'This will reduce stock and cannot be undone.',
       confirmLabel: 'Report Damage',
       icon: Icons.report_problem_rounded,
@@ -147,6 +148,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
       return;
     }
     final success = await context.read<StockProvider>().recordDamage(
+      expectedBaseUnit: _selectedProduct!.baseUnit,
       productId: _selectedProduct!.id,
       productName: _selectedProduct!.name,
       quantity: qty,
@@ -238,6 +240,21 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
     });
   }
 
+  /// The product was converted to count in another unit while this form was
+  /// open, so a quantity typed against the old unit no longer means what it
+  /// did. Clear it rather than save it in the new one.
+  void _unitsChanged(ProductModel fresh) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _quantityController.clear();
+      showInfoSnackBar(
+        context,
+        '${fresh.name} is now counted in ${fresh.baseUnit}. '
+        'Enter the quantity again.',
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PermissionGate(
@@ -258,6 +275,9 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
         orElse: () => null,
       );
       if (fresh != null && fresh != _selectedProduct) {
+        if (!sameLabel(fresh.baseUnit, _selectedProduct!.baseUnit)) {
+          _unitsChanged(fresh);
+        }
         _selectedProduct = fresh;
       }
     }
@@ -385,8 +405,8 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                             placeholder: 'Tap to select a product',
                             detail: _selectedProduct == null
                                 ? null
-                                : '${_selectedProduct!.quantity} '
-                                      '${_selectedProduct!.baseUnit} on hand',
+                                : '${_selectedProduct!.formatQuantity(_selectedProduct!.quantity)} '
+                                      'on hand',
                             errorText: _submitted && _selectedProduct == null
                                 ? 'Choose the product being reported'
                                 : null,
@@ -434,7 +454,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                       ),
                                       const Spacer(),
                                       Text(
-                                        'Total: ${_selectedProduct!.quantity} ${_selectedProduct!.unit}',
+                                        'Total: ${_selectedProduct!.formatQuantity(_selectedProduct!.quantity)}',
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
@@ -474,7 +494,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                '${e.value} ${_selectedProduct!.unit}',
+                                                _selectedProduct!.formatQuantity(e.value),
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w600,
@@ -523,7 +543,7 @@ class _DamageReportScreenState extends State<DamageReportScreen> {
                                         value: loc,
                                         label: loc,
                                         subtitle:
-                                            '$qty ${_selectedProduct!.unit}',
+                                            _selectedProduct!.formatQuantity(qty),
                                         icon: Icons.location_on_rounded,
                                         iconColor: AppTheme.primaryColor,
                                       );
