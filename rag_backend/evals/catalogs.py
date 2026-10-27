@@ -71,6 +71,24 @@ SINGLE_OUT_OF_STOCK: List[Dict[str, Any]] = [
     },
 ]
 
+# One product sold by the box: 1 box = 10 pcs, stock held in pieces. The
+# assistant must hear "2 boxes" as 2 × 10, and "2 pcs" as 2.
+PACKED: List[Dict[str, Any]] = [
+    {
+        "id": "p_tiles",
+        "barcode": "89030001",
+        "name": "Floor Tile 600x600",
+        "stock": 53,
+        "min_threshold": 20,
+        "category": "Tiles",
+        "cost_price": 4.00,
+        "selling_price": 6.50,
+        "unit": "pcs",
+        "pack_unit": "box",
+        "units_per_pack": 10,
+    },
+]
+
 # A workspace that has been created but never filled. The honest answer is that
 # there is no catalog yet — not a confident report over zero rows.
 EMPTY: List[Dict[str, Any]] = []
@@ -79,6 +97,7 @@ CATALOGS: Dict[str, List[Dict[str, Any]]] = {
     "default": DEFAULT,
     "single_out_of_stock": SINGLE_OUT_OF_STOCK,
     "empty": EMPTY,
+    "packed": PACKED,
 }
 
 #   apples 15 × 2.50 =     37.50      laptops 100 × 999.00 = 99900.00
@@ -103,6 +122,15 @@ GROUND_TRUTH: Dict[str, Dict[str, Any]] = {
         "cost_value": 0.0,
         "low_stock_names": ["Discontinued Gadget"],
         "barcodes": ["89020001"],
+    },
+    "packed": {
+        "total_products": 1,
+        "low_stock_count": 0,          # 53 > 20
+        "out_of_stock_count": 0,
+        "retail_value": 344.50,        # 53 × 6.50
+        "cost_value": 212.00,          # 53 × 4.00
+        "low_stock_names": [],
+        "barcodes": ["89030001"],
     },
     "empty": {
         "total_products": 0,

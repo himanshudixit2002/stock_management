@@ -248,6 +248,13 @@ class InventoryDB:
                 "lead_time_days": int(item.get("lead_time_days", 3)),
                 "held_quantity": int(item.get("held_quantity", item.get("heldQuantity", 0))),
                 "location": item.get("location", "Store Main"),
+                # The pack, so "2 boxes" means the same here as in the app.
+                # Either shape: this store's own, or the app's Firestore one.
+                "unit": item.get("baseUnit") or item.get("unit") or "pcs",
+                "pack_unit": item.get("pack_unit", item.get("packUnit", "")),
+                "units_per_pack": int(
+                    item.get("units_per_pack", item.get("unitsPerPack", 1)) or 1
+                ),
             }
                 
         if new_dict:

@@ -25,6 +25,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+import units
+
 WINDOW_DAYS = int(os.environ.get("FACTS_WINDOW_DAYS", "90"))
 RECENT_DAYS = int(os.environ.get("FACTS_RECENT_DAYS", "30"))
 TTL_SECONDS = float(os.environ.get("FACTS_TTL_SECONDS", "45"))
@@ -109,7 +111,12 @@ class ProductFact:
     barcode: str
     name: str
     category: str = "General"
+    # The base unit every quantity here is counted in.
     unit: str = "pcs"
+    # The pack, when it has one: "1 box = 10 pcs" is ("box", 10). One means no
+    # pack, and pack_unit is then empty.
+    pack_unit: str = ""
+    units_per_pack: int = 1
 
     quantity: int = 0
     held_quantity: int = 0
@@ -161,6 +168,16 @@ class ProductFact:
     def is_low_stock(self) -> bool:
         return 0 < self.quantity <= self.min_threshold
 
+    @property
+    def has_pack(self) -> bool:
+        return self.units_per_pack > 1 and bool(self.pack_unit)
+
+    def in_packs(self, quantity: int) -> str:
+        """'5 box 3 pcs' — how the app shows `quantity` of this product."""
+        return units.breakdown(
+            quantity, self.unit, self.pack_unit, self.units_per_pack
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -185,6 +202,11 @@ class ProductFact:
             out["suggested_reorder_qty"] = self.suggested_reorder_qty
         if self.selling_price:
             out["price"] = round(self.selling_price, 2)
+        if self.has_pack:
+            # Quantities above are in `unit`; people may ask in packs.
+            out["unit"] = self.unit
+            out["pack"] = f"1 {self.pack_unit} = {self.units_per_pack} {self.unit}"
+            out["stock_in_packs"] = self.in_packs(self.quantity)
         return out
 
     def context_line(self) -> str:
@@ -457,6 +479,7 @@ def derive_product_fact(
 
     quantity = _int(raw.get("quantity"))
     held = max(0, _int(raw.get("heldQuantity")))
+    per_pack = max(1, _int(raw.get("unitsPerPack"), 1))
 
     vendor_id = _text(raw.get("preferredVendorId")) or _text(raw.get("lastVendorId"))
     vendor = vendors.get(vendor_id, {})
@@ -469,7 +492,11 @@ def derive_product_fact(
         barcode=barcode,
         name=_text(raw.get("name"), "Unnamed Product"),
         category=_text(raw.get("categoryName"), "General"),
-        unit=_text(raw.get("unit"), "pcs"),
+        # baseUnit is what the app counts in; the legacy `unit` only fills in
+        # for products written before it existed.
+        unit=_text(raw.get("baseUnit")) or _text(raw.get("unit"), "pcs"),
+        pack_unit=_text(raw.get("packUnit")) if per_pack > 1 else "",
+        units_per_pack=per_pack,
         quantity=quantity,
         held_quantity=held,
         available_qty=max(0, quantity - held),
@@ -828,6 +855,9 @@ class FactStore:
                     ),
                     "preferredVendorId": p.get("vendor_id", ""),
                     "preferredVendorName": p.get("vendor_name", ""),
+                    "unit": p.get("unit", "pcs"),
+                    "packUnit": p.get("pack_unit", ""),
+                    "unitsPerPack": p.get("units_per_pack", 1),
                 }
             )
         return adapted

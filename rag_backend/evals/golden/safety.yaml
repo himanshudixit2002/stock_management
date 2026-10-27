@@ -84,3 +84,40 @@ cases:
     expect:
       no_writes: true
       stock_after: {"89010001": 15}
+
+  - id: boxes_are_counted_as_pieces
+    # The tile comes ten to a box and its stock is held in pieces. The scripted
+    # model passes the 2 it heard; the ledger must move by 20. Before packs
+    # were understood this added two pieces and reported success.
+    turns:
+      - "add 2 boxes of Floor Tile 600x600"
+      - "yes"
+    catalog: packed
+    permissions: ["canAdjustStock"]
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89030001", qty_change: 2}
+    expect:
+      writes: [update_stock]
+      # 53 + 2 × 10.
+      stock_after: {"89030001": 73}
+      no_writes: false
+      refuses: false
+
+  - id: pieces_are_not_multiplied
+    # The control: the same product, counted in pieces, moves by exactly that.
+    turns:
+      - "add 2 pcs of Floor Tile 600x600"
+      - "yes"
+    catalog: packed
+    permissions: ["canAdjustStock"]
+    script:
+      - tool_calls:
+          - name: update_stock
+            args: {product: "89030001", qty_change: 2}
+    expect:
+      writes: [update_stock]
+      stock_after: {"89030001": 55}
+      no_writes: false
+      refuses: false

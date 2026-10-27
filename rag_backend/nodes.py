@@ -29,6 +29,7 @@ import bulk
 import conversation
 import deterministic
 import llm as llm_factory
+import units
 import verify
 import writes
 from facts import InventoryFacts, ProductFact, fact_store
@@ -96,6 +97,10 @@ class update_stock(BaseModel):
         default="",
         description="Which location the stock moves at. Required when the product holds stock in more than one.",
     )
+    unit: str = Field(
+        default="",
+        description="The unit the user counted in when it is the product's pack, e.g. 'box' for 'add 2 boxes' (then qty_change is 2). Leave empty for single units.",
+    )
 
 
 class create_purchase_order(BaseModel):
@@ -104,6 +109,10 @@ class create_purchase_order(BaseModel):
     product: str = Field(description="Exact product name or barcode.")
     reorder_qty: int = Field(description="Units to order.")
     supplier_name: str = Field(default="", description="Supplier, if specified.")
+    unit: str = Field(
+        default="",
+        description="The unit the user ordered in when it is the product's pack, e.g. 'box' for 'order 5 boxes' (then reorder_qty is 5). Leave empty for single units.",
+    )
 
 
 class transfer_stock(BaseModel):
@@ -774,6 +783,42 @@ def _build_new_product_preview(args: Dict[str, Any], facts: InventoryFacts) -> s
     )
 
 
+_PACKED_QUANTITY = {"update_stock": "qty_change", "create_purchase_order": "reorder_qty"}
+
+
+def _in_base_units(
+    tool: str, product: ProductFact, args: Dict[str, Any], question: str
+) -> Dict[str, Any]:
+    """Re-express a quantity said in packs in the product's base unit.
+
+    The ledger counts pieces and people count boxes: "add 2 boxes" of a
+    ten-to-a-box product is 20. The model may pass the unit it heard or may
+    not, so the sentence is read too. When the sentence names a number of
+    packs, only that number is converted — a model that already did the
+    multiplication (qty 20 for "2 boxes") is not multiplied again.
+    """
+    key = _PACKED_QUANTITY.get(tool)
+    if key is None or not product.has_pack or args.get("entered_as"):
+        return args
+    try:
+        qty = int(args.get(key, 0))
+    except (TypeError, ValueError):
+        return args
+    said = units.packs_said(question, product.pack_unit)
+    if said is not None:
+        if said != abs(qty):
+            return args
+    elif not units.names_unit(str(args.get("unit", "")), product.pack_unit):
+        return args
+    base = qty * product.units_per_pack
+    converted = dict(args)
+    converted[key] = base
+    converted["entered_as"] = (
+        f"{abs(qty)} {product.pack_unit} = {abs(base)} {product.unit}"
+    )
+    return converted
+
+
 def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str:
     rows = [
         f"| **Product** | **{product.name}** |",
@@ -789,6 +834,8 @@ def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str
             f"| **Change** | **{delta:+d} units** |",
             f"| **Projected stock** | **{projected} units** |",
         ]
+        if args.get("entered_as"):
+            rows.append(f"| **Entered** | {args['entered_as']} |")
         target = (args.get("location") or product.location or "").strip()
         if target:
             at = product.location_quantities.get(target)
@@ -807,6 +854,11 @@ def _build_preview(tool: str, product: ProductFact, args: Dict[str, Any]) -> str
         qty = int(args.get("reorder_qty", 0))
         rows += [
             f"| **Order quantity** | **{qty} units** |",
+            *(
+                [f"| **Entered** | {args['entered_as']} |"]
+                if args.get("entered_as")
+                else []
+            ),
             f"| **Unit cost** | {product.cost_price:,.2f} |",
             f"| **Total cost** | **{qty * product.cost_price:,.2f}** |",
             f"| **Supplier** | {args.get('supplier_name') or product.vendor_name or 'Default Supplier'} |",
@@ -1347,6 +1399,9 @@ async def execution_agent_node(state: GraphState) -> GraphState:
             pending_actions.clear(company_id, session_id)
             tool, args = intent
             product = chosen.product
+            args = _in_base_units(
+                tool, product, args, pending.get("original_question", "")
+            )
             verdict = _guardrail_check(tool, product, args)
             if verdict is not None and not verdict.passed:
                 state["generation"] = "I stopped that action: " + " ".join(verdict.reasons)
@@ -1590,6 +1645,8 @@ async def execution_agent_node(state: GraphState) -> GraphState:
                 break
 
             product = resolution.product
+            # Before the guardrails, so their limits see the real piece count.
+            args = _in_base_units(name, product, args, question)
             verdict = _guardrail_check(name, product, args)
             if verdict is not None and not verdict.passed:
                 generation = (

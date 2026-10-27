@@ -23,6 +23,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
+import units
 from facts import ProductFact, fact_store
 
 AI_ACTOR_ID = "ai_agent"
@@ -182,6 +183,21 @@ def _apply_delta(
             str(k): int(v or 0)
             for k, v in (data.get("heldLocationQuantities") or {}).items()
         }
+
+        # The preview worked the amount out in the unit the product was counted
+        # in then. If Settings has since converted it ("box" to "pcs"), the
+        # same number now means something ten times smaller.
+        counted_in = str(data.get("baseUnit") or data.get("unit") or "pcs")
+        if not units.same_label(counted_in, product.unit):
+            return {
+                "ok": False,
+                "old_stock": old,
+                "error": (
+                    f"{product.name} is now counted in {counted_in}, not "
+                    f"{product.unit}. Ask again so the amount is worked out "
+                    f"in {counted_in}."
+                ),
+            }
 
         # Refuse to build on numbers that already contradict each other.
         if loc_map and sum(loc_map.values()) != old:
@@ -590,7 +606,7 @@ def create_product(
     cost_price: float = 0.0,
     selling_price: float = 0.0,
     low_stock_threshold: int = 10,
-    unit: str = "pcs",
+    unit: str = "",
     brand: str = "",
     size: str = "",
     description: str = "",
@@ -627,6 +643,20 @@ def create_product(
         return {"success": True, "product_name": name, "barcode": record["barcode"],
                 "quantity": quantity, "location": location, "offline": True}
 
+    # A new product follows the workspace's unit conversion for its category,
+    # brand and sub-category, as one made in the app does. Read here rather
+    # than from the fact snapshot, which does not carry settings.
+    try:
+        company = _company_ref(client, company_id).get().to_dict() or {}
+        rules = units.rules_from_settings(
+            (company.get("settings") or {}).get("unitConversions")
+        )
+    except Exception:
+        rules = []  # a product without its pack beats no product at all
+    unit_fields = units.units_for_new_product(
+        rules, unit, category_id=category_id, company=brand, size=size
+    )
+
     now = datetime.now(timezone.utc)
     doc = _company_ref(client, company_id).collection("products").document()
     payload = {
@@ -644,10 +674,7 @@ def create_product(
         "company": brand or "",
         "size": size or "",
         "description": description or "",
-        "unit": unit or "pcs",
-        "baseUnit": unit or "pcs",
-        "packUnit": "box",
-        "unitsPerPack": 1,
+        **unit_fields,
         "preferredVendorId": "",
         "preferredVendorName": vendor_name or "",
         "lastVendorId": "",
