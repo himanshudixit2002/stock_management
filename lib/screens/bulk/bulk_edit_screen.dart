@@ -17,6 +17,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/searchable_picker.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/bottom_action_bar.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/animations.dart';
 import '../../config/app_navigation.dart';
@@ -744,65 +745,58 @@ class _BulkEditScreenState extends State<BulkEditScreen> {
   }
 
   Widget _buildBottomBar() {
-    return SafeArea(
-      top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-            child: Row(
-              children: [
-                if (_currentStep > 0)
-                  Expanded(
-                    child: SizedBox(
+    return BottomActionBar(
+      maxWidth: Responsive.contentMaxWidth(context),
+      child: Padding(
+        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+        child: Row(
+          children: [
+            if (_currentStep > 0)
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _prevStep,
+                    child: const Text('Back'),
+                  ),
+                ),
+              ),
+            if (_currentStep > 0) const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: _currentStep < 3
+                  ? ShimmerButton(
+                      label: 'Next',
+                      icon: Icons.arrow_forward_rounded,
+                      onPressed: _nextStep,
+                    )
+                  : SizedBox(
                       height: 52,
-                      child: OutlinedButton(
-                        onPressed: _prevStep,
-                        child: const Text('Back'),
+                      child: ElevatedButton.icon(
+                        onPressed: _isApplying ? null : _apply,
+                        icon: _isApplying
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: Text(
+                          // The products actually resolvable from the
+                          // catalog, which is what will be written — an id
+                          // whose product is gone counts for neither.
+                          _applyLabel(),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                        ),
                       ),
                     ),
-                  ),
-                if (_currentStep > 0) const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: _currentStep < 3
-                      ? ShimmerButton(
-                          label: 'Next',
-                          icon: Icons.arrow_forward_rounded,
-                          onPressed: _nextStep,
-                        )
-                      : SizedBox(
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: _isApplying ? null : _apply,
-                            icon: _isApplying
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.check_rounded),
-                            label: Text(
-                              // The products actually resolvable from the
-                              // catalog, which is what will be written — an id
-                              // whose product is gone counts for neither.
-                              _applyLabel(),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryColor,
-                            ),
-                          ),
-                        ),
-                ),
-              ],
             ),
-          ),
+          ],
         ),
       ),
     );

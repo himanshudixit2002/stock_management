@@ -8,6 +8,7 @@ import '../../providers/role_provider.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/bottom_action_bar.dart';
 import '../../widgets/permission_gate.dart';
 import '../../utils/dialogs.dart';
 import '../../widgets/success_overlay.dart';
@@ -92,21 +93,15 @@ class _RoleEditorScreenState extends State<RoleEditorScreen> {
   }
 
   Widget _buildSaveBar() {
-    return SafeArea(
+    return BottomActionBar(
+      maxWidth: Responsive.formMaxWidth(context),
       minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.formMaxWidth(context),
-          ),
-          child: ShimmerButton(
-            label: _saving
-                ? 'Saving...'
-                : (_isEditing ? 'Save Changes' : 'Create Role'),
-            icon: Icons.check_rounded,
-            onPressed: _saving ? null : _save,
-          ),
-        ),
+      child: ShimmerButton(
+        label: _saving
+            ? 'Saving...'
+            : (_isEditing ? 'Save Changes' : 'Create Role'),
+        icon: Icons.check_rounded,
+        onPressed: _saving ? null : _save,
       ),
     );
   }

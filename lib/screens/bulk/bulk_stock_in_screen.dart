@@ -18,6 +18,7 @@ import '../../widgets/empty_state_widget.dart';
 import '../../widgets/success_overlay.dart';
 import '../../widgets/product_picker.dart';
 import '../../widgets/app_screen_scaffold.dart';
+import '../../widgets/bottom_action_bar.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../config/app_navigation.dart';
 import 'bulk_stock_in_gate.dart';
@@ -394,51 +395,44 @@ class _BulkStockInScreenState extends State<BulkStockInScreen> {
   }
 
   Widget _buildActionBar() {
-    return SafeArea(
-      top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.contentMaxWidth(context),
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: _addRow,
-                    icon: const Icon(Icons.add_rounded, size: 20),
-                    label: const Text('Add Another Item'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSubmitting ? null : _submitAll,
-                    icon: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check_rounded),
-                    label: Text('Submit All (${_rows.length} items)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.successColor,
-                    ),
-                  ),
-                ),
-              ],
+    return BottomActionBar(
+      maxWidth: Responsive.contentMaxWidth(context),
+      child: Padding(
+        padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _addRow,
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Add Another Item'),
+              ),
             ),
-          ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _submitAll,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_rounded),
+                label: Text('Submit All (${_rows.length} items)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.successColor,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
