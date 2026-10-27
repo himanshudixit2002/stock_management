@@ -2,7 +2,7 @@
 set -e
 
 PROJECT_ID="stockmanagement-27af8"
-cd /Users/himanshudixit/Desktop/stock_management
+cd /Users/himanshudixit/Developer/Products/stock_management
 
 echo "=== 3. Building Flutter Web App ==="
 # `flutter build web` never prunes: deferred-import chunks from earlier builds
